@@ -20,22 +20,26 @@
 package org.elasticsearch.qa.die_with_dignity;
 
 import org.apache.http.ConnectionClosedException;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
+import org.apache.lucene.util.Constants;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.hamcrest.Matcher;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -48,7 +52,23 @@ public class DieWithDignityIT extends ESRestTestCase {
         assertThat(pidFileLines, hasSize(1));
         final int pid = Integer.parseInt(pidFileLines.get(0));
         Files.delete(pidFile);
-        expectThrows(ConnectionClosedException.class, () -> client().performRequest("GET", "/_die_with_dignity"));
+        IOException e = expectThrows(IOException.class,
+                () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
+        Matcher<IOException> failureMatcher = instanceOf(ConnectionClosedException.class);
+        if (Constants.WINDOWS) {
+            /*
+             * If the other side closes the connection while we're waiting to fill our buffer
+             * we can get IOException with the message below. It seems to only come up on
+             * Windows and it *feels* like it could be a ConnectionClosedException but
+             * upstream does not consider this a bug:
+             * https://issues.apache.org/jira/browse/HTTPASYNC-134
+             *
+             * So we catch it here and consider it "ok".
+            */
+            failureMatcher = either(failureMatcher)
+                    .or(hasToString(containsString("An existing connection was forcibly closed by the remote host")));
+        }
+        assertThat(e, failureMatcher);
 
         // the Elasticsearch process should die and disappear from the output of jps
         assertBusy(() -> {
@@ -70,14 +90,14 @@ public class DieWithDignityIT extends ESRestTestCase {
 
         final Iterator<String> it = lines.iterator();
 
-        boolean fatalErrorOnTheNetworkLayer = false;
+        boolean fatalError = false;
         boolean fatalErrorInThreadExiting = false;
 
-        while (it.hasNext() && (fatalErrorOnTheNetworkLayer == false || fatalErrorInThreadExiting == false)) {
+        while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
             final String line = it.next();
-            if (line.contains("fatal error on the network layer")) {
-                fatalErrorOnTheNetworkLayer = true;
-            } else if (line.matches(".*\\[ERROR\\]\\[o.e.b.ElasticsearchUncaughtExceptionHandler\\] \\[node-0\\]"
+            if (line.matches(".*\\[ERROR\\]\\[o\\.e\\.ExceptionsHelper\\s*\\] \\[node-0\\] fatal error")) {
+                fatalError = true;
+            } else if (line.matches(".*\\[ERROR\\]\\[o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler\\] \\[node-0\\]"
                     + " fatal error in thread \\[Thread-\\d+\\], exiting$")) {
                 fatalErrorInThreadExiting = true;
                 assertTrue(it.hasNext());
@@ -85,7 +105,7 @@ public class DieWithDignityIT extends ESRestTestCase {
             }
         }
 
-        assertTrue(fatalErrorOnTheNetworkLayer);
+        assertTrue(fatalError);
         assertTrue(fatalErrorInThreadExiting);
     }
 

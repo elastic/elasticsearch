@@ -48,7 +48,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.common.inject.internal.Join;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -167,7 +166,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
         public final boolean requestPositions;
         public final boolean requestOffsets;
         public final boolean requestPayloads;
-        public Class expectedException = null;
+        public Class<? extends Exception> expectedException = null;
 
         public TestConfig(TestDoc doc, String[] selectedFields, boolean requestPositions, boolean requestOffsets, boolean requestPayloads) {
             this.doc = doc;
@@ -177,7 +176,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
             this.requestPayloads = requestPayloads;
         }
 
-        public TestConfig expectedException(Class exceptionClass) {
+        public TestConfig expectedException(Class<? extends Exception> exceptionClass) {
             this.expectedException = exceptionClass;
             return this;
         }
@@ -196,7 +195,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
             }
             Locale aLocale = new Locale("en", "US");
             return String.format(aLocale, "(doc: %s\n requested: %s, fields: %s)", doc, requested,
-                    selectedFields == null ? "NULL" : Join.join(",", selectedFields));
+                    selectedFields == null ? "NULL" : String.join(",", selectedFields));
         }
     }
 

@@ -60,8 +60,11 @@ The `query_string` top level parameters include:
 specified. Defaults to the `index.query.default_field` index settings, which in
 turn defaults to `*`. `*` extracts all fields in the mapping that are eligible
 to term queries and filters the metadata fields. All extracted fields are then
-combined to build a query when no prefix field is provided. There is a limit of
-no more than 1024 fields being queried at once.
+combined to build a query when no prefix field is provided.
+
+WARNING: There is a limit on the number of fields that can be queried
+at once. It is defined by the `indices.query.bool.max_clause_count` <<search-settings>>
+which defaults to 1024.
 
 |`default_operator` |The default operator used if no explicit operator
 is specified. For example, with a default operator of `OR`, the query
@@ -99,8 +102,6 @@ phrase matches are required. Default value is `0`.
 
 |`boost` |Sets the boost value of the query. Defaults to `1.0`.
 
-|`auto_generate_phrase_queries` |Defaults to `false`.
-
 |`analyze_wildcard` |By default, wildcards terms in a query string are
 not analyzed. By setting this value to `true`, a best effort will be
 made to analyze those as well.
@@ -128,10 +129,6 @@ comprehensive example.
 
 |`auto_generate_synonyms_phrase_query` |Whether phrase queries should be automatically generated for multi terms synonyms.
 Defaults to `true`.
-
-|`all_fields` | deprecated[6.0.0, set `default_field` to `*` instead]
-Perform the query on all fields detected in the mapping that can
-be queried.
 
 |=======================================================================
 
@@ -261,12 +258,6 @@ following additional parameters are allowed:
 |`type` |How the fields should be combined to build the text query.
 See <<multi-match-types, types>> for a complete example.
 Defaults to `best_fields`
-|=======================================================================
-
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Parameter |Description
 
 |`tie_breaker` |The disjunction max tie breaker for multi fields.
 Defaults to `0`
@@ -318,7 +309,7 @@ GET /_search
 
 The example above creates a boolean query:
 
-`(ny OR (new AND york)) city)`
+`(ny OR (new AND york)) city`
 
 that matches documents with the term `ny` or the conjunction `new AND york`.
 By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.

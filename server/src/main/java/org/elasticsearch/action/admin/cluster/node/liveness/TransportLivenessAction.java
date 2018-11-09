@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.liveness;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -39,7 +40,7 @@ public final class TransportLivenessAction implements TransportRequestHandler<Li
     }
 
     @Override
-    public void messageReceived(LivenessRequest request, TransportChannel channel) throws Exception {
+    public void messageReceived(LivenessRequest request, TransportChannel channel, Task task) throws Exception {
         channel.sendResponse(new LivenessResponse(clusterService.getClusterName(), clusterService.localNode()));
     }
 }

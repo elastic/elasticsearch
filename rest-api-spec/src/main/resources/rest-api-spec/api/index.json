@@ -4,7 +4,7 @@
     "methods": ["POST", "PUT"],
     "url": {
       "path": "/{index}/{type}",
-      "paths": ["/{index}/{type}", "/{index}/{type}/{id}"],
+      "paths": ["/{index}/{type}", "/{index}/{type}/{id}", "/{index}/_doc/{id}", "/{index}/_doc"],
       "parts": {
         "id": {
           "type" : "string",
@@ -17,7 +17,6 @@
         },
         "type": {
           "type" : "string",
-          "required" : true,
           "description" : "The type of the document"
         }
       },

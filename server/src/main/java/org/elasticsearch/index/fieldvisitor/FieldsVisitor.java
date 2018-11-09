@@ -23,19 +23,18 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -51,19 +50,23 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  */
 public class FieldsVisitor extends StoredFieldVisitor {
     private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(
-            UidFieldMapper.NAME,
             IdFieldMapper.NAME,
-            RoutingFieldMapper.NAME,
-            ParentFieldMapper.NAME));
+            RoutingFieldMapper.NAME));
 
     private final boolean loadSource;
+    private final String sourceFieldName;
     private final Set<String> requiredFields;
     protected BytesReference source;
     protected String type, id;
     protected Map<String, List<Object>> fieldsValues;
 
     public FieldsVisitor(boolean loadSource) {
+        this(loadSource, SourceFieldMapper.NAME);
+    }
+
+    public FieldsVisitor(boolean loadSource, String sourceFieldName) {
         this.loadSource = loadSource;
+        this.sourceFieldName = sourceFieldName;
         requiredFields = new HashSet<>();
         reset();
     }
@@ -71,6 +74,12 @@ public class FieldsVisitor extends StoredFieldVisitor {
     @Override
     public Status needsField(FieldInfo fieldInfo) throws IOException {
         if (requiredFields.remove(fieldInfo.name)) {
+            return Status.YES;
+        }
+        // Always load _ignored to be explicit about ignored fields
+        // This works because _ignored is added as the first metadata mapper,
+        // so its stored fields always appear first in the list.
+        if (IgnoredFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.YES;
         }
         // All these fields are single-valued so we can stop when the set is
@@ -81,12 +90,9 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public void postProcess(MapperService mapperService) {
-        if (mapperService.getIndexSettings().isSingleType()) {
-            final Collection<String> types = mapperService.types();
-            assert types.size() <= 1 : types;
-            if (types.isEmpty() == false) {
-                type = types.iterator().next();
-            }
+        final DocumentMapper mapper = mapperService.documentMapper();
+        if (mapper != null) {
+            type = mapper.type();
         }
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             MappedFieldType fieldType = mapperService.fullName(entry.getKey());
@@ -103,7 +109,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
 
     @Override
     public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
-        if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
+        if (sourceFieldName.equals(fieldInfo.name)) {
             source = new BytesArray(value);
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
             id = Uid.decodeId(value);
@@ -115,19 +121,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
     @Override
     public void stringField(FieldInfo fieldInfo, byte[] bytes) throws IOException {
         final String value = new String(bytes, StandardCharsets.UTF_8);
-        if (UidFieldMapper.NAME.equals(fieldInfo.name)) {
-            // 5.x-only
-            // TODO: Remove when we are on 7.x
-            Uid uid = Uid.createUid(value);
-            type = uid.type();
-            id = uid.id();
-        } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
-            // only applies to 5.x indices that have single_type = true
-            // TODO: Remove when we are on 7.x
-            id = value;
-        } else {
-            addValue(fieldInfo.name, value);
-        }
+        addValue(fieldInfo.name, value);
     }
 
     @Override
@@ -187,7 +181,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
 
         requiredFields.addAll(BASE_REQUIRED_FIELDS);
         if (loadSource) {
-            requiredFields.add(SourceFieldMapper.NAME);
+            requiredFields.add(sourceFieldName);
         }
     }
 

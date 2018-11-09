@@ -25,6 +25,8 @@ import org.apache.lucene.util.BitUtil;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import static org.apache.lucene.geo.GeoUtils.MAX_LAT_INCL;
+
 /**
  * Utilities for converting to/from the GeoHash standard
  *
@@ -48,6 +50,8 @@ public class GeoHashUtils {
     private static final double LAT_SCALE = (0x1L<<BITS)/180.0D;
     private static final double LON_SCALE = (0x1L<<BITS)/360.0D;
     private static final short MORTON_OFFSET = (BITS<<1) - (PRECISION*5);
+    /** Bit encoded representation of the latitude of north pole */
+    private static final long MAX_LAT_BITS = (0x1L << (PRECISION * 5 / 2)) - 1;
 
     // No instance:
     private GeoHashUtils() {
@@ -57,11 +61,7 @@ public class GeoHashUtils {
      * 31 bit encoding utils *
      *************************/
     public static long encodeLatLon(final double lat, final double lon) {
-      long result = MortonEncoder.encode(lat, lon);
-      if (result == 0xFFFFFFFFFFFFFFFFL) {
-        return result & 0xC000000000000000L;
-      }
-      return result >>> 2;
+      return MortonEncoder.encode(lat, lon) >>> 2;
     }
 
     /**
@@ -76,15 +76,19 @@ public class GeoHashUtils {
     /**
      * Encode from geohash string to the geohash based long format (lon/lat interleaved, 4 least significant bits = level)
      */
-    public static final long longEncode(final String hash) {
-        int level = hash.length()-1;
+    private static long longEncode(final String hash, int length) {
+        int level = length - 1;
         long b;
         long l = 0L;
         for(char c : hash.toCharArray()) {
             b = (long)(BASE_32_STRING.indexOf(c));
             l |= (b<<(level--*5));
+            if (level < 0) {
+                // We cannot handle more than 12 levels
+                break;
+            }
         }
-        return (l<<4)|hash.length();
+        return (l << 4) | length;
     }
 
     /**
@@ -171,12 +175,22 @@ public class GeoHashUtils {
      * Encode to a morton long value from a given geohash string
      */
     public static final long mortonEncode(final String hash) {
+        if (hash.isEmpty()) {
+            throw new IllegalArgumentException("empty geohash");
+        }
         int level = 11;
         long b;
         long l = 0L;
         for(char c : hash.toCharArray()) {
             b = (long)(BASE_32_STRING.indexOf(c));
+            if (b < 0) {
+                throw new IllegalArgumentException("unsupported symbol [" + c + "] in geohash [" + hash + "]");
+            }
             l |= (b<<((level--*5) + MORTON_OFFSET));
+            if (level < 0) {
+                // We cannot handle more than 12 levels
+                break;
+            }
         }
         return BitUtil.flipFlop(l);
     }
@@ -204,15 +218,23 @@ public class GeoHashUtils {
     public static Rectangle bbox(final String geohash) {
         // bottom left is the coordinate
         GeoPoint bottomLeft = GeoPoint.fromGeohash(geohash);
-        long ghLong = longEncode(geohash);
+        int len = Math.min(12, geohash.length());
+        long ghLong = longEncode(geohash, len);
         // shift away the level
         ghLong >>>= 4;
-        // deinterleave and add 1 to lat and lon to get topRight
-        long lat = BitUtil.deinterleave(ghLong >>> 1) + 1;
-        long lon = BitUtil.deinterleave(ghLong) + 1;
-        GeoPoint topRight = GeoPoint.fromGeohash(BitUtil.interleave((int)lon, (int)lat) << 4 | geohash.length());
-
-        return new Rectangle(bottomLeft.lat(), topRight.lat(), bottomLeft.lon(), topRight.lon());
+        // deinterleave
+        long lon = BitUtil.deinterleave(ghLong >>> 1);
+        long lat = BitUtil.deinterleave(ghLong);
+        if (lat < MAX_LAT_BITS) {
+            // add 1 to lat and lon to get topRight
+            GeoPoint topRight = GeoPoint.fromGeohash(BitUtil.interleave((int)(lat + 1), (int)(lon + 1)) << 4 | len);
+            return new Rectangle(bottomLeft.lat(), topRight.lat(), bottomLeft.lon(), topRight.lon());
+        } else {
+            // We cannot go north of north pole, so just using 90 degrees instead of calculating it using
+            // add 1 to lon to get lon of topRight, we are going to use 90 for lat
+            GeoPoint topRight = GeoPoint.fromGeohash(BitUtil.interleave((int)lat, (int)(lon + 1)) << 4 | len);
+            return new Rectangle(bottomLeft.lat(), MAX_LAT_INCL, bottomLeft.lon(), topRight.lon());
+        }
     }
 
     /**

@@ -22,7 +22,6 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -328,7 +327,6 @@ final class Security {
     private static void addBindPermissions(Permissions policy, Settings settings) {
         addSocketPermissionForHttp(policy, settings);
         addSocketPermissionForTransportProfiles(policy, settings);
-        addSocketPermissionForTribeNodes(policy, settings);
     }
 
     /**
@@ -372,16 +370,6 @@ final class Security {
     private static void addSocketPermissionForTransport(final Permissions policy, final Settings settings) {
         final String transportRange = TcpTransport.PORT.get(settings);
         addSocketPermissionForPortRange(policy, transportRange);
-    }
-
-    private static void addSocketPermissionForTribeNodes(final Permissions policy, final Settings settings) {
-        for (final Settings tribeNodeSettings : settings.getGroups("tribe", true).values()) {
-            // tribe nodes have HTTP disabled by default, so we check if HTTP is enabled before granting
-            if (NetworkModule.HTTP_ENABLED.exists(tribeNodeSettings) && NetworkModule.HTTP_ENABLED.get(tribeNodeSettings)) {
-                addSocketPermissionForHttp(policy, tribeNodeSettings);
-            }
-            addSocketPermissionForTransport(policy, tribeNodeSettings);
-        }
     }
 
     /**

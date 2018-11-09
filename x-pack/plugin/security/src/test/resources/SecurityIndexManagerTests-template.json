@@ -1,0 +1,15 @@
+{
+  "index_patterns": ".security",
+  "mappings": {
+    "doc": {
+      "_meta": {
+        "security-version": "${security.template.version}"
+      },
+      "properties": {
+        "test": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}

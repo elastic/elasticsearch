@@ -360,7 +360,7 @@ public interface Binder {
      * @return a binder that shares its configuration with this binder.
      * @since 2.0
      */
-    Binder skipSources(Class... classesToSkip);
+    Binder skipSources(Class<?>... classesToSkip);
 
     /**
      * Creates a new private child environment for bindings and other configuration. The returned

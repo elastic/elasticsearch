@@ -21,7 +21,6 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -35,11 +34,9 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardSt
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.AsyncShardFetch.FetchResult;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
-import org.elasticsearch.index.shard.ShardStateMetaData;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -65,11 +62,6 @@ import java.util.stream.Stream;
  * copy that can immediately be promoted to primary, as this takes place in {@link RoutingNodes#failShard}.
  */
 public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
-
-    public PrimaryShardAllocator(Settings settings) {
-        super(settings);
-    }
-
     /**
      * Is the allocator responsible for allocating the given {@link ShardRouting}?
      */
@@ -259,9 +251,13 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             } else {
                 final String finalAllocationId = allocationId;
                 if (nodeShardState.storeException() instanceof ShardLockObtainFailedException) {
-                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] on node [{}] has allocation id [{}] but the store can not be opened as it's locked, treating as valid shard", shard, nodeShardState.getNode(), finalAllocationId), nodeShardState.storeException());
+                    logger.trace(() -> new ParameterizedMessage("[{}] on node [{}] has allocation id [{}] but the store can not be " +
+                        "opened as it's locked, treating as valid shard", shard, nodeShardState.getNode(), finalAllocationId),
+                        nodeShardState.storeException());
                 } else {
-                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] on node [{}] has allocation id [{}] but the store can not be opened, treating as no allocation id", shard, nodeShardState.getNode(), finalAllocationId), nodeShardState.storeException());
+                    logger.trace(() -> new ParameterizedMessage("[{}] on node [{}] has allocation id [{}] but the store can not be " +
+                        "opened, treating as no allocation id", shard, nodeShardState.getNode(), finalAllocationId),
+                        nodeShardState.storeException());
                     allocationId = null;
                 }
             }
@@ -269,7 +265,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             if (allocationId != null) {
                 assert nodeShardState.storeException() == null ||
                     nodeShardState.storeException() instanceof ShardLockObtainFailedException :
-                    "only allow store that can be opened or that throws a ShardLockObtainFailedException while being opened but got a store throwing " + nodeShardState.storeException();
+                    "only allow store that can be opened or that throws a ShardLockObtainFailedException while being opened but got a " +
+                        "store throwing " + nodeShardState.storeException();
                 numberOfAllocationsFound++;
                 if (matchAnyShard || inSyncAllocationIds.contains(nodeShardState.allocationId())) {
                     nodeShardStates.add(nodeShardState);
@@ -282,7 +279,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             // prefer shards with matching allocation ids
             Comparator<NodeGatewayStartedShards> matchingAllocationsFirst = Comparator.comparing(
                 (NodeGatewayStartedShards state) -> inSyncAllocationIds.contains(state.allocationId())).reversed();
-            comparator = matchingAllocationsFirst.thenComparing(NO_STORE_EXCEPTION_FIRST_COMPARATOR).thenComparing(PRIMARY_FIRST_COMPARATOR);
+            comparator = matchingAllocationsFirst.thenComparing(NO_STORE_EXCEPTION_FIRST_COMPARATOR)
+                .thenComparing(PRIMARY_FIRST_COMPARATOR);
         } else {
             comparator = NO_STORE_EXCEPTION_FIRST_COMPARATOR.thenComparing(PRIMARY_FIRST_COMPARATOR);
         }
@@ -290,7 +288,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         nodeShardStates.sort(comparator);
 
         if (logger.isTraceEnabled()) {
-            logger.trace("{} candidates for allocation: {}", shard, nodeShardStates.stream().map(s -> s.getNode().getName()).collect(Collectors.joining(", ")));
+            logger.trace("{} candidates for allocation: {}", shard, nodeShardStates.stream().map(s -> s.getNode().getName())
+                .collect(Collectors.joining(", ")));
         }
         return new NodeShardsResult(nodeShardStates, numberOfAllocationsFound);
     }

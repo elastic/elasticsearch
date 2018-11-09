@@ -37,13 +37,9 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -53,18 +49,18 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests for discovery during disruptions.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
     public void testIsolatedUnicastNodes() throws Exception {
-        List<String> nodes = startCluster(4, -1, new int[]{0});
+        internalCluster().setHostsListContainsOnlyFirstNode(true);
+        List<String> nodes = startCluster(4);
         // Figure out what is the elected master node
         final String unicastTarget = nodes.get(0);
 
@@ -103,7 +99,8 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * The rejoining node should take this master node and connect.
      */
     public void testUnicastSinglePingResponseContainsMaster() throws Exception {
-        List<String> nodes = startCluster(4, -1, new int[]{0});
+        internalCluster().setHostsListContainsOnlyFirstNode(true);
+        List<String> nodes = startCluster(4);
         // Figure out what is the elected master node
         final String masterNode = internalCluster().getMasterName();
         logger.info("---> legit elected master node={}", masterNode);
@@ -141,15 +138,8 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * Test cluster join with issues in cluster state publishing *
      */
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
-        List<String> nodes = startCluster(2, 1);
-
-        String masterNode = internalCluster().getMasterName();
-        String nonMasterNode;
-        if (masterNode.equals(nodes.get(0))) {
-            nonMasterNode = nodes.get(1);
-        } else {
-            nonMasterNode = nodes.get(0);
-        }
+        String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        String nonMasterNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
 
@@ -176,23 +166,14 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         logger.info("allowing requests from non master [{}] to master [{}], waiting for two join request", nonMasterNode, masterNode);
         final CountDownLatch countDownLatch = new CountDownLatch(2);
-        nonMasterTransportService.addDelegate(masterTranspotService, new MockTransportService.DelegateTransport(nonMasterTransportService
-                .original()) {
-            @Override
-            protected void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
-                                       TransportRequestOptions options) throws IOException {
-                if (action.equals(MembershipAction.DISCOVERY_JOIN_ACTION_NAME)) {
-                    countDownLatch.countDown();
-                }
-                super.sendRequest(connection, requestId, action, request, options);
+        nonMasterTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
+            if (action.equals(MembershipAction.DISCOVERY_JOIN_ACTION_NAME)) {
+                countDownLatch.countDown();
             }
-
-            @Override
-            public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
-                return super.openConnection(node, profile);
-            }
-
+            connection.sendRequest(requestId, action, request, options);
         });
+
+        nonMasterTransportService.addConnectBehavior(masterTransportService, Transport::openConnection);
 
         countDownLatch.await();
 
@@ -208,7 +189,6 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     public void testClusterFormingWithASlowNode() throws Exception {
-        configureCluster(3, null, 2);
 
         SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(random(), 0, 0, 1000, 2000);
 
@@ -224,7 +204,6 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     public void testElectMasterWithLatestVersion() throws Exception {
-        configureCluster(3, null, 2);
         final Set<String> nodes = new HashSet<>(internalCluster().startNodes(3));
         ensureStableCluster(3);
         ServiceDisruptionScheme isolateAllNodes =
@@ -256,8 +235,8 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         internalCluster().setDisruptionScheme(isolatePreferredMaster);
         isolatePreferredMaster.startDisrupting();
 
-        assertAcked(client(randomFrom(nonPreferredNodes)).admin().indices().prepareCreate("test").setSettings(
-            Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)));
+        client(randomFrom(nonPreferredNodes)).admin().indices().prepareCreate("test").setSettings(
+            Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)).get();
 
         internalCluster().clearDisruptionScheme(false);
         internalCluster().setDisruptionScheme(isolateAllNodes);

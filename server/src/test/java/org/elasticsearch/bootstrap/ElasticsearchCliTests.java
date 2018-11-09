@@ -20,19 +20,17 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.nio.file.Path;
-import java.util.Map;
+import java.util.Locale;
 import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.hasEntry;
 
 public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
 
@@ -64,8 +62,15 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
 
     private void runTestThatVersionIsReturned(String... args) throws Exception {
         runTestVersion(ExitCodes.OK, output -> {
-            assertThat(output, containsString("Version: " + Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot())));
-            assertThat(output, containsString("Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()));
+            assertThat(output, containsString("Version: " + Build.CURRENT.getQualifiedVersion()));
+            final String expectedBuildOutput = String.format(
+                    Locale.ROOT,
+                    "Build: %s/%s/%s/%s",
+                    Build.CURRENT.flavor().displayName(),
+                    Build.CURRENT.type().displayName(),
+                    Build.CURRENT.shortHash(),
+                    Build.CURRENT.date());
+            assertThat(output, containsString(expectedBuildOutput));
             assertThat(output, containsString("JVM: " + JvmInfo.jvmInfo().version()));
         }, args);
     }

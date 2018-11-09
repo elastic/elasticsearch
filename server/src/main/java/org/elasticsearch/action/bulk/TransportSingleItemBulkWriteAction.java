@@ -75,7 +75,7 @@ public abstract class TransportSingleItemBulkWriteAction<
         BulkItemRequest[] itemRequests = new BulkItemRequest[1];
         WriteRequest.RefreshPolicy refreshPolicy = request.getRefreshPolicy();
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
-        itemRequests[0] = new BulkItemRequest(0, ((DocWriteRequest) request));
+        itemRequests[0] = new BulkItemRequest(0, ((DocWriteRequest<?>) request));
         BulkShardRequest bulkShardRequest = new BulkShardRequest(request.shardId(), refreshPolicy, itemRequests);
         WritePrimaryResult<BulkShardRequest, BulkShardResponse> bulkResult =
             shardBulkAction.shardOperationOnPrimary(bulkShardRequest, primary);
@@ -98,7 +98,7 @@ public abstract class TransportSingleItemBulkWriteAction<
         Request replicaRequest, IndexShard replica) throws Exception {
         BulkItemRequest[] itemRequests = new BulkItemRequest[1];
         WriteRequest.RefreshPolicy refreshPolicy = replicaRequest.getRefreshPolicy();
-        itemRequests[0] = new BulkItemRequest(0, ((DocWriteRequest) replicaRequest));
+        itemRequests[0] = new BulkItemRequest(0, ((DocWriteRequest<?>) replicaRequest));
         BulkShardRequest bulkShardRequest = new BulkShardRequest(replicaRequest.shardId(), refreshPolicy, itemRequests);
         WriteReplicaResult<BulkShardRequest> result = shardBulkAction.shardOperationOnReplica(bulkShardRequest, replica);
         // a replica operation can never throw a document-level failure,
@@ -121,9 +121,9 @@ public abstract class TransportSingleItemBulkWriteAction<
         }, listener::onFailure);
     }
 
-    public static BulkRequest toSingleItemBulkRequest(ReplicatedWriteRequest request) {
+    public static BulkRequest toSingleItemBulkRequest(ReplicatedWriteRequest<?> request) {
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(((DocWriteRequest) request));
+        bulkRequest.add(((DocWriteRequest<?>) request));
         bulkRequest.setRefreshPolicy(request.getRefreshPolicy());
         bulkRequest.timeout(request.timeout());
         bulkRequest.waitForActiveShards(request.waitForActiveShards());

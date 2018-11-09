@@ -113,7 +113,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
         PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
-        shard.acquirePrimaryOperationPermit(fut, ThreadPool.Names.INDEX, "");
+        shard.acquirePrimaryOperationPermit(fut, ThreadPool.Names.WRITE, "");
         try (Releasable operationLock = fut.get()) {
             SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener<>();
             flushService.attemptSyncedFlush(shardId, listener);
@@ -156,7 +156,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         listener.latch.await();
         assertNotNull(listener.error);
         assertNull(listener.result);
-        assertEquals("no such index", listener.error.getMessage());
+        assertEquals("no such index [index not found]", listener.error.getMessage());
     }
 
     public void testFailAfterIntermediateCommit() throws InterruptedException {

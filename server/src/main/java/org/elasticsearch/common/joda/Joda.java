@@ -154,9 +154,11 @@ public class Joda {
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
             formatter = ISODateTimeFormat.yearMonthDay();
         } else if ("epoch_second".equals(input)) {
-            formatter = new DateTimeFormatterBuilder().append(new EpochTimePrinter(false), new EpochTimeParser(false)).toFormatter();
+            formatter = new DateTimeFormatterBuilder().append(new EpochTimePrinter(false),
+                new EpochTimeParser(false)).toFormatter();
         } else if ("epoch_millis".equals(input)) {
-            formatter = new DateTimeFormatterBuilder().append(new EpochTimePrinter(true), new EpochTimeParser(true)).toFormatter();
+            formatter = new DateTimeFormatterBuilder().append(new EpochTimePrinter(true),
+                new EpochTimeParser(true)).toFormatter();
         // strict date formats here, must be at least 4 digits for year and two for months and two for day
         } else if ("strictBasicWeekDate".equals(input) || "strict_basic_week_date".equals(input)) {
             formatter = StrictISODateTimeFormat.basicWeekDate();
@@ -245,7 +247,8 @@ public class Joda {
                         parsers[i] = currentParser.getParser();
                     }
 
-                    DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(dateTimeFormatter.withZone(DateTimeZone.UTC).getPrinter(), parsers);
+                    DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder()
+                        .append(dateTimeFormatter.withZone(DateTimeZone.UTC).getPrinter(), parsers);
                     formatter = builder.toFormatter();
                 }
         } else {
@@ -286,9 +289,11 @@ public class Joda {
                 .toFormatter()
                 .withZoneUTC();
 
-        DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(longFormatter.withZone(DateTimeZone.UTC).getPrinter(), new DateTimeParser[]{longFormatter.getParser(), shortFormatter.getParser(), new EpochTimeParser(true)});
+        DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(longFormatter.withZone(DateTimeZone.UTC).getPrinter(),
+            new DateTimeParser[]{longFormatter.getParser(), shortFormatter.getParser(), new EpochTimeParser(true)});
 
-        return new FormatDateTimeFormatter("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis", builder.toFormatter().withZone(DateTimeZone.UTC), Locale.ROOT);
+        return new FormatDateTimeFormatter("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis",
+            builder.toFormatter().withZone(DateTimeZone.UTC), Locale.ROOT);
     }
 
 
@@ -312,7 +317,8 @@ public class Joda {
 
         @Override
         public DateTimeField getField(Chronology chronology) {
-            return new OffsetDateTimeField(new DividedDateTimeField(new OffsetDateTimeField(chronology.monthOfYear(), -1), QuarterOfYear, 3), 1);
+            return new OffsetDateTimeField(
+                new DividedDateTimeField(new OffsetDateTimeField(chronology.monthOfYear(), -1), QuarterOfYear, 3), 1);
         }
     };
 
@@ -393,7 +399,8 @@ public class Joda {
          * {@link DateTimeFormatter#printTo(Appendable, long, Chronology)} when using a time zone.
          */
         @Override
-        public void printTo(Writer out, long instant, Chronology chrono, int displayOffset, DateTimeZone displayZone, Locale locale) throws IOException {
+        public void printTo(Writer out, long instant, Chronology chrono, int displayOffset,
+                            DateTimeZone displayZone, Locale locale) throws IOException {
             if (hasMilliSecondPrecision) {
                 out.write(String.valueOf(instant - displayOffset));
             } else {
@@ -427,7 +434,8 @@ public class Joda {
             int minuteOfHour = partial.get(DateTimeFieldType.minuteOfHour());
             int secondOfMinute = partial.get(DateTimeFieldType.secondOfMinute());
             int millisOfSecond = partial.get(DateTimeFieldType.millisOfSecond());
-            return partial.getChronology().getDateTimeMillis(year, monthOfYear, dayOfMonth, hourOfDay, minuteOfHour, secondOfMinute, millisOfSecond);
+            return partial.getChronology().getDateTimeMillis(year, monthOfYear, dayOfMonth,
+                hourOfDay, minuteOfHour, secondOfMinute, millisOfSecond);
         }
     }
 }

@@ -19,7 +19,6 @@
 package org.elasticsearch.indices.flush;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -41,7 +40,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
@@ -55,6 +53,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -84,8 +83,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public SyncedFlushService(Settings settings, IndicesService indicesService, ClusterService clusterService, TransportService transportService, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings);
+    public SyncedFlushService(IndicesService indicesService, ClusterService clusterService, TransportService transportService, IndexNameExpressionResolver indexNameExpressionResolver) {
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -107,7 +105,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} sync flush on inactive shard failed", indexShard.shardId()), e);
+                    logger.debug(() -> new ParameterizedMessage("{} sync flush on inactive shard failed", indexShard.shardId()), e);
                 }
             });
         }
@@ -313,8 +311,10 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             transportService.sendRequest(primaryNode, IN_FLIGHT_OPS_ACTION_NAME, new InFlightOpsRequest(shardId),
                     new TransportResponseHandler<InFlightOpsResponse>() {
                         @Override
-                        public InFlightOpsResponse newInstance() {
-                            return new InFlightOpsResponse();
+                        public InFlightOpsResponse read(StreamInput in) throws IOException {
+                            InFlightOpsResponse response = new InFlightOpsResponse();
+                            response.readFrom(in);
+                            return response;
                         }
 
                         @Override
@@ -383,8 +383,10 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             transportService.sendRequest(node, SYNCED_FLUSH_ACTION_NAME, new ShardSyncedFlushRequest(shard.shardId(), syncId, preSyncedResponse.commitId),
                     new TransportResponseHandler<ShardSyncedFlushResponse>() {
                         @Override
-                        public ShardSyncedFlushResponse newInstance() {
-                            return new ShardSyncedFlushResponse();
+                        public ShardSyncedFlushResponse read(StreamInput in) throws IOException {
+                            ShardSyncedFlushResponse response = new ShardSyncedFlushResponse();
+                            response.readFrom(in);
+                            return response;
                         }
 
                         @Override
@@ -397,7 +399,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                         @Override
                         public void handleException(TransportException exp) {
-                            logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} error while performing synced flush on [{}], skipping", shardId, shard), exp);
+                            logger.trace(() -> new ParameterizedMessage("{} error while performing synced flush on [{}], skipping", shardId, shard), exp);
                             results.put(shard, new ShardSyncedFlushResponse(exp.getMessage()));
                             countDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                         }
@@ -437,8 +439,10 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             }
             transportService.sendRequest(node, PRE_SYNCED_FLUSH_ACTION_NAME, new PreShardSyncedFlushRequest(shard.shardId()), new TransportResponseHandler<PreSyncedFlushResponse>() {
                 @Override
-                public PreSyncedFlushResponse newInstance() {
-                    return new PreSyncedFlushResponse();
+                public PreSyncedFlushResponse read(StreamInput in) throws IOException {
+                    PreSyncedFlushResponse response = new PreSyncedFlushResponse();
+                    response.readFrom(in);
+                    return response;
                 }
 
                 @Override
@@ -453,7 +457,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                 @Override
                 public void handleException(TransportException exp) {
-                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} error while performing pre synced flush on [{}], skipping", shardId, shard), exp);
+                    logger.trace(() -> new ParameterizedMessage("{} error while performing pre synced flush on [{}], skipping", shardId, shard), exp);
                     if (countDown.countDown()) {
                         listener.onResponse(presyncResponses);
                     }
@@ -503,7 +507,6 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             throw new IllegalStateException("[" + request.shardId() +"] expected a primary shard");
         }
         int opCount = indexShard.getActiveOperationsCount();
-        logger.trace("{} in flight operations sampled at [{}]", request.shardId(), opCount);
         return new InFlightOpsResponse(opCount);
     }
 
@@ -561,15 +564,11 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         }
 
         boolean includeNumDocs(Version version) {
-            if (version.major == Version.V_5_6_8.major) {
-                return version.onOrAfter(Version.V_5_6_8);
-            } else {
-                return version.onOrAfter(Version.V_6_2_2);
-            }
+            return version.onOrAfter(Version.V_6_2_2);
         }
 
         boolean includeExistingSyncId(Version version) {
-            return version.onOrAfter(Version.V_7_0_0_alpha1);
+            return version.onOrAfter(Version.V_6_3_0);
         }
 
         @Override
@@ -781,7 +780,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     private final class PreSyncedFlushTransportHandler implements TransportRequestHandler<PreShardSyncedFlushRequest> {
 
         @Override
-        public void messageReceived(PreShardSyncedFlushRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(PreShardSyncedFlushRequest request, TransportChannel channel, Task task) throws Exception {
             channel.sendResponse(performPreSyncedFlush(request));
         }
     }
@@ -789,7 +788,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     private final class SyncedFlushTransportHandler implements TransportRequestHandler<ShardSyncedFlushRequest> {
 
         @Override
-        public void messageReceived(ShardSyncedFlushRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(ShardSyncedFlushRequest request, TransportChannel channel, Task task) throws Exception {
             channel.sendResponse(performSyncedFlush(request));
         }
     }
@@ -797,7 +796,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     private final class InFlightOpCountTransportHandler implements TransportRequestHandler<InFlightOpsRequest> {
 
         @Override
-        public void messageReceived(InFlightOpsRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(InFlightOpsRequest request, TransportChannel channel, Task task) throws Exception {
             channel.sendResponse(performInFlightOps(request));
         }
     }

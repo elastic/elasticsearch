@@ -73,12 +73,13 @@ public class NestedSortBuilderTests extends ESTestCase {
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);
-            XContentParser parser = createParser(shuffled);
-            parser.nextToken();
-            NestedSortBuilder parsedItem = NestedSortBuilder.fromXContent(parser);
-            assertNotSame(testItem, parsedItem);
-            assertEquals(testItem, parsedItem);
-            assertEquals(testItem.hashCode(), parsedItem.hashCode());
+            try (XContentParser parser = createParser(shuffled)) {
+                parser.nextToken();
+                NestedSortBuilder parsedItem = NestedSortBuilder.fromXContent(parser);
+                assertNotSame(testItem, parsedItem);
+                assertEquals(testItem, parsedItem);
+                assertEquals(testItem.hashCode(), parsedItem.hashCode());
+            }
         }
     }
 

@@ -30,15 +30,6 @@ final class GeoHashGridParams {
     static final ParseField FIELD_SIZE = new ParseField("size");
     static final ParseField FIELD_SHARD_SIZE = new ParseField("shard_size");
 
-
-    static int checkPrecision(int precision) {
-        if ((precision < 1) || (precision > 12)) {
-            throw new IllegalArgumentException("Invalid geohash aggregation precision of " + precision
-                    + ". Must be between 1 and 12.");
-        }
-        return precision;
-    }
-
     private GeoHashGridParams() {
         throw new AssertionError("No instances intended");
     }

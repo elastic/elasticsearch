@@ -26,6 +26,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -75,7 +76,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(ctx);
         IndexSearcher searcher = new IndexSearcher(topLevelContext);
         searcher.setQueryCache(null);
-        Weight weight = searcher.createNormalizedWeight(childFilter, false);
+        Weight weight = searcher.createWeight(searcher.rewrite(childFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
         Scorer childDocsScorer = weight.scorer(ctx);
 
         final BitSet parentDocs = parentFilter.getBitSet(ctx);

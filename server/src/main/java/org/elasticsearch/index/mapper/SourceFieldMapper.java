@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -49,6 +50,7 @@ import java.util.function.Function;
 public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_source";
+    public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
 
     public static final String CONTENT_TYPE = "_source";
     private final Function<Map<String, ?>, Map<String, Object>> filter;
@@ -105,7 +107,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+                                                      ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder();
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -113,7 +116,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(TypeParsers.nodeBooleanValue(name, "enabled", fieldNode, parserContext));
+                    builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled"));
                     iterator.remove();
                 } else if (fieldName.equals("includes")) {
                     List<Object> values = (List<Object>) fieldNode;
@@ -217,44 +220,40 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
-    }
-
-    @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // nothing to do here, we will call it in pre parse
-        return null;
     }
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        if (!enabled) {
-            return;
-        }
-        if (!fieldType().stored()) {
-            return;
-        }
-        BytesReference source = context.sourceToParse().source();
-        // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
-        if (source == null) {
-            return;
+        BytesReference originalSource = context.sourceToParse().source();
+        BytesReference source = originalSource;
+        if (enabled && fieldType().stored() && source != null) {
+            // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
+            if (filter != null) {
+                // we don't update the context source if we filter, we want to keep it as is...
+                Tuple<XContentType, Map<String, Object>> mapTuple =
+                    XContentHelper.convertToMap(source, true, context.sourceToParse().getXContentType());
+                Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
+                BytesStreamOutput bStream = new BytesStreamOutput();
+                XContentType contentType = mapTuple.v1();
+                XContentBuilder builder = XContentFactory.contentBuilder(contentType, bStream).map(filteredSource);
+                builder.close();
+                source = bStream.bytes();
+            }
+            BytesRef ref = source.toBytesRef();
+            fields.add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
+        } else {
+            source = null;
         }
 
-        if (filter != null) {
-            // we don't update the context source if we filter, we want to keep it as is...
-            Tuple<XContentType, Map<String, Object>> mapTuple =
-                XContentHelper.convertToMap(source, true, context.sourceToParse().getXContentType());
-            Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
-            BytesStreamOutput bStream = new BytesStreamOutput();
-            XContentType contentType = mapTuple.v1();
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType, bStream).map(filteredSource);
-            builder.close();
-
-            source = bStream.bytes();
+        if (originalSource != null && source != originalSource && context.indexSettings().isSoftDeleteEnabled()) {
+            // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
+            BytesRef ref = originalSource.toBytesRef();
+            fields.add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
+            fields.add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
         }
-        BytesRef ref = source.toBytesRef();
-        fields.add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
-    }
+     }
 
     @Override
     protected String contentType() {

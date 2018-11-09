@@ -53,7 +53,13 @@ GET hockey/_search
       "script_score": {
         "script": {
           "lang": "painless",
-          "source": "int total = 0; for (int i = 0; i < doc['goals'].length; ++i) { total += doc['goals'][i]; } return total;"
+          "source": """
+            int total = 0;
+            for (int i = 0; i < doc['goals'].length; ++i) {
+              total += doc['goals'][i];
+            }
+            return total;
+          """
         }
       }
     }
@@ -75,7 +81,13 @@ GET hockey/_search
     "total_goals": {
       "script": {
         "lang": "painless",
-        "source": "int total = 0; for (int i = 0; i < doc['goals'].length; ++i) { total += doc['goals'][i]; } return total;"
+        "source": """
+          int total = 0;
+          for (int i = 0; i < doc['goals'].length; ++i) {
+            total += doc['goals'][i];
+          }
+          return total;
+        """
       }
     }
   }
@@ -106,6 +118,17 @@ GET hockey/_search
 }
 ----------------------------------------------------------------
 // CONSOLE
+
+
+[float]
+===== Missing values
+
+`doc['field'].value` throws an exception if
+the field is missing in a document.
+
+To check if a document is missing a value, you can call
+`doc['field'].size() == 0`.
+
 
 [float]
 ==== Updating Fields with Painless
@@ -157,7 +180,10 @@ POST hockey/player/1/_update
 {
   "script": {
     "lang": "painless",
-    "source": "ctx._source.last = params.last; ctx._source.nick = params.nick",
+    "source": """
+      ctx._source.last = params.last;
+      ctx._source.nick = params.nick
+    """,
     "params": {
       "last": "gaudreau",
       "nick": "hockey"
@@ -172,13 +198,11 @@ POST hockey/player/1/_update
 ==== Dates
 
 Date fields are exposed as
-`ReadableDateTime`
-so they support methods like
-`getYear`,
-and `getDayOfWeek`.
-To get milliseconds since epoch call
-`getMillis`.
-For example, the following returns every hockey player's birth year:
+`ReadableDateTime`, so they support methods like `getYear`, `getDayOfWeek` 
+or e.g. getting milliseconds since epoch with `getMillis`. To use these
+in a script, leave out the `get` prefix and continue with lowercasing the
+rest of the method name. For example, the following returns every hockey 
+player's birth year:
 
 [source,js]
 ----------------------------------------------------------------
@@ -224,11 +248,17 @@ their last name:
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/_update_by_query
+POST hockey/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "source": "if (ctx._source.last =~ /b/) {ctx._source.last += \"matched\"} else {ctx.op = 'noop'}"
+    "source": """
+      if (ctx._source.last =~ /b/) {
+        ctx._source.last += "matched";
+      } else {
+        ctx.op = "noop";
+      }
+    """
   }
 }
 ----------------------------------------------------------------
@@ -239,11 +269,17 @@ names start with a consonant and end with a vowel:
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/_update_by_query
+POST hockey/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "source": "if (ctx._source.last ==~ /[^aeiou].*[aeiou]/) {ctx._source.last += \"matched\"} else {ctx.op = 'noop'}"
+    "source": """
+      if (ctx._source.last ==~ /[^aeiou].*[aeiou]/) {
+        ctx._source.last += "matched";
+      } else {
+        ctx.op = "noop";
+      }
+    """
   }
 }
 ----------------------------------------------------------------
@@ -254,7 +290,7 @@ remove all of the vowels in all of their last names:
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/_update_by_query
+POST hockey/_update_by_query
 {
   "script": {
     "lang": "painless",
@@ -270,7 +306,7 @@ method so it supports `$1` and `\1` for replacements:
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/_update_by_query
+POST hockey/_update_by_query
 {
   "script": {
     "lang": "painless",
@@ -292,11 +328,14 @@ This will make all of the vowels in the hockey player's last names upper case:
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/_update_by_query
+POST hockey/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "source": "ctx._source.last = ctx._source.last.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"
+    "source": """
+      ctx._source.last = ctx._source.last.replaceAll(/[aeiou]/, m ->
+        m.group().toUpperCase(Locale.ROOT))
+    """
   }
 }
 ----------------------------------------------------------------
@@ -307,11 +346,14 @@ last names upper case:
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/_update_by_query
+POST hockey/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "source": "ctx._source.last = ctx._source.last.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"
+    "source": """
+      ctx._source.last = ctx._source.last.replaceFirst(/[aeiou]/, m ->
+        m.group().toUpperCase(Locale.ROOT))
+    """
   }
 }
 ----------------------------------------------------------------
@@ -356,3 +398,5 @@ dispatch *feels* like it'd add a ton of complexity which'd make maintenance and
 other improvements much more difficult.
 
 include::painless-debugging.asciidoc[]
+
+include::painless-execute-script.asciidoc[]

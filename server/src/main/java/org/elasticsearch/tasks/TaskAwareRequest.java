@@ -45,9 +45,6 @@ public interface TaskAwareRequest {
 
     /**
      * Returns the task object that should be used to keep track of the processing of the request.
-     *
-     * A request can override this method and return null to avoid being tracked by the task
-     * manager.
      */
     default Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new Task(id, type, action, getDescription(), parentTaskId, headers);

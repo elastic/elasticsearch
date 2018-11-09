@@ -28,6 +28,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -81,14 +82,15 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+                                                      ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
-                    builder.required(TypeParsers.nodeBooleanValue(name, "required", fieldNode, parserContext));
+                    builder.required(XContentMapValues.nodeBooleanValue(fieldNode, name + ".required"));
                     iterator.remove();
                 }
             }
@@ -107,7 +109,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class RoutingFieldType extends TermBasedFieldType {
+    static final class RoutingFieldType extends StringFieldType {
 
         RoutingFieldType() {
         }
@@ -157,15 +159,10 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
-    }
-
-    @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // no need ot parse here, we either get the routing in the sourceToParse
         // or we don't have routing, if we get it in sourceToParse, we process it in preParse
         // which will always be called
-        return null;
     }
 
     @Override

@@ -137,14 +137,14 @@ Possible response:
   "took": 25,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
     "total": 3,
-    "max_score": 0.0,
+    "max_score": null,
     "hits": []
   },
   "aggregations": {

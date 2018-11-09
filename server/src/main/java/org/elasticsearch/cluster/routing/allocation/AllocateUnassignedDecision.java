@@ -289,8 +289,10 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
             builder.field("allocation_id", allocationId);
         }
         if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-            builder.timeValueField("configured_delay_in_millis", "configured_delay", TimeValue.timeValueMillis(configuredDelayInMillis));
-            builder.timeValueField("remaining_delay_in_millis", "remaining_delay", TimeValue.timeValueMillis(remainingDelayInMillis));
+            builder.humanReadableField("configured_delay_in_millis", "configured_delay",
+                TimeValue.timeValueMillis(configuredDelayInMillis));
+            builder.humanReadableField("remaining_delay_in_millis", "remaining_delay",
+                TimeValue.timeValueMillis(remainingDelayInMillis));
         }
         nodeDecisionsToXContent(nodeDecisions, builder, params);
         return builder;
@@ -314,7 +316,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         if (other instanceof AllocateUnassignedDecision == false) {
             return false;
         }
-        @SuppressWarnings("unchecked") AllocateUnassignedDecision that = (AllocateUnassignedDecision) other;
+        AllocateUnassignedDecision that = (AllocateUnassignedDecision) other;
         return Objects.equals(allocationStatus, that.allocationStatus)
                    && Objects.equals(allocationId, that.allocationId)
                    && reuseStore == that.reuseStore

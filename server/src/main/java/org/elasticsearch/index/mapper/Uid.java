@@ -20,14 +20,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.lucene.BytesRefs;
 
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Collection;
-import java.util.Collections;
 
 public final class Uid {
 
@@ -73,57 +69,7 @@ public final class Uid {
 
     @Override
     public String toString() {
-        return createUid(type, id);
-    }
-
-    public BytesRef toBytesRef() {
-        return createUidAsBytes(type, id);
-    }
-
-    public static Uid createUid(String uid) {
-        int delimiterIndex = uid.indexOf(DELIMITER); // type is not allowed to have # in it..., ids can
-        return new Uid(uid.substring(0, delimiterIndex), uid.substring(delimiterIndex + 1));
-    }
-
-    public static BytesRef createUidAsBytes(String type, String id) {
-        return createUidAsBytes(new BytesRef(type), new BytesRef(id));
-    }
-
-    public static BytesRef createUidAsBytes(String type, BytesRef id) {
-        return createUidAsBytes(new BytesRef(type), id);
-    }
-
-    public static BytesRef createUidAsBytes(BytesRef type, BytesRef id) {
-        final BytesRef ref = new BytesRef(type.length + 1 + id.length);
-        System.arraycopy(type.bytes, type.offset, ref.bytes, 0, type.length);
-        ref.offset = type.length;
-        ref.bytes[ref.offset++] = DELIMITER_BYTE;
-        System.arraycopy(id.bytes, id.offset, ref.bytes, ref.offset, id.length);
-        ref.offset = 0;
-        ref.length = ref.bytes.length;
-        return ref;
-    }
-
-    public static BytesRef[] createUidsForTypesAndId(Collection<String> types, Object id) {
-        return createUidsForTypesAndIds(types, Collections.singletonList(id));
-    }
-
-    public static BytesRef[] createUidsForTypesAndIds(Collection<String> types, Collection<?> ids) {
-        BytesRef[] uids = new BytesRef[types.size() * ids.size()];
-        BytesRefBuilder typeBytes = new BytesRefBuilder();
-        BytesRefBuilder idBytes = new BytesRefBuilder();
-        int index = 0;
-        for (String type : types) {
-            typeBytes.copyChars(type);
-            for (Object id : ids) {
-                uids[index++] = Uid.createUidAsBytes(typeBytes.get(), BytesRefs.toBytesRef(id, idBytes));
-            }
-        }
-        return uids;
-    }
-
-    public static String createUid(String type, String id) {
-        return type + DELIMITER + id;
+        return type + "#" + id;
     }
 
     private static final int UTF8 = 0xff;

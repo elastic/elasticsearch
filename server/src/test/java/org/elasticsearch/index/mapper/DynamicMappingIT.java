@@ -18,17 +18,11 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -41,8 +35,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class DynamicMappingIT extends ESIntegTestCase {
 
@@ -95,26 +87,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
         client().prepareIndex("index", "type", "1").setSource("bar", "baz").get();
         mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
         assertMappingsHaveField(mappings, "index", "type", "bar");
-    }
-
-    public void testMappingsPropagatedToMasterNodeImmediatelyMultiType() throws IOException {
-        assertAcked(prepareCreate("index").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
-        // allows for multiple types
-
-        // works when the type has been dynamically created
-        client().prepareIndex("index", "type", "1").setSource("foo", 3).get();
-        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
-        assertMappingsHaveField(mappings, "index", "type", "foo");
-
-        // works if the type already existed
-        client().prepareIndex("index", "type", "1").setSource("bar", "baz").get();
-        mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
-        assertMappingsHaveField(mappings, "index", "type", "bar");
-
-        // works if we indexed an empty document
-        client().prepareIndex("index", "type2", "1").setSource().get();
-        mappings = client().admin().indices().prepareGetMappings("index").setTypes("type2").get();
-        assertTrue(mappings.getMappings().get("index").toString(), mappings.getMappings().get("index").containsKey("type2"));
     }
 
     public void testConcurrentDynamicUpdates() throws Throwable {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.joda;
 
+import org.elasticsearch.common.time.DateMathParser;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.util.Locale;
@@ -63,5 +64,9 @@ public class FormatDateTimeFormatter {
 
     public Locale locale() {
         return locale;
+    }
+
+    public DateMathParser toDateMathParser() {
+        return new JodaDateMathParser(this);
     }
 }

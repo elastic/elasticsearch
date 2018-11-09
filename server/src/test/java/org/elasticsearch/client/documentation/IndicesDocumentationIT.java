@@ -19,9 +19,15 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
+
+import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * This class is used to generate the Java indices administration documentation.
@@ -48,16 +54,14 @@ public class IndicesDocumentationIT extends ESIntegTestCase {
         Client client = client();
 
         // tag::index-with-mapping
-        client.admin().indices().prepareCreate("twitter")   // <1>
-                .addMapping("\"tweet\": {\n" +              // <2>
-                        "  \"properties\": {\n" +
-                        "    \"message\": {\n" +
-                        "      \"type\": \"text\"\n" +
-                        "    }\n" +
-                        "  }\n" +
-                        "}")
+        client.admin().indices().prepareCreate("twitter")    // <1>
+                .addMapping("_doc", "message", "type=text") // <2>
                 .get();
         // end::index-with-mapping
+        GetMappingsResponse getMappingsResponse = client.admin().indices().prepareGetMappings("twitter").get();
+        assertEquals(1, getMappingsResponse.getMappings().size());
+        ImmutableOpenMap<String, MappingMetaData> indexMapping = getMappingsResponse.getMappings().get("twitter");
+        assertThat(indexMapping.get("_doc"), instanceOf(MappingMetaData.class));
 
         // we need to delete in order to create a fresh new index with another type
         client.admin().indices().prepareDelete("twitter").get();
@@ -65,10 +69,10 @@ public class IndicesDocumentationIT extends ESIntegTestCase {
 
         // tag::putMapping-request-source
         client.admin().indices().preparePutMapping("twitter")   // <1>
-        .setType("user")                                        // <2>
-        .setSource("{\n" +                                      // <3>
+        .setType("_doc")
+        .setSource("{\n" +
                 "  \"properties\": {\n" +
-                "    \"name\": {\n" +
+                "    \"name\": {\n" +                           // <2>
                 "      \"type\": \"text\"\n" +
                 "    }\n" +
                 "  }\n" +
@@ -77,9 +81,9 @@ public class IndicesDocumentationIT extends ESIntegTestCase {
 
         // You can also provide the type in the source document
         client.admin().indices().preparePutMapping("twitter")
-        .setType("user")
+        .setType("_doc")
         .setSource("{\n" +
-                "    \"user\":{\n" +                            // <4>
+                "    \"_doc\":{\n" +                            // <3>
                 "        \"properties\": {\n" +
                 "            \"name\": {\n" +
                 "                \"type\": \"text\"\n" +
@@ -89,19 +93,11 @@ public class IndicesDocumentationIT extends ESIntegTestCase {
                 "}", XContentType.JSON)
         .get();
         // end::putMapping-request-source
-
-        // tag::putMapping-request-source-append
-        client.admin().indices().preparePutMapping("twitter")   // <1>
-        .setType("user")                                        // <2>
-        .setSource("{\n" +                                      // <3>
-                "  \"properties\": {\n" +
-                "    \"user_name\": {\n" +
-                "      \"type\": \"text\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}", XContentType.JSON)
-        .get();
-        // end::putMapping-request-source-append
+        getMappingsResponse = client.admin().indices().prepareGetMappings("twitter").get();
+        assertEquals(1, getMappingsResponse.getMappings().size());
+        indexMapping = getMappingsResponse.getMappings().get("twitter");
+        assertEquals(singletonMap("properties", singletonMap("name", singletonMap("type", "text"))),
+                indexMapping.get("_doc").getSourceAsMap());
     }
 
 }

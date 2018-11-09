@@ -20,32 +20,32 @@
 package org.elasticsearch.action.admin.cluster.remote;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.function.Supplier;
+
+import static java.util.stream.Collectors.toList;
 
 public final class TransportRemoteInfoAction extends HandledTransportAction<RemoteInfoRequest, RemoteInfoResponse> {
 
     private final RemoteClusterService remoteClusterService;
 
     @Inject
-    public TransportRemoteInfoAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+    public TransportRemoteInfoAction(TransportService transportService, ActionFilters actionFilters,
                                      SearchTransportService searchTransportService) {
-        super(settings, RemoteInfoAction.NAME, threadPool, transportService, actionFilters, RemoteInfoRequest::new,
-            indexNameExpressionResolver);
+        super(RemoteInfoAction.NAME, transportService, actionFilters,
+            (Supplier<RemoteInfoRequest>) RemoteInfoRequest::new);
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
     }
 
     @Override
-    protected void doExecute(RemoteInfoRequest remoteInfoRequest, ActionListener<RemoteInfoResponse> listener) {
-        remoteClusterService.getRemoteConnectionInfos(ActionListener.wrap(remoteConnectionInfos
-                -> listener.onResponse(new RemoteInfoResponse(remoteConnectionInfos)), listener::onFailure));
+    protected void doExecute(Task task, RemoteInfoRequest remoteInfoRequest, ActionListener<RemoteInfoResponse> listener) {
+        listener.onResponse(new RemoteInfoResponse(remoteClusterService.getRemoteConnectionInfos().collect(toList())));
     }
 }

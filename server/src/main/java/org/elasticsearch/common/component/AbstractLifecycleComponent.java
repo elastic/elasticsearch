@@ -32,11 +32,7 @@ public abstract class AbstractLifecycleComponent extends AbstractComponent imple
     private final List<LifecycleListener> listeners = new CopyOnWriteArrayList<>();
 
     protected AbstractLifecycleComponent(Settings settings) {
-        super(settings);
-    }
-
-    protected AbstractLifecycleComponent(Settings settings, Class customClass) {
-        super(settings, customClass);
+        // TODO drop settings from ctor
     }
 
     @Override
@@ -54,7 +50,6 @@ public abstract class AbstractLifecycleComponent extends AbstractComponent imple
         listeners.remove(listener);
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public void start() {
         if (!lifecycle.canMoveToStarted()) {
@@ -72,7 +67,6 @@ public abstract class AbstractLifecycleComponent extends AbstractComponent imple
 
     protected abstract void doStart();
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public void stop() {
         if (!lifecycle.canMoveToStopped()) {

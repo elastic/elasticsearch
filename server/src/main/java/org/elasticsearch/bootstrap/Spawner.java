@@ -37,8 +37,7 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Spawns native plugin controller processes if present. Will only work prior to a system call
- * filter being installed.
+ * Spawns native module controller processes if present. Will only work prior to a system call filter being installed.
  */
 final class Spawner implements Closeable {
 
@@ -54,55 +53,46 @@ final class Spawner implements Closeable {
     }
 
     /**
-     * Spawns the native controllers for each plugin
+     * Spawns the native controllers for each module.
      *
      * @param environment the node environment
-     * @throws IOException if an I/O error occurs reading the plugins or spawning a native process
+     * @throws IOException if an I/O error occurs reading the module or spawning a native process
      */
-    void spawnNativePluginControllers(final Environment environment) throws IOException {
+    void spawnNativeControllers(final Environment environment) throws IOException {
         if (!spawned.compareAndSet(false, true)) {
             throw new IllegalStateException("native controllers already spawned");
         }
-        spawnControllers(environment.pluginsFile(), "plugins", environment.tmpFile());
-        spawnControllers(environment.modulesFile(), "modules", environment.tmpFile());
-    }
-
-    /** Spawn controllers in plugins found within the given directory. */
-    private void spawnControllers(Path pluginsDir, String type, Path tmpDir) throws IOException {
-        if (!Files.exists(pluginsDir)) {
-            throw new IllegalStateException(type + " directory [" + pluginsDir + "] not found");
+        if (!Files.exists(environment.modulesFile())) {
+            throw new IllegalStateException("modules directory [" + environment.modulesFile() + "] not found");
         }
         /*
-         * For each plugin, attempt to spawn the controller daemon. Silently ignore any plugin that
-         * don't include a controller for the correct platform.
+         * For each module, attempt to spawn the controller daemon. Silently ignore any module that doesn't include a controller for the
+         * correct platform.
          */
-        List<Path> paths = PluginsService.findPluginDirs(pluginsDir);
-        for (Path plugin : paths) {
-            final PluginInfo info = PluginInfo.readFromProperties(plugin);
-            final Path spawnPath = Platforms.nativeControllerPath(plugin);
+        List<Path> paths = PluginsService.findPluginDirs(environment.modulesFile());
+        for (final Path modules : paths) {
+            final PluginInfo info = PluginInfo.readFromProperties(modules);
+            final Path spawnPath = Platforms.nativeControllerPath(modules);
             if (!Files.isRegularFile(spawnPath)) {
                 continue;
             }
             if (!info.hasNativeController()) {
                 final String message = String.format(
                     Locale.ROOT,
-                    "plugin [%s] does not have permission to fork native controller",
-                    plugin.getFileName());
+                    "module [%s] does not have permission to fork native controller",
+                    modules.getFileName());
                 throw new IllegalArgumentException(message);
             }
-            final Process process = spawnNativePluginController(spawnPath, tmpDir);
+            final Process process = spawnNativeController(spawnPath, environment.tmpFile());
             processes.add(process);
         }
     }
 
     /**
-     * Attempt to spawn the controller daemon for a given plugin. The spawned process will remain
-     * connected to this JVM via its stdin, stdout, and stderr streams, but the references to these
-     * streams are not available to code outside this package.
+     * Attempt to spawn the controller daemon for a given module. The spawned process will remain connected to this JVM via its stdin,
+     * stdout, and stderr streams, but the references to these streams are not available to code outside this package.
      */
-    private Process spawnNativePluginController(
-            final Path spawnPath,
-            final Path tmpPath) throws IOException {
+    private Process spawnNativeController(final Path spawnPath, final Path tmpPath) throws IOException {
         final String command;
         if (Constants.WINDOWS) {
             /*

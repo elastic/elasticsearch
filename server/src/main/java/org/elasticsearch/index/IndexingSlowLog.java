@@ -20,6 +20,7 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
@@ -89,7 +90,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             }, Property.Dynamic, Property.IndexScope);
 
     IndexingSlowLog(IndexSettings indexSettings) {
-        this.indexLogger = Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index", indexSettings.getSettings());
+        this.indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
         this.index = indexSettings.getIndex();
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
@@ -144,7 +145,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
 
     @Override
     public void postIndex(ShardId shardId, Engine.Index indexOperation, Engine.IndexResult result) {
-        if (result.hasFailure() == false) {
+        if (result.getResultType() == Engine.Result.Type.SUCCESS) {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
             if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {

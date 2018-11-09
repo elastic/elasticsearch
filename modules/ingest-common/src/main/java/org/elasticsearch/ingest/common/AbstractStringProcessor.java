@@ -27,10 +27,12 @@ import org.elasticsearch.ingest.Processor;
 import java.util.Map;
 
 /**
- * Base class for processors that manipulate strings and require a single "fields" array config value, which
+ * Base class for processors that manipulate source strings and require a single "fields" array config value, which
  * holds a list of field names in string format.
+ *
+ * @param <T> The resultant type for the target field
  */
-abstract class AbstractStringProcessor extends AbstractProcessor {
+abstract class AbstractStringProcessor<T> extends AbstractProcessor {
     private final String field;
     private final boolean ignoreMissing;
     private final String targetField;
@@ -55,19 +57,20 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
     }
 
     @Override
-    public final void execute(IngestDocument document) {
+    public final IngestDocument execute(IngestDocument document) {
         String val = document.getFieldValue(field, String.class, ignoreMissing);
 
         if (val == null && ignoreMissing) {
-            return;
+            return document;
         } else if (val == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
 
         document.setFieldValue(targetField, process(val));
+        return document;
     }
 
-    protected abstract String process(String value);
+    protected abstract T process(String value);
 
     abstract static class Factory implements Processor.Factory {
         final String processorType;

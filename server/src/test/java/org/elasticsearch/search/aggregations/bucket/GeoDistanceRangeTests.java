@@ -19,10 +19,11 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
@@ -40,7 +41,7 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
     protected GeoDistanceAggregationBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
         GeoPoint origin = RandomShapeGenerator.randomPoint(random());
-        GeoDistanceAggregationBuilder factory = new GeoDistanceAggregationBuilder("foo", origin);
+        GeoDistanceAggregationBuilder factory = new GeoDistanceAggregationBuilder(randomAlphaOfLengthBetween(3, 10), origin);
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {
@@ -78,8 +79,9 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
                 "]\n" +
             "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
-        ParsingException ex = expectThrows(ParsingException.class, () -> GeoDistanceAggregationBuilder.parse("aggregationName", parser));
-        assertThat(ex.getDetailedMessage(), containsString("badField"));
+        XContentParseException ex = expectThrows(XContentParseException.class,
+            () -> GeoDistanceAggregationBuilder.parse("aggregationName", parser));
+        assertThat(ExceptionsHelper.detailedMessage(ex), containsString("badField"));
     }
 
     /**

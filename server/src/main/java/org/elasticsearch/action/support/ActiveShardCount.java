@@ -20,6 +20,7 @@
 package org.elasticsearch.action.support;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -205,7 +206,7 @@ public final class ActiveShardCount implements Writeable {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        @SuppressWarnings("unchecked") ActiveShardCount that = (ActiveShardCount) o;
+        ActiveShardCount that = (ActiveShardCount) o;
         return value == that.value;
     }
 

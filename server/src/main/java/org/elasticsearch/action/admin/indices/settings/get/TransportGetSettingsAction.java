@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -38,18 +39,21 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Map;
 
 public class TransportGetSettingsAction extends TransportMasterNodeReadAction<GetSettingsRequest, GetSettingsResponse> {
 
     private final SettingsFilter settingsFilter;
+    private final IndexScopedSettings indexScopedSettings;
+
 
     @Inject
-    public TransportGetSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportGetSettingsAction(TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, SettingsFilter settingsFilter, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetSettingsRequest::new, indexNameExpressionResolver);
+                                      IndexNameExpressionResolver indexNameExpressionResolver, IndexScopedSettings indexedScopedSettings) {
+        super(GetSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetSettingsRequest::new,
+            indexNameExpressionResolver);
         this.settingsFilter = settingsFilter;
+        this.indexScopedSettings = indexedScopedSettings;
     }
 
     @Override
@@ -60,7 +64,8 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
 
     @Override
     protected ClusterBlockException checkBlock(GetSettingsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
+            indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
 
@@ -69,25 +74,39 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
         return new GetSettingsResponse();
     }
 
+    private static boolean isFilteredRequest(GetSettingsRequest request) {
+        return CollectionUtils.isEmpty(request.names()) == false;
+    }
+
     @Override
     protected void masterOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
         Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         ImmutableOpenMap.Builder<String, Settings> indexToSettingsBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, Settings> indexToDefaultSettingsBuilder = ImmutableOpenMap.builder();
         for (Index concreteIndex : concreteIndices) {
             IndexMetaData indexMetaData = state.getMetaData().index(concreteIndex);
             if (indexMetaData == null) {
                 continue;
             }
 
-            Settings settings = settingsFilter.filter(indexMetaData.getSettings());
+            Settings indexSettings = settingsFilter.filter(indexMetaData.getSettings());
             if (request.humanReadable()) {
-                settings = IndexMetaData.addHumanReadableSettings(settings);
+                indexSettings = IndexMetaData.addHumanReadableSettings(indexSettings);
             }
-            if (CollectionUtils.isEmpty(request.names()) == false) {
-                settings = settings.filter(k -> Regex.simpleMatch(request.names(), k));
+
+            if (isFilteredRequest(request)) {
+                indexSettings = indexSettings.filter(k -> Regex.simpleMatch(request.names(), k));
             }
-            indexToSettingsBuilder.put(concreteIndex.getName(), settings);
+
+            indexToSettingsBuilder.put(concreteIndex.getName(), indexSettings);
+            if (request.includeDefaults()) {
+                Settings defaultSettings = settingsFilter.filter(indexScopedSettings.diff(indexSettings, Settings.EMPTY));
+                if (isFilteredRequest(request)) {
+                    defaultSettings = defaultSettings.filter(k -> Regex.simpleMatch(request.names(), k));
+                }
+                indexToDefaultSettingsBuilder.put(concreteIndex.getName(), defaultSettings);
+            }
         }
-        listener.onResponse(new GetSettingsResponse(indexToSettingsBuilder.build()));
+        listener.onResponse(new GetSettingsResponse(indexToSettingsBuilder.build(), indexToDefaultSettingsBuilder.build()));
     }
 }

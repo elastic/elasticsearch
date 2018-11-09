@@ -31,7 +31,7 @@ import java.util.Objects;
 public class BulkItemRequest implements Streamable {
 
     private int id;
-    private DocWriteRequest request;
+    private DocWriteRequest<?> request;
     private volatile BulkItemResponse primaryResponse;
 
     BulkItemRequest() {
@@ -39,7 +39,7 @@ public class BulkItemRequest implements Streamable {
     }
 
     // NOTE: public for testing only
-    public BulkItemRequest(int id, DocWriteRequest request) {
+    public BulkItemRequest(int id, DocWriteRequest<?> request) {
         this.id = id;
         this.request = request;
     }
@@ -48,7 +48,7 @@ public class BulkItemRequest implements Streamable {
         return id;
     }
 
-    public DocWriteRequest request() {
+    public DocWriteRequest<?> request() {
         return request;
     }
 

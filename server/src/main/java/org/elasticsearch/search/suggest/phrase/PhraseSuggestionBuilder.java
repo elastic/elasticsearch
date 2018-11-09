@@ -55,11 +55,11 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Defines the actual suggest command for phrase suggestions ( <tt>phrase</tt>).
+ * Defines the actual suggest command for phrase suggestions ( {@code phrase}).
  */
 public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionBuilder> {
 
-    private static final String SUGGESTION_NAME = "phrase";
+    public static final String SUGGESTION_NAME = "phrase";
 
     protected static final ParseField MAXERRORS_FIELD = new ParseField("max_errors");
     protected static final ParseField RWE_LIKELIHOOD_FIELD = new ParseField("real_word_error_likelihood");
@@ -185,8 +185,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
     /**
      * Sets the gram size for the n-gram model used for this suggester. The
-     * default value is <tt>1</tt> corresponding to <tt>unigrams</tt>. Use
-     * <tt>2</tt> for <tt>bigrams</tt> and <tt>3</tt> for <tt>trigrams</tt>.
+     * default value is {@code 1} corresponding to {@code unigrams}. Use
+     * {@code 2} for {@code bigrams} and {@code 3} for {@code trigrams}.
      */
     public PhraseSuggestionBuilder gramSize(int gramSize) {
         if (gramSize < 1) {
@@ -207,9 +207,9 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      * Sets the maximum percentage of the terms that at most considered to be
      * misspellings in order to form a correction. This method accepts a float
      * value in the range [0..1) as a fraction of the actual query terms a
-     * number <tt>&gt;=1</tt> as an absolute number of query terms.
+     * number {@code &gt;=1} as an absolute number of query terms.
      *
-     * The default is set to <tt>1.0</tt> which corresponds to that only
+     * The default is set to {@code 1.0} which corresponds to that only
      * corrections with at most 1 misspelled term are returned.
      */
     public PhraseSuggestionBuilder maxErrors(float maxErrors) {
@@ -246,7 +246,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
     /**
      * Sets the likelihood of a term being a misspelled even if the term exists
-     * in the dictionary. The default it <tt>0.95</tt> corresponding to 5% or
+     * in the dictionary. The default it {@code 0.95} corresponding to 5% or
      * the real words are misspelled.
      */
     public PhraseSuggestionBuilder realWordErrorLikelihood(float realWordErrorLikelihood) {
@@ -269,9 +269,9 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      * defines a factor applied to the input phrases score which is used as a
      * threshold for other suggest candidates. Only candidates that score higher
      * than the threshold will be included in the result. For instance a
-     * confidence level of <tt>1.0</tt> will only return suggestions that score
-     * higher than the input phrase. If set to <tt>0.0</tt> the top N candidates
-     * are returned. The default is <tt>1.0</tt>
+     * confidence level of {@code 1.0} will only return suggestions that score
+     * higher than the input phrase. If set to {@code 0.0} the top N candidates
+     * are returned. The default is {@code 1.0}
      */
     public PhraseSuggestionBuilder confidence(float confidence) {
         if (confidence < 0.0) {

@@ -20,6 +20,7 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -69,18 +70,18 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     @BeforeClass
     public static void setupThreadPool() {
-        int bulkThreadPoolSize = randomIntBetween(1, 2);
-        int bulkThreadPoolQueueSize = randomIntBetween(1, 2);
-        threadPool = new TestThreadPool("IndexShardOperationsLockTests",
+        int writeThreadPoolSize = randomIntBetween(1, 2);
+        int writeThreadPoolQueueSize = randomIntBetween(1, 2);
+        threadPool = new TestThreadPool("IndexShardOperationPermitsTests",
             Settings.builder()
-                .put("thread_pool." + ThreadPool.Names.BULK + ".size", bulkThreadPoolSize)
-                .put("thread_pool." + ThreadPool.Names.BULK + ".queue_size", bulkThreadPoolQueueSize)
+                .put("thread_pool." + ThreadPool.Names.WRITE + ".size", writeThreadPoolSize)
+                .put("thread_pool." + ThreadPool.Names.WRITE + ".queue_size", writeThreadPoolQueueSize)
                 .build());
-        assertThat(threadPool.executor(ThreadPool.Names.BULK), instanceOf(EsThreadPoolExecutor.class));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.BULK)).getCorePoolSize(), equalTo(bulkThreadPoolSize));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.BULK)).getMaximumPoolSize(), equalTo(bulkThreadPoolSize));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.BULK)).getQueue().remainingCapacity(),
-            equalTo(bulkThreadPoolQueueSize));
+        assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(EsThreadPoolExecutor.class));
+        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getCorePoolSize(), equalTo(writeThreadPoolSize));
+        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getMaximumPoolSize(), equalTo(writeThreadPoolSize));
+        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getQueue().remainingCapacity(),
+            equalTo(writeThreadPoolQueueSize));
     }
 
     @AfterClass
@@ -100,7 +101,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         assertThat(permits.getActiveOperationsCount(), equalTo(0));
     }
 
-    public void testAllOperationsInvoked() throws InterruptedException, TimeoutException, ExecutionException {
+    public void testAllOperationsInvoked() throws InterruptedException, TimeoutException {
         int numThreads = 10;
 
         class DummyException extends RuntimeException {}
@@ -110,8 +111,8 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(numThreads / 4);
         boolean forceExecution = randomBoolean();
         for (int i = 0; i < numThreads; i++) {
-            // the bulk thread pool uses a bounded size and can get rejections, see setupThreadPool
-            String threadPoolName = randomFrom(ThreadPool.Names.BULK, ThreadPool.Names.GENERIC);
+            // the write thread pool uses a bounded size and can get rejections, see setupThreadPool
+            String threadPoolName = randomFrom(ThreadPool.Names.WRITE, ThreadPool.Names.GENERIC);
             boolean failingListener = randomBoolean();
             PlainActionFuture<Releasable> future = new PlainActionFuture<Releasable>() {
                 @Override
@@ -187,7 +188,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         future.get().close();
     }
 
-    public void testOperationsIfClosed() throws ExecutionException, InterruptedException {
+    public void testOperationsIfClosed() {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
         permits.close();
         permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
@@ -195,10 +196,13 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         assertThat(exception.getCause(), instanceOf(IndexShardClosedException.class));
     }
 
-    public void testBlockIfClosed() throws ExecutionException, InterruptedException {
+    public void testBlockIfClosed() {
         permits.close();
         expectThrows(IndexShardClosedException.class, () -> permits.blockOperations(randomInt(10), TimeUnit.MINUTES,
             () -> { throw new IllegalArgumentException("fake error"); }));
+        expectThrows(IndexShardClosedException.class,
+            () -> permits.asyncBlockOperations(wrap(() -> { throw new IllegalArgumentException("fake error");}),
+                randomInt(10), TimeUnit.MINUTES));
     }
 
     public void testOperationsDelayedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
@@ -207,6 +211,30 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
             assertFalse(future.isDone());
         }
+        future.get(1, TimeUnit.HOURS).close();
+    }
+
+    public void testGetBlockWhenBlocked() throws ExecutionException, InterruptedException, TimeoutException {
+        PlainActionFuture<Releasable> future = new PlainActionFuture<>();
+        final CountDownLatch blockAcquired = new CountDownLatch(1);
+        final CountDownLatch releaseBlock = new CountDownLatch(1);
+        final AtomicBoolean blocked = new AtomicBoolean();
+        try (Releasable ignored = blockAndWait()) {
+            permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
+
+            permits.asyncBlockOperations(wrap(() -> {
+                blocked.set(true);
+                blockAcquired.countDown();
+                releaseBlock.await();
+            }), 30, TimeUnit.MINUTES);
+            assertFalse(blocked.get());
+            assertFalse(future.isDone());
+        }
+        blockAcquired.await();
+        assertTrue(blocked.get());
+        assertFalse(future.isDone());
+        releaseBlock.countDown();
+
         future.get(1, TimeUnit.HOURS).close();
     }
 
@@ -260,7 +288,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         future2.get(1, TimeUnit.HOURS).close();
     }
 
-    protected Releasable blockAndWait() throws InterruptedException {
+    private Releasable blockAndWait() throws InterruptedException {
         CountDownLatch blockAcquired = new CountDownLatch(1);
         CountDownLatch releaseBlock = new CountDownLatch(1);
         CountDownLatch blockReleased = new CountDownLatch(1);
@@ -302,17 +330,11 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         final CountDownLatch blockAcquired = new CountDownLatch(1);
         final CountDownLatch releaseBlock = new CountDownLatch(1);
         final AtomicBoolean blocked = new AtomicBoolean();
-        permits.asyncBlockOperations(
-                30,
-                TimeUnit.MINUTES,
-                () -> {
-                    blocked.set(true);
-                    blockAcquired.countDown();
-                    releaseBlock.await();
-                },
-                e -> {
-                    throw new RuntimeException(e);
-                });
+        permits.asyncBlockOperations(wrap(() -> {
+                blocked.set(true);
+                blockAcquired.countDown();
+                releaseBlock.await();
+            }), 30, TimeUnit.MINUTES);
         blockAcquired.await();
         assertTrue(blocked.get());
 
@@ -360,16 +382,10 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         // now we will delay operations while the first operation is still executing (because it is latched)
         final CountDownLatch blockedLatch = new CountDownLatch(1);
         final AtomicBoolean onBlocked = new AtomicBoolean();
-        permits.asyncBlockOperations(
-                30,
-                TimeUnit.MINUTES,
-                () -> {
-                    onBlocked.set(true);
-                    blockedLatch.countDown();
-                }, e -> {
-                    throw new RuntimeException(e);
-                });
-
+        permits.asyncBlockOperations(wrap(() -> {
+            onBlocked.set(true);
+            blockedLatch.countDown();
+        }), 30, TimeUnit.MINUTES);
         assertFalse(onBlocked.get());
 
         // if we submit another operation, it should be delayed
@@ -454,15 +470,10 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             } catch (final BrokenBarrierException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            permits.asyncBlockOperations(
-                    30,
-                    TimeUnit.MINUTES,
-                    () -> {
-                        values.add(operations);
-                        operationLatch.countDown();
-                    }, e -> {
-                        throw new RuntimeException(e);
-                    });
+            permits.asyncBlockOperations(wrap(() -> {
+                values.add(operations);
+                operationLatch.countDown();
+            }), 30, TimeUnit.MINUTES);
         });
         blockingThread.start();
 
@@ -527,16 +538,20 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public void testAsyncBlockOperationsOnFailure() throws InterruptedException {
         final AtomicReference<Exception> reference = new AtomicReference<>();
         final CountDownLatch onFailureLatch = new CountDownLatch(1);
-        permits.asyncBlockOperations(
-                10,
-                TimeUnit.MINUTES,
-                () -> {
+        permits.asyncBlockOperations(new ActionListener<Releasable>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (Releasable ignored = releasable) {
                     throw new RuntimeException("simulated");
-                },
-                e -> {
-                    reference.set(e);
-                    onFailureLatch.countDown();
-                });
+                }
+            }
+
+            @Override
+            public void onFailure(final Exception e) {
+                reference.set(e);
+                onFailureLatch.countDown();
+            }
+        }, 10, TimeUnit.MINUTES);
         onFailureLatch.await();
         assertThat(reference.get(), instanceOf(RuntimeException.class));
         assertThat(reference.get(), hasToString(containsString("simulated")));
@@ -564,14 +579,18 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         {
             final AtomicReference<Exception> reference = new AtomicReference<>();
             final CountDownLatch onFailureLatch = new CountDownLatch(1);
-            permits.asyncBlockOperations(
-                    1,
-                    TimeUnit.MILLISECONDS,
-                    () -> {},
-                    e -> {
-                        reference.set(e);
-                        onFailureLatch.countDown();
-                    });
+            permits.asyncBlockOperations(new ActionListener<Releasable>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    releasable.close();
+                }
+
+                @Override
+                public void onFailure(final Exception e) {
+                    reference.set(e);
+                    onFailureLatch.countDown();
+                }
+            }, 1, TimeUnit.MILLISECONDS);
             onFailureLatch.await();
             assertThat(reference.get(), hasToString(containsString("timeout while blocking operations")));
         }
@@ -683,5 +702,23 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
         assertThat(permits.getActiveOperationsCount(), equalTo(0));
         assertThat(permits.getActiveOperations(), emptyIterable());
+    }
+
+    private static ActionListener<Releasable> wrap(final CheckedRunnable<Exception> onResponse) {
+        return new ActionListener<Releasable>() {
+            @Override
+            public void onResponse(final Releasable releasable) {
+                try (Releasable ignored = releasable) {
+                    onResponse.run();
+                } catch (final Exception e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(final Exception e) {
+                throw new AssertionError(e);
+            }
+        };
     }
 }

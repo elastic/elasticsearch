@@ -1,0 +1,27 @@
+                       asticElasticE              
+                     ElasticE  sticEla            
+          sticEl  ticEl            Elast          
+        lasti Elasti                   tic        
+      cEl       ast                     icE       
+     icE        as                       cEl      
+     icE        as                       cEl      
+     icEla     las                        El      
+   sticElasticElast                     icElas    
+ las           last                    ticElast   
+El              asti                 asti    stic 
+El              asticEla           Elas        icE
+El            Elas  cElasticE   ticEl           cE
+Ela        ticEl         ticElasti              cE
+ las     astic               last              icE
+   sticElas                   asti           stic 
+     icEl                      sticElasticElast   
+     icE                       sticE   ticEla     
+     icE                       sti       cEla     
+     icEl                      sti        Ela     
+      cEl                      sti       cEl      
+       Ela                    astic    ticE       
+         asti               ElasticElasti         
+           ticElasti  lasticElas                  
+              ElasticElast                        
+
+                       SQL

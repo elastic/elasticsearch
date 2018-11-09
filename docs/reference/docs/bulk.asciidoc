@@ -230,6 +230,13 @@ example.
 Control when the changes made by this request are visible to search. See
 <<docs-refresh,refresh>>.
 
+NOTE: Only the shards that receive the bulk request will be affected by
+`refresh`. Imagine a `_bulk?refresh=wait_for` request with three
+documents in it that happen to be routed to different shards in an index
+with five shards. The request will only wait for those three shards to
+refresh. The other two shards of that make up the index do not
+participate in the `_bulk` request at all.
+
 [float]
 [[bulk-update]]
 === Update

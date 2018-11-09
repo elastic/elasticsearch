@@ -47,9 +47,9 @@ install_plugin() {
     fi
 
     if [ -z "$umask" ]; then
-      sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install -batch "file://$path"
+      sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install --batch "file://$path"
     else
-      sudo -E -u $ESPLUGIN_COMMAND_USER bash -c "umask $umask && \"$ESHOME/bin/elasticsearch-plugin\" install -batch \"file://$path\""
+      sudo -E -u $ESPLUGIN_COMMAND_USER bash -c "umask $umask && \"$ESHOME/bin/elasticsearch-plugin\" install --batch \"file://$path\""
     fi
 
     #check we did not accidentially create a log file as root as /usr/share/elasticsearch

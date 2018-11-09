@@ -22,9 +22,13 @@ package org.elasticsearch.test.rest.yaml;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.NodeSelector;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
 import java.io.IOException;
@@ -40,27 +44,39 @@ import java.util.Objects;
  */
 public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
 
-    public ClientYamlDocsTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts, Version esVersion)
-            throws IOException {
-        super(restSpec, restClient, hosts, esVersion);
+    public ClientYamlDocsTestClient(
+            final ClientYamlSuiteRestSpec restSpec,
+            final RestClient restClient,
+            final List<HttpHost> hosts,
+            final Version esVersion,
+            final Version masterVersion,
+            final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes) {
+        super(restSpec, restClient, hosts, esVersion, masterVersion, clientBuilderWithSniffedNodes);
     }
 
-    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, HttpEntity entity, Map<String, String> headers)
-            throws IOException {
+    @Override
+    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, HttpEntity entity,
+            Map<String, String> headers, NodeSelector nodeSelector) throws IOException {
 
         if ("raw".equals(apiName)) {
-            // Raw requests are bit simpler....
+            // Raw requests don't use the rest spec at all and are configured entirely by their parameters
             Map<String, String> queryStringParams = new HashMap<>(params);
             String method = Objects.requireNonNull(queryStringParams.remove("method"), "Method must be set to use raw request");
             String path = "/" + Objects.requireNonNull(queryStringParams.remove("path"), "Path must be set to use raw request");
-            // And everything else is a url parameter!
+            Request request = new Request(method, path);
+            // All other parameters are url parameters
+            for (Map.Entry<String, String> param : queryStringParams.entrySet()) {
+                request.addParameter(param.getKey(), param.getValue());
+            }
+            request.setEntity(entity);
+            setOptions(request, headers);
             try {
-                Response response = restClient.performRequest(method, path, queryStringParams, entity);
+                Response response = getRestClient(nodeSelector).performRequest(request);
                 return new ClientYamlTestResponse(response);
             } catch (ResponseException e) {
                 throw new ClientYamlTestResponseException(e);
             }
         }
-        return super.callApi(apiName, params, entity, headers);
+        return super.callApi(apiName, params, entity, headers, nodeSelector);
     }
 }

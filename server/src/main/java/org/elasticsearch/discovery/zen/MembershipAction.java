@@ -28,8 +28,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -66,9 +66,8 @@ public class MembershipAction extends AbstractComponent {
 
     private final MembershipListener listener;
 
-    public MembershipAction(Settings settings, TransportService transportService, MembershipListener listener,
+    public MembershipAction(TransportService transportService, MembershipListener listener,
                             Collection<BiConsumer<DiscoveryNode,ClusterState>> joinValidators) {
-        super(settings);
         this.transportService = transportService;
         this.listener = listener;
 
@@ -133,7 +132,7 @@ public class MembershipAction extends AbstractComponent {
     private class JoinRequestRequestHandler implements TransportRequestHandler<JoinRequest> {
 
         @Override
-        public void messageReceived(final JoinRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final JoinRequest request, final TransportChannel channel, Task task) throws Exception {
             listener.onJoin(request.node, new JoinCallback() {
                 @Override
                 public void onSuccess() {
@@ -190,7 +189,7 @@ public class MembershipAction extends AbstractComponent {
         }
 
         @Override
-        public void messageReceived(ValidateJoinRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(ValidateJoinRequest request, TransportChannel channel, Task task) throws Exception {
             DiscoveryNode node = localNodeSupplier.get();
             assert node != null : "local node is null";
             joinValidators.stream().forEach(action -> action.accept(node, request.state));
@@ -281,7 +280,7 @@ public class MembershipAction extends AbstractComponent {
     private class LeaveRequestRequestHandler implements TransportRequestHandler<LeaveRequest> {
 
         @Override
-        public void messageReceived(LeaveRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(LeaveRequest request, TransportChannel channel, Task task) throws Exception {
             listener.onLeave(request.node);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

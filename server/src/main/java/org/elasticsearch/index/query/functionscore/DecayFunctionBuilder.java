@@ -38,7 +38,9 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -186,7 +188,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         AbstractDistanceScoreFunction scoreFunction;
         // EMPTY is safe because parseVariable doesn't use namedObject
         try (InputStream stream = functionBytes.streamInput();
-             XContentParser parser = XContentFactory.xContent(functionBytes)
+             XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(functionBytes))
                  .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             scoreFunction = parseVariable(fieldName, parser, context, multiValueMode);
         }
@@ -353,7 +355,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final MultiGeoPointValues geoPointValues = fieldData.load(context).getGeoPointValues();
-            return mode.select(new SortingNumericDoubleValues() {
+            return FieldData.replaceMissing(mode.select(new SortingNumericDoubleValues() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     if (geoPointValues.advanceExact(docId)) {
@@ -371,7 +373,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                         return false;
                     }
                 }
-            }, 0.0);
+            }), 0);
         }
 
         @Override
@@ -435,7 +437,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final SortedNumericDoubleValues doubleValues = fieldData.load(context).getDoubleValues();
-            return mode.select(new SortingNumericDoubleValues() {
+            return FieldData.replaceMissing(mode.select(new SortingNumericDoubleValues() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     if (doubleValues.advanceExact(docId)) {
@@ -450,7 +452,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                         return false;
                     }
                 }
-            }, 0.0);
+            }), 0);
         }
 
         @Override
@@ -552,7 +554,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                     }
                     double value = distance.doubleValue();
                     return Explanation.match(
-                            (float) score(docId, subQueryScore.getValue()),
+                            (float) score(docId, subQueryScore.getValue().floatValue()),
                             "Function for field " + getFieldName() + ":",
                             func.explainFunction(getDistanceString(ctx, docId), value, scale));
                 }

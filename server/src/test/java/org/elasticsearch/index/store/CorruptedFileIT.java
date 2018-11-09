@@ -68,11 +68,8 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockIndexEventListener;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -124,8 +121,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class, MockFSIndexStore.TestPlugin.class,
-            InternalSettingsPlugin.class);  // uses index.version.created
+        return Arrays.asList(
+                MockTransportService.TestPlugin.class,
+                MockIndexEventListener.TestPlugin.class,
+                MockFSIndexStore.TestPlugin.class,
+                InternalSettingsPlugin.class);
     }
 
     /**
@@ -339,19 +339,15 @@ public class CorruptedFileIT extends ESIntegTestCase {
         final CountDownLatch hasCorrupted = new CountDownLatch(1);
         for (NodeStats dataNode : dataNodeStats) {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
-            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
-
-                @Override
-                protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException {
-                    if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
-                        int i = randomIntBetween(0, req.content().length() - 1);
-                        array[i] = (byte) ~array[i]; // flip one byte in the content
-                        hasCorrupted.countDown();
-                    }
-                    super.sendRequest(connection, requestId, action, request, options);
+            mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), (connection, requestId, action, request, options) -> {
+                if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                    RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                    byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
+                    int i = randomIntBetween(0, req.content().length() - 1);
+                    array[i] = (byte) ~array[i]; // flip one byte in the content
+                    hasCorrupted.countDown();
                 }
+                connection.sendRequest(requestId, action, request, options);
             });
         }
 
@@ -411,25 +407,21 @@ public class CorruptedFileIT extends ESIntegTestCase {
         final boolean truncate = randomBoolean();
         for (NodeStats dataNode : dataNodeStats) {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
-            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
-
-                @Override
-                protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException {
-                    if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        if (truncate && req.length() > 1) {
-                            BytesRef bytesRef = req.content().toBytesRef();
-                            BytesArray array = new BytesArray(bytesRef.bytes, bytesRef.offset, (int) req.length() - 1);
-                            request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(), req.position(), array, req.lastChunk(), req.totalTranslogOps(), req.sourceThrottleTimeInNanos());
-                        } else {
-                            assert req.content().toBytesRef().bytes == req.content().toBytesRef().bytes : "no internal reference!!";
-                            final byte[] array = req.content().toBytesRef().bytes;
-                            int i = randomIntBetween(0, req.content().length() - 1);
-                            array[i] = (byte) ~array[i]; // flip one byte in the content
-                        }
+            mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), (connection, requestId, action, request, options) -> {
+                if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                    RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                    if (truncate && req.length() > 1) {
+                        BytesRef bytesRef = req.content().toBytesRef();
+                        BytesArray array = new BytesArray(bytesRef.bytes, bytesRef.offset, (int) req.length() - 1);
+                        request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(), req.position(), array, req.lastChunk(), req.totalTranslogOps(), req.sourceThrottleTimeInNanos());
+                    } else {
+                        assert req.content().toBytesRef().bytes == req.content().toBytesRef().bytes : "no internal reference!!";
+                        final byte[] array = req.content().toBytesRef().bytes;
+                        int i = randomIntBetween(0, req.content().length() - 1);
+                        array[i] = (byte) ~array[i]; // flip one byte in the content
                     }
-                    super.sendRequest(connection, requestId, action, request, options);
                 }
+                connection.sendRequest(requestId, action, request, options);
             });
         }
 
@@ -470,7 +462,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * TODO once checksum verification on snapshotting is implemented this test needs to be fixed or split into several
      * parts... We should also corrupt files on the actual snapshot and check that we don't restore the corrupted shard.
      */
-    @TestLogging("org.elasticsearch.monitor.fs:DEBUG")
     public void testCorruptFileThenSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -494,6 +485,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertHitCount(countResponse, numDocs);
 
         ShardRouting shardRouting = corruptRandomPrimaryFile(false);
+        logger.info("--> shard {} has a corrupted file", shardRouting);
         // we don't corrupt segments.gen since S/R doesn't snapshot this file
         // the other problem here why we can't corrupt segments.X files is that the snapshot flushes again before
         // it snapshots and that will write a new segments.X+1 file
@@ -504,9 +496,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
-        logger.info("failed during snapshot -- maybe SI file got corrupted");
+        final CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+                                                                                        .setWaitForCompletion(true)
+                                                                                        .setIndices("test")
+                                                                                        .get();
+        final SnapshotState snapshotState = createSnapshotResponse.getSnapshotInfo().state();
+        logger.info("--> snapshot terminated with state " + snapshotState);
         final List<Path> files = listShardFiles(shardRouting);
         Path corruptedFile = null;
         for (Path file : files) {
@@ -515,6 +510,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 break;
             }
         }
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
         assertThat(corruptedFile, notNullValue());
     }
 

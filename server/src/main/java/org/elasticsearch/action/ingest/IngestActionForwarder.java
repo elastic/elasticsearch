@@ -47,9 +47,9 @@ public final class IngestActionForwarder implements ClusterStateApplier {
         ingestNodes = new DiscoveryNode[0];
     }
 
-    public void forwardIngestRequest(Action<?, ?, ?> action, ActionRequest request, ActionListener<?> listener) {
+    public void forwardIngestRequest(Action<?> action, ActionRequest request, ActionListener<?> listener) {
         transportService.sendRequest(randomIngestNode(), action.name(), request,
-            new ActionListenerResponseHandler(listener, action::newResponse));
+            new ActionListenerResponseHandler(listener, action.getResponseReader()));
     }
 
     private DiscoveryNode randomIngestNode() {

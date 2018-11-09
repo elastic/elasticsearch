@@ -50,11 +50,6 @@ PUT /twitter-1,twitter-2/_mapping/_doc <1>
 <1> Note that the indices specified (`twitter-1,twitter-2`) follows <<multi-index,multiple index names>> and wildcard format.
 
 
-NOTE: When updating the `_default_` mapping with the
-<<indices-put-mapping,PUT mapping>> API, the new mapping is not merged with
-the existing mapping.  Instead, the new `_default_` mapping replaces the
-existing one.
-
 [[updating-field-mappings]]
 [float]
 === Updating field mappings
@@ -114,3 +109,54 @@ PUT my_index/_mapping/_doc
 
 Each <<mapping-params,mapping parameter>> specifies whether or not its setting
 can be updated on an existing field.
+
+[float]
+=== Skipping types
+
+Types are scheduled to be fully removed in Elasticsearch 8.0 and will not appear
+in requests or responses anymore. You can opt in for this future behaviour by
+setting `include_type_name=false`.
+
+NOTE: This should only be done on indices that have been created with
+`include_type_name=false` or that used `_doc` as a type name.
+
+The Console script from the above section is equivalent to the below invocation:
+
+[source,js]
+-----------------------------------
+PUT my_index?include_type_name=false <1>
+{
+  "mappings": {
+    "properties": {
+      "name": {
+        "properties": {
+          "first": {
+            "type": "text"
+          }
+        }
+      },
+      "user_id": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+
+PUT my_index/_mapping?include_type_name=false
+{
+  "properties": {
+    "name": {
+      "properties": {
+        "last": { <2>
+          "type": "text"
+        }
+      }
+    },
+    "user_id": {
+      "type": "keyword",
+      "ignore_above": 100 <3>
+    }
+  }
+}
+-----------------------------------
+// CONSOLE

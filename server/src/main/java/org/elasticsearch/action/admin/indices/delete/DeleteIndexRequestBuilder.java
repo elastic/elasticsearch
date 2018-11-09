@@ -21,9 +21,11 @@ package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class DeleteIndexRequestBuilder extends AcknowledgedRequestBuilder<DeleteIndexRequest, DeleteIndexResponse, DeleteIndexRequestBuilder> {
+public class DeleteIndexRequestBuilder
+        extends AcknowledgedRequestBuilder<DeleteIndexRequest, AcknowledgedResponse, DeleteIndexRequestBuilder> {
 
     public DeleteIndexRequestBuilder(ElasticsearchClient client, DeleteIndexAction action, String... indices) {
         super(client, action, new DeleteIndexRequest(indices));

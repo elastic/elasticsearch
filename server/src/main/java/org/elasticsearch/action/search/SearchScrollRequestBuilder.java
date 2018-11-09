@@ -27,7 +27,7 @@ import org.elasticsearch.search.Scroll;
 /**
  * A search scroll action request builder.
  */
-public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrollRequest, SearchResponse, SearchScrollRequestBuilder> {
+public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrollRequest, SearchResponse> {
 
     public SearchScrollRequestBuilder(ElasticsearchClient client, SearchScrollAction action) {
         super(client, action, new SearchScrollRequest());

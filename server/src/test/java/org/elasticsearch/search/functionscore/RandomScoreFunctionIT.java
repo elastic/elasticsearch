@@ -67,7 +67,6 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
 
         @Override
-        @SuppressWarnings("unchecked")
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
@@ -84,7 +83,6 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
             return scripts;
         }
 
-        @SuppressWarnings("unchecked")
         static Double scoringScript(Map<String, Object> vars, Function<ScoreAccessor, Number> scoring) {
             Map<?, ?> doc = (Map) vars.get("doc");
             Double index = ((Number) ((ScriptDocValues<?>) doc.get("index")).getValues().get(0)).doubleValue();

@@ -54,7 +54,6 @@ public class DiskThresholdMonitor extends AbstractComponent {
 
     public DiskThresholdMonitor(Settings settings, Supplier<ClusterState> clusterStateSupplier, ClusterSettings clusterSettings,
                                 Client client) {
-        super(settings);
         this.clusterStateSupplier = clusterStateSupplier;
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
@@ -66,7 +65,7 @@ public class DiskThresholdMonitor extends AbstractComponent {
     private void warnAboutDiskIfNeeded(DiskUsage usage) {
         // Check absolute disk values
         if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes()) {
-            logger.warn("flood stage disk watermark [{}] exceeded on {}, all indices on this node will marked read-only",
+            logger.warn("flood stage disk watermark [{}] exceeded on {}, all indices on this node will be marked read-only",
                 diskThresholdSettings.getFreeBytesThresholdFloodStage(), usage);
         } else if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
             logger.warn("high disk watermark [{}] exceeded on {}, shards will be relocated away from this node",
@@ -78,7 +77,7 @@ public class DiskThresholdMonitor extends AbstractComponent {
 
         // Check percentage disk values
         if (usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
-            logger.warn("flood stage disk watermark [{}] exceeded on {}, all indices on this node will marked read-only",
+            logger.warn("flood stage disk watermark [{}] exceeded on {}, all indices on this node will be marked read-only",
                 Strings.format1Decimals(100.0 - diskThresholdSettings.getFreeDiskThresholdFloodStage(), "%"), usage);
         } else if (usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
             logger.warn("high disk watermark [{}] exceeded on {}, shards will be relocated away from this node",

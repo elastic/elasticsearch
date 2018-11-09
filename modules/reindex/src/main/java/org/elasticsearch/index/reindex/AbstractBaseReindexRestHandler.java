@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
@@ -29,7 +29,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 
@@ -39,7 +38,7 @@ import java.util.Map;
 
 public abstract class AbstractBaseReindexRestHandler<
                 Request extends AbstractBulkByScrollRequest<Request>,
-                A extends GenericAction<Request, BulkByScrollResponse>
+                A extends Action<BulkByScrollResponse>
             > extends BaseRestHandler {
 
     private final A action;

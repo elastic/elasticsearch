@@ -72,15 +72,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * Sets the parent id of this document. If routing is not set, automatically set it as the
-     * routing as well.
-     */
-    public IndexRequestBuilder setParent(String parent) {
-        request.parent(parent);
-        return this;
-    }
-
-    /**
      * Sets the source.
      */
     public IndexRequestBuilder setSource(BytesReference source, XContentType xContentType) {
@@ -184,7 +175,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * Set to <tt>true</tt> to force this index to use {@link org.elasticsearch.action.index.IndexRequest.OpType#CREATE}.
+     * Set to {@code true} to force this index to use {@link org.elasticsearch.action.index.IndexRequest.OpType#CREATE}.
      */
     public IndexRequestBuilder setCreate(boolean create) {
         request.create(create);

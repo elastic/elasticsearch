@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedRunnable;
@@ -40,11 +39,9 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
@@ -61,27 +58,27 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(0).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+                equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(0).types().length,
                 equalTo(0));
         assertThat(request.requests().get(1).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(1).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(false, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+                equalTo(IndicesOptions.fromOptions(false, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(1).types()[0],
                 equalTo("type1"));
         assertThat(request.requests().get(2).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(2).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(false, true, true, false, IndicesOptions.strictExpandOpenAndForbidClosed())));
+                equalTo(IndicesOptions.fromOptions(false, true, true, false, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(3).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(3).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+                equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(4).indices()[0],
                 equalTo("test"));
         assertThat(request.requests().get(4).indicesOptions(),
-                equalTo(IndicesOptions.fromOptions(true, false, false, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+                equalTo(IndicesOptions.fromOptions(true, false, false, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
 
         assertThat(request.requests().get(5).indices(), is(Strings.EMPTY_ARRAY));
         assertThat(request.requests().get(5).types().length, equalTo(0));
@@ -101,7 +98,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
-            equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+            equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
         assertThat(request.requests().get(0).types().length, equalTo(0));
     }
 
@@ -165,7 +162,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                         new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz"))
                 }, tookInMillis);
 
-        assertEquals("{\"took\":" 
+        assertEquals("{\"took\":"
                         + tookInMillis
                         + ",\"responses\":["
                         + "{"
@@ -225,7 +222,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             byte[] originalBytes = MultiSearchRequest.writeMultiLineFormat(originalRequest, xContentType.xContent());
             MultiSearchRequest parsedRequest = new MultiSearchRequest();
             CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer = (r, p) -> {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p);
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p, false);
                 if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
                     r.source(searchSourceBuilder);
                 }
@@ -273,17 +270,17 @@ public class MultiSearchRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 searchRequest.allowPartialSearchResults(true);
             }
-            
+
             // scroll is not supported in the current msearch api, so unset it:
             searchRequest.scroll((Scroll) null);
 
             // only expand_wildcards, ignore_unavailable and allow_no_indices can be specified from msearch api, so unset other options:
             IndicesOptions randomlyGenerated = searchRequest.indicesOptions();
-            IndicesOptions msearchDefault = IndicesOptions.strictExpandOpenAndForbidClosed();
+            IndicesOptions msearchDefault = SearchRequest.DEFAULT_INDICES_OPTIONS;
             searchRequest.indicesOptions(IndicesOptions.fromOptions(
                     randomlyGenerated.ignoreUnavailable(), randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(),
                     randomlyGenerated.expandWildcardsClosed(), msearchDefault.allowAliasesToMultipleIndices(),
-                    msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases()
+                    msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(), msearchDefault.ignoreThrottled()
             ));
 
             request.add(searchRequest);

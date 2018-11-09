@@ -51,13 +51,17 @@ class RoundingValuesSource extends ValuesSource.Numeric {
         return false;
     }
 
+    public long round(long value) {
+        return rounding.round(value);
+    }
+
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
         SortedNumericDocValues values = vs.longValues(context);
         return new SortedNumericDocValues() {
             @Override
             public long nextValue() throws IOException {
-                return rounding.round(values.nextValue());
+                return round(values.nextValue());
             }
 
             @Override

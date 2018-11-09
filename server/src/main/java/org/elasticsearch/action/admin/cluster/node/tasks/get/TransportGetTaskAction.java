@@ -28,11 +28,10 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -65,25 +64,21 @@ import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportLi
  * </ul>
  */
 public class TransportGetTaskAction extends HandledTransportAction<GetTaskRequest, GetTaskResponse> {
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public TransportGetTaskAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, Client client,
-            NamedXContentRegistry xContentRegistry) {
-        super(settings, GetTaskAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, GetTaskRequest::new);
+    public TransportGetTaskAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
+            ClusterService clusterService, Client client, NamedXContentRegistry xContentRegistry) {
+        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.client = client;
         this.xContentRegistry = xContentRegistry;
-    }
-
-    @Override
-    protected void doExecute(GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        throw new UnsupportedOperationException("Task is required");
     }
 
     @Override
@@ -124,8 +119,10 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         transportService.sendRequest(node, GetTaskAction.NAME, nodeRequest, builder.build(),
                 new TransportResponseHandler<GetTaskResponse>() {
                     @Override
-                    public GetTaskResponse newInstance() {
-                        return new GetTaskResponse();
+                    public GetTaskResponse read(StreamInput in) throws IOException {
+                        GetTaskResponse response = new GetTaskResponse();
+                        response.readFrom(in);
+                        return response;
                     }
 
                     @Override

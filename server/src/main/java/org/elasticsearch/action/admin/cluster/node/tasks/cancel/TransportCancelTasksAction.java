@@ -26,15 +26,14 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,12 +62,9 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
 
     @Inject
-    public TransportCancelTasksAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                      TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver
-                                          indexNameExpressionResolver) {
-        super(settings, CancelTasksAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            indexNameExpressionResolver, CancelTasksRequest::new, CancelTasksResponse::new,
-            ThreadPool.Names.MANAGEMENT);
+    public TransportCancelTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+        super(CancelTasksAction.NAME, clusterService, transportService, actionFilters,
+            CancelTasksRequest::new, CancelTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, BanParentTaskRequest::new, ThreadPool.Names.SAME, new
             BanParentRequestHandler());
     }
@@ -288,7 +284,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
     class BanParentRequestHandler implements TransportRequestHandler<BanParentTaskRequest> {
         @Override
-        public void messageReceived(final BanParentTaskRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final BanParentTaskRequest request, final TransportChannel channel, Task task) throws Exception {
             if (request.ban) {
                 logger.debug("Received ban for the parent [{}] on the node [{}], reason: [{}]", request.parentTaskId,
                     clusterService.localNode().getId(), request.reason);

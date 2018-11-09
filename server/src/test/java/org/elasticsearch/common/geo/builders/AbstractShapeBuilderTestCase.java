@@ -37,7 +37,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
-public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> extends ESTestCase {
+public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder<?,?>> extends ESTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
@@ -79,12 +79,13 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
             }
             XContentBuilder builder = testShape.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);
-            XContentParser shapeContentParser = createParser(shuffled);
-            shapeContentParser.nextToken();
-            ShapeBuilder parsedShape = ShapeParser.parse(shapeContentParser);
-            assertNotSame(testShape, parsedShape);
-            assertEquals(testShape, parsedShape);
-            assertEquals(testShape.hashCode(), parsedShape.hashCode());
+            try (XContentParser shapeContentParser = createParser(shuffled)) {
+                shapeContentParser.nextToken();
+                ShapeBuilder<?, ?> parsedShape = ShapeParser.parse(shapeContentParser);
+                assertNotSame(testShape, parsedShape);
+                assertEquals(testShape, parsedShape);
+                assertEquals(testShape.hashCode(), parsedShape.hashCode());
+            }
         }
     }
 

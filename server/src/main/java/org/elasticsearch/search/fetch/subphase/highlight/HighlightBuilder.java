@@ -60,7 +60,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     public static final boolean DEFAULT_FORCE_SOURCE = false;
     /** default for whether a field should be highlighted only if a query matches that field */
     public static final boolean DEFAULT_REQUIRE_FIELD_MATCH = true;
-    /** default for whether <tt>fvh</tt> should provide highlighting on filter clauses */
+    /** default for whether {@code fvh} should provide highlighting on filter clauses */
     public static final boolean DEFAULT_HIGHLIGHT_FILTER = false;
     /** default for highlight fragments being ordered by score */
     public static final boolean DEFAULT_SCORE_ORDERED = false;
@@ -75,18 +75,18 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /** the default number of fragments size in characters */
     public static final int DEFAULT_FRAGMENT_CHAR_SIZE = 100;
     /** the default opening tag  */
-    public static final String[] DEFAULT_PRE_TAGS = new String[]{"<em>"};
+    static final String[] DEFAULT_PRE_TAGS = new String[]{"<em>"};
     /** the default closing tag  */
-    public static final String[] DEFAULT_POST_TAGS = new String[]{"</em>"};
+    static final String[] DEFAULT_POST_TAGS = new String[]{"</em>"};
 
-    /** the default opening tags when <tt>tag_schema = "styled"</tt>  */
+    /** the default opening tags when {@code tag_schema = "styled"}  */
     public static final String[] DEFAULT_STYLED_PRE_TAG = {
             "<em class=\"hlt1\">", "<em class=\"hlt2\">", "<em class=\"hlt3\">",
             "<em class=\"hlt4\">", "<em class=\"hlt5\">", "<em class=\"hlt6\">",
             "<em class=\"hlt7\">", "<em class=\"hlt8\">", "<em class=\"hlt9\">",
             "<em class=\"hlt10\">"
     };
-    /** the default closing tags when <tt>tag_schema = "styled"</tt>  */
+    /** the default closing tags when {@code tag_schema = "styled"}  */
     public static final String[] DEFAULT_STYLED_POST_TAGS = {"</em>"};
 
     /**
@@ -198,7 +198,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
     /**
      * Set a tag scheme that encapsulates a built in pre and post tags. The allowed schemes
-     * are <tt>styled</tt> and <tt>default</tt>.
+     * are {@code styled} and {@code default}.
      *
      * @param schemaName The tag scheme name
      */
@@ -220,7 +220,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
     /**
      * Set encoder for the highlighting
-     * are <tt>styled</tt> and <tt>default</tt>.
+     * are {@code html} and {@code default}.
      *
      * @param encoder name
      */

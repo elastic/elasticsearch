@@ -82,7 +82,7 @@ public class RandomSearchRequestGenerator {
      * @param randomSearchSourceBuilder builds a random {@link SearchSourceBuilder}. You can use
      *        {@link #randomSearchSourceBuilder(Supplier, Supplier, Supplier, Supplier, Supplier)}.
      */
-    public static SearchRequest randomSearchRequest(Supplier<SearchSourceBuilder> randomSearchSourceBuilder) throws IOException {
+    public static SearchRequest randomSearchRequest(Supplier<SearchSourceBuilder> randomSearchSourceBuilder) {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
         if (randomBoolean()) {

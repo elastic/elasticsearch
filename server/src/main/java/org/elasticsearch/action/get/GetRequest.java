@@ -19,11 +19,13 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -31,6 +33,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to get a document (its source) from an index based on its type (optional) and id. Best created using
@@ -48,7 +52,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private String type;
     private String id;
     private String routing;
-    private String parent;
     private String preference;
 
     private String[] storedFields;
@@ -91,15 +94,15 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
-        if (type == null) {
-            validationException = ValidateActions.addValidationError("type is missing", validationException);
+        if (Strings.isEmpty(type)) {
+            validationException = addValidationError("type is missing", validationException);
         }
-        if (id == null) {
-            validationException = ValidateActions.addValidationError("id is missing", validationException);
+        if (Strings.isEmpty(id)) {
+            validationException = addValidationError("id is missing", validationException);
         }
-        if (!versionType.validateVersionForReads(version)) {
-            validationException = ValidateActions.addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]",
-                    validationException);
+        if (versionType.validateVersionForReads(version) == false) {
+            validationException = ValidateActions.addValidationError("illegal version value [" + version + "] for version type ["
+                    + versionType.name() + "]", validationException);
         }
         if (versionType == VersionType.FORCE) {
             validationException = ValidateActions.addValidationError("version type [force] may no longer be used", validationException);
@@ -127,21 +130,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
-     * @return The parent for this request.
-     */
-    public String parent() {
-        return parent;
-    }
-
-    /**
-     * Sets the parent id of this document.
-     */
-    public GetRequest parent(String parent) {
-        this.parent = parent;
-        return this;
-    }
-
-    /**
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
@@ -152,7 +140,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public GetRequest preference(String preference) {
@@ -189,7 +177,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
-     * Explicitly specify the stored fields that will be returned. By default, the <tt>_source</tt>
+     * Explicitly specify the stored fields that will be returned. By default, the {@code _source}
      * field will be returned.
      */
     public GetRequest storedFields(String... fields) {
@@ -198,7 +186,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
-     * Explicitly specify the stored fields that will be returned. By default, the <tt>_source</tt>
+     * Explicitly specify the stored fields that will be returned. By default, the {@code _source}
      * field will be returned.
      */
     public String[] storedFields() {
@@ -207,8 +195,8 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     /**
      * Should a refresh be executed before this get operation causing the operation to
-     * return the latest value. Note, heavy get should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
+     * return the latest value. Note, heavy get should not set this to {@code true}. Defaults
+     * to {@code false}.
      */
     public GetRequest refresh(boolean refresh) {
         this.refresh = refresh;
@@ -260,7 +248,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        parent = in.readOptionalString();
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            in.readOptionalString();
+        }
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         storedFields = in.readOptionalStringArray();
@@ -277,7 +267,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
-        out.writeOptionalString(parent);
+        if (out.getVersion().before(Version.V_7_0_0)) {
+            out.writeOptionalString(null);
+        }
         out.writeOptionalString(preference);
 
         out.writeBoolean(refresh);

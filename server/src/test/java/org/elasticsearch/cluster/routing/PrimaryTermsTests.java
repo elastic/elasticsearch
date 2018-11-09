@@ -83,7 +83,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
     }
 
     /**
-     * puts primary shard routings into initializing state
+     * puts primary shard indexRoutings into initializing state
      */
     private void initPrimaries() {
         logger.info("adding {} nodes and performing rerouting", this.numberOfReplicas + 1);

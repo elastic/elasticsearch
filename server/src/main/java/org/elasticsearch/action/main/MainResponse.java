@@ -61,6 +61,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         return version;
     }
 
+
     public ClusterName getClusterName() {
         return clusterName;
     }
@@ -81,7 +82,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         clusterName.writeTo(out);
         out.writeString(clusterUuid);
         Build.writeBuild(build, out);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeBoolean(true);
         }
     }
@@ -94,7 +95,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         clusterName = new ClusterName(in);
         clusterUuid = in.readString();
         build = Build.readBuild(in);
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readBoolean();
         }
     }
@@ -107,9 +108,12 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("cluster_uuid", clusterUuid);
         builder.startObject("version")
             .field("number", version.toString())
+            .field("build_flavor", build.flavor().displayName())
+            .field("build_type", build.type().displayName())
             .field("build_hash", build.shortHash())
             .field("build_date", build.date())
             .field("build_snapshot", build.isSnapshot())
+            .field("qualified", build.getQualifiedVersion())
             .field("lucene_version", version.luceneVersion.toString())
             .field("minimum_wire_compatibility_version", version.minimumCompatibilityVersion().toString())
             .field("minimum_index_compatibility_version", version.minimumIndexCompatibilityVersion().toString())
@@ -128,8 +132,17 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         PARSER.declareString((response, value) -> response.clusterUuid = value, new ParseField("cluster_uuid"));
         PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
         PARSER.declareObject((response, value) -> {
-            response.build = new Build((String) value.get("build_hash"), (String) value.get("build_date"),
-                    (boolean) value.get("build_snapshot"));
+            final String buildFlavor = (String) value.get("build_flavor");
+            final String buildType = (String) value.get("build_type");
+            response.build =
+                    new Build(
+                            buildFlavor == null ? Build.Flavor.UNKNOWN : Build.Flavor.fromDisplayName(buildFlavor),
+                            buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType),
+                            (String) value.get("build_hash"),
+                            (String) value.get("build_date"),
+                            (boolean) value.get("build_snapshot"),
+                            (String) value.get("qualified")
+                    );
             response.version = Version.fromString((String) value.get("number"));
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }

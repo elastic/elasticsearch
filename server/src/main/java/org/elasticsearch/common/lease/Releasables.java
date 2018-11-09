@@ -61,7 +61,7 @@ public enum Releasables {
         closeWhileHandlingException(Arrays.asList(releasables));
     }
 
-    /** Release the provided {@link Releasable}s, ignoring exceptions if <code>success</code> is <tt>false</tt>. */
+    /** Release the provided {@link Releasable}s, ignoring exceptions if <code>success</code> is {@code false}. */
     public static void close(boolean success, Iterable<Releasable> releasables) {
         if (success) {
             close(releasables);
@@ -70,7 +70,7 @@ public enum Releasables {
         }
     }
 
-    /** Release the provided {@link Releasable}s, ignoring exceptions if <code>success</code> is <tt>false</tt>. */
+    /** Release the provided {@link Releasable}s, ignoring exceptions if <code>success</code> is {@code false}. */
     public static void close(boolean success, Releasable... releasables) {
         close(success, Arrays.asList(releasables));
     }

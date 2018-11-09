@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.common.bytes;
 
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.ByteArrayOutputStream;
@@ -37,7 +37,7 @@ import java.util.function.ToIntBiFunction;
 /**
  * A reference to bytes.
  */
-public abstract class BytesReference implements Accountable, Comparable<BytesReference> {
+public abstract class BytesReference implements Comparable<BytesReference>, ToXContentFragment {
 
     private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
 
@@ -66,9 +66,14 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
     public abstract int length();
 
     /**
-     * Slice the bytes from the <tt>from</tt> index up to <tt>length</tt>.
+     * Slice the bytes from the {@code from} index up to {@code length}.
      */
     public abstract BytesReference slice(int from, int length);
+
+    /**
+     * The amount of memory used by this BytesReference
+     */
+    public abstract long ramBytesUsed();
 
     /**
      * A stream input of the bytes.
@@ -157,7 +162,7 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
 
     /**
      * Returns a compact array from the given BytesReference. The returned array won't be copied unless necessary. If you need
-     * to modify the returned array use <tt>BytesRef.deepCopyOf(reference.toBytesRef()</tt> instead
+     * to modify the returned array use {@code BytesRef.deepCopyOf(reference.toBytesRef()} instead
      */
     public static byte[] toBytes(BytesReference reference) {
         final BytesRef bytesRef = reference.toBytesRef();
@@ -333,5 +338,11 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
         public long skip(long n) throws IOException {
             return input.skip(n);
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        BytesRef bytes = toBytesRef();
+        return builder.value(bytes.bytes, bytes.offset, bytes.length);
     }
 }

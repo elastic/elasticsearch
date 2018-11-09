@@ -40,11 +40,12 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
     private final NamedAnalyzer defaultSearchQuoteAnalyzer;
     private final Map<String, NamedAnalyzer> analyzers;
     private final Map<String, NamedAnalyzer> normalizers;
+    private final Map<String, NamedAnalyzer> whitespaceNormalizers;
     private final IndexSettings indexSettings;
 
     public IndexAnalyzers(IndexSettings indexSettings, NamedAnalyzer defaultIndexAnalyzer, NamedAnalyzer defaultSearchAnalyzer,
                           NamedAnalyzer defaultSearchQuoteAnalyzer, Map<String, NamedAnalyzer> analyzers,
-                          Map<String, NamedAnalyzer> normalizers) {
+                          Map<String, NamedAnalyzer> normalizers, Map<String, NamedAnalyzer> whitespaceNormalizers) {
         super(indexSettings);
         if (defaultIndexAnalyzer.name().equals("default") == false) {
             throw new IllegalStateException("default analyzer must have the name [default] but was: [" + defaultIndexAnalyzer.name() + "]");
@@ -54,6 +55,7 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
         this.defaultSearchQuoteAnalyzer = defaultSearchQuoteAnalyzer;
         this.analyzers = analyzers;
         this.normalizers = normalizers;
+        this.whitespaceNormalizers = whitespaceNormalizers;
         this.indexSettings = indexSettings;
     }
 
@@ -69,6 +71,13 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
      */
     public NamedAnalyzer getNormalizer(String name) {
         return normalizers.get(name);
+    }
+
+    /**
+     * Returns a normalizer that splits on whitespace mapped to the given name or <code>null</code> if not present
+     */
+    public NamedAnalyzer getWhitespaceNormalizer(String name) {
+        return whitespaceNormalizers.get(name);
     }
 
     /**

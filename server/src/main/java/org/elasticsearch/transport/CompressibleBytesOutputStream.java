@@ -25,7 +25,6 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
 import java.util.zip.DeflaterOutputStream;

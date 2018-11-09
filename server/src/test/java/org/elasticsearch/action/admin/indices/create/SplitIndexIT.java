@@ -24,6 +24,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -54,15 +55,12 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -83,8 +81,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class SplitIndexIT extends ESIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class);
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     public void testCreateSplitIndexToN() throws IOException {
@@ -94,6 +92,9 @@ public class SplitIndexIT extends ESIntegTestCase {
     }
 
     public void testSplitFromOneToN() {
+
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/34080", Constants.WINDOWS);
+
         splitToN(1, 5, 10);
         client().admin().indices().prepareDelete("*").get();
         int randomSplit = randomIntBetween(2, 6);
@@ -193,8 +194,9 @@ public class SplitIndexIT extends ESIntegTestCase {
                 .put("index.blocks.write", true)).get();
         ensureGreen();
         Settings.Builder firstSplitSettingsBuilder = Settings.builder()
-            .put("index.number_of_replicas", 0)
-            .put("index.number_of_shards", firstSplitShards);
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", firstSplitShards)
+                .putNull("index.blocks.write");
         if (sourceShards == 1 && useRoutingPartition == false && randomBoolean()) { // try to set it if we have a source index with 1 shard
             firstSplitSettingsBuilder.put("index.number_of_routing_shards", secondSplitShards);
         }
@@ -225,10 +227,12 @@ public class SplitIndexIT extends ESIntegTestCase {
         ensureGreen();
         // now split source into a new index
         assertAcked(client().admin().indices().prepareResizeIndex("first_split", "second_split")
-            .setResizeType(ResizeType.SPLIT)
-            .setSettings(Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", secondSplitShards).build()).get());
+                .setResizeType(ResizeType.SPLIT)
+                .setSettings(Settings.builder()
+                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", secondSplitShards)
+                        .putNull("index.blocks.write")
+                        .build()).get());
         ensureGreen();
         assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
         // let it be allocated anywhere and bump replicas
@@ -340,7 +344,11 @@ public class SplitIndexIT extends ESIntegTestCase {
 
         // now split source into target
         final Settings splitSettings =
-                Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", numberOfTargetShards).build();
+                Settings.builder()
+                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", numberOfTargetShards)
+                        .putNull("index.blocks.write")
+                        .build();
         assertAcked(client().admin().indices().prepareResizeIndex("source", "target")
             .setResizeType(ResizeType.SPLIT)
             .setSettings(splitSettings).get());
@@ -396,8 +404,10 @@ public class SplitIndexIT extends ESIntegTestCase {
             assertAcked(client().admin().indices().prepareResizeIndex("source", "target")
                 .setResizeType(ResizeType.SPLIT)
                 .setSettings(Settings.builder()
-                    .put("index.number_of_replicas", createWithReplicas ? 1 : 0)
-                    .put("index.number_of_shards", 2).build()).get());
+                        .put("index.number_of_replicas", createWithReplicas ? 1 : 0)
+                        .put("index.number_of_shards", 2)
+                        .putNull("index.blocks.write")
+                        .build()).get());
             ensureGreen();
 
             final ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -479,8 +489,6 @@ public class SplitIndexIT extends ESIntegTestCase {
         ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
             .getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
-        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
-        String mergeNode = discoveryNodes[0].getName();
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
         // to the require._name below.
@@ -507,10 +515,12 @@ public class SplitIndexIT extends ESIntegTestCase {
 
         // check that the index sort order of `source` is correctly applied to the `target`
         assertAcked(client().admin().indices().prepareResizeIndex("source", "target")
-            .setResizeType(ResizeType.SPLIT)
-            .setSettings(Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", 4).build()).get());
+                .setResizeType(ResizeType.SPLIT)
+                .setSettings(Settings.builder()
+                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", 4)
+                        .putNull("index.blocks.write")
+                        .build()).get());
         ensureGreen();
         flushAndRefresh();
         GetSettingsResponse settingsResponse =

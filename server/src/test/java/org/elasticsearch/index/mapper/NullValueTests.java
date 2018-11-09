@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class NullValueTests extends ESSingleNodeTestCase {
     public void testNullNullValue() throws Exception {
         IndexService indexService = createIndex("test", Settings.builder().build());
-        String[] typesToTest = {"integer", "long", "double", "float", "short", "date", "ip", "keyword", "boolean", "byte"};
+        String[] typesToTest = {"integer", "long", "double", "float", "short", "date", "ip", "keyword", "boolean", "byte", "geo_point"};
 
         for (String type : typesToTest) {
             String mapping = Strings.toString(XContentFactory.jsonBuilder()

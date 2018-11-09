@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -262,11 +263,11 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         builder.field(Fields.TYPE, recoverySource.getType());
         builder.field(Fields.STAGE, stage.toString());
         builder.field(Fields.PRIMARY, primary);
-        builder.dateField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
+        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
         if (timer.stopTime > 0) {
-            builder.dateField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
+            builder.timeField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
         }
-        builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, timer.time());
+        builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(timer.time()));
 
         if (recoverySource.getType() == RecoverySource.Type.PEER) {
             builder.startObject(Fields.SOURCE);
@@ -444,8 +445,8 @@ public class RecoveryState implements ToXContentFragment, Streamable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.timeValueField(Fields.CHECK_INDEX_TIME_IN_MILLIS, Fields.CHECK_INDEX_TIME, checkIndexTime);
-            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
+            builder.humanReadableField(Fields.CHECK_INDEX_TIME_IN_MILLIS, Fields.CHECK_INDEX_TIME, new TimeValue(checkIndexTime));
+            builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
             return builder;
         }
     }
@@ -549,7 +550,7 @@ public class RecoveryState implements ToXContentFragment, Streamable {
             builder.field(Fields.TOTAL, total);
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredPercent()));
             builder.field(Fields.TOTAL_ON_START, totalOnStart);
-            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
+            builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
             return builder;
         }
     }
@@ -634,9 +635,9 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Fields.NAME, name);
-            builder.byteSizeField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, length);
+            builder.humanReadableField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, new ByteSizeValue(length));
             builder.field(Fields.REUSED, reused);
-            builder.byteSizeField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, recovered);
+            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, new ByteSizeValue(recovered));
             builder.endObject();
             return builder;
         }
@@ -905,9 +906,9 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         public synchronized XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             // stream size first, as it matters more and the files section can be long
             builder.startObject(Fields.SIZE);
-            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, totalBytes());
-            builder.byteSizeField(Fields.REUSED_IN_BYTES, Fields.REUSED, reusedBytes());
-            builder.byteSizeField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, recoveredBytes());
+            builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, new ByteSizeValue(totalBytes()));
+            builder.humanReadableField(Fields.REUSED_IN_BYTES, Fields.REUSED, new ByteSizeValue(reusedBytes()));
+            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, new ByteSizeValue(recoveredBytes()));
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredBytesPercent()));
             builder.endObject();
 
@@ -924,9 +925,9 @@ public class RecoveryState implements ToXContentFragment, Streamable {
                 builder.endArray();
             }
             builder.endObject();
-            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
-            builder.timeValueField(Fields.SOURCE_THROTTLE_TIME_IN_MILLIS, Fields.SOURCE_THROTTLE_TIME, sourceThrottling());
-            builder.timeValueField(Fields.TARGET_THROTTLE_TIME_IN_MILLIS, Fields.TARGET_THROTTLE_TIME, targetThrottling());
+            builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
+            builder.humanReadableField(Fields.SOURCE_THROTTLE_TIME_IN_MILLIS, Fields.SOURCE_THROTTLE_TIME, sourceThrottling());
+            builder.humanReadableField(Fields.TARGET_THROTTLE_TIME_IN_MILLIS, Fields.TARGET_THROTTLE_TIME, targetThrottling());
             return builder;
         }
 

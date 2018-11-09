@@ -124,10 +124,6 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     public void testSerializationBWC() throws IOException {
         for (Version version : VersionUtils.allReleasedVersions()) {
             NestedQueryBuilder testQuery = createTestQueryBuilder();
-            if (version.before(Version.V_5_2_0) && testQuery.innerHit() != null) {
-                // ignore unmapped for inner_hits has been added on 5.2
-                testQuery.innerHit().setIgnoreUnmapped(false);
-            }
             assertSerialization(testQuery, version);
         }
     }
@@ -347,7 +343,8 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         });
         innerHitBuilders.clear();
         NestedQueryBuilder query2 = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
-        query2.innerHit(leafInnerHits.setIgnoreUnmapped(true));
+        query2.ignoreUnmapped(true);
+        query2.innerHit(leafInnerHits);
         query2.extractInnerHitBuilders(innerHitBuilders);
         assertThat(innerHitBuilders.size(), Matchers.equalTo(1));
         assertTrue(innerHitBuilders.containsKey(leafInnerHits.getName()));

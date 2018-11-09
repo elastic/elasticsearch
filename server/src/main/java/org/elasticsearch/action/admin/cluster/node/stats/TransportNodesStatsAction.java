@@ -23,12 +23,10 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,12 +42,10 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     private final NodeService nodeService;
 
     @Inject
-    public TransportNodesStatsAction(Settings settings, ThreadPool threadPool,
-                                     ClusterService clusterService, TransportService transportService,
-                                     NodeService nodeService, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, NodesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-              indexNameExpressionResolver, NodesStatsRequest::new, NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT, NodeStats.class);
+    public TransportNodesStatsAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                     NodeService nodeService, ActionFilters actionFilters) {
+        super(NodesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+            NodesStatsRequest::new, NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT, NodeStats.class);
         this.nodeService = nodeService;
     }
 

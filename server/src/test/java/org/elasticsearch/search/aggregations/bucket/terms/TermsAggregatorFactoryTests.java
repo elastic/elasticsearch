@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;

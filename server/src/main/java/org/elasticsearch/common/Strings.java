@@ -757,7 +757,7 @@ public class Strings {
 
     /**
      * Returns a string representation of the builder (only applicable for text based xcontent).
-     * @param xContentBuilder
+     * @param xContentBuilder builder containing an object to converted to a string
      */
     public static String toString(XContentBuilder xContentBuilder) {
         return BytesReference.bytes(xContentBuilder).utf8ToString();

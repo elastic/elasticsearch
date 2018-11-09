@@ -1,8 +1,5 @@
 ---
 "get task test":
-  - skip:
-      version: " - 5.1.99"
-      reason: massage was changed in 5.2.0
   # Note that this gets much better testing in reindex's tests because it actually saves the task
   - do:
       cluster.state: {}

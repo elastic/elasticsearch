@@ -52,8 +52,10 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
 
     public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING = 
             Setting.memorySizeSetting("indices.queries.cache.size", "10%", Property.NodeScope);
+    // mostly a way to prevent queries from being the main source of memory usage
+    // of the cache
     public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING = 
-            Setting.intSetting("indices.queries.cache.count", 1000, 1, Property.NodeScope);
+            Setting.intSetting("indices.queries.cache.count", 10_000, 1, Property.NodeScope);
     // enables caching on all segments instead of only the larger ones, for testing only
     public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING = 
             Setting.boolSetting("indices.queries.cache.all_segments", false, Property.NodeScope);
@@ -69,7 +71,6 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
     private final Map<Object, StatsAndCount> stats2 = new IdentityHashMap<>();
 
     public IndicesQueryCache(Settings settings) {
-        super(settings);
         final ByteSizeValue size = INDICES_CACHE_QUERY_SIZE_SETTING.get(settings);
         final int count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);
         logger.debug("using [node] query cache with size [{}] max filter count [{}]",

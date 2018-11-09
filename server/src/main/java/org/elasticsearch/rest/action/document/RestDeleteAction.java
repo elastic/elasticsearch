@@ -47,9 +47,10 @@ public class RestDeleteAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
+        DeleteRequest deleteRequest = new DeleteRequest(request.param("index"),
+            request.param("type"),
+            request.param("id"));
         deleteRequest.routing(request.param("routing"));
-        deleteRequest.parent(request.param("parent"));
         deleteRequest.timeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
         deleteRequest.setRefreshPolicy(request.param("refresh"));
         deleteRequest.version(RestActions.parseVersion(request));

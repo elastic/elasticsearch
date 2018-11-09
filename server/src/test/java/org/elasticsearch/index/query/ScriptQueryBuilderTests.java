@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.query.ScriptQueryBuilder.ScriptQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBuilder> {
@@ -87,6 +88,25 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
 
         ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
         assertEquals(json, "5", parsed.script().getIdOrCode());
+    }
+
+    public void testArrayOfScriptsException() {
+        String json =
+            "{\n" +
+                "  \"script\" : {\n" +
+                "    \"script\" : [ {\n" +
+                "      \"source\" : \"5\",\n" +
+                "      \"lang\" : \"mockscript\"\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"source\" : \"6\",\n" +
+                "      \"lang\" : \"mockscript\"\n" +
+                "    }\n ]" +
+                "  }\n" +
+                "}";
+
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(e.getMessage(), containsString("does not support an array of scripts"));
     }
 
     @Override

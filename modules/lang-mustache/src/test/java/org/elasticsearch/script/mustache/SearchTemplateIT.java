@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRespo
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
@@ -101,7 +100,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 + "    \"size\": 1"
                 + "  }"
                 + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, query));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, query));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
@@ -122,7 +121,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 + "    \"use_size\": true"
                 + "  }"
                 + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, templateString));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
@@ -143,7 +142,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 + "    \"use_size\": true"
                 + "  }"
                 + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, templateString));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
@@ -152,25 +151,22 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     public void testIndexedTemplateClient() throws Exception {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("testTemplate")
-                .setContent(new BytesArray("{" +
-                        "\"template\":{" +
-                        "                \"query\":{" +
-                        "                   \"match\":{" +
-                        "                    \"theField\" : \"{{fieldParam}}\"}" +
-                        "       }" +
-                        "}" +
-                        "}"), XContentType.JSON));
-
-
-        assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setId("testTemplate").setContent(new BytesArray("{" +
-                        "\"template\":{" +
-                        "                \"query\":{" +
-                        "                   \"match\":{" +
-                        "                    \"theField\" : \"{{fieldParam}}\"}" +
-                        "       }" +
-                        "}" +
-                        "}"), XContentType.JSON));
+                .setContent(
+                    new BytesArray(
+                        "{" +
+                        "  \"script\": {" +
+                        "    \"lang\": \"mustache\"," +
+                        "    \"source\": {" +
+                        "      \"query\": {" +
+                        "        \"match\": {" +
+                        "            \"theField\": \"{{fieldParam}}\"" +
+                        "        }" +
+                        "      }" +
+                        "    }" +
+                        "  }" +
+                        "}"
+                    ),
+                    XContentType.JSON));
 
         GetStoredScriptResponse getResponse = client().admin().cluster()
                 .prepareGetStoredScript("testTemplate").get();
@@ -201,37 +197,29 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     }
 
     public void testIndexedTemplate() throws Exception {
-        assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setId("1a")
-                .setContent(new BytesArray("{" +
-                        "\"template\":{" +
-                        "                \"query\":{" +
-                        "                   \"match\":{" +
-                        "                    \"theField\" : \"{{fieldParam}}\"}" +
-                        "       }" +
-                        "}" +
-                        "}"
-                ), XContentType.JSON)
+
+        String script =
+            "{" +
+            "  \"script\": {" +
+            "    \"lang\": \"mustache\"," +
+            "    \"source\": {" +
+            "      \"query\": {" +
+            "        \"match\": {" +
+            "            \"theField\": \"{{fieldParam}}\"" +
+            "        }" +
+            "      }" +
+            "    }" +
+            "  }" +
+            "}";
+
+        assertAcked(
+            client().admin().cluster().preparePutStoredScript().setId("1a").setContent(new BytesArray(script), XContentType.JSON)
         );
-        assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setId("2")
-                .setContent(new BytesArray("{" +
-                        "\"template\":{" +
-                        "                \"query\":{" +
-                        "                   \"match\":{" +
-                        "                    \"theField\" : \"{{fieldParam}}\"}" +
-                        "       }" +
-                        "}" +
-                        "}"), XContentType.JSON)
+        assertAcked(
+            client().admin().cluster().preparePutStoredScript().setId("2").setContent(new BytesArray(script), XContentType.JSON)
         );
-        assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setId("3")
-                .setContent(new BytesArray("{" +
-                        "\"template\":{" +
-                        "             \"match\":{" +
-                        "                    \"theField\" : \"{{fieldParam}}\"}" +
-                        "       }" +
-                        "}"), XContentType.JSON)
+        assertAcked(
+            client().admin().cluster().preparePutStoredScript().setId("3").setContent(new BytesArray(script), XContentType.JSON)
         );
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -280,13 +268,27 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh().get();
 
         int iterations = randomIntBetween(2, 11);
+        String query =
+            "{" +
+            "  \"script\": {" +
+            "    \"lang\": \"mustache\"," +
+            "    \"source\": {" +
+            "      \"query\": {" +
+            "        \"match_phrase_prefix\": {" +
+            "            \"searchtext\": {" +
+            "                \"query\": \"{{P_Keyword1}}\"," +
+            "                \"slop\": {{slop}}" +
+            "            }" +
+            "        }" +
+            "      }" +
+            "    }" +
+            "  }" +
+            "}";
         for (int i = 1; i < iterations; i++) {
             assertAcked(client().admin().cluster().preparePutStoredScript()
                     .setId("git01")
-                    .setContent(new BytesArray(
-                            "{\"template\":{\"query\": {\"match_phrase_prefix\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\","
-                                    + "\"slop\": -1}}}}}"),
-                            XContentType.JSON));
+                    .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(-1))), XContentType.JSON)
+            );
 
             GetStoredScriptResponse getResponse = client().admin().cluster().prepareGetStoredScript("git01").get();
             assertNotNull(getResponse.getSource());
@@ -302,8 +304,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
             assertAcked(client().admin().cluster().preparePutStoredScript()
                     .setId("git01")
-                    .setContent(new BytesArray("{\"query\": {\"match_phrase_prefix\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
-                            "\"slop\": 0}}}}"), XContentType.JSON));
+                    .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(0))), XContentType.JSON)
+            );
 
             SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
                     .setRequest(new SearchRequest("testindex").types("test"))
@@ -314,12 +316,27 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     }
 
     public void testIndexedTemplateWithArray() throws Exception {
-        String multiQuery = "{\"query\":{\"terms\":{\"theField\":[\"{{#fieldParam}}\",\"{{.}}\",\"{{/fieldParam}}\"]}}}";
+        String multiQuery =
+            "{\n" +
+            "  \"script\": {\n" +
+            "    \"lang\": \"mustache\",\n" +
+            "    \"source\": {\n" +
+            "      \"query\": {\n" +
+            "        \"terms\": {\n" +
+            "            \"theField\": [\n" +
+            "                \"{{#fieldParam}}\",\n" +
+            "                \"{{.}}\",\n" +
+            "                \"{{/fieldParam}}\"\n" +
+            "            ]\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
         assertAcked(
                 client().admin().cluster().preparePutStoredScript()
                         .setId("4")
-                        .setContent(BytesReference.bytes(jsonBuilder().startObject().field("template", multiQuery).endObject()),
-                                XContentType.JSON)
+                        .setContent(new BytesArray(multiQuery), XContentType.JSON)
         );
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));

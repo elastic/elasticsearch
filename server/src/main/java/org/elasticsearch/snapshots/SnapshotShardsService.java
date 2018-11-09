@@ -21,7 +21,6 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -129,7 +128,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
 
         // The constructor of UpdateSnapshotStatusAction will register itself to the TransportService.
-        this.updateSnapshotStatusHandler = new UpdateSnapshotStatusAction(settings, UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+        this.updateSnapshotStatusHandler = new UpdateSnapshotStatusAction(UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
             transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
     }
 
@@ -340,8 +339,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn((Supplier<?>) () ->
-                                new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
+                            logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
                             failure.set(e);
                         }
 
@@ -391,7 +389,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         try {
             // we flush first to make sure we get the latest writes snapshotted
             try (Engine.IndexCommitRef snapshotRef = indexShard.acquireLastIndexCommit(true)) {
-                repository.snapshotShard(indexShard, snapshot.getSnapshotId(), indexId, snapshotRef.getIndexCommit(), snapshotStatus);
+                repository.snapshotShard(indexShard, indexShard.store(), snapshot.getSnapshotId(), indexId, snapshotRef.getIndexCommit(),
+                    snapshotStatus);
                 if (logger.isDebugEnabled()) {
                     final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
                     logger.debug("snapshot ({}) completed to {} with {}", snapshot, repository, lastSnapshotStatus);
@@ -531,7 +530,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             UpdateIndexShardSnapshotStatusRequest request = new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status);
             transportService.sendRequest(transportService.getLocalNode(), UPDATE_SNAPSHOT_STATUS_ACTION_NAME, request, INSTANCE_SAME);
         } catch (Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] [{}] failed to update snapshot state", snapshot, status), e);
+            logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to update snapshot state", snapshot, status), e);
         }
     }
 
@@ -616,9 +615,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     }
 
     class UpdateSnapshotStatusAction extends TransportMasterNodeAction<UpdateIndexShardSnapshotStatusRequest, UpdateIndexShardSnapshotStatusResponse> {
-        UpdateSnapshotStatusAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
+        UpdateSnapshotStatusAction(String actionName, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, UpdateIndexShardSnapshotStatusRequest::new);
+            super(actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, UpdateIndexShardSnapshotStatusRequest::new);
         }
 
         @Override

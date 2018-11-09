@@ -393,7 +393,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         internalCluster().coordOnlyNodeClient().admin().indices().flush(flushRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = new IndexNameExpressionResolver(Settings.EMPTY)
+        String[] indices = new IndexNameExpressionResolver()
                 .concreteIndexNames(client().admin().cluster().prepareState().get().getState(), flushRequest);
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
@@ -418,7 +418,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         internalCluster().coordOnlyNodeClient().admin().indices().refresh(refreshRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = new IndexNameExpressionResolver(Settings.EMPTY)
+        String[] indices = new IndexNameExpressionResolver()
                 .concreteIndexNames(client().admin().cluster().prepareState().get().getState(), refreshRequest);
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
@@ -778,11 +778,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
                     }
                 }
                 requestHandler.messageReceived(request, channel, task);
-            }
-
-            @Override
-            public void messageReceived(T request, TransportChannel channel) throws Exception {
-                messageReceived(request, channel, null);
             }
         }
     }

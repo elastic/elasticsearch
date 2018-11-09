@@ -21,16 +21,14 @@ package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -49,11 +47,11 @@ public class NodeMappingRefreshAction extends AbstractComponent {
     private final MetaDataMappingService metaDataMappingService;
 
     @Inject
-    public NodeMappingRefreshAction(Settings settings, TransportService transportService, MetaDataMappingService metaDataMappingService) {
-        super(settings);
+    public NodeMappingRefreshAction(TransportService transportService, MetaDataMappingService metaDataMappingService) {
         this.transportService = transportService;
         this.metaDataMappingService = metaDataMappingService;
-        transportService.registerRequestHandler(ACTION_NAME, NodeMappingRefreshRequest::new, ThreadPool.Names.SAME, new NodeMappingRefreshTransportHandler());
+        transportService.registerRequestHandler(ACTION_NAME,
+            NodeMappingRefreshRequest::new, ThreadPool.Names.SAME, new NodeMappingRefreshTransportHandler());
     }
 
     public void nodeMappingRefresh(final DiscoveryNode masterNode, final NodeMappingRefreshRequest request) {
@@ -67,7 +65,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
     private class NodeMappingRefreshTransportHandler implements TransportRequestHandler<NodeMappingRefreshRequest> {
 
         @Override
-        public void messageReceived(NodeMappingRefreshRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(NodeMappingRefreshRequest request, TransportChannel channel, Task task) throws Exception {
             metaDataMappingService.refreshMapping(request.index(), request.indexUUID());
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

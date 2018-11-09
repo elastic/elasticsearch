@@ -140,7 +140,10 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                     final long metaStateGeneration =
                             metaStateService.writeManifest("startup", new Manifest(globalStateGeneration, indices));
                     cleanupActions.add(() -> metaStateService.cleanupMetaState(metaStateGeneration));
-                    performCleanup(cleanupActions);
+
+                    for (Runnable action : cleanupActions) {
+                        action.run();
+                    }
                 }
             } catch (Exception e) {
                 logger.error("failed to read or re-write local state, exiting...", e);
@@ -205,16 +208,13 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         Map<Index, Long> newIndices = writeIndicesMetadata(newState, previousState, cleanupActions);
         Manifest manifest = new Manifest(globalStateGeneration, newIndices);
         writeManifest(manifest, cleanupActions);
-        performCleanup(cleanupActions);
 
-        previousMetaData = newMetaData;
-        previousManifest = manifest;
-    }
-
-    private void performCleanup(List<Runnable> cleanupActions) {
         for (Runnable action : cleanupActions) {
             action.run();
         }
+
+        previousMetaData = newMetaData;
+        previousManifest = manifest;
     }
 
     private void writeManifest(Manifest manifest, List<Runnable> cleanupActions) throws IOException {

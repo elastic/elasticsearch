@@ -115,6 +115,7 @@ public class SourceFetchingIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("test").setFetchSource(true).get();
         assertThat(response.getHits().getAt(0).getSourceAsMap(), equalTo(source));
 
+        // Check 'include' filtering.
         response = client().prepareSearch("test").setFetchSource("headers", null).get();
         assertThat(response.getHits().getAt(0).getSourceAsMap(), equalTo(source));
 
@@ -123,6 +124,7 @@ public class SourceFetchingIT extends ESIntegTestCase {
             Collections.singletonMap("content-type", "application/json"));
         assertThat(response.getHits().getAt(0).getSourceAsMap(), equalTo(filteredSource));
 
+        // Check 'exclude' filtering.
         response = client().prepareSearch("test").setFetchSource(null, "headers.content-type").get();
         filteredSource = Collections.singletonMap("headers",
             Collections.singletonMap("origin", "https://www.elastic.co"));

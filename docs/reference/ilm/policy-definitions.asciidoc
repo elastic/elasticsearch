@@ -1,0 +1,6 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-policy-definition]]
+== Policy Phases and Actions
+
+STUB

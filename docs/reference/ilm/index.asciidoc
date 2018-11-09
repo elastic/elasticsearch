@@ -52,9 +52,11 @@ hardware.
 
 include::getting-started-ilm.asciidoc[]
 
-include::using-policies-rollover.asciidoc[]
+include::policy-definitions.asciidoc[]
 
 include::set-up-lifecycle-policy.asciidoc[]
+
+include::using-policies-rollover.asciidoc[]
 
 include::update-lifecycle-policy.asciidoc[]
 

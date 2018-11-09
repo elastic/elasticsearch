@@ -153,6 +153,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 // fire off the search. Note this is async, the method will return from here
                 executor.execute(() -> {
                     try {
+                        stats.markStartSearch();
                         doNextSearch(buildSearchRequest(), ActionListener.wrap(this::onSearchResponse, exc -> finishWithFailure(exc)));
                     } catch (Exception e) {
                         finishWithFailure(e);
@@ -291,6 +292,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     }
 
     private void onSearchResponse(SearchResponse searchResponse) {
+        stats.markEndSearch();
         try {
             if (checkState(getState()) == false) {
                 return;
@@ -320,6 +322,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             // TODO this might be a valid case, e.g. if implementation filters
             assert bulkRequest.requests().size() > 0;
 
+            stats.markStartBulk();
             doNextBulk(bulkRequest, ActionListener.wrap(bulkResponse -> {
                 // TODO we should check items in the response and move after accordingly to
                 // resume the failing buckets ?
@@ -335,16 +338,23 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 position.set(newPosition);
 
                 onBulkResponse(bulkResponse, newPosition);
-            }, exc -> finishWithFailure(exc)));
+            }, exc -> {
+                stats.incrementBulkFailures();
+                finishWithFailure(exc);
+            }));
         } catch (Exception e) {
+            stats.incrementSearchFailures();
             finishWithFailure(e);
         }
     }
 
     private void onBulkResponse(BulkResponse response, JobPosition position) {
+        stats.markEndBulk();
         try {
-
-            ActionListener<SearchResponse> listener = ActionListener.wrap(this::onSearchResponse, this::finishWithFailure);
+            ActionListener<SearchResponse> listener = ActionListener.wrap(this::onSearchResponse, e -> {
+                stats.incrementSearchFailures();
+                finishWithFailure(e);
+            });
             // TODO probably something more intelligent than every-50 is needed
             if (stats.getNumPages() > 0 && stats.getNumPages() % 50 == 0) {
                 doSaveState(IndexerState.INDEXING, position, () -> doNextSearch(buildSearchRequest(), listener));
@@ -352,6 +362,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 doNextSearch(buildSearchRequest(), listener);
             }
         } catch (Exception e) {
+            stats.incrementBulkFailures();
             finishWithFailure(e);
         }
     }

@@ -42,6 +42,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -228,6 +229,11 @@ public class RollupIndexerStateTests extends ESTestCase {
             ESTestCase.awaitBusy(() -> indexer.getState() == IndexerState.STARTED);
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
+            assertThat(indexer.getStats().getBulkFailures(), equalTo(0L));
+            assertThat(indexer.getStats().getSearchFailures(), equalTo(0L));
+            // We can't check the actual min/max/avg stats since they may be too fast to register
+            // but we can check the count having incremented
+            assertThat(indexer.getStats().getSearchLatency().getCount(), greaterThan(0L));
             assertTrue(indexer.abort());
         } finally {
             executor.shutdownNow();
@@ -257,6 +263,11 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
+            assertThat(indexer.getStats().getBulkFailures(), equalTo(0L));
+            assertThat(indexer.getStats().getSearchFailures(), equalTo(0L));
+            // We can't check the actual min/max/avg stats since they may be too fast to register
+            // but we can check the count having incremented
+            assertThat(indexer.getStats().getSearchLatency().getCount(), greaterThan(0L));
             assertTrue(indexer.abort());
         } finally {
             executor.shutdownNow();
@@ -339,6 +350,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.ABORTING));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(0L));
+            assertThat(indexer.getStats().getSearchFailures(), equalTo(0L));
         } finally {
             executor.shutdownNow();
         }
@@ -638,6 +650,9 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
 
+            // There should be one recorded failure
+            assertThat(indexer.getStats().getSearchFailures(), equalTo(1L));
+
             // Note: no docs were indexed
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
@@ -742,6 +757,9 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
 
+            // There should be one recorded failure
+            assertThat(indexer.getStats().getSearchFailures(), equalTo(1L));
+
             // Note: no docs were indexed
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
@@ -783,6 +801,9 @@ public class RollupIndexerStateTests extends ESTestCase {
             // Despite failure in bulk, we should move back to STARTED and wait to try again on next trigger
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
+
+            // There should be one recorded failure
+            assertThat(indexer.getStats().getSearchFailures(), equalTo(1L));
 
             // Note: no pages processed, no docs were indexed
             assertThat(indexer.getStats().getNumPages(), equalTo(0L));
@@ -894,6 +915,9 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
+
+            // There should be one recorded failure
+            assertThat(indexer.getStats().getBulkFailures(), equalTo(1L));
 
             // Note: no docs were indexed
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));

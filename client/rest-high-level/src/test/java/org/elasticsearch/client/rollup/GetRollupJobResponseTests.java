@@ -62,7 +62,9 @@ public class GetRollupJobResponseTests extends ESTestCase {
     }
 
     private RollupIndexerJobStats randomStats() {
-        return new RollupIndexerJobStats(randomLong(), randomLong(), randomLong(), randomLong());
+        return new RollupIndexerJobStats(randomLong(), randomLong(), randomLong(), randomLong(),
+            new GetRollupJobResponse.StatsAccumulator(0, 0, 0, 0),
+            new GetRollupJobResponse.StatsAccumulator(0, 0, 0, 0), 0, 0);
     }
 
     private RollupJobStatus randomStatus() {
@@ -115,6 +117,23 @@ public class GetRollupJobResponseTests extends ESTestCase {
         builder.field(GetRollupJobResponse.NUM_INPUT_DOCUMENTS.getPreferredName(), stats.getNumDocuments());
         builder.field(GetRollupJobResponse.NUM_OUTPUT_DOCUMENTS.getPreferredName(), stats.getOutputDocuments());
         builder.field(GetRollupJobResponse.NUM_INVOCATIONS.getPreferredName(), stats.getNumInvocations());
+        builder.field(GetRollupJobResponse.BULK_LATENCY.getPreferredName());
+        toXContent(stats.getBulkLatency(), builder, params);
+        builder.field(GetRollupJobResponse.SEARCH_LATENCY.getPreferredName());
+        toXContent(stats.getSearchLatency(), builder, params);
+        builder.field(GetRollupJobResponse.BULK_FAILURES.getPreferredName(), stats.getBulkFailures());
+        builder.field(GetRollupJobResponse.SEARCH_FAILURES.getPreferredName(), stats.getSearchFailures());
+        builder.endObject();
+    }
+
+    public void toXContent(GetRollupJobResponse.StatsAccumulator stats, XContentBuilder builder,
+                           ToXContent.Params params) throws IOException {
+        builder.startObject();
+        builder.field(GetRollupJobResponse.MIN.getPreferredName(), stats.getMin());
+        builder.field(GetRollupJobResponse.MAX.getPreferredName(), stats.getMax());
+        builder.field(GetRollupJobResponse.AVG.getPreferredName(), stats.getAvg());
+        builder.field(GetRollupJobResponse.TOTAL.getPreferredName(), stats.getTotal());
+        builder.field(GetRollupJobResponse.COUNT.getPreferredName(), stats.getCount());
         builder.endObject();
     }
 }

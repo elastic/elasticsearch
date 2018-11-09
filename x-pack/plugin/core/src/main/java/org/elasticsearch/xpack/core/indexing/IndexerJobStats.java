@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.indexing;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,15 +28,27 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
     protected long numInputDocuments = 0;
     protected long numOuputDocuments = 0;
     protected long numInvocations = 0;
+    protected StatsAccumulator bulkLatency = new StatsAccumulator();
+    protected StatsAccumulator searchLatency = new StatsAccumulator();
+    protected long bulkFailures = 0;
+    protected long searchFailures = 0;
+
+    private long startBulkTime;
+    private long startSearchTime;
 
     public IndexerJobStats() {
     }
 
-    public IndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations) {
+    public IndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
+                           StatsAccumulator bulkLatency, StatsAccumulator searchLatency, long bulkFailures, long searchFailures) {
         this.numPages = numPages;
         this.numInputDocuments = numInputDocuments;
         this.numOuputDocuments = numOuputDocuments;
         this.numInvocations = numInvocations;
+        this.bulkLatency = bulkLatency;
+        this.searchLatency = searchLatency;
+        this.bulkFailures = bulkFailures;
+        this.searchFailures = searchFailures;
     }
 
     public IndexerJobStats(StreamInput in) throws IOException {
@@ -43,6 +56,13 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         this.numInputDocuments = in.readVLong();
         this.numOuputDocuments = in.readVLong();
         this.numInvocations = in.readVLong();
+        // TODO change this after backport
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            this.bulkLatency = new StatsAccumulator(in);
+            this.searchLatency = new StatsAccumulator(in);
+            this.bulkFailures = in.readVLong();
+            this.searchFailures = in.readVLong();
+        }
     }
 
     public long getNumPages() {
@@ -59,6 +79,22 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
 
     public long getOutputDocuments() {
         return numOuputDocuments;
+    }
+
+    public long getBulkFailures() {
+        return bulkFailures;
+    }
+
+    public long getSearchFailures() {
+        return searchFailures;
+    }
+
+    public StatsAccumulator getBulkLatency() {
+        return bulkLatency;
+    }
+
+    public StatsAccumulator getSearchLatency() {
+        return searchLatency;
     }
 
     public void incrementNumPages(long n) {
@@ -81,12 +117,43 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         numOuputDocuments += n;
     }
 
+    public void incrementBulkFailures() {
+        this.bulkFailures += 1;
+    }
+
+    public void incrementSearchFailures() {
+        this.searchFailures += 1;
+    }
+
+    public void markStartBulk() {
+        this.startBulkTime = System.nanoTime();
+    }
+
+    public void markEndBulk() {
+        bulkLatency.add((System.nanoTime() - startBulkTime) / 1000000);
+    }
+
+    public void markStartSearch() {
+        this.startSearchTime = System.nanoTime();
+    }
+
+    public void markEndSearch() {
+        searchLatency.add((System.nanoTime() - startSearchTime) / 1000000);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(numPages);
         out.writeVLong(numInputDocuments);
         out.writeVLong(numOuputDocuments);
         out.writeVLong(numInvocations);
+        // TODO change after backport
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            bulkLatency.writeTo(out);
+            searchLatency.writeTo(out);
+            out.writeVLong(bulkFailures);
+            out.writeVLong(searchFailures);
+        }
     }
 
     @Override
@@ -104,11 +171,16 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         return Objects.equals(this.numPages, that.numPages)
                 && Objects.equals(this.numInputDocuments, that.numInputDocuments)
                 && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
-                && Objects.equals(this.numInvocations, that.numInvocations);
+                && Objects.equals(this.numInvocations, that.numInvocations)
+                && Objects.equals(this.bulkLatency, that.bulkLatency)
+                && Objects.equals(this.searchLatency, that.searchLatency)
+                && Objects.equals(this.bulkFailures, that.bulkFailures)
+                && Objects.equals(this.searchFailures, that.searchFailures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations);
+        return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations,
+            bulkLatency, searchLatency, bulkFailures, searchFailures);
     }
 }

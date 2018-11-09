@@ -28,10 +28,10 @@ import java.util.Objects;
 
 /**
  * Represents generic global cluster privileges that can be scoped by categories
- * and then by operations. The privilege definition, as well as the operation
- * identifier, are outside of the Elasticsearch jurisdiction. Categories are
- * predefined and enforced by Elasticsearch. It is not permitted to define
- * different privileges for the same category and operation.
+ * and then further by operations. The privilege's syntactic and semantic
+ * meaning is specific to each category and operation; there is no general
+ * definition template. It is not permitted to define different privileges under
+ * the same category and operation.
  */
 public class GlobalOperationPrivilege {
 
@@ -40,18 +40,16 @@ public class GlobalOperationPrivilege {
     private final Map<String, Object> privilege;
 
     /**
-     * Constructs privileges under a certain {@code category} and for some
-     * {@code operation}. There is no constraint over the {@code operation}
-     * identifier, only the categories are predefined. The privilege definition is
-     * also out of Elasticsearch's control.
+     * Constructs privileges under a specific {@code category} and for some
+     * {@code operation}. The privilege definition is flexible, it is a {@code Map},
+     * and the semantics is bound to the {@code category} and {@code operation}.
      * 
      * @param category
      *            The category of the privilege.
      * @param operation
      *            The operation of the privilege.
      * @param privilege
-     *            The privilege definition. This is out of the Elasticsearch's
-     *            control.
+     *            The privilege definition.
      */
     public GlobalOperationPrivilege(String category, String operation, Map<String, Object> privilege) {
         this.category = Objects.requireNonNull(category);

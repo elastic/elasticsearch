@@ -68,6 +68,9 @@ public final class GlobalPrivileges implements ToXContentObject {
     }
 
     private final Set<? extends GlobalOperationPrivilege> privileges;
+    // same data as in privileges but broken down by categories; internally, it is
+    // easier to work with this structure
+    private final Map<String, List<GlobalOperationPrivilege>> privilegesByCategoryMap;
 
     /**
      * Constructs global privileges by bundling the set of privileges.
@@ -81,11 +84,12 @@ public final class GlobalPrivileges implements ToXContentObject {
         }
         // duplicates are just ignored
         this.privileges = Collections.unmodifiableSet(new HashSet<>(Objects.requireNonNull(privileges)));
-        final Map<String, List<GlobalOperationPrivilege>> privilegesByCategoryMap =
-                this.privileges.stream().collect(Collectors.groupingBy(GlobalOperationPrivilege::getCategory));
+        this.privilegesByCategoryMap = Collections
+                .unmodifiableMap(this.privileges.stream().collect(Collectors.groupingBy(GlobalOperationPrivilege::getCategory)));
         for (final Map.Entry<String, List<GlobalOperationPrivilege>> privilegesByCategory : privilegesByCategoryMap.entrySet()) {
             // all operations for a specific category
-            final Set<String> allOperations = privilegesByCategory.getValue().stream().map(p -> p.getOperation()).collect(Collectors.toSet());
+            final Set<String> allOperations = privilegesByCategory.getValue().stream().map(p -> p.getOperation())
+                    .collect(Collectors.toSet());
             if (allOperations.size() != privilegesByCategory.getValue().size()) {
                 throw new IllegalArgumentException("Different privileges for the same category and operation are not permitted");
             }
@@ -94,10 +98,8 @@ public final class GlobalPrivileges implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final Map<String, List<GlobalOperationPrivilege>> privilegesByCategoryMap =
-                this.privileges.stream().collect(Collectors.groupingBy(GlobalOperationPrivilege::getCategory));
         builder.startObject();
-        for (final Map.Entry<String, List<GlobalOperationPrivilege>> privilegesByCategory : privilegesByCategoryMap.entrySet()) {
+        for (final Map.Entry<String, List<GlobalOperationPrivilege>> privilegesByCategory : this.privilegesByCategoryMap.entrySet()) {
             builder.startObject(privilegesByCategory.getKey());
             for (final GlobalOperationPrivilege privilege : privilegesByCategory.getValue()) {
                 builder.field(privilege.getOperation(), privilege.getRaw());

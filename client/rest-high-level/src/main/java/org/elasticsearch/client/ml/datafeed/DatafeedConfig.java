@@ -411,10 +411,11 @@ public class DatafeedConfig implements ToXContentObject {
          * We query the index to the latest finalized bucket from this TimeValue in the past looking to see if any data has been indexed
          * since the data was read with the Datafeed.
          *
-         * The window must be larger than the {@link org.elasticsearch.client.ml.job.config.AnalysisConfig#bucketSpan} but less than
-         * 10000x that span.
+         * The window must be larger than the {@link org.elasticsearch.client.ml.job.config.AnalysisConfig#bucketSpan}, less than
+         * 24 hours, and span less than 10,000x buckets.
          *
          * @param delayedDataCheckWindow The time length in the past from the latest finalized bucket to look for latent data
+         *                               Defaults to 2 hours.
          */
         public Builder setDelayedDataCheckWindow(TimeValue delayedDataCheckWindow) {
             this.delayedDataCheckWindow = delayedDataCheckWindow;
@@ -426,6 +427,7 @@ public class DatafeedConfig implements ToXContentObject {
          * reads from the index.
          *
          * @param shouldRunDelayedDataCheck when {@code false} no checks are made for latent data in the real-time datafeed
+         *                                  Defaults to {@code true}
          */
         public Builder setShouldRunDelayedDataCheck(boolean shouldRunDelayedDataCheck) {
             this.shouldRunDelayedDataCheck = shouldRunDelayedDataCheck;

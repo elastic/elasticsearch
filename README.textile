@@ -212,3 +212,4 @@ See the "TESTING":TESTING.asciidoc file for more information about running the E
 h3. Upgrading from older Elasticsearch versions
 
 In order to ensure a smooth upgrade process from earlier versions of Elasticsearch, please see our "upgrade documentation":https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html for more details on the upgrade process.
+

@@ -877,6 +877,22 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         MlFilter createdFilter = putFilterResponse.getResponse();
 
         assertThat(createdFilter, equalTo(mlFilter));
+    }
+
+    public void testDeleteFilter() throws Exception {
+        String filterId = "delete-filter-job-test";
+        MlFilter mlFilter = MlFilter.builder(filterId)
+            .setDescription(randomAlphaOfLength(10))
+            .setItems(generateRandomStringArray(10, 10, false, false))
+            .build();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        PutFilterResponse putFilterResponse = execute(new PutFilterRequest(mlFilter),
+            machineLearningClient::putFilter,
+            machineLearningClient::putFilterAsync);
+        MlFilter createdFilter = putFilterResponse.getResponse();
+
+        assertThat(createdFilter, equalTo(mlFilter));
 
         DeleteFilterRequest deleteFilterRequest = new DeleteFilterRequest(filterId);
         AcknowledgedResponse response = execute(deleteFilterRequest, machineLearningClient::deleteFilter,

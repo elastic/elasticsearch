@@ -24,7 +24,7 @@ public class DeleteFilterRequestTests extends ESTestCase {
 
     public void test_WithNullFilter() {
         NullPointerException ex = expectThrows(NullPointerException.class, () -> new DeleteFilterRequest(null));
-        assertEquals("filter id is required", ex.getMessage());
+        assertEquals("[filter_id] is required", ex.getMessage());
     }
 
     public void test_instance() {

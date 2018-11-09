@@ -12,7 +12,7 @@ with a +{response}+ object.
 [id="{upid}-{api}-request"]
 ==== Delete Filter Request
 
-A `DeleteFilter` object requires a non-null `filterId`.
+A +{request}+ object requires a non-null `filterId`.
 
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------

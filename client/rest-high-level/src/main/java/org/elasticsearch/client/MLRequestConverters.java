@@ -478,7 +478,7 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request deleteFilter(DeleteFilterRequest deleteFilterRequest) throws IOException {
+    static Request deleteFilter(DeleteFilterRequest deleteFilterRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("ml")

@@ -30,7 +30,7 @@ public class DeleteFilterRequest implements Validatable {
     private final String filter_id;
 
     public DeleteFilterRequest(String filter_id) {
-        this.filter_id = Objects.requireNonNull(filter_id, "filter id is required");
+        this.filter_id = Objects.requireNonNull(filter_id, "[filter_id] is required");
     }
 
     public String getId() {

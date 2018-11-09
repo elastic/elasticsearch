@@ -180,7 +180,6 @@ public final class TransportFreezeIndexAction extends
         }
 
         /**
-         * The indices to be opened
          * @return the indices to be frozen or unfrozen
          */
         @Override

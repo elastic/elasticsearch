@@ -186,6 +186,9 @@ Note, for mappings, the merging is "deep", meaning that specific
 object/property based mappings can easily be added/overridden on higher
 order templates, with lower order templates providing the basis.
 
+NOTE: Multiple matching templates with the same order value will 
+result in a non-deterministic merging order.
+
 [float]
 [[versioning-templates]]
 === Template Versioning

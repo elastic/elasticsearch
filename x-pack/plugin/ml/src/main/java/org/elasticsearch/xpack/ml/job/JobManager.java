@@ -13,7 +13,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
@@ -71,6 +73,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -415,50 +418,110 @@ public class JobManager {
     }
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
-
-        ActionListener<Job> postUpdateAction;
-
-        // Autodetect must be updated if the fields that the C++ uses are changed
-        if (request.getJobUpdate().isAutodetectProcessUpdate()) {
-            postUpdateAction = ActionListener.wrap(
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
+        if (mlMetadata.getJobs().containsKey(request.getJobId())) {
+            updateJobClusterState(request, actionListener);
+        } else {
+            updateJobIndex(request, ActionListener.wrap(
                     updatedJob -> {
-                        JobUpdate jobUpdate = request.getJobUpdate();
-                        if (isJobOpen(clusterService.state(), request.getJobId())) {
-                            updateJobProcessNotifier.submitJobUpdate(UpdateParams.fromJobUpdate(jobUpdate), ActionListener.wrap(
-                                    isUpdated -> {
-                                        if (isUpdated) {
-                                            auditJobUpdatedIfNotInternal(request);
-                                        }
-                                    }, e -> {
-                                        // No need to do anything
-                                    }
-                            ));
-                        }
+                        postJobUpdate(clusterService.state(), request);
                         actionListener.onResponse(new PutJobAction.Response(updatedJob));
                     },
                     actionListener::onFailure
-            );
-        } else {
-            postUpdateAction = ActionListener.wrap(job -> {
-                        logger.debug("[{}] No process update required for job update: {}", () -> request.getJobId(), () -> {
-                            try {
-                                XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-                                request.getJobUpdate().toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-                                return Strings.toString(jsonBuilder);
-                            } catch (IOException e) {
-                                return "(unprintable due to " + e.getMessage() + ")";
-                            }
-                        });
-
-                        auditJobUpdatedIfNotInternal(request);
-                        actionListener.onResponse(new PutJobAction.Response(job));
-                    },
-                    actionListener::onFailure);
+            ));
         }
+    }
 
+    private void postJobUpdate(ClusterState clusterState, UpdateJobAction.Request request) {
+        JobUpdate jobUpdate = request.getJobUpdate();
 
+        // Change is required if the fields that the C++ uses are being updated
+        boolean processUpdateRequired = jobUpdate.isAutodetectProcessUpdate();
+
+        if (processUpdateRequired && isJobOpen(clusterState, request.getJobId())) {
+            updateJobProcessNotifier.submitJobUpdate(UpdateParams.fromJobUpdate(jobUpdate), ActionListener.wrap(
+                    isUpdated -> {
+                        if (isUpdated) {
+                            auditJobUpdatedIfNotInternal(request);
+                        }
+                    }, e -> {
+                        // No need to do anything
+                    }
+            ));
+        } else {
+            logger.debug("[{}] No process update required for job update: {}", () -> request.getJobId(), () -> {
+                try {
+                    XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+                    jobUpdate.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+                    return Strings.toString(jsonBuilder);
+                } catch (IOException e) {
+                    return "(unprintable due to " + e.getMessage() + ")";
+                }
+            });
+
+            auditJobUpdatedIfNotInternal(request);
+        }
+    }
+
+    private void updateJobIndex(UpdateJobAction.Request request, ActionListener<Job> updatedJobListener) {
         jobConfigProvider.updateJobWithValidation(request.getJobId(), request.getJobUpdate(), maxModelMemoryLimit,
-                this::validate, postUpdateAction);
+                this::validate, updatedJobListener);
+    }
+
+    private void updateJobClusterState(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
+        Job job = MlMetadata.getMlMetadata(clusterService.state()).getJobs().get(request.getJobId());
+        validate(job, request.getJobUpdate(), ActionListener.wrap(
+                nullValue -> clusterStateJobUpdate(request, actionListener),
+                actionListener::onFailure));
+    }
+
+    private void clusterStateJobUpdate(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
+        if (request.isWaitForAck()) {
+            // Use the ack cluster state update
+            clusterService.submitStateUpdateTask("update-job-" + request.getJobId(),
+                    new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
+                        private AtomicReference<Job> updatedJob = new AtomicReference<>();
+
+                        @Override
+                        protected PutJobAction.Response newResponse(boolean acknowledged) {
+                            return new PutJobAction.Response(updatedJob.get());
+                        }
+
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            Job job = MlMetadata.getMlMetadata(clusterService.state()).getJobs().get(request.getJobId());
+                            updatedJob.set(request.getJobUpdate().mergeWithJob(job, maxModelMemoryLimit));
+                            return ClusterStateJobUpdate.updateClusterState(updatedJob.get(), true, currentState);
+                        }
+
+                        @Override
+                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                            postJobUpdate(newState, request);
+                        }
+                    });
+        } else {
+            clusterService.submitStateUpdateTask("update-job-" + request.getJobId(), new ClusterStateUpdateTask() {
+                private AtomicReference<Job> updatedJob = new AtomicReference<>();
+
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    Job job = MlMetadata.getMlMetadata(clusterService.state()).getJobs().get(request.getJobId());
+                    updatedJob.set(request.getJobUpdate().mergeWithJob(job, maxModelMemoryLimit));
+                    return ClusterStateJobUpdate.updateClusterState(updatedJob.get(), true, currentState);
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    actionListener.onFailure(e);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    postJobUpdate(newState, request);
+                    actionListener.onResponse(new PutJobAction.Response(updatedJob.get()));
+                }
+            });
+        }
     }
 
     private void validate(Job job, JobUpdate jobUpdate, ActionListener<Void> handler) {

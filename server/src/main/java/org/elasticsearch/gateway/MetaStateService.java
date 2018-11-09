@@ -63,7 +63,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
      * @throws IOException if some IOException when loading files occurs or there is no metadata referenced by manifest file.
      */
     Tuple<Manifest, MetaData> loadFullState() throws IOException {
-        final Manifest manifest = loadMetaState();
+        final Manifest manifest = loadManifest();
         if (manifest == null) {
             return loadFullStateBWC();
         }
@@ -137,10 +137,6 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
         return IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.indexPaths(index));
     }
 
-    private Manifest loadMetaState() throws IOException {
-        return Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
-    }
-
     /**
      * Loads all indices states available on disk
      */
@@ -163,6 +159,13 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
             }
         }
         return indexMetaDataList;
+    }
+
+    /**
+     * Loads Manifest file from disk, returns null if there is no manifest file.
+     */
+    public Manifest loadManifest() throws IOException {
+        return Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
     }
 
     /**
@@ -259,7 +262,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
      */
     public void writeIndexAndUpdateManifest(String reason, IndexMetaData metaData) throws IOException {
         long generation = writeIndex(reason, metaData);
-        Manifest manifest = loadMetaState();
+        Manifest manifest = loadManifest();
         Map<Index, Long> indices = new HashMap<>(manifest.getIndexGenerations());
         indices.put(metaData.getIndex(), generation);
         manifest = new Manifest(manifest.getGlobalGeneration(), indices);
@@ -273,7 +276,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
      */
     public void writeGlobalStateAndUpdateManifest(String reason, MetaData metaData) throws IOException {
         long generation = writeGlobalState(reason, metaData);
-        Manifest manifest = loadMetaState();
+        Manifest manifest = loadManifest();
         manifest = new Manifest(generation, manifest.getIndexGenerations());
         long metaStateGeneration = writeManifest(reason, manifest);
         cleanupGlobalState(generation);

@@ -177,12 +177,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         }
 
         try {
-            // if previousManifest is null we load it from disk
-            // we don't do the same for previous metadata, because our comparison can show that nothing was changed,
-            // but in fact it has changed
-            if (previousManifest == null) {
-                previousManifest = metaStateService.loadFullState().v1();
-            }
             updateMetaData(event);
         } catch (WriteStateException e) {
             if (e.isDirty()) {
@@ -232,6 +226,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
     private Map<Index, Long> writeIndicesMetadata(ClusterState newState, ClusterState previousState, List<Runnable> cleanupActions)
             throws IOException {
+        if (previousManifest == null) {
+            previousManifest = metaStateService.loadManifest();
+        }
         Map<Index, Long> previouslyWrittenIndices = previousManifest.getIndexGenerations();
         Set<Index> relevantIndices = getRelevantIndices(newState, previousState, previouslyWrittenIndices.keySet());
 

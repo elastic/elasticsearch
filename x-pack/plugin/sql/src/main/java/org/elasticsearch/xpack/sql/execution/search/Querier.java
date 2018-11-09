@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.type.Schema;
@@ -319,27 +318,22 @@ public class Querier {
             // there are some results
             if (hits.length > 0) {
                 String scrollId = response.getScrollId();
-
+                SchemaSearchHitRowSet hitRowSet = new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), scrollId);
+                
                 // if there's an id, try to setup next scroll
                 if (scrollId != null &&
                         // is all the content already retrieved?
-                        (Boolean.TRUE.equals(response.isTerminatedEarly()) || response.getHits().getTotalHits() == hits.length
-                        // or maybe the limit has been reached
-                        || (hits.length >= query.limit() && query.limit() > -1))) {
+                        (Boolean.TRUE.equals(response.isTerminatedEarly()) 
+                                || response.getHits().getTotalHits() == hits.length
+                                // or maybe the limit has been reached
+                                || (hits.length >= query.limit() && query.limit() > -1)
+                                || hitRowSet.isLimitReached())) {
                     // if so, clear the scroll
                     clear(response.getScrollId(), ActionListener.wrap(
                             succeeded -> listener.onResponse(new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), null)),
                             listener::onFailure));
                 } else {
-                    SchemaSearchHitRowSet hitRowSet = new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), scrollId);
-                    if (hitRowSet.nextPageCursor() == Cursor.EMPTY) {
-                        // clear the scroll
-                        clear(response.getScrollId(), ActionListener.wrap(
-                                succeeded -> listener.onResponse(new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), null)),
-                                listener::onFailure));
-                    } else {
-                        listener.onResponse(hitRowSet);
-                    }
+                    listener.onResponse(hitRowSet);
                 }
             }
             // no hits

@@ -87,7 +87,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     final List<DocWriteRequest<?>> requests = new ArrayList<>();
     private final Set<String> indices = new HashSet<>();
     List<Object> payloads = null;
-    private boolean autoCreateIndexDisabled = false;
+    private boolean autoCreateIndexIfPermitted = true;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
@@ -512,15 +512,16 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return refreshPolicy;
     }
 
-    public boolean isAutoCreateIndexDisabled() {
-        return autoCreateIndexDisabled;
+    public boolean isAutoCreateIndexIfPermitted() {
+        return autoCreateIndexIfPermitted;
     }
 
     /**
-     * Disable automatic index creation for a request.
+     * Auto index creation for a request. Default is {@code true}
+     * It has to be permitted by {@link org.elasticsearch.action.support.AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
      */
-    public void setAutoCreateIndexDisabled() {
-        this.autoCreateIndexDisabled = true;
+    public void setAutoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
+        this.autoCreateIndexIfPermitted = autoCreateIndexIfPermitted;
     }
 
     /**
@@ -606,7 +607,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            autoCreateIndexDisabled = in.readBoolean();
+            autoCreateIndexIfPermitted = in.readBoolean();
         }
     }
 
@@ -621,7 +622,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(autoCreateIndexDisabled);
+            out.writeBoolean(autoCreateIndexIfPermitted);
         }
     }
 

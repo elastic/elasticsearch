@@ -66,17 +66,17 @@ public final class AutoCreateIndex {
      * Should the index be auto created?
      * @throws IndexNotFoundException if the index doesn't exist and shouldn't be auto created
      */
-    public boolean shouldAutoCreate(String index, ClusterState state, boolean autoCreateIndexDisabled) {
+    public boolean shouldAutoCreate(String index, ClusterState state, boolean autoCreateIndexIfPermitted) {
         if (resolver.hasIndexOrAlias(index, state)) {
             return false;
-        }
-        if (autoCreateIndexDisabled) {
-            throw new IndexNotFoundException("parameter [auto_create_index] is [false]", index);
         }
         // One volatile read, so that all checks are done against the same instance:
         final AutoCreate autoCreate = this.autoCreate;
         if (autoCreate.autoCreateIndex == false) {
             throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] is [false]", index);
+        }
+        if (autoCreateIndexIfPermitted == false) {
+            throw new IndexNotFoundException("parameter [auto_create_index] is [false]", index);
         }
         if (dynamicMappingDisabled) {
             throw new IndexNotFoundException("[" + MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey() + "] is [false]",

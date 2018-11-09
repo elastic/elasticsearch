@@ -90,7 +90,7 @@ public class RestBulkAction extends BaseRestHandler {
             if (Boolean.TRUE.equals(autoCreateIndex)) {
                 throw new IllegalArgumentException("request parameter [auto_create_index] could not be set to [true]");
             }
-            bulkRequest.setAutoCreateIndexDisabled();
+            bulkRequest.setAutoCreateIndexIfPermitted(false);
         }
         bulkRequest.add(request.requiredContent(), defaultIndex, defaultType, defaultRouting,
             defaultFetchSourceContext, defaultPipeline, null, allowExplicitIndex, request.getXContentType());

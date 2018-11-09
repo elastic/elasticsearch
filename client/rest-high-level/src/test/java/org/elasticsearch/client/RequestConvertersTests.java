@@ -345,7 +345,7 @@ public class RequestConvertersTests extends ESTestCase {
         if (reindexRequest.getRemoteInfo() == null && randomBoolean()) {
             reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
         }
-        setRandomlyDisableAutoCreateIndex(reindexRequest::setAutoCreateIndexDisabled, expectedParams);
+        setRandomlyDisableAutoCreateIndex(reindexRequest::setAutoCreateIndexIfPermitted, expectedParams);
         setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
         expectedParams.put("scroll", reindexRequest.getScrollTime().getStringRep());
@@ -642,7 +642,7 @@ public class RequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             randomizeFetchSourceContextParams(updateRequest::fetchSource, expectedParams);
         }
-        setRandomlyDisableAutoCreateIndex(updateRequest::setAutoCreateIndexDisabled, expectedParams);
+        setRandomlyDisableAutoCreateIndex(updateRequest::setAutoCreateIndexIfPermitted, expectedParams);
 
         Request request = RequestConverters.update(updateRequest);
         assertEquals("/" + index + "/" + type + "/" + id + "/_update", request.getEndpoint());
@@ -700,7 +700,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
 
         setRandomRefreshPolicy(bulkRequest::setRefreshPolicy, expectedParams);
-        setRandomlyDisableAutoCreateIndex(bulkRequest::setAutoCreateIndexDisabled, expectedParams);
+        setRandomlyDisableAutoCreateIndex(bulkRequest::setAutoCreateIndexIfPermitted, expectedParams);
 
         XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
 
@@ -1798,11 +1798,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomlyDisableAutoCreateIndex(Runnable setter, Map<String, String> expectedParams) {
+    private static void setRandomlyDisableAutoCreateIndex(Consumer<Boolean> setter, Map<String, String> expectedParams) {
         final boolean autoCreateIndexDisabled = randomBoolean();
-        if (autoCreateIndexDisabled) {
-            setter.run();
-            expectedParams.put("auto_create_index", Boolean.toString(false));
+        if (autoCreateIndexDisabled == false) {
+            setter.accept(autoCreateIndexDisabled);
+            expectedParams.put("auto_create_index", Boolean.toString(autoCreateIndexDisabled));
         }
     }
 

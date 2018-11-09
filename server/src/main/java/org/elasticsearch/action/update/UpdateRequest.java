@@ -114,7 +114,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private boolean docAsUpsert = false;
     private boolean detectNoop = true;
 
-    private boolean autoCreateIndexDisabled = false;
+    private boolean autoCreateIndexIfPermitted = true;
 
     @Nullable
     private IndexRequest doc;
@@ -512,15 +512,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return refreshPolicy;
     }
 
-    public boolean isAutoCreateIndexDisabled() {
-        return autoCreateIndexDisabled;
+    public boolean isAutoCreateIndexIfPermitted() {
+        return autoCreateIndexIfPermitted;
     }
 
     /**
-     * Disable automatic index creation for a request.
+     * Auto index creation for a request. Default is {@code true}
+     * It has to be permitted by {@link org.elasticsearch.action.support.AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
      */
-    public void setAutoCreateIndexDisabled() {
-        this.autoCreateIndexDisabled = true;
+    public void setAutoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
+        this.autoCreateIndexIfPermitted = autoCreateIndexIfPermitted;
     }
 
     public ActiveShardCount waitForActiveShards() {
@@ -790,7 +791,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            autoCreateIndexDisabled = in.readBoolean();
+            autoCreateIndexIfPermitted = in.readBoolean();
         }
     }
 
@@ -842,7 +843,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(autoCreateIndexDisabled);
+            out.writeBoolean(autoCreateIndexIfPermitted);
         }
     }
 

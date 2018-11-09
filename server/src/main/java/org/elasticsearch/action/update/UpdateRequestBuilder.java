@@ -344,10 +344,11 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
-     * Disable automatic index creation for a request.
+     * Auto index creation for a request. Default is {@code true}
+     * It has to be permitted by {@link org.elasticsearch.action.support.AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
      */
-    public final UpdateRequestBuilder setAutoCreateIndexDisabled() {
-        request.setAutoCreateIndexDisabled();
+    public final UpdateRequestBuilder setAutoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
+        request.setAutoCreateIndexIfPermitted(autoCreateIndexIfPermitted);
         return this;
     }
 

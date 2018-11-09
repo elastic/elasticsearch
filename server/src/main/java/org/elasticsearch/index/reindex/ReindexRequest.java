@@ -54,7 +54,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     private RemoteInfo remoteInfo;
 
-    private boolean autoCreateIndexDisabled = false;
+    private boolean autoCreateIndexIfPermitted = true;
 
     public ReindexRequest() {
         this(new SearchRequest(), new IndexRequest(), true);
@@ -75,7 +75,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         destination.readFrom(in);
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            autoCreateIndexDisabled = in.readBoolean();
+            autoCreateIndexIfPermitted = in.readBoolean();
         }
     }
 
@@ -256,15 +256,16 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return remoteInfo;
     }
 
-    public boolean isAutoCreateIndexDisabled() {
-        return autoCreateIndexDisabled;
+    public boolean isAutoCreateIndexIfPermitted() {
+        return autoCreateIndexIfPermitted;
     }
 
     /**
-     * Disable automatic index creation for a request.
+     * Auto index creation for a request. Default is {@code true}
+     * It has to be permitted by {@link org.elasticsearch.action.support.AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
      */
-    public void setAutoCreateIndexDisabled() {
-        this.autoCreateIndexDisabled = true;
+    public void setAutoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
+        this.autoCreateIndexIfPermitted = autoCreateIndexIfPermitted;
     }
 
     @Override
@@ -285,7 +286,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         destination.writeTo(out);
         out.writeOptionalWriteable(remoteInfo);
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(autoCreateIndexDisabled);
+            out.writeBoolean(autoCreateIndexIfPermitted);
         }
     }
 

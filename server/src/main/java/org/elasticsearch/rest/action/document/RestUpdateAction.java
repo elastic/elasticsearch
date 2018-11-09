@@ -74,7 +74,7 @@ public class RestUpdateAction extends BaseRestHandler {
             if (Boolean.TRUE.equals(autoCreateIndex)) {
                 throw new IllegalArgumentException("request parameter [auto_create_index] could not be set to [true]");
             }
-            updateRequest.setAutoCreateIndexDisabled();
+            updateRequest.setAutoCreateIndexIfPermitted(false);
         }
 
         request.applyContentParser(parser -> {

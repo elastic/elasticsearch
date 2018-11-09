@@ -144,10 +144,11 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     /**
-     * Disable automatic index creation for a request.
+     * Auto index creation for a request. Default is {@code true}
+     * It has to be permitted by {@link org.elasticsearch.action.support.AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
      */
-    public final BulkRequestBuilder setAutoCreateIndexDisabled() {
-        request.setAutoCreateIndexDisabled();
+    public final BulkRequestBuilder setAutoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
+        request.setAutoCreateIndexIfPermitted(autoCreateIndexIfPermitted);
         return this;
     }
 

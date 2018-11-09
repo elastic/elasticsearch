@@ -122,8 +122,8 @@ final class RequestConverters {
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
         parameters.withPipeline(bulkRequest.pipeline());
         parameters.withRouting(bulkRequest.routing());
-        if (bulkRequest.isAutoCreateIndexDisabled()) {
-            parameters.putParam("auto_create_index", Boolean.toString(false));
+        if (bulkRequest.isAutoCreateIndexIfPermitted() == false) {
+            parameters.putParam("auto_create_index", Boolean.toString(bulkRequest.isAutoCreateIndexIfPermitted()));
         }
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
@@ -331,8 +331,8 @@ final class RequestConverters {
         parameters.withRetryOnConflict(updateRequest.retryOnConflict());
         parameters.withVersion(updateRequest.version());
         parameters.withVersionType(updateRequest.versionType());
-        if (updateRequest.isAutoCreateIndexDisabled()) {
-            parameters.putParam("auto_create_index", Boolean.toString(false));
+        if (updateRequest.isAutoCreateIndexIfPermitted() == false) {
+            parameters.putParam("auto_create_index", Boolean.toString(updateRequest.isAutoCreateIndexIfPermitted()));
         }
 
         // The Java API allows update requests with different content types
@@ -512,8 +512,8 @@ final class RequestConverters {
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
         }
-        if (reindexRequest.isAutoCreateIndexDisabled()) {
-            params.putParam("auto_create_index", Boolean.toString(false));
+        if (reindexRequest.isAutoCreateIndexIfPermitted() == false) {
+            params.putParam("auto_create_index", Boolean.toString(reindexRequest.isAutoCreateIndexIfPermitted()));
         }
         request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;

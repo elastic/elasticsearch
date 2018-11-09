@@ -77,10 +77,11 @@ public class ReindexRequestBuilder extends
     }
 
     /**
-     * Disable automatic index creation for a request.
+     * Auto index creation for a request. Default is {@code true}
+     * It has to be permitted by {@link org.elasticsearch.action.support.AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
      */
-    public final ReindexRequestBuilder setAutoCreateIndexDisabled() {
-        request.setAutoCreateIndexDisabled();
+    public final ReindexRequestBuilder setAutoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
+        request.setAutoCreateIndexIfPermitted(autoCreateIndexIfPermitted);
         return this;
     }
 }

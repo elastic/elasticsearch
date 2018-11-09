@@ -129,7 +129,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             if (Boolean.TRUE.equals(autoCreateIndex)) {
                 throw new IllegalArgumentException("request parameter [auto_create_index] could not be set to [true]");
             }
-            internal.setAutoCreateIndexDisabled();
+            internal.setAutoCreateIndexIfPermitted(false);
         }
         return internal;
     }

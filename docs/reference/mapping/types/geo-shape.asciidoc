@@ -186,8 +186,7 @@ PUT /example
         "doc": {
             "properties": {
                 "location": {
-                    "type": "geo_shape",
-                    "tree": "quadtree"
+                    "type": "geo_shape"
                 }
             }
         }
@@ -218,9 +217,9 @@ PUT /example
     }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TEST[skip:deprecated mapping]
 
-This mapping maps the location field to the geo_shape type using the
+This mapping maps the location field to the geo_shape type using the deprecated
 quad_tree implementation and a precision of 100m. Elasticsearch translates
 this into a tree_levels setting of 20.
 
@@ -303,8 +302,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 The following is an example of a point in WKT:
 
@@ -316,8 +313,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 [float]
 ===== http://geojson.org/geojson-spec.html#id3[LineString]
@@ -338,8 +333,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 The following is an example of a LineString in WKT:
 
@@ -351,8 +344,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 The above `linestring` would draw a straight line starting at the White
 House to the US Capitol Building.
@@ -377,8 +368,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 The following is an example of a Polygon in WKT:
 
@@ -390,8 +379,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 The first array represents the outer boundary of the polygon, the other
 arrays represent the interior shapes ("holes"). The following is a GeoJSON example
@@ -411,8 +398,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 The following is an example of a Polygon with a hole in WKT:
 
@@ -424,8 +409,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 *IMPORTANT NOTE:* WKT does not enforce a specific order for vertices thus
 ambiguous polygons around the dateline and poles are possible.
@@ -461,8 +444,6 @@ POST /example/doc
 --------------------------------------------------
 // CONSOLE
 // TEST[catch:/mapper_parsing_exception/]
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 An `orientation` parameter can be defined when setting the geo_shape mapping (see <<geo-shape-mapping-options>>). This will define vertex
 order for the coordinate list on the mapped geo_shape field. It can also be overridden on each document.  The following is an example for
@@ -482,8 +463,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 [float]
 ===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
@@ -503,8 +482,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 The following is an example of a list of WKT points:
 
@@ -516,8 +493,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 [float]
 ===== http://www.geojson.org/geojson-spec.html#id6[MultiLineString]
@@ -539,8 +514,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 The following is an example of a list of WKT linestrings:
 
@@ -552,8 +525,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 [float]
 ===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
@@ -575,8 +546,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 The following is an example of a list of WKT polygons (second polygon contains a hole):
 
@@ -588,8 +557,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 [float]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
@@ -616,8 +583,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 The following is an example of a collection of WKT geometry objects:
 
@@ -629,8 +594,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 
 [float]
@@ -651,8 +614,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 The following is an example of an envelope using the WKT BBOX format:
 
@@ -666,8 +627,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 [float]
 ===== Circle
@@ -688,8 +647,6 @@ POST /example/doc
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
 
 Note: The inner `radius` field is required. If not specified, then
 the units of the `radius` will default to `METERS`.

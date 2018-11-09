@@ -304,6 +304,9 @@ You may further restrict the permissions by specifying a prefix within the bucke
 The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository
 registration will fail.
 
+Note: Starting in version 7.0, all bucket operations are using the path style access pattern. In previous versions the decision to use virtual hosted style
+or path style access was made by the AWS Java SDK.
+
 [[repository-s3-aws-vpc]]
 [float]
 ==== AWS VPC Bandwidth Settings

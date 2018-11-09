@@ -29,28 +29,4 @@ include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> whether the given user was found
 
-==== Asynchronous Execution
-
-This request can be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-execute-async]
---------------------------------------------------
-<1> The +{request}+ to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for +{response}+ looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
+include::../execution.asciidoc[]

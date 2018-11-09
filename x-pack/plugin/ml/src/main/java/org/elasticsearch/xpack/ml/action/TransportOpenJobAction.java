@@ -236,6 +236,16 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     reasons.add(reason);
                     continue;
                 }
+
+                boolean jobConfigIsStoredInIndex = job.getJobVersion().onOrAfter(Version.V_6_6_0);
+                if (jobConfigIsStoredInIndex && node.getVersion().before(Version.V_6_6_0)) {
+                    String reason = "Not opening job [" + jobId + "] on node [" + nodeNameOrId(node)
+                            + "] version [" + node.getVersion() + "], because this node does not support " +
+                            "jobs of version [" + job.getJobVersion() + "]";
+                    logger.trace(reason);
+                    reasons.add(reason);
+                    continue;
+                }
             }
 
             long numberOfAssignedJobs = 0;

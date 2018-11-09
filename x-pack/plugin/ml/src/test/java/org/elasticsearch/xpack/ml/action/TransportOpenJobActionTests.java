@@ -68,6 +68,8 @@ import java.util.TreeMap;
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -411,7 +413,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         nodeAttr, Collections.emptySet(), Version.V_6_2_0))
                 .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                        nodeAttr, Collections.emptySet(), Version.V_6_4_0))
+                        nodeAttr, Collections.emptySet(), Version.V_6_6_0))
                 .build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
@@ -428,6 +430,34 @@ public class TransportOpenJobActionTests extends ESTestCase {
         Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_rules", job, cs.build(), 2, 10, 30, memoryTracker,
             logger);
         assertNotNull(result.getExecutorNode());
+    }
+
+    public void testSelectLeastLoadedMlNode_indexJobsCannotBeAssignedToPre660Node() {
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                        nodeAttr, Collections.emptySet(), Version.V_6_5_0));
+
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        cs.nodes(nodes);
+
+        Job job = jobWithRules("v660-job");
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("v660-job", job, cs.build(), 2, 10, 30, logger);
+        assertNull(result.getExecutorNode());
+        assertEquals("Not opening job [v660-job] on node [_node_name1] version [6.5.0], " +
+                "because this node does not support jobs of version [6.6.0]", result.getExplanation());
+
+        nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                        nodeAttr, Collections.emptySet(), Version.V_6_5_0))
+                .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                        nodeAttr, Collections.emptySet(), Version.V_6_6_0));
+        cs.nodes(nodes);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("v660-job", job, cs.build(), 2, 10, 30, logger);
+        assertThat(result.getExplanation(), isEmptyOrNullString());
+        assertEquals("_node_id2", result.getExecutorNode());
     }
 
     public void testVerifyIndicesPrimaryShardsAreActive() {

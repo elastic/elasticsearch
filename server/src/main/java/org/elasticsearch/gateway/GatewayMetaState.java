@@ -113,30 +113,28 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
                 if (globalStateGeneration != -1) {
                     // If globalStateGeneration is non-negative, it means we should have some metadata on disk
-                    // Always re-write it even if upgrade plugins do not upgrade it, to be sure it's properly persisted on all data path
+                    // We don't re-write metadata if it's not upgraded by upgrade plugins, because
+                    // if there is manifest file, it means metadata is properly persisted to all data paths
+                    // if there is no manifest file (upgrade from 6.x to 7.x) metadata might be missing on some data paths,
+                    // but anyway we will re-write it as soon as we receive first ClusterState
 
                     List<Runnable> cleanupActions = new ArrayList<>();
                     final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
 
                     if (MetaData.isGlobalStateEquals(metaData, upgradedMetaData) == false) {
                         globalStateGeneration = metaStateService.writeGlobalState("upgrade", upgradedMetaData);
-                    } else {
-                        globalStateGeneration = metaStateService.writeGlobalState("startup", metaData);
+                        final long currentGlobalStateGeneration = globalStateGeneration;
+                        cleanupActions.add(() -> metaStateService.cleanupGlobalState(currentGlobalStateGeneration));
                     }
-                    final long currentGlobalStateGeneration = globalStateGeneration;
-                    cleanupActions.add(() -> metaStateService.cleanupGlobalState(currentGlobalStateGeneration));
 
-                    Map<Index, Long> indices = new HashMap<>();
+                    Map<Index, Long> indices = new HashMap<>(manifest.getIndexGenerations());
+
                     for (IndexMetaData indexMetaData : upgradedMetaData) {
-                        long generation;
                         if (metaData.hasIndexMetaData(indexMetaData) == false) {
-                            generation = metaStateService.writeIndex("upgrade", indexMetaData);
-                        } else {
-                            generation = metaStateService.writeIndex("startup", indexMetaData);
+                            final long generation = metaStateService.writeIndex("upgrade", indexMetaData);
+                            cleanupActions.add(() -> metaStateService.cleanupIndex(indexMetaData.getIndex(), generation));
+                            indices.put(indexMetaData.getIndex(), generation);
                         }
-                        final long currentGeneration = generation;
-                        cleanupActions.add(() -> metaStateService.cleanupIndex(indexMetaData.getIndex(), currentGeneration));
-                        indices.put(indexMetaData.getIndex(), generation);
                     }
 
                     final long metaStateGeneration =

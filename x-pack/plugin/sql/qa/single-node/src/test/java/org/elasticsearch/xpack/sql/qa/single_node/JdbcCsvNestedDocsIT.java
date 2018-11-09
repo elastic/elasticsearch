@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
-import org.elasticsearch.xpack.sql.qa.jdbc.SpecBaseIntegrationTestCase.Parser;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -27,9 +26,8 @@ public class JdbcCsvNestedDocsIT extends JdbcCsvSpecIT {
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
-        Parser parser = specParser();
         List<Object[]> tests = new ArrayList<>();
-        tests.addAll(readScriptSpec("/nested.csv-spec", parser));
+        tests.addAll(readScriptSpec("/nested.csv-spec", specParser()));
         return tests;
     }
     

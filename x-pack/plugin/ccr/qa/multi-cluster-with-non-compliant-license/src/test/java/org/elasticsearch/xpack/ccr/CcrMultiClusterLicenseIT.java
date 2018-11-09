@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 

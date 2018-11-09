@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
@@ -454,14 +455,7 @@ public class AuthorizationService {
             return;
         }
 
-        Set<String> roleNames = new HashSet<>();
-        Collections.addAll(roleNames, user.roles());
-        if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
-            if (anonymousUser.roles().length == 0) {
-                throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
-            }
-            Collections.addAll(roleNames, anonymousUser.roles());
-        }
+        Set<String> roleNames = getRoleNames(user);
 
         if (roleNames.isEmpty()) {
             roleActionListener.onResponse(Role.EMPTY);
@@ -470,6 +464,45 @@ public class AuthorizationService {
         } else {
             rolesStore.roles(roleNames, fieldPermissionsCache, roleActionListener);
         }
+    }
+
+    /**
+     * Build the {@link Role} response for a given list of role descriptors.
+     *
+     * @param roleDescriptors list of {@link RoleDescriptor} objects
+     * @param roleActionListener listener for a response or a failure.
+     */
+    public void roles(final List<RoleDescriptor> roleDescriptors, final ActionListener<Role> roleActionListener) {
+        rolesStore.roles(roleDescriptors, fieldPermissionsCache, roleActionListener);
+    }
+
+    /**
+     * Get role descriptors for given user.
+     *
+     * @param user {@link User} object
+     * @param roleDescriptorsListener listener for a response or a failure.
+     */
+    public void roleDescriptors(final User user, final ActionListener<Set<RoleDescriptor>> roleDescriptorsListener) {
+        final Set<String> roleNames = getRoleNames(user);
+        if (roleNames.isEmpty()) {
+            roleDescriptorsListener.onResponse(null);
+        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) { 
+            roleDescriptorsListener.onResponse(Collections.singleton(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR));
+        } else {
+            rolesStore.getRoleDescriptors(roleNames, roleDescriptorsListener);
+        }
+    }
+
+    private Set<String> getRoleNames(User user) {
+        Set<String> roleNames = new HashSet<>();
+        Collections.addAll(roleNames, user.roles());
+        if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
+            if (anonymousUser.roles().length == 0) {
+                throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+            }
+            Collections.addAll(roleNames, anonymousUser.roles());
+        }
+        return roleNames;
     }
 
     private static boolean isCompositeAction(String action) {

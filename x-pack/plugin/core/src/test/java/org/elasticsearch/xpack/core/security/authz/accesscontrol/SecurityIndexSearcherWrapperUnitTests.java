@@ -426,14 +426,6 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     public void testTemplating() throws Exception {
         User user = new User("_username", new String[]{"role1", "role2"}, "_full_name", "_email",
                 Collections.singletonMap("key", "value"), true);
-        securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService) {
-
-                    @Override
-                    protected User getUser() {
-                        return user;
-                    }
-                };
 
         TemplateScript.Factory compiledTemplate = templateParams ->
                 new TemplateScript(templateParams) {
@@ -452,7 +444,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         script.toXContent(builder, ToXContent.EMPTY_PARAMS);
         String querySource = Strings.toString(builder.endObject());
 
-        securityIndexSearcherWrapper.evaluateTemplate(querySource);
+        SecurityIndexSearcherWrapper.evaluateTemplate(querySource, scriptService, user);
         ArgumentCaptor<Script> argument = ArgumentCaptor.forClass(Script.class);
         verify(scriptService).compile(argument.capture(), eq(TemplateScript.CONTEXT));
         Script usedScript = argument.getValue();
@@ -478,7 +470,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                 new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService);
         XContentBuilder builder = jsonBuilder();
         String querySource =  Strings.toString(new TermQueryBuilder("field", "value").toXContent(builder, ToXContent.EMPTY_PARAMS));
-        String result = securityIndexSearcherWrapper.evaluateTemplate(querySource);
+        String result = SecurityIndexSearcherWrapper.evaluateTemplate(querySource, scriptService, null);
         assertThat(result, sameInstance(querySource));
         verifyZeroInteractions(scriptService);
     }

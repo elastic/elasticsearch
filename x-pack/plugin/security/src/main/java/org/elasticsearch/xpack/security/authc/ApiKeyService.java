@@ -8,34 +8,65 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.SubsetResult;
+import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
-import javax.crypto.SecretKeyFactory;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+
+import javax.crypto.SecretKeyFactory;
 
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -66,15 +97,21 @@ public class ApiKeyService {
     private final ClusterService clusterService;
     private final Hasher hasher;
     private final boolean enabled;
+    private final AuthorizationService authorizationService;
+    private final ScriptService scriptService;
+    private final NamedXContentRegistry xContentRegistry;
 
-    public ApiKeyService(Settings settings, Clock clock, Client client,
-                         SecurityIndexManager securityIndex, ClusterService clusterService) {
+    public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex, ClusterService clusterService,
+            AuthorizationService authorizationService, ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
         this.clock = clock;
         this.client = client;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
         this.hasher = Hasher.resolve(PASSWORD_HASHING_ALGORITHM.get(settings));
+        this.authorizationService = authorizationService;
+        this.scriptService = scriptService;
+        this.xContentRegistry = xContentRegistry;
     }
 
     /**
@@ -114,7 +151,10 @@ public class ApiKeyService {
                     }
                 }
 
-                builder.array("role_descriptors", request.getRoleDescriptors())
+                final List<RoleDescriptor> roleDescriptors = checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(
+                        request.getRoleDescriptors(), authentication);
+
+                builder.array("role_descriptors", roleDescriptors)
                     .field("name", request.getName())
                     .field("version", version.id)
                     .startObject("creator")
@@ -154,5 +194,104 @@ public class ApiKeyService {
         if (enabled == false) {
             throw new IllegalStateException("tokens are not enabled");
         }
+    }
+
+    // pkg-scope for testing
+    List<RoleDescriptor> checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(
+            final List<RoleDescriptor> requestRoleDescriptors, final Authentication authentication) throws IOException {
+        List<RoleDescriptor> roleDescriptors = requestRoleDescriptors;
+
+        final PlainActionFuture<Role> thisRoleFuture = new PlainActionFuture<>();
+        authorizationService.roles(roleDescriptors, thisRoleFuture);
+        final Role thisRole = thisRoleFuture.actionGet();
+
+        final PlainActionFuture<Role> otherRoleFuture = new PlainActionFuture<>();
+        authorizationService.roles(authentication.getUser(), otherRoleFuture);
+        final Role otherRole = otherRoleFuture.actionGet();
+
+        final SubsetResult subsetResult = thisRole.isSubsetOf(otherRole);
+
+        if (subsetResult.result() == SubsetResult.Result.NO) {
+            throw new ElasticsearchSecurityException("role descriptors from the request are not subset of the authenticated user");
+        } else if (subsetResult.result() == SubsetResult.Result.MAYBE) {
+            // we can make this work, by combining DLS queries such that
+            // the resultant role descriptors are subset.
+            final PlainActionFuture<Set<RoleDescriptor>> userRoleDescriptorsListener = new PlainActionFuture<>();
+            authorizationService.roleDescriptors(authentication.getUser(), userRoleDescriptorsListener);
+            final List<RoleDescriptor> otherRoleDescriptors = new ArrayList<>(userRoleDescriptorsListener.actionGet());
+            roleDescriptors = modifyRoleDescriptorsToMakeItASubset(roleDescriptors, otherRoleDescriptors, subsetResult,
+                    authentication.getUser());
+        }
+        return roleDescriptors;
+    }
+
+    private List<RoleDescriptor> modifyRoleDescriptorsToMakeItASubset(final List<RoleDescriptor> childDescriptors,
+            final List<RoleDescriptor> baseDescriptors, final SubsetResult result, final User user) throws IOException {
+        final Map<Set<String>, BoolQueryBuilder> indexNamePatternsToBoolQueryBuilder = new HashMap<>();
+        for (Set<String> indexNamePattern : result.setOfIndexNamesForCombiningDLSQueries()) {
+            Automaton indexNamesAutomaton = Automatons.patterns(indexNamePattern);
+            BoolQueryBuilder parentFilterQueryBuilder = QueryBuilders.boolQuery();
+            // Now find the index name patterns from all base descriptors that
+            // match and combine queries
+            for (RoleDescriptor rdbase : baseDescriptors) {
+                for (IndicesPrivileges indicesPriv : rdbase.getIndicesPrivileges()) {
+                    if (Operations.subsetOf(indexNamesAutomaton, Automatons.patterns(indicesPriv.getIndices()))) {
+                        final String templateResult = SecurityIndexSearcherWrapper.evaluateTemplate(indicesPriv.getQuery().utf8ToString(),
+                                scriptService, user);
+                        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
+                                LoggingDeprecationHandler.INSTANCE, templateResult)) {
+                            parentFilterQueryBuilder.should(AbstractQueryBuilder.parseInnerQueryBuilder(parser));
+                        }
+                    }
+                }
+            }
+            parentFilterQueryBuilder.minimumShouldMatch(1);
+            BoolQueryBuilder finalBoolQueryBuilder = QueryBuilders.boolQuery();
+            finalBoolQueryBuilder.filter(parentFilterQueryBuilder);
+            finalBoolQueryBuilder.minimumShouldMatch(1);
+            // Iterate on child role descriptors and combine queries if the
+            // index name patterns match.
+            for (RoleDescriptor childRD : childDescriptors) {
+                for (IndicesPrivileges ip : childRD.getIndicesPrivileges()) {
+                    if (Sets.newHashSet(ip.getIndices()).equals(indexNamePattern)) {
+                        final String templateResult = SecurityIndexSearcherWrapper.evaluateTemplate(ip.getQuery().utf8ToString(),
+                                scriptService, user);
+                        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
+                                LoggingDeprecationHandler.INSTANCE, templateResult)) {
+                            finalBoolQueryBuilder.should(AbstractQueryBuilder.parseInnerQueryBuilder(parser));
+                        }
+                    }
+                }
+            }
+            indexNamePatternsToBoolQueryBuilder.put(indexNamePattern, finalBoolQueryBuilder);
+        }
+
+        final List<RoleDescriptor> newChildDescriptors = new ArrayList<>();
+        for (RoleDescriptor childRD : childDescriptors) {
+            final Set<IndicesPrivileges> updates = new HashSet<>();
+            for (IndicesPrivileges indicesPriv : childRD.getIndicesPrivileges()) {
+                Set<String> indices = Sets.newHashSet(indicesPriv.getIndices());
+                if (indexNamePatternsToBoolQueryBuilder.get(indices) != null) {
+                    BoolQueryBuilder boolQueryBuilder = indexNamePatternsToBoolQueryBuilder.get(indices);
+                    XContentBuilder builder = XContentFactory.jsonBuilder();
+                    boolQueryBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                    updates.add(IndicesPrivileges.builder()
+                            .indices(indicesPriv.getIndices())
+                            .privileges(indicesPriv.getPrivileges())
+                            .grantedFields(indicesPriv.getGrantedFields())
+                            .deniedFields(indicesPriv.getDeniedFields())
+                            .query(new BytesArray(Strings.toString(builder)))
+                            .build());
+                } else {
+                    updates.add(indicesPriv);
+                }
+            }
+            final RoleDescriptor rd = new RoleDescriptor(childRD.getName(), childRD.getClusterPrivileges(),
+                    updates.toArray(new IndicesPrivileges[0]), childRD.getApplicationPrivileges(),
+                    childRD.getConditionalClusterPrivileges(), childRD.getRunAs(), childRD.getMetadata(), childRD.getTransientMetadata());
+            newChildDescriptors.add(rd);
+        }
+        assert newChildDescriptors.size() == childDescriptors.size();
+        return newChildDescriptors;
     }
 }

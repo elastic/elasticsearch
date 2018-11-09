@@ -181,6 +181,19 @@ public class CompositeRolesStore {
         }
     }
 
+    public void roles(List<RoleDescriptor> roleDescriptors, FieldPermissionsCache fieldPermissionsCache,
+            ActionListener<Role> roleActionListener) {
+        final List<RoleDescriptor> effectiveDescriptors;
+        if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+            effectiveDescriptors = roleDescriptors;
+        } else {
+            effectiveDescriptors = roleDescriptors.stream()
+                    .filter((rd) -> rd.isUsingDocumentOrFieldLevelSecurity() == false)
+                    .collect(Collectors.toList());
+        }
+        buildRoleFromDescriptors(effectiveDescriptors, fieldPermissionsCache, privilegeStore, roleActionListener);
+    }
+
     public void getRoleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> listener) {
         roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
             if (rolesRetrievalResult.isSuccess()) {

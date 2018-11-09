@@ -16,35 +16,35 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-public class IsNotNull extends UnaryScalarFunction implements Negatable<UnaryScalarFunction> {
+public class IsNull extends UnaryScalarFunction implements Negatable<UnaryScalarFunction> {
 
-    public IsNotNull(Location location, Expression field) {
+    public IsNull(Location location, Expression field) {
         super(location, field);
     }
 
     @Override
-    protected NodeInfo<IsNotNull> info() {
-        return NodeInfo.create(this, IsNotNull::new, field());
+    protected NodeInfo<IsNull> info() {
+        return NodeInfo.create(this, IsNull::new, field());
     }
 
     @Override
-    protected IsNotNull replaceChild(Expression newChild) {
-        return new IsNotNull(location(), newChild);
+    protected IsNull replaceChild(Expression newChild) {
+        return new IsNull(location(), newChild);
     }
 
     @Override
     public Object fold() {
-        return field().fold() != null && !DataTypes.isNull(field().dataType());
+        return field().fold() == null || DataTypes.isNull(field().dataType());
     }
 
     @Override
     protected Processor makeProcessor() {
-        return new CheckNullProcessor(CheckNullOperation.IS_NOT_NULL);
+        return new CheckNullProcessor(CheckNullOperation.IS_NULL);
     }
 
     @Override
     public String processScript(String script) {
-        return Scripts.formatTemplate(Scripts.SQL_SCRIPTS + ".isNotNull(" + script + ")");
+        return Scripts.formatTemplate(Scripts.SQL_SCRIPTS + ".isNull(" + script + ")");
     }
 
     @Override
@@ -59,6 +59,6 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
 
     @Override
     public UnaryScalarFunction negate() {
-        return new IsNull(location(), field());
+        return new IsNotNull(location(), field());
     }
 }

@@ -37,8 +37,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
@@ -1159,8 +1160,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 if (((IsNotNull) e).field().nullable() == false) {
                     return new Literal(e.location(), Expressions.name(e), Boolean.TRUE, DataType.BOOLEAN);
                 }
-                // see https://github.com/elastic/elasticsearch/issues/34876
-                // similar for IsNull once it gets introduced
+
+            } else if (e instanceof IsNull) {
+                if (((IsNull) e).field().nullable() == false) {
+                    return new Literal(e.location(), Expressions.name(e), Boolean.FALSE, DataType.BOOLEAN);
+                }
 
             } else if (e instanceof In) {
                 In in = (In) e;
@@ -1171,6 +1175,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             } else if (e.nullable() && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
             }
+
             return e;
         }
     }
@@ -1335,8 +1340,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return TRUE;
             }
 
-            if (c instanceof Negateable) {
-                return ((Negateable) c).negate();
+            if (c instanceof Negatable) {
+                return ((Negatable) c).negate();
             }
 
             if (c instanceof Not) {

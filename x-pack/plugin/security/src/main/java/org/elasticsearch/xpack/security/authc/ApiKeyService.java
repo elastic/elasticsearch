@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
@@ -52,7 +51,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 
 public class ApiKeyService {
 
@@ -165,8 +163,8 @@ public class ApiKeyService {
             final ApiKeyCredentials credentials;
             try {
                 credentials = getCredentialsFromHeader(ctx);
-            } catch (ElasticsearchSecurityException ese) {
-                listener.onResponse(AuthenticationResult.terminate(ese.getMessage(), ese));
+            } catch (IllegalArgumentException iae) {
+                listener.onResponse(AuthenticationResult.unsuccessful(iae.getMessage(), iae));
                 return;
             }
 
@@ -249,7 +247,7 @@ public class ApiKeyService {
                 }
 
                 if (colonIndex < 1) {
-                    throw authenticationError("invalid ApiKey value");
+                    throw new IllegalArgumentException("invalid ApiKey value");
                 }
                 return new ApiKeyCredentials(new String(Arrays.copyOfRange(apiKeyCredChars, 0, colonIndex)),
                     new SecureString(Arrays.copyOfRange(apiKeyCredChars, colonIndex + 1, apiKeyCredChars.length)));

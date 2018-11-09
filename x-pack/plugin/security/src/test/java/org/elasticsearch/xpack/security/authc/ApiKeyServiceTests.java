@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -57,8 +56,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         headerValue = apiKeyAuthScheme + " " + Base64.getEncoder().encodeToString((id + key).getBytes(StandardCharsets.UTF_8));
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", headerValue);
-            ElasticsearchSecurityException e =
-                expectThrows(ElasticsearchSecurityException.class, () -> ApiKeyService.getCredentialsFromHeader(threadContext));
+            IllegalArgumentException e =
+                expectThrows(IllegalArgumentException.class, () -> ApiKeyService.getCredentialsFromHeader(threadContext));
             assertEquals("invalid ApiKey value", e.getMessage());
         }
     }

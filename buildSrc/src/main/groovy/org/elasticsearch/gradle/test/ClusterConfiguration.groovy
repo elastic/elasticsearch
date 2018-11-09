@@ -107,6 +107,14 @@ class ClusterConfiguration {
     }
 
     /**
+     * A closure to call which returns a manually supplied list of unicast seed hosts.
+     */
+    @Input
+    Closure<List<String>> otherUnicastHostAddresses = {
+        Collections.emptyList()
+    }
+
+    /**
      * A closure to call before the cluster is considered ready. The closure is passed the node info,
      * as well as a groovy AntBuilder, to enable running ant condition checks. The default wait
      * condition is for http on the http port.

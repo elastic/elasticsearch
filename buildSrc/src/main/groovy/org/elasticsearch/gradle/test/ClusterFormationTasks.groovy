@@ -715,8 +715,9 @@ class ClusterFormationTasks {
         wait.doLast {
 
             Collection<String> unicastHosts = new HashSet<>()
-            nodes.forEach { otherNode ->
-                String unicastHost = otherNode.config.unicastTransportUri(otherNode, null, project.ant)
+            nodes.forEach { node ->
+                unicastHosts.addAll(node.config.otherUnicastHostAddresses.call())
+                String unicastHost = node.config.unicastTransportUri(node, null, project.ant)
                 if (unicastHost != null) {
                     unicastHosts.addAll(Arrays.asList(unicastHost.split(",")))
                 }

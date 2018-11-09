@@ -99,6 +99,44 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
+[[query-dsl-match-query-synonym-style]]
+===== Synonym Query Style
+What should the behavior of overlapping synonyms be at query time?
+By default, `blended_terms` blends the document frequency of the terms. In
+this case, occurrences of two synonyms (say `dog, doggie`) are scored with
+equal weight. This behavior works well for true synonyms.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "match" : {
+            "message" : {
+                "query" : "dog",
+                "operator" : "and",
+                "synonym_query_style": "blended_terms"
+            }
+        }
+    }
+}
+
+Synonyms are used to model terms that are not exact 1-1 replacements. For
+example, it's common to use synonym functionality to broaden searches. You
+might expand jeans to a broader term - trousers `jeans => jeans, trousers`.
+In this case, you'd prefer occurrences of the rarer term (jeans) to score higher
+than the broader term (trousers).
+
+For these use cases `most_terms` scores terms preserving the original document
+frequencies, summing the term scores in a document. The style `most_terms`
+preserves Elasticsearch functionality from before the 6.0 release.
+
+The style `best_terms` also preserves original document frequencies, but
+scores a document with the highest scoring synonym - ignoring all other terms.
+
+--------------------------------------------------
+// CONSOLE
+
 [[query-dsl-match-query-cutoff]]
 ===== Cutoff frequency
 

@@ -146,7 +146,8 @@ follows:
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 `fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`,
- `cutoff_frequency`, `auto_generate_synonyms_phrase_query` and `fuzzy_transpositions`,
+`synonym_query_style`, `cutoff_frequency`, `auto_generate_synonyms_phrase_query` and
+`fuzzy_transpositions`,
   as explained in <<query-dsl-match-query, match query>>.
 
 [IMPORTANT]
@@ -287,9 +288,9 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-Also, accepts `analyzer`, `boost`, `lenient`, `slop` and `zero_terms_query`  as explained
-in <<query-dsl-match-query>>.  Type `phrase_prefix` additionally accepts
-`max_expansions`.
+Also, accepts `analyzer`, `boost`, `lenient`, `slop`, `synonym_query_style`
+and `zero_terms_query`  as explained in <<query-dsl-match-query>>.  Type
+`phrase_prefix` additionally accepts `max_expansions`.
 
 [IMPORTANT]
 [[phrase-fuzziness]]
@@ -384,7 +385,8 @@ explanation:
     +blended("smith", fields: [first_name, last_name])
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
-`lenient`, `zero_terms_query` and `cutoff_frequency`, as explained in
+`lenient`, `synonym_query_style`, `zero_terms_query` and
+`cutoff_frequency`, as explained in
 <<query-dsl-match-query, match query>>.
 
 ===== `cross_field` and analysis

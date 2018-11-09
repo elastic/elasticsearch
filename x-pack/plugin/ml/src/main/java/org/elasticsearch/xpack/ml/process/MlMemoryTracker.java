@@ -91,6 +91,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     @Override
     public void offMaster() {
         isMaster = false;
+        logger.trace("ML memory tracker off master");
         memoryRequirementByJob.clear();
         lastUpdateTime = null;
     }
@@ -117,6 +118,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      *         or <code>null</code> if it cannot be calculated.
      */
     public Long getJobMemoryRequirement(String jobId) {
+
         if (isMaster == false) {
             return null;
         }
@@ -244,7 +246,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 public ClusterState execute(ClusterState currentState) {
                     MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(currentState);
                     MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
-                    builder.setLastMemoryRefreshTime(lastUpdateTime);
+                    builder.setLastMemoryRefreshVersion(currentState.getVersion() + 1);
                     MlMetadata newMlMetadata = builder.build();
                     if (newMlMetadata.equals(currentMlMetadata)) {
                         // Return same reference if nothing has changed

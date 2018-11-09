@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.core.ml.utils.NameResolver;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -58,7 +57,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
     public static final String TYPE = "ml";
     private static final ParseField JOBS_FIELD = new ParseField("jobs");
     private static final ParseField DATAFEEDS_FIELD = new ParseField("datafeeds");
-    private static final ParseField LAST_MEMORY_REFRESH_TIME_FIELD = new ParseField("last_memory_refresh_time");
+    private static final ParseField LAST_MEMORY_REFRESH_VERSION_FIELD = new ParseField("last_memory_refresh_version");
 
     public static final MlMetadata EMPTY_METADATA = new MlMetadata(Collections.emptySortedMap(), Collections.emptySortedMap(), null);
     // This parser follows the pattern that metadata is parsed leniently (to allow for enhancements)
@@ -68,18 +67,18 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         LENIENT_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.LENIENT_PARSER.apply(p, c).build(), JOBS_FIELD);
         LENIENT_PARSER.declareObjectArray(Builder::putDatafeeds,
                 (p, c) -> DatafeedConfig.LENIENT_PARSER.apply(p, c).build(), DATAFEEDS_FIELD);
-        LENIENT_PARSER.declareLong(Builder::setLastMemoryRefreshTimeMs, LAST_MEMORY_REFRESH_TIME_FIELD);
+        LENIENT_PARSER.declareLong(Builder::setLastMemoryRefreshVersion, LAST_MEMORY_REFRESH_VERSION_FIELD);
     }
 
     private final SortedMap<String, Job> jobs;
     private final SortedMap<String, DatafeedConfig> datafeeds;
-    private final Instant lastMemoryRefreshTime;
+    private final Long lastMemoryRefreshVersion;
     private final GroupOrJobLookup groupOrJobLookup;
 
-    private MlMetadata(SortedMap<String, Job> jobs, SortedMap<String, DatafeedConfig> datafeeds, Instant lastMemoryRefreshTime) {
+    private MlMetadata(SortedMap<String, Job> jobs, SortedMap<String, DatafeedConfig> datafeeds, Long lastMemoryRefreshVersion) {
         this.jobs = Collections.unmodifiableSortedMap(jobs);
         this.datafeeds = Collections.unmodifiableSortedMap(datafeeds);
-        this.lastMemoryRefreshTime = lastMemoryRefreshTime;
+        this.lastMemoryRefreshVersion = lastMemoryRefreshVersion;
         this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
     }
 
@@ -117,8 +116,8 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
                 .expand(expression, allowNoDatafeeds);
     }
 
-    public Instant getLastMemoryRefreshTime() {
-        return lastMemoryRefreshTime;
+    public Long getLastMemoryRefreshVersion() {
+        return lastMemoryRefreshVersion;
     }
 
     @Override
@@ -155,9 +154,9 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         }
         this.datafeeds = datafeeds;
         if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            lastMemoryRefreshTime = in.readBoolean() ? Instant.ofEpochSecond(in.readVLong(), in.readVInt()) : null;
+            lastMemoryRefreshVersion = in.readOptionalLong();
         } else {
-            lastMemoryRefreshTime = null;
+            lastMemoryRefreshVersion = null;
         }
         this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
     }
@@ -167,13 +166,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         writeMap(jobs, out);
         writeMap(datafeeds, out);
         if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            if (lastMemoryRefreshTime == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeVLong(lastMemoryRefreshTime.getEpochSecond());
-                out.writeVInt(lastMemoryRefreshTime.getNano());
-            }
+            out.writeOptionalLong(lastMemoryRefreshVersion);
         }
     }
 
@@ -191,10 +184,8 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
                 new DelegatingMapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"), params);
         mapValuesToXContent(JOBS_FIELD, jobs, builder, extendedParams);
         mapValuesToXContent(DATAFEEDS_FIELD, datafeeds, builder, extendedParams);
-        if (lastMemoryRefreshTime != null) {
-            // We lose precision lower than milliseconds here - OK as millisecond precision is adequate for this use case
-            builder.timeField(LAST_MEMORY_REFRESH_TIME_FIELD.getPreferredName(),
-                LAST_MEMORY_REFRESH_TIME_FIELD.getPreferredName() + "_string", lastMemoryRefreshTime.toEpochMilli());
+        if (lastMemoryRefreshVersion != null) {
+            builder.field(LAST_MEMORY_REFRESH_VERSION_FIELD.getPreferredName(), lastMemoryRefreshVersion);
         }
         return builder;
     }
@@ -212,12 +203,12 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
         final Diff<Map<String, Job>> jobs;
         final Diff<Map<String, DatafeedConfig>> datafeeds;
-        final Instant lastMemoryRefreshTime;
+        final Long lastMemoryRefreshVersion;
 
         MlMetadataDiff(MlMetadata before, MlMetadata after) {
             this.jobs = DiffableUtils.diff(before.jobs, after.jobs, DiffableUtils.getStringKeySerializer());
             this.datafeeds = DiffableUtils.diff(before.datafeeds, after.datafeeds, DiffableUtils.getStringKeySerializer());
-            this.lastMemoryRefreshTime = after.lastMemoryRefreshTime;
+            this.lastMemoryRefreshVersion = after.lastMemoryRefreshVersion;
         }
 
         public MlMetadataDiff(StreamInput in) throws IOException {
@@ -226,9 +217,9 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             this.datafeeds = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
                     MlMetadataDiff::readSchedulerDiffFrom);
             if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-                lastMemoryRefreshTime = in.readBoolean() ? Instant.ofEpochSecond(in.readVLong(), in.readVInt()) : null;
+                lastMemoryRefreshVersion = in.readOptionalLong();
             } else {
-                lastMemoryRefreshTime = null;
+                lastMemoryRefreshVersion = null;
             }
         }
 
@@ -236,8 +227,8 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         public MetaData.Custom apply(MetaData.Custom part) {
             TreeMap<String, Job> newJobs = new TreeMap<>(jobs.apply(((MlMetadata) part).jobs));
             TreeMap<String, DatafeedConfig> newDatafeeds = new TreeMap<>(datafeeds.apply(((MlMetadata) part).datafeeds));
-            Instant lastMemoryRefreshTime = ((MlMetadata) part).lastMemoryRefreshTime;
-            return new MlMetadata(newJobs, newDatafeeds, lastMemoryRefreshTime);
+            Long lastMemoryRefreshVersion = ((MlMetadata) part).lastMemoryRefreshVersion;
+            return new MlMetadata(newJobs, newDatafeeds, lastMemoryRefreshVersion);
         }
 
         @Override
@@ -245,13 +236,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             jobs.writeTo(out);
             datafeeds.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-                if (lastMemoryRefreshTime == null) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    out.writeVLong(lastMemoryRefreshTime.getEpochSecond());
-                    out.writeVInt(lastMemoryRefreshTime.getNano());
-                }
+                out.writeOptionalLong(lastMemoryRefreshVersion);
             }
         }
 
@@ -278,7 +263,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         MlMetadata that = (MlMetadata) o;
         return Objects.equals(jobs, that.jobs) &&
                 Objects.equals(datafeeds, that.datafeeds) &&
-                Objects.equals(lastMemoryRefreshTime, that.lastMemoryRefreshTime);
+                Objects.equals(lastMemoryRefreshVersion, that.lastMemoryRefreshVersion);
     }
 
     @Override
@@ -288,14 +273,14 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobs, datafeeds, lastMemoryRefreshTime);
+        return Objects.hash(jobs, datafeeds, lastMemoryRefreshVersion);
     }
 
     public static class Builder {
 
         private TreeMap<String, Job> jobs;
         private TreeMap<String, DatafeedConfig> datafeeds;
-        private Instant lastMemoryRefreshTime;
+        private Long lastMemoryRefreshVersion;
 
         public Builder() {
             jobs = new TreeMap<>();
@@ -309,7 +294,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             } else {
                 jobs = new TreeMap<>(previous.jobs);
                 datafeeds = new TreeMap<>(previous.datafeeds);
-                lastMemoryRefreshTime = previous.lastMemoryRefreshTime;
+                lastMemoryRefreshVersion = previous.lastMemoryRefreshVersion;
             }
         }
 
@@ -429,18 +414,13 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return this;
         }
 
-        Builder setLastMemoryRefreshTimeMs(long lastMemoryRefreshTimeMs) {
-            lastMemoryRefreshTime = Instant.ofEpochMilli(lastMemoryRefreshTimeMs);
-            return this;
-        }
-
-        public Builder setLastMemoryRefreshTime(Instant lastMemoryRefreshTime) {
-            this.lastMemoryRefreshTime = lastMemoryRefreshTime;
+        public Builder setLastMemoryRefreshVersion(Long lastMemoryRefreshVersion) {
+            this.lastMemoryRefreshVersion = lastMemoryRefreshVersion;
             return this;
         }
 
         public MlMetadata build() {
-            return new MlMetadata(jobs, datafeeds, lastMemoryRefreshTime);
+            return new MlMetadata(jobs, datafeeds, lastMemoryRefreshVersion);
         }
 
         public void markJobAsDeleting(String jobId, PersistentTasksCustomMetaData tasks, boolean allowDeleteOpenJob) {

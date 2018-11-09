@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.junit.Before;
 
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -167,7 +166,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
 
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
 
-        AtomicReference<Instant> updateTime = new AtomicReference<>();
+        AtomicReference<Long> updateVersion = new AtomicReference<>();
 
         doAnswer(invocation -> {
             AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocation.getArguments()[1];
@@ -175,7 +174,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
             ClusterState newClusterState = task.execute(currentClusterState);
             assertThat(currentClusterState, not(equalTo(newClusterState)));
             MlMetadata newMlMetadata = MlMetadata.getMlMetadata(newClusterState);
-            updateTime.set(newMlMetadata.getLastMemoryRefreshTime());
+            updateVersion.set(newMlMetadata.getLastMemoryRefreshVersion());
             task.onAllNodesAcked(null);
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any(AckedClusterStateUpdateTask.class));
@@ -183,9 +182,9 @@ public class MlMemoryTrackerTests extends ESTestCase {
         memoryTracker.asyncRefresh(ActionListener.wrap(ESTestCase::assertTrue, ESTestCase::assertNull));
 
         if (isMaster) {
-            assertNotNull(updateTime.get());
+            assertNotNull(updateVersion.get());
         } else {
-            assertNull(updateTime.get());
+            assertNull(updateVersion.get());
         }
     }
 

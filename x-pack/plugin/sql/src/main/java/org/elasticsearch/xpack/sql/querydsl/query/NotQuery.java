@@ -24,6 +24,10 @@ public class NotQuery extends Query {
         this.child = child;
     }
 
+    public Query child() {
+        return child;
+    }
+
     @Override
     public boolean containsNestedField(String path, String field) {
         return child.containsNestedField(path, field);

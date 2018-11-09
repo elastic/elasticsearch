@@ -43,3 +43,24 @@ Elasticsearch and requires no plugin. The location of the hosts file has moved
 from `$ES_PATH_CONF/file-discovery/unicast_hosts.txt` to
 `$ES_PATH_CONF/unicast_hosts.txt`. See <<file-based-hosts-provider, the
 file-based hosts provider documentation>> for further information.
+
+[float]
+==== Security Extensions
+
+As a consequence of the <<include-realm-type-in-setting, change to Realm settings>>,
+the `getRealmSettings` method has been removed from the `SecurityExtension` class,
+and the `settings` method on `RealmConfig` now returns the node's (global) settings.
+Custom security extensions should register their settings by implementing the standard
+`Plugin.getSettings` method, and can retrieve them from `RealmConfig.settings()` or
+using one of the `RealmConfig.getSetting` methods.
+Each realm setting should be defined as an `AffixSetting` as shown in the example below:
+[source,java]
+--------------------------------------------------
+Setting.AffixSetting<String> MY_SETTING = Setting.affixKeySetting(
+  "xpack.security.authc.realms." + MY_REALM_TYPE + ".", "my_setting",
+  key -> Setting.simpleString(key, properties)
+);
+--------------------------------------------------
+
+The `RealmSettings.simpleString` method can be used as a convenience for the above.
+

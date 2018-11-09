@@ -206,9 +206,8 @@ public class ApiKeyService {
         if (apiKeyHash == null) {
             throw new IllegalStateException("api key hash is missing");
         }
-        final char[] apiKeyHashChars = apiKeyHash.toCharArray();
-        Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
-        final boolean verified = hasher.verify(credentials.getKey(), apiKeyHashChars);
+        final boolean verified = verifyKeyAgainstHash(apiKeyHash, credentials);
+
         if (verified) {
             final Long expirationEpochMilli = (Long) source.get("expiration_time");
             if (expirationEpochMilli == null || Instant.ofEpochMilli(expirationEpochMilli).isAfter(clock.instant())) {
@@ -261,6 +260,16 @@ public class ApiKeyService {
             }
         }
         return null;
+    }
+
+    private static boolean verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials) {
+        final char[] apiKeyHashChars = apiKeyHash.toCharArray();
+        try {
+            Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
+            return hasher.verify(credentials.getKey(), apiKeyHashChars);
+        } finally {
+            Arrays.fill(apiKeyHashChars, (char) 0);
+        }
     }
 
     private Instant getApiKeyExpiration(Instant now, CreateApiKeyRequest request) {

@@ -38,8 +38,7 @@ public class TransportResponseOptions {
     }
 
     public static Builder builder(TransportResponseOptions options) {
-        return new Builder()
-                .withCompress(options.compress);
+        return new Builder().withCompress(options.compress);
     }
 
     public static class Builder {

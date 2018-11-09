@@ -23,6 +23,13 @@ must now be specified in the client settings instead.
 See {plugins}/repository-gcs-client.html#repository-gcs-client[Google Cloud Storage Client Settings].
 
 [float]
+==== S3 Repository Plugin
+
+* The plugin now uses the path style access pattern for all requests.
+In previous versions it was automatically determining whether to use virtual hosted style or path style
+access.
+
+[float]
 ==== Analysis Plugin changes
 
 * The misspelled helper method `requriesAnalysisSettings(AnalyzerProvider<T> provider)` has been

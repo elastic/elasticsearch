@@ -142,7 +142,6 @@ if (project == rootProject) {
     if (System.getProperty("repos.mavenLocal") != null) {
       mavenLocal()
     }
-    mavenCentral()
   }
   test {
     include "**/*Tests.class"

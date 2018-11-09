@@ -442,7 +442,7 @@ class BuildPlugin implements Plugin<Project> {
             // such that we don't have to pass hardcoded files to gradle
             repos.mavenLocal()
         }
-        repos.mavenCentral()
+        repos.jcenter()
         repos.maven {
             name "elastic"
             url "https://artifacts.elastic.co/maven"

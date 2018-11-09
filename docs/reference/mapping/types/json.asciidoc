@@ -1,0 +1,198 @@
+[[json]]
+=== JSON datatype
+
+experimental[The `json` field type is experimental and may be changed in a breaking way in future releases.]
+
+By default, each subfield in an object is mapped and indexed separately. If
+the names or types of the subfields are not known in advance, then they are
+<<dynamic-mapping, mapped dynamically>>.
+
+The `json` type provides an alternative approach, where the entire object is
+mapped as a single field. Given an object, the `json` mapping will parse out
+its leaf values and index them into one field. The object's contents can then
+be searched through simple keyword-style queries.
+
+This data type can be useful for indexing objects with a very large number of
+distinct keys. Compared to mapping each field separately, `json` fields have
+the following advantages:
+
+- Only one field mapping is created for the whole object, which can help
+  prevent a <<mapping-limit-settings, mappings explosion>> due to a large
+  number of field mappings.
+- A `json` field may take up less space in the index, as only one underlying
+  field is created.
+
+However, `json` fields present a trade-off in terms of search functionality.
+Only basic queries are allowed, with no support for numeric range queries or
+aggregations. Further information on the limitations can be found in the
+<<supported-operations, Supported operations>> section.
+
+NOTE: The `json` mapping type should **not** be used for indexing all JSON
+content, as it provides only limited search functionality. The default
+approach, where each subfield has its own entry in the mappings, works well in
+the majority of cases.
+
+A `json` field can be created as follows:
+[source,js]
+--------------------------------
+PUT bug_reports
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "title": {
+          "type": "text"
+        },
+        "labels": {
+          "type": "json"
+        }
+      }
+    }
+  }
+}
+
+POST bug_reports/_doc/1
+{
+  "title": "Results are not sorted correctly.",
+  "labels": {
+    "priority": "urgent",
+    "release": ["v1.2.5", "v1.3.0"],
+    "timestamp": {
+      "created": 1541458026,
+      "closed": 1541457010
+    }
+  }
+}
+--------------------------------
+// CONSOLE
+// TESTSETUP
+
+During indexing, tokens are created for each leaf value in the JSON object. The
+values are indexed as string keywords, without analysis or special handling for
+numbers or dates.
+
+Querying the top-level `json` field searches all leaf values in the object:
+[source,js]
+--------------------------------
+POST bug_reports/_search
+{
+  "query": {
+    "term": {"labels": "urgent"}
+  }
+}
+--------------------------------
+// CONSOLE
+
+To query on a specific key in the JSON object, object dot notation is used:
+[source,js]
+--------------------------------
+POST bug_reports/_search
+{
+  "query": {
+    "term": {"labels.release": "v1.3.0"}
+  }
+}
+--------------------------------
+// CONSOLE
+
+[[supported-operations]]
+==== Supported operations
+
+Currently, `json` fields can be used with the following query types:
+
+- `term`, `terms`, and `terms_set`
+- `prefix`
+- `range`
+- `match` and `multi_match`
+- `query_string` and `simple_query_string`
+- `exists`
+
+When querying, it is not possible to refer to field keys using wildcards, as in
+`{ "term": {"labels.time*": 1541457010}}`. Note that all queries, including
+`range`, treat the values as string keywords.
+
+Aggregating, highlighting, or sorting on a `json` field is not supported.
+
+Finally, because of the way leaf values are stored in the index, the null
+character `\0` is not allowed to appear in the keys of the JSON object.
+
+[[stored-fields]]
+==== Stored fields
+
+If the <<mapping-store,`store`>> option is enabled, the entire JSON object will
+be stored in pretty-printed format. It can be retrieved through the top-level
+`json` field:
+
+[source,js]
+--------------------------------
+POST bug_reports/_search
+{
+  "query": { "match": { "title": "results not sorted" }},
+  "stored_fields": ["labels"]
+}
+--------------------------------
+// CONSOLE
+
+Field keys cannot be used to load stored content. For example, specifying
+`"stored_fields": ["labels.timestamp"]` will return an empty list.
+
+[[json-params]]
+==== Parameters for JSON fields
+
+Because of the similarities in the way values are indexed, the `json` type
+shares many mapping options with <<keyword, `keyword`>>. The following
+parameters are accepted:
+
+[horizontal]
+
+<<mapping-boost,`boost`>>::
+
+    Mapping field-level query time boosting. Accepts a floating point number,
+    defaults to `1.0`.
+
+`depth_limit`::
+
+    The maximum allowed depth of the JSON field, in terms of nested inner
+    objects. If a JSON field exceeds this limit, then an error will be
+    thrown. Defaults to `20`.
+
+<<ignore-above,`ignore_above`>>::
+
+    Leaf values longer than this limit will not be indexed. By default, there
+    is no limit and all values will be indexed. Note that this limit applies
+    to the leaf values within the JSON field, and not the length of the entire
+    field.
+
+<<mapping-index,`index`>>::
+
+    Determines if the field should be searchable. Accepts `true` (default) or
+    `false`.
+
+<<index-options,`index_options`>>::
+
+    What information should be stored in the index for scoring purposes.
+    Defaults to `docs` but can also be set to `freqs` to take term frequency
+    into account when computing scores.
+
+<<null-value,`null_value`>>::
+
+    A string value which is substituted for any explicit `null` values within
+    the JSON field. Defaults to `null`, which means null sfields are treated as
+    if it were missing.
+
+<<similarity,`similarity`>>::
+
+    Which scoring algorithm or _similarity_ should be used. Defaults
+    to `BM25`.
+
+`split_queries_on_whitespace`::
+
+    Whether <<full-text-queries,full text queries>> should split the input on
+    whitespace when building a query for this field. Accepts `true` or `false`
+    (default).
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).

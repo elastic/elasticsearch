@@ -43,6 +43,8 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 
 <<alias>>::         Defines an alias to an existing field.
 
+<<json>>::          Allows an entire JSON object to be indexed as a single field.
+
 <<feature>>::       Record numeric features to boost hits at query time.
 
 <<feature-vector>>:: Record numeric feature vectors to boost hits at query time.
@@ -78,6 +80,8 @@ include::types/geo-point.asciidoc[]
 include::types/geo-shape.asciidoc[]
 
 include::types/ip.asciidoc[]
+
+include::types/json.asciidoc[]
 
 include::types/keyword.asciidoc[]
 

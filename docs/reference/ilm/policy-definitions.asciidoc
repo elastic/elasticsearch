@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[index-lifecycle-management]]
+[[ilm-policy-definition]]
 == Policy Phases and Actions
 
 There are four stages in the index lifecycle, in the order

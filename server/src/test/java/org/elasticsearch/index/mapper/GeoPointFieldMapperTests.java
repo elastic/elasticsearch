@@ -456,4 +456,44 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(ex.getRootCause().getMessage(), equalTo("unsupported symbol [.] in geohash [1234.333]"));
     }
 
+
+    public void testInvalidGeopointValuesIgnored() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "geo_point")
+            .field("ignore_malformed", "true")
+            .endObject()
+            .endObject().endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
+
+        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("location", "1234.333").endObject()
+            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+
+        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("lat", "-").field("lon", 1.3).endObject()
+            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+
+
+        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("location", "-,1.3").endObject()
+            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+
+        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("lat", "NaN").field("lon", "NaN").endObject()
+            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+
+        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("location", "NaN,NaN").endObject()
+            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+    }
+
 }

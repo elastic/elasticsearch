@@ -260,7 +260,11 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                 throw new IllegalArgumentException("illegal longitude value [" + point.lon() + "] for " + name());
             }
         } else {
-            GeoUtils.normalizePoint(point);
+            if (isNormalizable(point.lat()) && isNormalizable(point.lat())) {
+                GeoUtils.normalizePoint(point);
+            } else {
+                throw new ElasticsearchParseException("cannot normalize the point - not a number");
+            }
         }
         if (fieldType().indexOptions() != IndexOptions.NONE) {
             context.doc().add(new LatLonPoint(fieldType().name(), point.lat(), point.lon()));
@@ -385,5 +389,9 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
     public Explicit<Boolean> ignoreZValue() {
         return ignoreZValue;
+    }
+
+    private boolean isNormalizable(double coord) {
+        return Double.isNaN(coord) == false && Double.isInfinite(coord) == false;
     }
 }

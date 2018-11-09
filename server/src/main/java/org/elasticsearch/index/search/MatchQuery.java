@@ -29,6 +29,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -66,6 +67,59 @@ import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuer
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
 public class MatchQuery {
+
+    /**
+     *  Query strategy when analyzed query terms overlap the same position (ie synonyms)
+     *  consider if pants and khakis are query time synonyms
+     *
+     *  {@link #BLENDED_TERMS}
+     *  {@link #BEST_TERMS}
+     *  {@link #MOST_TERMS}
+     */
+    public static enum SynonymQueryStyle implements Writeable {
+        /** (default) synonym terms share doc freq - ie they are blended
+         *  so if "pants" has df 500, and "khakis" a df of 50, uses 500 df when scoring both terms
+         *  appropriate for exact synonyms
+         *  see {@link org.apache.lucene.search.SynonymQuery}
+         * */
+        BLENDED_TERMS(0),
+
+        /** highest scoring term match chosen (ie dismax)
+         *  so if "pants" has df 500, and "khakis" a df of 50, khakis matches are scored higher
+         *  appropriate when more specific synonyms should score higher
+         * */
+        BEST_TERMS(1),
+
+        /** each synonym scored indepedently, then added together (ie boolean query)
+         *  so if "pants" has df 500, and "khakis" a df of 50, khakis matches are scored higher but
+         *  summed with any "pants" matches
+         *  appropriate when more specific synonyms should score higher, but we don't want to ignore
+         *  less specific synonyms
+         * */
+        MOST_TERMS(2);
+
+        private final int ordinal;
+
+        SynonymQueryStyle(int ordinal) {
+            this.ordinal = ordinal;
+        }
+
+        public static SynonymQueryStyle readFromStream(StreamInput in) throws IOException {
+            int ord = in.readVInt();
+            for (SynonymQueryStyle type : SynonymQueryStyle.values()) {
+                if (type.ordinal == ord) {
+                    return type;
+                }
+            }
+            throw new ElasticsearchException("unknown serialized type [" + ord + "]");
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(this.ordinal);
+        }
+    }
+
 
     public enum Type implements Writeable {
         /**
@@ -147,6 +201,8 @@ public class MatchQuery {
      */
     public static final ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQuery.NONE;
 
+    public static final SynonymQueryStyle DEFAULT_SYNONYM_QUERY_STYLE = SynonymQueryStyle.BLENDED_TERMS;
+
     protected final QueryShardContext context;
 
     protected Analyzer analyzer;
@@ -174,6 +230,8 @@ public class MatchQuery {
     protected Float commonTermsCutoff = null;
 
     protected boolean autoGenerateSynonymsPhraseQuery = true;
+
+    protected SynonymQueryStyle synonymQueryStyle = SynonymQueryStyle.BLENDED_TERMS;
 
     public MatchQuery(QueryShardContext context) {
         this.context = context;
@@ -238,6 +296,11 @@ public class MatchQuery {
         this.autoGenerateSynonymsPhraseQuery = enabled;
     }
 
+    public void setSynonymQueryStyle(SynonymQueryStyle style) {
+        this.synonymQueryStyle = style;
+    }
+
+
     protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
         if (analyzer == null) {
             return quoted ? context.getSearchQuoteAnalyzer(fieldType) : context.getSearchAnalyzer(fieldType);
@@ -270,11 +333,13 @@ public class MatchQuery {
 
         MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
         builder.setEnablePositionIncrements(this.enablePositionIncrements);
+        builder.setSynonymQueryStyle(this.synonymQueryStyle);
         if (hasPositions(fieldType)) {
             builder.setAutoGenerateMultiTermSynonymsPhraseQuery(this.autoGenerateSynonymsPhraseQuery);
         } else {
             builder.setAutoGenerateMultiTermSynonymsPhraseQuery(false);
         }
+
 
         Query query = null;
         switch (type) {
@@ -329,6 +394,7 @@ public class MatchQuery {
     private class MatchQueryBuilder extends QueryBuilder {
 
         private final MappedFieldType mapper;
+        private SynonymQueryStyle synonymQueryStyle;
 
         /**
          * Creates a new QueryBuilder using the given analyzer.
@@ -338,6 +404,10 @@ public class MatchQuery {
             this.mapper = mapper;
         }
 
+        public void setSynonymQueryStyle(SynonymQueryStyle synQueryStyle) {
+            this.synonymQueryStyle = synQueryStyle;
+        }
+
         @Override
         protected Query newTermQuery(Term term) {
             return blendTermQuery(term, mapper);
@@ -345,7 +415,24 @@ public class MatchQuery {
 
         @Override
         protected Query newSynonymQuery(Term[] terms) {
-            return blendTermsQuery(terms, mapper);
+                switch (this.synonymQueryStyle) {
+                    case BEST_TERMS:
+                        List<Query> currPosnClauses = new ArrayList<Query>(terms.length);
+                        for (Term term : terms) {
+                            currPosnClauses.add(newTermQuery(term));
+                        }
+                        return new DisjunctionMaxQuery(currPosnClauses, 0.0f);
+                    case MOST_TERMS:
+                        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                        for (Term term : terms) {
+                            builder.add(newTermQuery(term), BooleanClause.Occur.SHOULD);
+                        }
+                        return builder.build();
+                    case BLENDED_TERMS:
+                        return blendTermsQuery(terms, mapper);
+                    default:
+                        throw new IllegalStateException("unrecognized synonymQueryStyle passed when creating newSynonymQuery");
+            }
         }
 
         @Override

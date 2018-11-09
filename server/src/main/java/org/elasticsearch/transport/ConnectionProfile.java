@@ -141,6 +141,7 @@ public final class ConnectionProfile {
     private final int numConnections;
     private final TimeValue connectTimeout;
     private final TimeValue handshakeTimeout;
+    private final TimeValue pingInterval;
     private final Boolean compressionEnabled;
 
     private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout,
@@ -149,6 +150,8 @@ public final class ConnectionProfile {
         this.numConnections = numConnections;
         this.connectTimeout = connectTimeout;
         this.handshakeTimeout = handshakeTimeout;
+        // TODO: Replace by real value
+        this.pingInterval = TimeValue.timeValueSeconds(5);
         this.compressionEnabled = compressionEnabled;
     }
 
@@ -250,6 +253,11 @@ public final class ConnectionProfile {
      */
     public TimeValue getHandshakeTimeout() {
         return handshakeTimeout;
+    }
+
+    //  TODO: Add doc
+    public TimeValue getPingInterval() {
+        return pingInterval;
     }
 
     /**

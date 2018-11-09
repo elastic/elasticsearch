@@ -20,26 +20,62 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 public class TcpTransportKeepAlive {
 
+    private static final int PING_DATA_SIZE = -1;
+
     private final Logger logger = LogManager.getLogger(ConnectionManager.class);
-    private final ConcurrentMap<Integer, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<Long, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentSkipListMap<Long, TcpTransport.NodeChannels> map = null;
     private final Lifecycle lifecycle = new Lifecycle();
     private final ThreadPool threadPool;
+    private final BytesReference pingMessage;
 
     public TcpTransportKeepAlive(ThreadPool threadPool) {
         this.threadPool = threadPool;
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeByte((byte) 'E');
+            out.writeByte((byte) 'S');
+            out.writeInt(PING_DATA_SIZE);
+            pingMessage = out.bytes();
+        } catch (IOException e) {
+            throw new AssertionError(e.getMessage(), e); // won't happen
+        }
+    }
+
+    public void registerNodeConnection(TcpTransport.NodeChannels nodeChannels, ConnectionProfile connectionProfile) {
+        long pingInterval = connectionProfile.getPingInterval().millis();
+        if (pingInterval < 0) {
+            return;
+        }
+
+        ScheduledPing scheduledPing = pingIntervals.get(pingInterval);
+        if (scheduledPing != null) {
+
+        } else {
+            scheduledPing = new ScheduledPing();
+        }
+
+        final ScheduledPing finalScheduledPing = scheduledPing;
+        for (TcpChannel channel : nodeChannels.getChannels()) {
+            channel.addCloseListener(ActionListener.wrap(() -> finalScheduledPing.removeChannel(channel)));
+        }
+
     }
 
     public void receiveKeepAlive(TcpChannel tcpChannel) {
@@ -51,12 +87,13 @@ public class TcpTransportKeepAlive {
         }
     }
 
-    private class KeepAliveChannel {
+    private class KeepAliveStats {
 
-        private final TcpChannel channel;
+        private long lastReadTime;
+        private long lastWriteTime;
 
-        private KeepAliveChannel(TcpChannel channel) {
-            this.channel = channel;
+        private KeepAliveStats() {
+
         }
     }
 
@@ -66,6 +103,10 @@ public class TcpTransportKeepAlive {
 
         private ScheduledPing() {
             super(lifecycle, logger);
+        }
+
+        public void removeChannel(TcpChannel channel) {
+
         }
 
         @Override

@@ -259,6 +259,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
 
     /**
      * Writes index metadata and updates manifest file accordingly.
+     * Used by tests.
      */
     public void writeIndexAndUpdateManifest(String reason, IndexMetaData metaData) throws IOException {
         long generation = writeIndex(reason, metaData);
@@ -273,6 +274,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
 
     /**
      * Writes global metadata and updates manifest file accordingly.
+     * Used by tests.
      */
     public void writeGlobalStateAndUpdateManifest(String reason, MetaData metaData) throws IOException {
         long generation = writeGlobalState(reason, metaData);

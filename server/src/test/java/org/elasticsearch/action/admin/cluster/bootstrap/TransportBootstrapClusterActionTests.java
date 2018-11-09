@@ -20,7 +20,6 @@ package org.elasticsearch.action.admin.cluster.bootstrap;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapConfiguration.NodeDescription;
-import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -55,6 +54,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.support.ActionFilters.EMPTY_FILTERS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -62,7 +62,6 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class TransportBootstrapClusterActionTests extends ESTestCase {
 
-    private final ActionFilters EMPTY_FILTERS = new ActionFilters(emptySet());
     private DiscoveryNode discoveryNode;
     private static ThreadPool threadPool;
     private TransportService transportService;

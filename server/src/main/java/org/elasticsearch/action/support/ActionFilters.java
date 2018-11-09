@@ -23,10 +23,15 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
+
 /**
  * Holds the action filters injected through plugins, properly sorted by {@link org.elasticsearch.action.support.ActionFilter#order()}
  */
 public class ActionFilters {
+
+    // this could be used in many more places - TODO use this where appropriate
+    public static final ActionFilters EMPTY_FILTERS = new ActionFilters(emptySet());
 
     private final ActionFilter[] filters;
 

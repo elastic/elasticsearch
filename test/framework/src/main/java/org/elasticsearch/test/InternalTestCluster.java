@@ -27,11 +27,14 @@ import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingTombstonesAction;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingTombstonesRequest;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingTombstonesAction;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingTombstonesRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -1622,17 +1625,47 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized void stopNodesAndClients(Collection<NodeAndClient> nodeAndClients) throws IOException {
+        final Set<String> withdrawnNodeIds = new HashSet<>();
+
         if (autoManageMinMasterNodes && nodeAndClients.size() > 0) {
-            int masters = (int)nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).count();
-            if (masters > 0) {
-                updateMinMasterNodes(getMasterNodesCount() - masters);
+
+            final long currentMasters = nodes.values().stream().filter(NodeAndClient::isMasterEligible).count();
+            final long stoppingMasters = nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).count();
+
+            assert stoppingMasters <= currentMasters : currentMasters + " < " + stoppingMasters;
+            if ((stoppingMasters != currentMasters && currentMasters <= stoppingMasters * 2) || rarely()) {
+                // stopping fewer than _all_ of the master nodes, but at least half of them, requires their votes to be withdrawn first
+                nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).map(NodeAndClient::getName).forEach(withdrawnNodeIds::add);
+                logger.info("withdrawing votes from {} prior to shutdown", withdrawnNodeIds);
+                try {
+                    client().execute(AddVotingTombstonesAction.INSTANCE,
+                        new AddVotingTombstonesRequest(withdrawnNodeIds.toArray(new String[0]))).get();
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new AssertionError("unexpected", e);
+                }
+            }
+
+            if (stoppingMasters > 0) {
+                updateMinMasterNodes(getMasterNodesCount() - Math.toIntExact(stoppingMasters));
             }
         }
+
         for (NodeAndClient nodeAndClient: nodeAndClients) {
             removeDisruptionSchemeFromNode(nodeAndClient);
             NodeAndClient previous = nodes.remove(nodeAndClient.name);
             assert previous == nodeAndClient;
             nodeAndClient.close();
+        }
+
+        if (withdrawnNodeIds.isEmpty() == false) {
+            logger.info("removing voting tombstones for {} after shutdown", withdrawnNodeIds);
+            try {
+                final ClearVotingTombstonesRequest request = new ClearVotingTombstonesRequest();
+                request.setWaitForRemoval(true);
+                client().execute(ClearVotingTombstonesAction.INSTANCE, request).get();
+            } catch (InterruptedException | ExecutionException e) {
+                throw new AssertionError("unexpected", e);
+            }
         }
     }
 

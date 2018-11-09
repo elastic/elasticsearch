@@ -20,7 +20,6 @@ package org.elasticsearch.action.admin.cluster.bootstrap;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -46,8 +45,9 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.HandshakeResponse;
-import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Random;
@@ -57,6 +57,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.action.support.ActionFilters.EMPTY_FILTERS;
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.discovery.PeerFinder.REQUEST_PEERS_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
@@ -69,13 +70,22 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
-    private final ActionFilters EMPTY_FILTERS = new ActionFilters(emptySet());
+    private static ThreadPool threadPool;
     private DiscoveryNode localNode;
-    private ThreadPool threadPool;
     private String clusterName;
     private TransportService transportService;
     private Coordinator coordinator;
     private DiscoveryNode otherNode;
+
+    @BeforeClass
+    public static void createThreadPool() {
+        threadPool = new TestThreadPool("test", Settings.EMPTY);
+    }
+
+    @AfterClass
+    public static void shutdownThreadPool() {
+        threadPool.shutdown();
+    }
 
     @Before
     public void setupTest() {
@@ -91,7 +101,6 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
                 }
             }
         };
-        threadPool = new TestThreadPool("test", Settings.EMPTY);
         transportService = transport.createTransportService(
             Settings.builder().put(CLUSTER_NAME_SETTING.getKey(), clusterName).build(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
@@ -102,11 +111,6 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
             new MasterService("local", Settings.EMPTY, threadPool),
             () -> new InMemoryPersistedState(0, ClusterState.builder(new ClusterName(clusterName)).build()), r -> emptyList(),
             new NoOpClusterApplier(), new Random(random().nextLong()));
-    }
-
-    @After
-    public void cleanUp() {
-        threadPool.shutdown();
     }
 
     public void testHandlesNonstandardDiscoveryImplementation() throws InterruptedException {

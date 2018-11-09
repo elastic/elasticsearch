@@ -62,7 +62,7 @@ statement
     | SYS COLUMNS (CATALOG cluster=string)?
                   (TABLE tableLike=likePattern | tableIdent=tableIdentifier)?
                   (columnPattern=likePattern)?                                                            #sysColumns
-    | SYS TYPES                                                                                           #sysTypes
+    | SYS TYPES ((PLUS | MINUS)?  type=number)?                                                           #sysTypes
     | SYS TABLE TYPES                                                                                     #sysTableTypes  
     ;
     

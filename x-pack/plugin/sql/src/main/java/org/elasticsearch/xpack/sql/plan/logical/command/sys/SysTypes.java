@@ -28,15 +28,23 @@ import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
 
+/**
+ * System command designed to be used by JDBC / ODBC for column metadata.
+ * In JDBC it used for {@link DatabaseMetaData#getTypeInfo()},
+ * in ODBC for <a href="https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function">SQLGetTypeInfo</a>
+ */
 public class SysTypes extends Command {
 
-    public SysTypes(Location location) {
+    private final Integer type;
+
+    public SysTypes(Location location, int type) {
         super(location);
+        this.type = Integer.valueOf(type);
     }
 
     @Override
     protected NodeInfo<SysTypes> info() {
-        return NodeInfo.create(this);
+        return NodeInfo.create(this, SysTypes::new, type);
     }
 
     @Override
@@ -66,7 +74,11 @@ public class SysTypes extends Command {
 
     @Override
     public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        List<List<?>> rows = Stream.of(DataType.values())
+        Stream<DataType> values = Stream.of(DataType.values());
+        if (type.intValue() != 0) {
+            values = values.filter(t -> type.equals(t.sqlType.getVendorTypeNumber()));
+        }
+        List<List<?>> rows = values
                 // sort by SQL int type (that's what the JDBC/ODBC specs want) followed by name
                 .sorted(Comparator.comparing((DataType t) -> t.sqlType.getVendorTypeNumber()).thenComparing(DataType::sqlName))
                 .map(t -> asList(t.esType.toUpperCase(Locale.ROOT),

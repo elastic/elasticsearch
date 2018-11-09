@@ -96,35 +96,35 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
      */
     private Tuple<Manifest, MetaData> loadFullStateBWC() throws IOException {
         Map<Index, Long> indices = new HashMap<>();
-        MetaData.Builder metaDataBuilder = MetaData.builder();
+        MetaData.Builder metaDataBuilder;
 
         Tuple<MetaData, Long> metaDataAndGeneration =
                 MetaData.FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
         MetaData globalMetaData = metaDataAndGeneration.v1();
         long globalStateGeneration = metaDataAndGeneration.v2();
-        boolean isFreshStartup = globalMetaData == null;
 
-        if (isFreshStartup == false) {
+        if (globalMetaData != null) {
+            metaDataBuilder = MetaData.builder(globalMetaData);
             assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
+        } else {
+            metaDataBuilder = MetaData.builder();
+        }
 
-            if (globalMetaData != null) {
-                metaDataBuilder = MetaData.builder(globalMetaData);
-            }
-
-            for (String indexFolderName : nodeEnv.availableIndexFolders()) {
-                Tuple<IndexMetaData, Long> indexMetaDataAndGeneration =
-                        IndexMetaData.FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry,
-                                nodeEnv.resolveIndexFolder(indexFolderName));
-                IndexMetaData indexMetaData = indexMetaDataAndGeneration.v1();
-                long generation = indexMetaDataAndGeneration.v2();
-                if (indexMetaData != null) {
-                    indices.put(indexMetaData.getIndex(), generation);
-                    metaDataBuilder.put(indexMetaData, false);
-                } else {
-                    logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
-                }
+        for (String indexFolderName : nodeEnv.availableIndexFolders()) {
+            Tuple<IndexMetaData, Long> indexMetaDataAndGeneration =
+                    IndexMetaData.FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry,
+                            nodeEnv.resolveIndexFolder(indexFolderName));
+            assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
+            IndexMetaData indexMetaData = indexMetaDataAndGeneration.v1();
+            long generation = indexMetaDataAndGeneration.v2();
+            if (indexMetaData != null) {
+                indices.put(indexMetaData.getIndex(), generation);
+                metaDataBuilder.put(indexMetaData, false);
+            } else {
+                logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
             }
         }
+
         Manifest manifest = new Manifest(globalStateGeneration, indices);
         return new Tuple<>(manifest, metaDataBuilder.build());
     }

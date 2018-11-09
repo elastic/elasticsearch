@@ -109,41 +109,39 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                 // We finished global state validation and successfully checked all indices for backward compatibility
                 // and found no non-upgradable indices, which means the upgrade can continue.
                 // Now it's safe to overwrite global and index metadata.
+                // We don't re-write metadata if it's not upgraded by upgrade plugins, because
+                // if there is manifest file, it means metadata is properly persisted to all data paths
+                // if there is no manifest file (upgrade from 6.x to 7.x) metadata might be missing on some data paths,
+                // but anyway we will re-write it as soon as we receive first ClusterState
+                List<Runnable> cleanupActions = new ArrayList<>();
+                final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
+
                 long globalStateGeneration = manifest.getGlobalGeneration();
+                if (MetaData.isGlobalStateEquals(metaData, upgradedMetaData) == false) {
+                    globalStateGeneration = metaStateService.writeGlobalState("upgrade", upgradedMetaData);
+                    final long currentGlobalStateGeneration = globalStateGeneration;
+                    cleanupActions.add(() -> metaStateService.cleanupGlobalState(currentGlobalStateGeneration));
+                }
 
-                if (globalStateGeneration != -1) {
-                    // If globalStateGeneration is non-negative, it means we should have some metadata on disk
-                    // We don't re-write metadata if it's not upgraded by upgrade plugins, because
-                    // if there is manifest file, it means metadata is properly persisted to all data paths
-                    // if there is no manifest file (upgrade from 6.x to 7.x) metadata might be missing on some data paths,
-                    // but anyway we will re-write it as soon as we receive first ClusterState
-
-                    List<Runnable> cleanupActions = new ArrayList<>();
-                    final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
-
-                    if (MetaData.isGlobalStateEquals(metaData, upgradedMetaData) == false) {
-                        globalStateGeneration = metaStateService.writeGlobalState("upgrade", upgradedMetaData);
-                        final long currentGlobalStateGeneration = globalStateGeneration;
-                        cleanupActions.add(() -> metaStateService.cleanupGlobalState(currentGlobalStateGeneration));
+                Map<Index, Long> indices = new HashMap<>(manifest.getIndexGenerations());
+                for (IndexMetaData indexMetaData : upgradedMetaData) {
+                    if (metaData.hasIndexMetaData(indexMetaData) == false) {
+                        final long generation = metaStateService.writeIndex("upgrade", indexMetaData);
+                        cleanupActions.add(() -> metaStateService.cleanupIndex(indexMetaData.getIndex(), generation));
+                        indices.put(indexMetaData.getIndex(), generation);
                     }
+                }
 
-                    Map<Index, Long> indices = new HashMap<>(manifest.getIndexGenerations());
+                final Manifest newManifest = new Manifest(globalStateGeneration, indices);
 
-                    for (IndexMetaData indexMetaData : upgradedMetaData) {
-                        if (metaData.hasIndexMetaData(indexMetaData) == false) {
-                            final long generation = metaStateService.writeIndex("upgrade", indexMetaData);
-                            cleanupActions.add(() -> metaStateService.cleanupIndex(indexMetaData.getIndex(), generation));
-                            indices.put(indexMetaData.getIndex(), generation);
-                        }
-                    }
-
+                if (newManifest.isEmpty() == false) {
                     final long metaStateGeneration =
-                            metaStateService.writeManifest("startup", new Manifest(globalStateGeneration, indices));
+                            metaStateService.writeManifest("startup", newManifest);
                     cleanupActions.add(() -> metaStateService.cleanupMetaState(metaStateGeneration));
+                }
 
-                    for (Runnable action : cleanupActions) {
-                        action.run();
-                    }
+                for (Runnable action : cleanupActions) {
+                    action.run();
                 }
             } catch (Exception e) {
                 logger.error("failed to read or re-write local state, exiting...", e);

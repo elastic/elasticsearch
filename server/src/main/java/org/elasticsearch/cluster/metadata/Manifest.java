@@ -140,6 +140,10 @@ public class Manifest implements ToXContentFragment {
         return PARSER.parse(parser, null);
     }
 
+    public boolean isEmpty() {
+        return globalGeneration == -1 || indexGenerations.isEmpty();
+    }
+
     private static final class IndexEntry implements ToXContentFragment {
         private static final ParseField INDEX_GENERATION_PARSE_FIELD = new ParseField("generation");
         private static final ParseField INDEX_PARSE_FIELD = new ParseField("index");

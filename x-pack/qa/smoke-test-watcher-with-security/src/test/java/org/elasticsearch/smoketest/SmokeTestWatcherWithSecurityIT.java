@@ -213,7 +213,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(value, is("15"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35361")
     public void testSearchTransformInsufficientPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

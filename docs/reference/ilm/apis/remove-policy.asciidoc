@@ -1,12 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
-[[ilm-remove-policy]]
-=== Remove Policy On Index API
+[[ilm-delete-policy]]
+=== Delete Policy from Index API
 ++++
-<titleabbrev>Remove Policy From Index</titleabbrev>
+<titleabbrev>Delete Policy</titleabbrev>
 ++++
 
-Unassigns a policy from a specified index pattern
+Removes the assigned lifecycle policy from an index.
 
 ==== Request
 
@@ -14,8 +14,9 @@ Unassigns a policy from a specified index pattern
 
 ==== Description
 
-This action removes a policy from managing an index. It is effectively the same as setting an index's
-`index.lifecycle.name` setting to null.
+Removes the assigned lifecycle policy and stops managing the specified index.
+If an index pattern is specified, removes the assigned policies from all matching
+indices.
 
 ==== Path Parameters
 
@@ -24,21 +25,15 @@ This action removes a policy from managing an index. It is effectively the same 
 
 ==== Request Parameters
 
-`timeout`::
-  (time units) Specifies the period of time to wait for the completion of the 
-  operation. When this period of time elapses, the API fails and returns
-  an error. The default value is `30s`. For more information about time units, 
-  see <<time-units>>.
+include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
-`master_timeout`::
-  (time units) Specifies the period of time to wait for the connection with master.
-  When this period of time elapses, the API fails and returns an error.
-  The default value is `30s`. For more information about time units, see <<time-units>>.
+==== Authorization
 
+include::ilm-cluster-mgt-privilege.asciidoc[]
 
 ==== Examples
 
-The following example removes a policy `my_policy` from an index `my_index`.
+The following example removes the assigned policy from `my_index`.
 
 //////////////////////////
 
@@ -85,7 +80,7 @@ POST my_index/_ilm/remove
 // CONSOLE
 // TEST[continued]
 
-If the request does not encounter errors, you receive the following result:
+If the request succeeds, you receive the following result:
 
 [source,js]
 --------------------------------------------------

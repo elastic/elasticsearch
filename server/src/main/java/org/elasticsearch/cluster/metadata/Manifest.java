@@ -31,6 +31,7 @@ import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,6 +45,8 @@ import java.util.stream.Collectors;
  * Index metadata generation could be obtained by calling {@link #getIndexGenerations()}.
  */
 public class Manifest implements ToXContentFragment {
+    private static final long MISSING_GLOBAL_GENERATION = -1;
+
     private final long globalGeneration;
     private final Map<Index, Long> indexGenerations;
 
@@ -141,7 +144,11 @@ public class Manifest implements ToXContentFragment {
     }
 
     public boolean isEmpty() {
-        return globalGeneration == -1 || indexGenerations.isEmpty();
+        return globalGeneration == MISSING_GLOBAL_GENERATION || indexGenerations.isEmpty();
+    }
+
+    public static Manifest empty() {
+        return new Manifest(MISSING_GLOBAL_GENERATION, Collections.emptyMap());
     }
 
     private static final class IndexEntry implements ToXContentFragment {

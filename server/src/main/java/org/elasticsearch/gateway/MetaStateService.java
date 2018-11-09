@@ -64,7 +64,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
      */
     Tuple<Manifest, MetaData> loadFullState() throws IOException {
         final Manifest manifest = loadManifest();
-        if (manifest == null) {
+        if (manifest.isEmpty()) {
             return loadFullStateBWC();
         }
         final MetaData.Builder metaDataBuilder;
@@ -162,10 +162,14 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
     }
 
     /**
-     * Loads Manifest file from disk, returns null if there is no manifest file.
+     * Loads Manifest file from disk, returns <code>Manifest.empty()</code> if there is no manifest file.
      */
     public Manifest loadManifest() throws IOException {
-        return Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
+        Manifest manifest = Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
+        if (manifest == null) {
+            manifest = Manifest.empty();
+        }
+        return manifest;
     }
 
     /**

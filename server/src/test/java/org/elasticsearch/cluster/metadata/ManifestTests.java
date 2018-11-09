@@ -99,4 +99,9 @@ public class ManifestTests extends ESTestCase {
             assertThat(Manifest.fromXContent(parser), equalTo(state));
         }
     }
+
+    public void testEmptyManifest() {
+        assertTrue(Manifest.empty().isEmpty());
+        assertFalse(randomManifest().isEmpty());
+    }
 }

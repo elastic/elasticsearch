@@ -98,7 +98,7 @@ public class Manifest implements ToXContentFragment {
 
 
     /*
-     * Code below this comment is for XContent manipulation
+     * Code below this comment is for XContent parsing/generation
      */
 
     private static final ParseField GENERATION_PARSE_FIELD = new ParseField("generation");

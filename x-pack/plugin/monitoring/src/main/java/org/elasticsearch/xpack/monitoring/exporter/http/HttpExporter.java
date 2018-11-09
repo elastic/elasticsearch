@@ -164,7 +164,7 @@ public class HttpExporter extends Exporter {
     /**
      * Minimum supported version of the remote monitoring cluster (same major).
      */
-    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_7_0_0_alpha1;
+    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_7_0_0;
 
     /**
      * The {@link RestClient} automatically pools connections and keeps them alive as necessary.

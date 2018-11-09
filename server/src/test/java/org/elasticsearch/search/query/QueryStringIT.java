@@ -30,8 +30,10 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,11 +53,26 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class QueryStringIT extends ESIntegTestCase {
 
+    private static int CLUSTER_MAX_CLAUSE_COUNT;
+
+    @BeforeClass
+    public static void createRandomClusterSetting() {
+        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(50, 100);
+    }
+
     @Before
     public void setup() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
+                .build();
     }
 
     public void testBasicAllQuery() throws Exception {
@@ -253,7 +270,7 @@ public class QueryStringIT extends ESIntegTestCase {
         builder.startObject();
         builder.startObject("type1");
         builder.startObject("properties");
-        for (int i = 0; i < 1025; i++) {
+        for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT + 1; i++) {
             builder.startObject("field" + i).field("type", "text").endObject();
         }
         builder.endObject(); // properties
@@ -261,10 +278,11 @@ public class QueryStringIT extends ESIntegTestCase {
         builder.endObject();
 
         assertAcked(prepareCreate("toomanyfields")
-                .setSettings(Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1200))
+                .setSettings(Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
+                        CLUSTER_MAX_CLAUSE_COUNT + 100))
                 .addMapping("type1", builder));
 
-        client().prepareIndex("toomanyfields", "type1", "1").setSource("field171", "foo bar baz").get();
+        client().prepareIndex("toomanyfields", "type1", "1").setSource("field1", "foo bar baz").get();
         refresh();
 
         Exception e = expectThrows(Exception.class, () -> {
@@ -272,11 +290,11 @@ public class QueryStringIT extends ESIntegTestCase {
                 if (randomBoolean()) {
                     qb.useAllFields(true);
                 }
-                logger.info("--> using {}", qb);
                 client().prepareSearch("toomanyfields").setQuery(qb).get();
                 });
         assertThat(ExceptionsHelper.detailedMessage(e),
-                containsString("field expansion matches too many fields, limit: 1024, got: 1025"));
+                containsString("field expansion matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT + ", got: "
+                        + (CLUSTER_MAX_CLAUSE_COUNT + 1)));
     }
 
     public void testFieldAlias() throws Exception {

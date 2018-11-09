@@ -84,7 +84,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
             if (indexMetaData != null) {
                 metaDataBuilder.put(indexMetaData, false);
             } else {
-                throw new IOException("failed to find metadata for existing index [location: " + indexFolderName +
+                throw new IOException("failed to find metadata for existing index " + index.getName() + " [location: " + indexFolderName +
                         ", generation: " + generation + "]");
             }
         }

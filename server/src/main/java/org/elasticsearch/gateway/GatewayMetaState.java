@@ -91,7 +91,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
     }
 
     private void profileLoadMetaData() throws IOException {
-        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+        if (isMasterOrDataNode()) {
             long startNS = System.nanoTime();
             metaStateService.loadFullState();
             logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
@@ -100,7 +100,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
     private void upgradeMetaData(MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
             throws IOException {
-        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+        if (isMasterOrDataNode()) {
             try {
                 final Tuple<Manifest, MetaData> metaStateAndData = metaStateService.loadFullState();
                 final Manifest manifest = metaStateAndData.v1();
@@ -149,8 +149,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         }
     }
 
+    private boolean isMasterOrDataNode() {
+        return DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings);
+    }
+
     private void ensureAtomicMoveSupported() throws IOException {
-        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+        if (isMasterOrDataNode()) {
             nodeEnv.ensureAtomicMoveSupported();
         }
     }
@@ -161,8 +165,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
-        ClusterState newState = event.state();
-        if (newState.nodes().getLocalNode().isMasterNode() == false && newState.nodes().getLocalNode().isDataNode() == false) {
+        if (isMasterOrDataNode() == false) {
             return;
         }
 
@@ -276,7 +279,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         if (DiscoveryNode.isDataNode(settings)) {
             ensureNoPre019ShardState();
         }
-        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+        if (isMasterOrDataNode()) {
             ensureNoPre019MetadataFiles();
         }
     }

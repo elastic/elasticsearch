@@ -44,7 +44,7 @@ class DatafeedJob {
 
     private static final Logger LOGGER = LogManager.getLogger(DatafeedJob.class);
     private static final int NEXT_TASK_DELAY_MS = 100;
-    static final long MISSING_DATA_CHECK_INTERVAL = 600_000;
+    static final long MISSING_DATA_CHECK_INTERVAL_MS = 900_000; //15 minutes in ms
 
     private final Auditor auditor;
     private final String jobId;
@@ -188,8 +188,19 @@ class DatafeedJob {
         }
     }
 
+    /**
+     * We wait a static interval of 15 minutes till the next missing data check.
+     *
+     * However, if our delayed data window is smaller than that, we will probably want to check at every available window (if freq. allows).
+     * This is to help to miss as few buckets in the delayed data check as possible.
+     *
+     * If our frequency/query delay are longer then our default interval or window size, we will end up looking for missing data on
+     * every real-time trigger. This should be OK as the we are pulling from the Index as such a slow pace, another query will
+     * probably not even be noticeable at such a large timescale.
+     */
     private boolean checkForMissingDataTriggered() {
-        return this.currentTimeSupplier.get() > this.lastDataCheckTimeMs + MISSING_DATA_CHECK_INTERVAL;
+        return this.currentTimeSupplier.get() > this.lastDataCheckTimeMs
+            + Math.min(MISSING_DATA_CHECK_INTERVAL_MS, delayedDataDetector.getWindow());
     }
 
     /**

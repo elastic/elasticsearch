@@ -234,7 +234,7 @@ public class DatafeedJobTests extends ESTestCase {
 
         // Execute a third time, but this time make sure we exceed the data check interval, but keep the delayedDataDetector response
         // the same
-        currentTime = 62000L + DatafeedJob.MISSING_DATA_CHECK_INTERVAL + 1;
+        currentTime = 62000L + DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS + 1;
         inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));

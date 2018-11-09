@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ExpandedIdsMatcher;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -108,6 +110,7 @@ public class DatafeedConfigReader {
                         listener.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
                     } else {
                         datafeedConfigs.addAll(clusterStateConfigs.values());
+                        Collections.sort(datafeedConfigs, Comparator.comparing(DatafeedConfig::getId));
                         listener.onResponse(datafeedConfigs);
                     }
                 },

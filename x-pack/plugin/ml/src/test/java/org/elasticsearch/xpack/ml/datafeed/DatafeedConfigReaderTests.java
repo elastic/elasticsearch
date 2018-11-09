@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
@@ -29,8 +30,9 @@ import static org.mockito.Mockito.mock;
 
 public class DatafeedConfigReaderTests extends ESTestCase {
 
-    private final String JOB_ID = "foo";
+    private final String JOB_ID_FOO = "foo";
 
+    @SuppressWarnings("unchecked")
     private void mockProviderWithExpectedIds(DatafeedConfigProvider mockedProvider, String expression, SortedSet<String> datafeedIds) {
         doAnswer(invocationOnMock -> {
             ActionListener<SortedSet<String>> listener = (ActionListener<SortedSet<String>>) invocationOnMock.getArguments()[1];
@@ -39,13 +41,24 @@ public class DatafeedConfigReaderTests extends ESTestCase {
         }).when(mockedProvider).expandDatafeedIdsWithoutMissingCheck(eq(expression), any());
     }
 
+    @SuppressWarnings("unchecked")
+    private void mockProviderWithExpectedConfig(DatafeedConfigProvider mockedProvider, String expression,
+                                                List<DatafeedConfig.Builder> datafeedConfigs) {
+        doAnswer(invocationOnMock -> {
+            ActionListener<List<DatafeedConfig.Builder>> listener =
+                    (ActionListener<List<DatafeedConfig.Builder>>) invocationOnMock.getArguments()[1];
+            listener.onResponse(datafeedConfigs);
+            return null;
+        }).when(mockedProvider).expandDatafeedConfigsWithoutMissingCheck(eq(expression), any());
+    }
+
     public void testExpandDatafeedIds_SplitBetweenClusterStateAndIndex() {
         SortedSet<String> idsInIndex = new TreeSet<>();
         idsInIndex.add("index-df");
         DatafeedConfigProvider provider = mock(DatafeedConfigProvider.class);
         mockProviderWithExpectedIds(provider, "cs-df,index-df", idsInIndex);
 
-        ClusterState clusterState = buildClusterStateWithJob(Collections.singletonList(createDatafeedConfig("cs-df", JOB_ID)));
+        ClusterState clusterState = buildClusterStateWithJob(createDatafeedConfig("cs-df", JOB_ID_FOO));
 
         DatafeedConfigReader reader = new DatafeedConfigReader(provider);
 
@@ -72,7 +85,6 @@ public class DatafeedConfigReaderTests extends ESTestCase {
                 e -> assertNull(e)
         ));
         assertThat(idsHolder.get(), contains("index-df"));
-
     }
 
     public void testExpandDatafeedIds_GivenAll() {
@@ -82,7 +94,7 @@ public class DatafeedConfigReaderTests extends ESTestCase {
         DatafeedConfigProvider provider = mock(DatafeedConfigProvider.class);
         mockProviderWithExpectedIds(provider, "_all", idsInIndex);
 
-        ClusterState clusterState = buildClusterStateWithJob(Collections.singletonList(createDatafeedConfig("df3", JOB_ID)));
+        ClusterState clusterState = buildClusterStateWithJob(createDatafeedConfig("df3", JOB_ID_FOO));
 
         DatafeedConfigReader reader = new DatafeedConfigReader(provider);
 
@@ -96,12 +108,40 @@ public class DatafeedConfigReaderTests extends ESTestCase {
         assertThat(idsHolder.get(), contains("df1", "df2", "df3"));
     }
 
-    private ClusterState buildClusterStateWithJob(List<DatafeedConfig> datafeeds) {
+    public void testExpandDatafeedConfigs_SplitBetweenClusterStateAndIndex() {
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
-        mlMetadata.putJob(buildJobBuilder(JOB_ID).build(), false);
-        for (DatafeedConfig df : datafeeds) {
-            mlMetadata.putDatafeed(df, Collections.emptyMap());
-        }
+        mlMetadata.putJob(buildJobBuilder("job-a").build(), false);
+        mlMetadata.putDatafeed(createDatafeedConfig("cs-df", "job-a"), Collections.emptyMap());
+        mlMetadata.putJob(buildJobBuilder("job-b").build(), false);
+        mlMetadata.putDatafeed(createDatafeedConfig("ll-df", "job-b"), Collections.emptyMap());
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("datafeedconfigreadertests"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+
+
+        DatafeedConfig.Builder indexConfig = createDatafeedConfigBuilder("index-df", "job-c");
+        DatafeedConfigProvider provider = mock(DatafeedConfigProvider.class);
+        mockProviderWithExpectedConfig(provider, "_all", Collections.singletonList(indexConfig));
+
+        DatafeedConfigReader reader = new DatafeedConfigReader(provider);
+
+        AtomicReference<List<DatafeedConfig>> configHolder = new AtomicReference<>();
+        reader.expandDatafeedConfigs("_all", true, clusterState, ActionListener.wrap(
+                configHolder::set,
+                e -> fail(e.getMessage())
+        ));
+
+        assertEquals("cs-df", configHolder.get().get(0).getId());
+        assertEquals("index-df", configHolder.get().get(1).getId());
+        assertEquals("ll-df", configHolder.get().get(2).getId());
+    }
+
+    private ClusterState buildClusterStateWithJob(DatafeedConfig datafeed) {
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(buildJobBuilder(JOB_ID_FOO).build(), false);
+        mlMetadata.putDatafeed(datafeed, Collections.emptyMap());
 
         return ClusterState.builder(new ClusterName("datafeedconfigreadertests"))
                 .metaData(MetaData.builder()
@@ -109,9 +149,13 @@ public class DatafeedConfigReaderTests extends ESTestCase {
                 .build();
     }
 
-    private DatafeedConfig createDatafeedConfig(String id, String jobId) {
+    private DatafeedConfig.Builder createDatafeedConfigBuilder(String id, String jobId) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(id, jobId);
         builder.setIndices(Collections.singletonList("beats*"));
-        return builder.build();
+        return builder;
+    }
+
+    private DatafeedConfig createDatafeedConfig(String id, String jobId) {
+        return createDatafeedConfigBuilder(id, jobId).build();
     }
 }

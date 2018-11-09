@@ -256,24 +256,28 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
+                // also register a release resource in this case if we have multiple roundtrips like in DFS
+                registerRelease(context, lazyDirectoryReader);
             }
-            // also register a release resource in this case if we have multiple roundtrips like in DFS
-            onNewContext(context);
+        }
+
+        private void registerRelease(SearchContext context, LazyDirectoryReader lazyDirectoryReader) {
+            context.addReleasable(() -> {
+                try {
+                    lazyDirectoryReader.release();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }, SearchContext.Lifetime.PHASE);
         }
 
         @Override
         public void onNewContext(SearchContext context) {
             Searcher engineSearcher = context.searcher().getEngineSearcher();
-            context.addReleasable(() -> {
-                LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(engineSearcher.getDirectoryReader());
-                if (lazyDirectoryReader != null) {
-                    try {
-                        lazyDirectoryReader.release();
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                }
-            }, SearchContext.Lifetime.PHASE);
+            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(engineSearcher.getDirectoryReader());
+            if (lazyDirectoryReader != null) {
+                registerRelease(context, lazyDirectoryReader);
+            }
         }
     }
 

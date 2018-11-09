@@ -166,16 +166,14 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             IndexService indexService = indexServices.indexServiceSafe(index);
             assertTrue(indexService.getIndexSettings().isSearchThrottled());
             IndexShard shard = indexService.getShard(0);
-            Engine engine = IndexShardTestCase.getEngine(shard);
             assertEquals(0, shard.refreshStats().getTotal());
-            client().admin().indices().prepareClose("index").get();
         }
+        client().admin().indices().prepareClose("index").get();
         request.setFreeze(false);
         PlainActionFuture<AcknowledgedResponse> future1= new PlainActionFuture<>();
         xPackClient.freeze(request, future1);
         assertAcked(future1.get());
         assertAcked(client().admin().indices().prepareOpen("index"));
-        client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder().put("index.blocks.write", false)).get();
         {
             IndicesService indexServices = getInstanceFromNode(IndicesService.class);
             Index index = resolveIndex("index");

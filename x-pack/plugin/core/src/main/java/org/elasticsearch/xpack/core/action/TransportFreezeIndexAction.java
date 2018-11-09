@@ -99,7 +99,8 @@ public final class TransportFreezeIndexAction extends
                             .put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), request.freeze());
                     if (request.freeze()) {
                         blocks.addIndexBlock(index.getName(), IndexMetaData.INDEX_WRITE_BLOCK);
-                        // we never remove this block when unfreeze for now. we don't know if it was read-only
+                    } else {
+                        blocks.removeIndexBlock(index.getName(), IndexMetaData.INDEX_WRITE_BLOCK);
                     }
                     imdBuilder.settings(settingsBuilder);
                     builder.put(imdBuilder.build(), true);
@@ -141,7 +142,6 @@ public final class TransportFreezeIndexAction extends
         private boolean freeze = true;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, false, true);
 
-
         public FreezeRequest(String... indices) {
             this.indices = indices;
         }
@@ -154,7 +154,6 @@ public final class TransportFreezeIndexAction extends
             }
             return validationException;
         }
-
 
         public void setFreeze(boolean freeze) {
             this.freeze = freeze;
@@ -182,7 +181,7 @@ public final class TransportFreezeIndexAction extends
 
         /**
          * The indices to be opened
-         * @return the indices to be opened
+         * @return the indices to be frozen or unfrozen
          */
         @Override
         public String[] indices() {

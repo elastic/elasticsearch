@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -34,6 +34,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
@@ -122,7 +123,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         }
     }
 
-    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType, @Nullable DateTimeZone tz) {
+    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType, @Nullable ZoneId tz) {
         if (valueType == null) {
             return DocValueFormat.RAW; // we can't figure it out
         }
@@ -131,7 +132,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             valueFormat = new DocValueFormat.Decimal(format);
         }
         if (valueFormat instanceof DocValueFormat.DateTime && format != null) {
-            valueFormat = new DocValueFormat.DateTime(Joda.forPattern(format), tz != null ? tz : DateTimeZone.UTC);
+            valueFormat = new DocValueFormat.DateTime(DateFormatters.forPattern(format), tz != null ? tz : ZoneOffset.UTC);
         }
         return valueFormat;
     }

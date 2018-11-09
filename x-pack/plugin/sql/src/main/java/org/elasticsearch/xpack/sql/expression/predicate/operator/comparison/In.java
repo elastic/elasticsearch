@@ -69,7 +69,7 @@ public class In extends NamedExpression implements ScriptWeaver {
 
     @Override
     public boolean nullable() {
-        return Expressions.nullable(children());
+        return false;
     }
 
     @Override

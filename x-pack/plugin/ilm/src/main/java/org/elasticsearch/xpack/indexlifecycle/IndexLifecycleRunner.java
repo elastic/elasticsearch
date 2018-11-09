@@ -343,7 +343,7 @@ public class IndexLifecycleRunner {
             StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
             String failedStep = lifecycleState.getFailedStep();
             if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName())
-                && Strings.isNullOrEmpty(failedStep) == false) {
+                    && Strings.isNullOrEmpty(failedStep) == false) {
                 StepKey nextStepKey = new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
                 newState = moveClusterStateToStep(index, currentState, currentStepKey, nextStepKey, nowSupplier, stepRegistry);
             } else {
@@ -369,7 +369,7 @@ public class IndexLifecycleRunner {
         updatedState.setFailedStep(null);
         updatedState.setStepInfo(null);
 
-        if (currentStep.getPhase().equals(nextStep.getPhase()) == false) {
+        if (currentStep.getPhase().equals(nextStep.getPhase()) == false || ErrorStep.NAME.equals(currentStep.getName())) {
             final String newPhaseDefinition;
             final Phase nextPhase;
             if ("new".equals(nextStep.getPhase()) || TerminalPolicyStep.KEY.equals(nextStep)) {

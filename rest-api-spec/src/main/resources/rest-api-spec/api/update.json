@@ -72,10 +72,9 @@
           "options": ["internal", "force"],
           "description": "Specific version type"
         },
-        "disable_auto_create_index": {
+        "auto_create_index": {
           "type": "boolean",
-          "description": "Disable auto create index",
-          "default": false
+          "description": "false to disable auto create index"
         }
       }
     },

@@ -87,7 +87,6 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         assertThat(operation.id(), equalTo("5"));
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35333")
     public void testMissingOperations() {
         client().admin().indices().prepareCreate("index")
             .setSettings(Settings.builder()

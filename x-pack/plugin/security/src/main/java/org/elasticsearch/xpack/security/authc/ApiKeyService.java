@@ -222,6 +222,7 @@ public class ApiKeyService {
             roleDescriptors = modifyRoleDescriptorsToMakeItASubset(roleDescriptors, otherRoleDescriptors, subsetResult,
                     authentication.getUser());
         }
+        assert roleDescriptors.size() == requestRoleDescriptors.size();
         return roleDescriptors;
     }
 
@@ -291,7 +292,6 @@ public class ApiKeyService {
                     childRD.getConditionalClusterPrivileges(), childRD.getRunAs(), childRD.getMetadata(), childRD.getTransientMetadata());
             newChildDescriptors.add(rd);
         }
-        assert newChildDescriptors.size() == childDescriptors.size();
         return newChildDescriptors;
     }
 }

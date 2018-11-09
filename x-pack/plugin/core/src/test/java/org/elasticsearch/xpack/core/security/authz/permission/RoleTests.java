@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
@@ -14,15 +16,27 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class RoleTests extends ESTestCase {
 
-    public void testIsSubsetOf() {
+    public void testIsSubsetOf_NullRoleFails() {
+        final Tuple<IndexPrivilege, Set<String>> indicesPrivileges = new Tuple<IndexPrivilege, Set<String>>(IndexPrivilege.ALL,
+                Sets.newHashSet("test-1*"));
+        final Privilege runAsPrivilege = new Privilege("name", "user1", "run*");
+        final Role subsetRole = buildRole(new String[] { "a" }, Sets.newHashSet("monitor"), runAsPrivilege, null,
+                indicesPrivileges, null);
+        final NullPointerException npe = expectThrows(NullPointerException.class, () -> subsetRole.isSubsetOf(null));
+        assertThat(npe.getMessage(), equalTo("other role is required for subset checks"));
+    }
+
+    public void testIsSubsetOf_WithResultYes() {
 
         final Map<ApplicationPrivilege, Set<String>> baseRoleApplicationPrivileges = buildApplicationPrivilege("app-1", "act-name-1",
                 new String[] { "DATA:read/*", "ACTION:act-name-1" }, Sets.newHashSet("res1", "res2"));
@@ -35,7 +49,7 @@ public class RoleTests extends ESTestCase {
         final Tuple<IndexPrivilege, Set<String>> baseRoleIndicesPrivileges = new Tuple<IndexPrivilege, Set<String>>(IndexPrivilege.ALL,
                 Sets.newHashSet("test-*"));
         final Role baseRole = buildRole(new String[] { "a", "b" }, Sets.newHashSet("all"), baseRoleRunAsPrivilege,
-                baseRoleApplicationPrivileges, baseRoleIndicesPrivileges);
+                baseRoleApplicationPrivileges, baseRoleIndicesPrivileges, null);
 
         final Map<ApplicationPrivilege, Set<String>> role1AppPriv = buildApplicationPrivilege("app-1", "act-name-1",
                 new String[] { "DATA:read/X/*" }, Sets.newHashSet("res1"));
@@ -45,20 +59,78 @@ public class RoleTests extends ESTestCase {
         final Tuple<IndexPrivilege, Set<String>> indicesPrivileges = new Tuple<IndexPrivilege, Set<String>>(IndexPrivilege.ALL,
                 Sets.newHashSet("test-1*"));
         final Role subsetRole = buildRole(new String[] { "a" }, Sets.newHashSet("monitor"), runAsPrivilege, role1AppPriv,
-                indicesPrivileges);
+                indicesPrivileges, null);
 
         SubsetResult result = subsetRole.isSubsetOf(baseRole);
         assertThat(result.result(), is(SubsetResult.Result.YES));
     }
 
+    public void testIsSubsetOf_WithResultNo() {
+
+        final Map<ApplicationPrivilege, Set<String>> baseRoleApplicationPrivileges = buildApplicationPrivilege("app-1", "act-name-1",
+                new String[] { "DATA:read/*", "ACTION:act-name-1" }, Sets.newHashSet("res1", "res2"));
+
+        final Privilege baseRoleRunAsPrivilege = new Privilege("name", "user*", "run*");
+        final Tuple<IndexPrivilege, Set<String>> baseRoleIndicesPrivileges = new Tuple<IndexPrivilege, Set<String>>(IndexPrivilege.ALL,
+                Sets.newHashSet("test-*"));
+        final Role baseRole = buildRole(new String[] { "a", "b" }, Sets.newHashSet("all"), baseRoleRunAsPrivilege,
+                baseRoleApplicationPrivileges, baseRoleIndicesPrivileges, null);
+
+        final Map<ApplicationPrivilege, Set<String>> role1AppPriv = buildApplicationPrivilege("app-1", "act-name-1",
+                new String[] { "DATA:write/X/*" }, Sets.newHashSet("res1"));
+
+        final Privilege runAsPrivilege = new Privilege("name", "user1", "run*");
+        final Tuple<IndexPrivilege, Set<String>> indicesPrivileges = new Tuple<IndexPrivilege, Set<String>>(IndexPrivilege.ALL,
+                Sets.newHashSet("test-1*"));
+        final Role subsetRole = buildRole(new String[] { "a" }, Sets.newHashSet("monitor"), runAsPrivilege, role1AppPriv,
+                indicesPrivileges, null);
+
+        SubsetResult result = subsetRole.isSubsetOf(baseRole);
+        assertThat(result.result(), is(SubsetResult.Result.NO));
+    }
+
+    public void testIsSubsetOf_WithResultMaybe() {
+
+        final Map<ApplicationPrivilege, Set<String>> baseRoleApplicationPrivileges = buildApplicationPrivilege("app-1", "act-name-1",
+                new String[] { "DATA:read/*", "ACTION:act-name-1" }, Sets.newHashSet("res1", "res2"));
+
+        final Privilege baseRoleRunAsPrivilege = new Privilege("name", "user*", "run*");
+        final Tuple<IndexPrivilege, Set<String>> baseRoleIndicesPrivileges = new Tuple<IndexPrivilege, Set<String>>(IndexPrivilege.ALL,
+                Sets.newHashSet("test-*"));
+        final Role baseRole = buildRole(new String[] { "a", "b" }, Sets.newHashSet("all"), baseRoleRunAsPrivilege,
+                baseRoleApplicationPrivileges, baseRoleIndicesPrivileges, new BytesArray("base-query"));
+
+        final Map<ApplicationPrivilege, Set<String>> role1AppPriv = buildApplicationPrivilege("app-1", "act-name-1",
+                new String[] { "DATA:read/X/*" }, Sets.newHashSet("res1"));
+
+        final Privilege runAsPrivilege = new Privilege("name", "user1", "run*");
+        final Tuple<IndexPrivilege, Set<String>> indicesPrivileges = new Tuple<IndexPrivilege, Set<String>>(IndexPrivilege.ALL,
+                Sets.newHashSet("test-1*"));
+        final Role subsetRole = buildRole(new String[] { "a" }, Sets.newHashSet("monitor"), runAsPrivilege, role1AppPriv,
+                indicesPrivileges, new BytesArray("query"));
+
+        SubsetResult result = subsetRole.isSubsetOf(baseRole);
+        assertThat(result.result(), is(SubsetResult.Result.MAYBE));
+        Set<Set<String>> expected = Collections.singleton(Sets.newHashSet("test-1*"));
+        assertThat(result.setOfIndexNamesForCombiningDLSQueries(), equalTo(expected));
+    }
+
     private Role buildRole(String[] names, Set<String> clusterPrivileges, Privilege runAsPermission,
-            Map<ApplicationPrivilege, Set<String>> applicationPrivilegesResources, Tuple<IndexPrivilege, Set<String>> indexPrivIndices) {
+            Map<ApplicationPrivilege, Set<String>> applicationPrivilegesResources, Tuple<IndexPrivilege, Set<String>> indexPrivIndices,
+            BytesReference query) {
         final Role.Builder roleBuilder = Role.builder(names).cluster(clusterPrivileges, new ArrayList<>());
-        for (Map.Entry<ApplicationPrivilege, Set<String>> entry : applicationPrivilegesResources.entrySet()) {
-            roleBuilder.addApplicationPrivilege(entry.getKey(), entry.getValue());
+        if (applicationPrivilegesResources != null) {
+            for (Map.Entry<ApplicationPrivilege, Set<String>> entry : applicationPrivilegesResources.entrySet()) {
+                roleBuilder.addApplicationPrivilege(entry.getKey(), entry.getValue());
+            }
         }
         roleBuilder.runAs(runAsPermission);
-        roleBuilder.add(indexPrivIndices.v1(), indexPrivIndices.v2().toArray(new String[0]));
+        if (query == null) {
+            roleBuilder.add(indexPrivIndices.v1(), indexPrivIndices.v2().toArray(new String[0]));
+        } else {
+            roleBuilder.add(FieldPermissions.DEFAULT, Collections.singleton(query), indexPrivIndices.v1(),
+                    indexPrivIndices.v2().toArray(new String[0]));
+        }
         return roleBuilder.build();
     }
 

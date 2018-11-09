@@ -79,6 +79,7 @@ public final class Role {
      * other aspect except DLS queries.
      */
     public SubsetResult isSubsetOf(final Role other) {
+        Objects.requireNonNull(other, "other role is required for subset checks");
         SubsetResult result = SubsetResult.isNotASubset();
         boolean isSubset = this.cluster().isSubsetOf(other.cluster())
                 && this.application().isSubsetOf(other.application())

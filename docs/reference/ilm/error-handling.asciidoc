@@ -103,6 +103,7 @@ Which returns the following information:
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:no way to know if we will get this response immediately]
 <1> this index is managed by ILM
 <2> the policy in question, in this case, "shrink-the-index"
 <3> what phase the index is currently in

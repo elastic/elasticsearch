@@ -172,7 +172,7 @@ public class LegacyHasParentQueryBuilderTests extends AbstractQueryTestCase<HasP
         QueryBuilder query = new MatchAllQueryBuilder();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> hasParentQuery(null, query, false));
-        assertThat(e.getMessage(), equalTo("[has_parent] requires 'type' field"));
+        assertThat(e.getMessage(), equalTo("[has_parent] requires 'parent_type' field"));
 
         e = expectThrows(IllegalArgumentException.class,
                 () -> hasParentQuery("foo", null, false));

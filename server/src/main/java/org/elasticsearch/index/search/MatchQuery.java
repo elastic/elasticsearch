@@ -76,7 +76,7 @@ public class MatchQuery {
      *  {@link #BEST_TERMS}
      *  {@link #MOST_TERMS}
      */
-    public static enum SynonymQueryStyle implements Writeable {
+    public enum SynonymQueryStyle implements Writeable {
         /** (default) synonym terms share doc freq - ie they are blended
          *  so if "pants" has df 500, and "khakis" a df of 50, uses 500 df when scoring both terms
          *  appropriate for exact synonyms

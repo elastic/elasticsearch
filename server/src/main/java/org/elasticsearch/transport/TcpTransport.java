@@ -176,7 +176,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private final CircuitBreakerService circuitBreakerService;
     protected final ThreadPool threadPool;
-    private final BigArrays bigArrays;
+    protected final BigArrays bigArrays;
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
 

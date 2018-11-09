@@ -563,8 +563,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-request
             DeleteRequest request = new DeleteRequest(
                     "posts",    // <1>
-                    "_doc",      // <2>
-                    "1");       // <3>
+                    "1");       // <2>
             // end::delete-request
 
             // tag::delete-execute
@@ -575,7 +574,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::delete-response
             String index = deleteResponse.getIndex();
-            String type = deleteResponse.getType();
             String id = deleteResponse.getId();
             long version = deleteResponse.getVersion();
             ReplicationResponse.ShardInfo shardInfo = deleteResponse.getShardInfo();
@@ -592,7 +590,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            DeleteRequest request = new DeleteRequest("posts", "_doc", "1");
+            DeleteRequest request = new DeleteRequest("posts", "1");
             // tag::delete-request-routing
             request.routing("routing"); // <1>
             // end::delete-request-routing
@@ -614,7 +612,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // tag::delete-notfound
-            DeleteRequest request = new DeleteRequest("posts", "_doc", "does_not_exist");
+            DeleteRequest request = new DeleteRequest("posts", "does_not_exist");
             DeleteResponse deleteResponse = client.delete(
                     request, RequestOptions.DEFAULT);
             if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
@@ -631,7 +629,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-conflict
             try {
                 DeleteResponse deleteResponse = client.delete(
-                        new DeleteRequest("posts", "_doc", "1").version(2),
+                        new DeleteRequest("posts", "1").version(2),
                         RequestOptions.DEFAULT);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.CONFLICT) {
@@ -645,7 +643,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     RequestOptions.DEFAULT);
             assertSame(RestStatus.CREATED, indexResponse.status());
 
-            DeleteRequest request = new DeleteRequest("posts", "_doc", "async");
+            DeleteRequest request = new DeleteRequest("posts", "async");
 
             ActionListener<DeleteResponse> listener;
             // tag::delete-execute-listener
@@ -696,7 +694,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::bulk-request-with-mixed-operations
             BulkRequest request = new BulkRequest();
-            request.add(new DeleteRequest("posts", "_doc", "3")); // <1>
+            request.add(new DeleteRequest("posts", "3")); // <1>
             request.add(new UpdateRequest("posts", "_doc", "2") // <2>
                     .doc(XContentType.JSON,"other", "test"));
             request.add(new IndexRequest("posts", "_doc", "4")  // <3>

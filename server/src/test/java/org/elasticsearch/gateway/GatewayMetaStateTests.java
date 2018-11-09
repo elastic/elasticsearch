@@ -149,7 +149,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 build();
     }
 
-    public void testGetRelevantIndices_master_unassignedShards() {
+    public void testGetRelevantIndicesWithUnassignedShardsOnMasterEligibleNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         Set<Index> indices = GatewayMetaState.getRelevantIndices(
                 clusterStateWithUnassignedIndex(indexMetaData, true),
@@ -158,7 +158,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertThat(indices.size(), equalTo(1));
     }
 
-    public void testGetRelevantIndices_data_unassignedShards() {
+    public void testGetRelevantIndicesWithUnassignedShardsOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         Set<Index> indices = GatewayMetaState.getRelevantIndices(
                 clusterStateWithUnassignedIndex(indexMetaData, false),
@@ -167,7 +167,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertThat(indices.size(), equalTo(0));
     }
 
-    public void testGetRelevantIndices_assignedShards() {
+    public void testGetRelevantIndicesWithAssignedShards() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         boolean masterEligible = randomBoolean();
         Set<Index> indices = GatewayMetaState.getRelevantIndices(
@@ -177,7 +177,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertThat(indices.size(), equalTo(1));
     }
 
-    public void testGetRelevantIndices_data_isClosedPrevWritten() {
+    public void testGetRelevantIndicesForClosedPrevWrittenIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         Set<Index> indices = GatewayMetaState.getRelevantIndices(
                 clusterStateWithClosedIndex(indexMetaData, false),
@@ -186,7 +186,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertThat(indices.size(), equalTo(1));
     }
 
-    public void testGetRelevantIndices_data_isClosedPrevNotWritten() {
+    public void testGetRelevantIndicesForClosedPrevNotWrittenIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         Set<Index> indices = GatewayMetaState.getRelevantIndices(
                 clusterStateWithJustOpenedIndex(indexMetaData, false),
@@ -195,7 +195,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertThat(indices.size(), equalTo(0));
     }
 
-    public void testGetRelevantIndices_data_wasClosedPrevWritten() {
+    public void testGetRelevantIndicesForWasClosedPrevWrittenIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         Set<Index> indices = GatewayMetaState.getRelevantIndices(
                 clusterStateWithJustOpenedIndex(indexMetaData, false),

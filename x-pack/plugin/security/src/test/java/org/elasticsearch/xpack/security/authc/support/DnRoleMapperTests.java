@@ -282,9 +282,10 @@ public class DnRoleMapperTests extends ESTestCase {
         Path file = getDataPath("role_mapping.yml");
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ldap1");
         Settings ldapSettings = Settings.builder()
-                .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING), file.toAbsolutePath())
-                .build();
-        RealmConfig config = new RealmConfig(realmIdentifier, mergeSettings(ldapSettings, settings),
+            .put(settings)
+            .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING), file.toAbsolutePath())
+            .build();
+        RealmConfig config = new RealmConfig(realmIdentifier, ldapSettings,
                 TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
 
         DnRoleMapper mapper = new DnRoleMapper(config, new ResourceWatcherService(settings, threadPool));
@@ -298,10 +299,10 @@ public class DnRoleMapperTests extends ESTestCase {
     public void testRelativeDN() {
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ldap1");
         Settings ldapSettings = Settings.builder()
+                .put(settings)
                 .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), true)
                 .build();
-        RealmConfig config = new RealmConfig(realmIdentifier,
-                mergeSettings(ldapSettings, settings),
+        RealmConfig config = new RealmConfig(realmIdentifier, ldapSettings,
                 TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
 
         DnRoleMapper mapper = new DnRoleMapper(config, new ResourceWatcherService(settings, threadPool));
@@ -314,10 +315,11 @@ public class DnRoleMapperTests extends ESTestCase {
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ldap-userdn-role");
         Path file = getDataPath("role_mapping.yml");
         Settings ldapSettings = Settings.builder()
+                .put(settings)
                 .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING), file.toAbsolutePath())
                 .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), false)
                 .build();
-        RealmConfig config = new RealmConfig(realmIdentifier, mergeSettings(ldapSettings, settings),
+        RealmConfig config = new RealmConfig(realmIdentifier, ldapSettings,
                 TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
 
         DnRoleMapper mapper = new DnRoleMapper(config, new ResourceWatcherService(settings, threadPool));
@@ -335,9 +337,4 @@ public class DnRoleMapperTests extends ESTestCase {
         RealmConfig config = new RealmConfig(identifier, mergedSettings, env, new ThreadContext(Settings.EMPTY));
         return new DnRoleMapper(config, watcherService);
     }
-
-    private Settings mergeSettings(Settings local, Settings global) {
-        return Settings.builder().put(global).put(local).build();
-    }
-
 }

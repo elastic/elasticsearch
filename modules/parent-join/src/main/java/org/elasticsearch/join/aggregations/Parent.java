@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.monitor.os;
+package org.elasticsearch.join.aggregations;
 
-public class DummyOsInfo extends OsInfo {
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 
-    private DummyOsInfo() {
-        super(0, 0, 0, "dummy_name", "dummy_arch", "dummy_version");
-    }
-
-    public static final DummyOsInfo INSTANCE = new DummyOsInfo();
+/**
+ * An single bucket aggregation that translates child documents to their parent documents.
+ */
+public interface Parent extends SingleBucketAggregation {
 }

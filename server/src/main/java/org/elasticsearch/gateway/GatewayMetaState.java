@@ -84,8 +84,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
 
-        ensureNoPre019State();
-        ensureAtomicMoveSupported();
+        ensureNoPre019State(); //TODO remove this check, it's Elasticsearch version 7 already
+        ensureAtomicMoveSupported(); //TODO move this check to NodeEnvironment, because it's related to all types of metadata
         upgradeMetaData(metaDataIndexUpgradeService, metaDataUpgrader);
         profileLoadMetaData();
     }

@@ -668,7 +668,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy.getName()), LifecycleExecutionState.builder().build(), policyMetadatas);
         Index index = clusterState.metaData().index(indexName).getIndex();
         ClusterState newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep,
-                () -> now);
+                () -> now, false);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
@@ -684,7 +684,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
         index = clusterState.metaData().index(indexName).getIndex();
-        newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep, () -> now);
+        newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep, () -> now, false);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
     }
 
@@ -698,7 +698,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             Collections.emptyList());
         Index index = clusterState.metaData().index(indexName).getIndex();
         ClusterState newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep,
-                () -> now);
+                () -> now, false);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
@@ -711,7 +711,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         clusterState = buildClusterState(indexName, Settings.builder(), lifecycleState.build(), Collections.emptyList());
         index = clusterState.metaData().index(indexName).getIndex();
-        newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep, () -> now);
+        newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep, () -> now, false);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
     }
 
@@ -725,7 +725,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             Collections.emptyList());
         Index index = clusterState.metaData().index(indexName).getIndex();
         ClusterState newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep,
-                () -> now);
+                () -> now, false);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
@@ -737,7 +737,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         }
         clusterState = buildClusterState(indexName, Settings.builder(), lifecycleState.build(), Collections.emptyList());
         index = clusterState.metaData().index(indexName).getIndex();
-        newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep, () -> now);
+        newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep, () -> now, false);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
     }
 
@@ -764,7 +764,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
         Index index = clusterState.metaData().index(indexName).getIndex();
         ClusterState newClusterState = IndexLifecycleRunner.moveClusterStateToStep(indexName, clusterState, currentStepKey,
-            nextStepKey, () -> now, stepRegistry);
+            nextStepKey, () -> now, stepRegistry, false);
         assertClusterStateOnNextStep(clusterState, index, currentStepKey, nextStepKey, newClusterState, now);
     }
 
@@ -786,7 +786,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), Collections.emptyList());
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> IndexLifecycleRunner.moveClusterStateToStep(indexName, clusterState, currentStepKey,
-                nextStepKey, () -> now, stepRegistry));
+                nextStepKey, () -> now, stepRegistry, false));
         assertThat(exception.getMessage(), equalTo("index [my_index] is not associated with an Index Lifecycle Policy"));
     }
 
@@ -809,7 +809,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), Collections.emptyList());
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> IndexLifecycleRunner.moveClusterStateToStep(indexName, clusterState, notCurrentStepKey,
-                nextStepKey, () -> now, stepRegistry));
+                nextStepKey, () -> now, stepRegistry, false));
         assertThat(exception.getMessage(), equalTo("index [my_index] is not on current step " +
             "[{\"phase\":\"not_current_phase\",\"action\":\"not_current_action\",\"name\":\"not_current_step\"}]"));
     }
@@ -832,7 +832,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), Collections.emptyList());
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> IndexLifecycleRunner.moveClusterStateToStep(indexName, clusterState, currentStepKey,
-                nextStepKey, () -> now, stepRegistry));
+                nextStepKey, () -> now, stepRegistry, false));
         assertThat(exception.getMessage(),
             equalTo("step [{\"phase\":\"next_phase\",\"action\":\"next_action\",\"name\":\"next_step\"}] " +
                 "for index [my_index] with policy [my_policy] does not exist"));

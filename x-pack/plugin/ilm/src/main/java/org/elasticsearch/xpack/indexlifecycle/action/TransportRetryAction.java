@@ -70,7 +70,6 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Res
                                 lifecycleState.getStep() + "], skipping async action check");
                             return;
                         }
-                        logger.error("TRYING TRYING");
                         indexLifecycleService.maybeRunAsyncAction(newState, idxMeta, retryStep);
                     }
                 }

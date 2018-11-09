@@ -20,9 +20,26 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
+import org.elasticsearch.client.ccr.PutFollowRequest;
+
+import java.io.IOException;
+
+import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
+import static org.elasticsearch.client.RequestConverters.createEntity;
 
 final class CcrRequestConverters {
+
+    static Request putFollow(PutFollowRequest putFollowRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPart(putFollowRequest.getFollowerIndex())
+            .addPathPartAsIs("_ccr", "follow")
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putFollowRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
 
     static Request pauseFollow(PauseFollowRequest pauseFollowRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()

@@ -21,6 +21,8 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
+import org.elasticsearch.client.ccr.PutFollowRequest;
+import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 
 import java.io.IOException;
@@ -39,6 +41,51 @@ public final class CcrClient {
 
     CcrClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
+    }
+
+    /**
+     * Executes the put follow api, which creates a follower index and then the follower index starts following
+     * the leader index.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-put-follow.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public PutFollowResponse putFollow(PutFollowRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            CcrRequestConverters::putFollow,
+            options,
+            PutFollowResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously executes the put follow api, which creates a follower index and then the follower index starts
+     * following the leader index.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-put-follow.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public void putFollowAsync(PutFollowRequest request,
+                               RequestOptions options,
+                               ActionListener<PutFollowResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            CcrRequestConverters::putFollow,
+            options,
+            PutFollowResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
     }
 
     /**

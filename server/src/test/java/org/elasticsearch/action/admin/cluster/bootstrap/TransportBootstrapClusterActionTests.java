@@ -90,7 +90,7 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> discoveryNode, null, emptySet());
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        coordinator = new Coordinator("local", Settings.EMPTY, clusterSettings, transportService,
+        coordinator = new Coordinator("local", Settings.EMPTY, clusterSettings, transportService, writableRegistry(),
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             new MasterService("local", Settings.EMPTY, threadPool),
             () -> new InMemoryPersistedState(0, ClusterState.builder(new ClusterName("cluster")).build()), r -> emptyList(),

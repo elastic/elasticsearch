@@ -1,12 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-stop]]
-=== Stop ILM API
+=== Stop {ILM} API
 ++++
-<titleabbrev>Stop ILM</titleabbrev>
+<titleabbrev>Stop {ILM}</titleabbrev>
 ++++
 
-Stop the ILM plugin.
+Stop the {ILM} plugin.
 
 ==== Request
 
@@ -14,25 +14,22 @@ Stop the ILM plugin.
 
 ==== Description
 
-This API will stop the ILM plugin. This can be used for period where 
-maintenance is required and ILM should not perform any actions on any indices.
-The API will return as soon as the stop request has been acknowledged but the 
-plugin may not immediately stop but rather need to wait for some operations
-to finish before it's stopped. Progress can be seen using the 
-<<ilm-get-status, Get ILM Status>> API.
+Halts all lifecycle management operations and stops the {ILM} plugin. This is
+useful when you are performing maintenance on the cluster and need to prevent
+{ILM} from performing any actions on your indices.
+
+The API returns as soon as the stop request has been acknowledged, but the
+plugin might continue to run until in-progress operations complete and the plugin
+can be safely stopped. Use the  <<ilm-get-status, Get ILM Status>> API to see
+if {ILM} is running.
 
 ==== Request Parameters
 
-`timeout`::
-  (time units) Specifies the period of time to wait for the response. When this 
-  period of time elapses, the API fails and returns an error. The default value
-  is `30s`. For more information about time units, see <<time-units>>.
+include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
-`master_timeout`::
-  (time units) Specifies the period of time to wait for the connection with master.
-  When this period of time elapses, the API fails and returns an error.
-  The default value is `30s`. For more information about time units, see <<time-units>>.
+==== Authorization
 
+include::ilm-cluster-mgt-privilege.asciidoc[]
 
 ==== Examples
 

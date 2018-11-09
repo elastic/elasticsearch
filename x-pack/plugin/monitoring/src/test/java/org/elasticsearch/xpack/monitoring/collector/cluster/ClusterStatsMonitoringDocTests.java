@@ -255,6 +255,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockOsInfo.getAvailableProcessors()).thenReturn(32);
         when(mockOsInfo.getAllocatedProcessors()).thenReturn(16);
         when(mockOsInfo.getName()).thenReturn("_os_name");
+        when(mockOsInfo.getPrettyName()).thenReturn("_pretty_os_name");
 
         final JvmInfo mockJvmInfo = mock(JvmInfo.class);
         when(mockNodeInfo.getJvm()).thenReturn(mockJvmInfo);
@@ -443,6 +444,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         + "\"names\":["
                           + "{"
                             + "\"name\":\"_os_name\","
+                            + "\"count\":1"
+                          + "}"
+                        + "],"
+                        + "\"pretty_names\":["
+                          + "{"
+                            + "\"pretty_name\":\"_pretty_os_name\","
                             + "\"count\":1"
                           + "}"
                         + "],"

@@ -128,8 +128,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new CombineProjections(),
                 // folding
                 new ReplaceFoldableAttributes(),
-                new ConstantFolding(),
                 new FoldNull(),
+                new ConstantFolding(),
                 new SimplifyCoalesce(),
                 // boolean
                 new BooleanSimplification(),

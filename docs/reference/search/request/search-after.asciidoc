@@ -27,7 +27,7 @@ GET twitter/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
-// TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id" : {"unmapped_type" : "string"}/]
+// TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id": {"unmapped_type": "keyword"}/]
 
 <1> A copy of the `_id` field with `doc_values` enabled
 
@@ -38,7 +38,8 @@ the same sort values would be undefined and could lead to missing or duplicate
 results. The <<mapping-id-field,`_id` field>> has a unique value per document
 but it is not recommended to use it as a tiebreaker directly.
 <<doc-values,doc value>> are disabled on this field so sorting on it requires
-to load a lot of data in memory. Instead it is advised to duplicate the content
+to load a lot of data in memory. Instead it is advised to duplicate (client side
+ or with a <<ingest-processors,set ingest processor>>) the content
 of the <<mapping-id-field,`_id` field>> in another field that has
 <<doc-values,doc value>> enabled and to use this new field as the tiebreaker
 for the sort.
@@ -67,7 +68,7 @@ GET twitter/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
-// TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id" : {"unmapped_type" : "string"}/]
+// TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id": {"unmapped_type": "keyword"}/]
 
 NOTE: The parameter `from` must be set to 0 (or -1) when `search_after` is used.
 

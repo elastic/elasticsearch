@@ -133,7 +133,7 @@ public class ReindexFailureTests extends ReindexTestCase {
         indexDocs(randomIntBetween(1, 10));
 
         final IndexNotFoundException exception = expectThrows(IndexNotFoundException.class,
-                () -> reindex().source("source").destination("test", "type").setAutoCreateIndexDisabled().get());
+                () -> reindex().source("source").destination("test", "type").setAutoCreateIndexIfPermitted(false).get());
         assertThat(exception.getMessage(),
             containsString("no such index [test] and parameter [auto_create_index] is [false]"));
     }

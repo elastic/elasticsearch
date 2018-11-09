@@ -247,6 +247,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 "    \"max_expansions\" : 50,\n" +
                 "    \"lenient\" : false,\n" +
                 "    \"zero_terms_query\" : \"NONE\",\n" +
+                "    \"synonym_query_style\" : \"BEST_TERMS\",\n" +
                 "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "    \"fuzzy_transpositions\" : false,\n" +
                 "    \"boost\" : 1.0\n" +

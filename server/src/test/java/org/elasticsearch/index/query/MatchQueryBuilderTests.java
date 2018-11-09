@@ -267,6 +267,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             "      \"lenient\" : false,\n" +
             "      \"zero_terms_query\" : \"ALL\",\n" +
             "      \"auto_generate_synonyms_phrase_query\" : true,\n" +
+            "      \"synonym_query_style\" : \"BEST_TERMS\",\n" +
             "      \"boost\" : 1.0\n" +
             "    }\n" +
             "  }\n" +

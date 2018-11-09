@@ -369,6 +369,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this.zeroTermsQuery;
     }
 
+    public MatchQuery.SynonymQueryStyle synonymQueryStyle() {return synonymQueryStyle; }
 
     public MatchQueryBuilder autoGenerateSynonymsPhraseQuery(boolean enable) {
         this.autoGenerateSynonymsPhraseQuery = enable;
@@ -557,7 +558,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                             }
                             else {
                                 throw new ParsingException(parser.getTokenLocation(),
-                                    "Unsupported zero_terms_query value [" + synonymQueryStyle + "]");
+                                    "Unsupported synonym_query_style value [" + synonymQueryStyle + "]");
                             }
                         }
                         else {

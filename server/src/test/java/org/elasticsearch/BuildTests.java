@@ -111,7 +111,7 @@ public class BuildTests extends ESTestCase {
         assertNotEquals(build, differentSnapshot);
 
         Build differentVersion = new Build(
-            build.flavor(), build.type(), build.shortHash(), build.date(), build.isSnapshot(), "7.0.0"
+            build.flavor(), build.type(), build.shortHash(), build.date(), build.isSnapshot(), "1.2.3"
         );
         assertNotEquals(build, differentVersion);
     }

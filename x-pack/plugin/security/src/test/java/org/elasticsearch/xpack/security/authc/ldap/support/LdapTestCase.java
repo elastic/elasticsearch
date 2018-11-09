@@ -22,7 +22,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapSessionFactorySettings;
@@ -204,16 +203,5 @@ public abstract class LdapTestCase extends ESTestCase {
                 return null;
             }
         });
-    }
-
-    protected Settings mergeSettings(Settings local, Settings global) {
-        final Settings.Builder builder = Settings.builder()
-                .put(global, true)
-                .put(local, false);
-        final Settings.Builder tmpLocal = Settings.builder().put(local, true);
-        SecuritySettingsSource.addSecureSettings(builder,
-                mainSecure -> SecuritySettingsSource.addSecureSettings(tmpLocal, localSecure -> mainSecure.merge(localSecure))
-        );
-        return builder.build();
     }
 }

@@ -117,12 +117,12 @@ public class DatafeedConfig implements ToXContentObject {
      * The window of time to check for missing data
      */
     private final TimeValue delayedDataCheckWindow;
-    private final boolean shouldRunDelayedDataCheck;
+    private final Boolean shouldRunDelayedDataCheck;
 
     private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, List<String> types,
                            BytesReference query, BytesReference aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
                            Integer scrollSize, ChunkingConfig chunkingConfig, TimeValue delayedDataCheckWindow,
-                           boolean shouldRunDelayedDataCheck) {
+                           Boolean shouldRunDelayedDataCheck) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -193,7 +193,7 @@ public class DatafeedConfig implements ToXContentObject {
     /**
      * Should we check for delayed data
      */
-    public boolean getShouldRunDelayedDataCheck() {
+    public Boolean getShouldRunDelayedDataCheck() {
         return shouldRunDelayedDataCheck;
     }
 
@@ -236,7 +236,9 @@ public class DatafeedConfig implements ToXContentObject {
         if (delayedDataCheckWindow != null) {
             builder.field(DELAYED_DATA_CHECK_WINDOW.getPreferredName(), delayedDataCheckWindow.getStringRep());
         }
-        builder.field(SHOULD_RUN_DELAYED_DATA_CHECK.getPreferredName(), shouldRunDelayedDataCheck);
+        if (shouldRunDelayedDataCheck != null) {
+            builder.field(SHOULD_RUN_DELAYED_DATA_CHECK.getPreferredName(), shouldRunDelayedDataCheck);
+        }
 
         builder.endObject();
         return builder;
@@ -311,7 +313,7 @@ public class DatafeedConfig implements ToXContentObject {
         private Integer scrollSize;
         private ChunkingConfig chunkingConfig;
         private TimeValue delayedDataCheckWindow;
-        private boolean shouldRunDelayedDataCheck;
+        private Boolean shouldRunDelayedDataCheck;
 
         public Builder(String id, String jobId) {
             this.id = Objects.requireNonNull(id, ID.getPreferredName());
@@ -429,7 +431,7 @@ public class DatafeedConfig implements ToXContentObject {
          * @param shouldRunDelayedDataCheck when {@code false} no checks are made for latent data in the real-time datafeed
          *                                  Defaults to {@code true}
          */
-        public Builder setShouldRunDelayedDataCheck(boolean shouldRunDelayedDataCheck) {
+        public Builder setShouldRunDelayedDataCheck(Boolean shouldRunDelayedDataCheck) {
             this.shouldRunDelayedDataCheck = shouldRunDelayedDataCheck;
             return this;
         }

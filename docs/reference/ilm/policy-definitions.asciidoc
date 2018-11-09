@@ -37,7 +37,7 @@ PUT _ilm/policy/my_policy
   "policy": {
     "phases": {
       "warm": {
-        "min_age": "1d"
+        "min_age": "1d",
         "actions": {
           "allocate": {
             "number_of_replicas": 1
@@ -45,7 +45,7 @@ PUT _ilm/policy/my_policy
         }
       },
       "delete": {
-        "min_age": "30d"
+        "min_age": "30d",
         "actions": {
           "delete": {}
         }
@@ -223,7 +223,7 @@ Phases allowed: warm.
 
 NOTE: Index will be be made read-only when this action is run (see: <<dynamic-index-settings,index.blocks.write>>)
 
-The Force Merge Action <<indices-forcemerge,force merges>> the index into at most a specific number of <<index-modules-segments,segments>>.
+The Force Merge Action <<indices-forcemerge,force merges>> the index into at most a specific number of <<indices-segments,segments>>.
 
 [[ilm-forcemerge-options]]
 .Force Merge Options
@@ -343,7 +343,7 @@ PUT _ilm/policy/my_policy
       "hot": {
         "actions": {
           "rollover" : {
-            "max_size": 1000000
+            "max_docs": 1000000
           }
         }
       }
@@ -463,7 +463,7 @@ PUT _ilm/policy/full_policy
       "hot": {
         "actions": {
           "rollover": {
-            "max_age": "7d"
+            "max_age": "7d",
             "max_size": "20G"
           }
         }

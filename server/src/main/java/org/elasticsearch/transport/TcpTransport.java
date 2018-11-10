@@ -198,7 +198,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final ScheduledPing scheduledPing;
     private final TimeValue pingSchedule;
     protected final ThreadPool threadPool;
-    private final BigArrays bigArrays;
+    protected final BigArrays bigArrays;
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
 

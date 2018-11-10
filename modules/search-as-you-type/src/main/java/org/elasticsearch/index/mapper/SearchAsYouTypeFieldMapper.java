@@ -32,6 +32,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -184,7 +186,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
             withEdgeNgrams.setSearchAnalyzer(indexAnalyzer);
             suggesterizedFieldTypes.add(withEdgeNgrams);
 
-            for (int i = 2; i < maxShingleSize; i++) {
+            for (int i = 2; i <= maxShingleSize; i++) {
                 final int numberOfShingles = i;
                 final SuggesterizedFieldType withShingles = new SuggesterizedFieldType(name() + "._with_" + numberOfShingles + "_shingles");
                 final SuggesterizedFieldType withShinglesAndEdgeNGrams = new SuggesterizedFieldType(name() + "._with_" + numberOfShingles +
@@ -241,14 +243,14 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
 
         private final Analyzer delegate;
         private final boolean withShingles;
-        private final int maxShingleSize;
+        private final int shingleSize;
         private final boolean withEdgeNGrams;
         private final int minGram;
         private final int maxGram;
 
         private SearchAsYouTypeAnalyzer(Analyzer delegate,
                                         boolean withShingles,
-                                        int maxShingleSize,
+                                        int shingleSize,
                                         boolean withEdgeNGrams,
                                         int minGram,
                                         int maxGram) {
@@ -256,22 +258,22 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
             super(delegate.getReuseStrategy());
             this.delegate = delegate;
             this.withShingles = withShingles;
-            this.maxShingleSize = maxShingleSize;
+            this.shingleSize = shingleSize;
             this.withEdgeNGrams = withEdgeNGrams;
             this.minGram = minGram;
             this.maxGram = maxGram;
         }
 
-        public static SearchAsYouTypeAnalyzer withShingles(Analyzer delegate, int maxShingleSize) {
-            return new SearchAsYouTypeAnalyzer(delegate, true, maxShingleSize, false, -1, -1);
+        public static SearchAsYouTypeAnalyzer withShingles(Analyzer delegate, int shingleSize) {
+            return new SearchAsYouTypeAnalyzer(delegate, true, shingleSize, false, -1, -1);
         }
 
         public static SearchAsYouTypeAnalyzer withEdgeNGrams(Analyzer delegate, int minGram, int maxGram) {
             return new SearchAsYouTypeAnalyzer(delegate, false, -1, true, minGram, maxGram);
         }
 
-        public static SearchAsYouTypeAnalyzer withShinglesAndEdgeNGrams(Analyzer delegate, int maxShingleSize, int minGram, int maxGram) {
-            return new SearchAsYouTypeAnalyzer(delegate, true, maxShingleSize, true, minGram, maxGram);
+        public static SearchAsYouTypeAnalyzer withShinglesAndEdgeNGrams(Analyzer delegate, int shingleSize, int minGram, int maxGram) {
+            return new SearchAsYouTypeAnalyzer(delegate, true, shingleSize, true, minGram, maxGram);
         }
 
         @Override
@@ -284,7 +286,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
             // TODO we must find a way to add the last unigram term (michael jackson -> jackson)
             TokenStream tokenStream = components.getTokenStream();
             if (withShingles) {
-                tokenStream = new FixedShingleFilter(tokenStream, maxShingleSize);
+                tokenStream = new FixedShingleFilter(tokenStream, shingleSize);
             }
             if (withEdgeNGrams) {
                 tokenStream = new EdgeNGramTokenFilter(tokenStream, minGram, maxGram, true);
@@ -296,8 +298,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
             return withEdgeNGrams;
         }
 
-        public int getMaxShingleSize() {
-            return maxShingleSize;
+        public int getShingleSize() {
+            return shingleSize;
         }
 
         public boolean isWithShingles() {
@@ -310,29 +312,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
 
         public int getMaxGram() {
             return maxGram;
-        }
-    }
-
-    public static class SuggesterizedFieldMapper extends FieldMapper implements ArrayValueMapperParser { // todo better name
-
-        static final String CONTENT_TYPE = "suggesterized";
-
-        protected SuggesterizedFieldMapper(SuggesterizedFieldType fieldType, Settings indexSettings) {
-            super(fieldType.name(), fieldType, fieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
-        }
-
-        void addField(String value, List<IndexableField> fields) {
-            fields.add(new Field(fieldType().name(), value, fieldType));
-        }
-
-        @Override
-        protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        protected String contentType() {
-            return CONTENT_TYPE;
         }
     }
 
@@ -365,6 +344,33 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
         }
     }
 
+    public static class SuggesterizedFieldMapper extends FieldMapper implements ArrayValueMapperParser { // todo better name
+
+        static final String CONTENT_TYPE = "suggesterized";
+
+        protected SuggesterizedFieldMapper(SuggesterizedFieldType fieldType, Settings indexSettings) {
+            super(fieldType.name(), fieldType, fieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+        }
+
+        @Override
+        public SuggesterizedFieldType fieldType() {
+            return (SuggesterizedFieldType) super.fieldType();
+        }
+
+        void addField(String value, List<IndexableField> fields) {
+            fields.add(new Field(fieldType().name(), value, fieldType));
+        }
+
+        @Override
+        protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected String contentType() {
+            return CONTENT_TYPE;
+        }
+    }
 
     public static class SearchAsYouTypeFieldType extends TermBasedFieldType {
 
@@ -459,6 +465,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
         builder.endObject();
         return builder;
         // todo we should provide more info about the under the hood fields, or at least how they're analyzed
+    }
+
+    @SuppressWarnings("unchecked") // todo fix
+    @Override
+    public Iterator<Mapper> iterator() {
+        final List<Mapper> mappers = new ArrayList<>(suggesterizedFieldMappers);
+        return Iterators.concat(super.iterator(), mappers.iterator());
     }
 
     @Override

@@ -208,6 +208,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
                 suggesterizedFieldTypes.add(withShinglesAndEdgeNGrams);
             }
 
+            fieldType().setSuggesterizedFieldTypes(suggesterizedFieldTypes);
             final Set<SuggesterizedFieldMapper> suggesterizedFieldMappers = suggesterizedFieldTypes.stream()
                 .map(suggesterizedFieldType -> new SuggesterizedFieldMapper(suggesterizedFieldType, context.indexSettings()))
                 .collect(Collectors.toSet());
@@ -374,7 +375,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
 
     public static class SearchAsYouTypeFieldType extends TermBasedFieldType {
 
-        private SuggesterizedFieldType suggesterizedFieldType;
+        private Set<SuggesterizedFieldType> suggesterizedFieldTypes; // todo we might need a more structured way to know which
+        // field type is which
+        // eg we could make a SuggesterizedFieldTypeGroup class that can look up the only edge ngreams field and then also do
+        // number of shingles, true/false edge ngrams
+        // the alternative is do a bunch of string math
 
         public SearchAsYouTypeFieldType() {
             setTokenized(true);
@@ -383,18 +388,18 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
 
         public SearchAsYouTypeFieldType(SearchAsYouTypeFieldType reference) {
             super(reference);
-            if (reference.suggesterizedFieldType != null) {
-                this.suggesterizedFieldType = reference.suggesterizedFieldType.clone();
+            if (reference.suggesterizedFieldTypes != null) {
+                this.suggesterizedFieldTypes = reference.suggesterizedFieldTypes.stream().map(SuggesterizedFieldType::clone).collect(Collectors.toSet());
             }
         }
 
-        public SuggesterizedFieldType getSuggesterizedFieldType() {
-            return this.suggesterizedFieldType;
+        public Set<SuggesterizedFieldType> getSuggesterizedFieldTypes() {
+            return this.suggesterizedFieldTypes;
         }
 
-        public void setSuggesterizedFieldType(SuggesterizedFieldType suggesterizedFieldType) {
+        public void setSuggesterizedFieldTypes(Set<SuggesterizedFieldType> suggesterizedFieldTypes) {
             checkIfFrozen();
-            this.suggesterizedFieldType = suggesterizedFieldType;
+            this.suggesterizedFieldTypes = suggesterizedFieldTypes;
         }
 
         @Override

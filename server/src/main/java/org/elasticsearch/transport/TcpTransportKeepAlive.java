@@ -119,6 +119,7 @@ public class TcpTransportKeepAlive {
 
     private void sendPing(TcpChannel channel) {
         pingSender.send(channel, pingMessage, new ActionListener<Void>() {
+
             @Override
             public void onResponse(Void v) {
                 successfulPings.inc();
@@ -163,29 +164,36 @@ public class TcpTransportKeepAlive {
 
         private final TimeValue pingInterval;
         private Set<TcpChannel> channels = ConcurrentCollections.newConcurrentSet();
-        private volatile long lastRuntime;
+        private volatile long lastPingTime;
 
         private ScheduledPing(TimeValue pingInterval) {
             super(lifecycle, logger);
             this.pingInterval = pingInterval;
             // Set lastRuntime to a pingInterval in the past to avoid timing out channels on the first run
-            this.lastRuntime = System.nanoTime() - pingInterval.getNanos();
+            this.lastPingTime = System.nanoTime() - pingInterval.getNanos();
         }
 
         public void addChannel(TcpChannel channel) {
-
+            channels.add(channel);
         }
 
         public void removeChannel(TcpChannel channel) {
-
+            channels.remove(channel);
         }
 
         @Override
         protected void doRunInLifecycle() {
+            long now = System.nanoTime();
             for (TcpChannel channel : channels) {
-                sendPing(channel);
+                KeepAliveStats keepAliveStats = channelStats.get(channel);
+                if (keepAliveStats != null && keepAliveStats.lastWriteTime > lastPingTime) {
+                    sendPing(channel);
+                    keepAliveStats.lastWriteTime = now;
+                }
+
+                assert keepAliveStats != null || channel.isOpen() == false : "If keepalive stats are null the channel must be closed";
             }
-            this.lastRuntime = System.nanoTime();
+            this.lastPingTime = System.nanoTime();
         }
 
         @Override

@@ -176,14 +176,17 @@ with the `ca` parameter.
 
 `--pass <password>`:: Specifies the password for the generated private keys.
 +
-Keys stored in PKCS#12 format are always password protected.
+Keys stored in PKCS#12 format are always password protected. However, it supports
+the password to be _blank_. If you want to specify a _blank_ password without 
+prompt, use '--pass ""' (with no '=').
 +
 Keys stored in PEM format are password protected only if the
 `--pass` parameter is specified. If you do not supply an argument for the
-`--pass` parameter, you are prompted for a password.
+`--pass` parameter, you are prompted for a password. It does not support having
+_blank_ as password.
 +
-If you want to specify a _blank_ password (without prompting), use 
-`--pass ""` (with no `=`).
+If there is a requirement to create an unencrypted PEM file skip '--pass' 
+parameter.
 
 `--pem`:: Generates certificates and keys in PEM format instead of PKCS#12. This
 parameter cannot be used with the `csr` parameter.

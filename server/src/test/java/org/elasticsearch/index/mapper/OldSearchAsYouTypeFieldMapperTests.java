@@ -23,8 +23,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeAnalyzer;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
+import org.elasticsearch.index.mapper.OldSearchAsYouTypeFieldMapper.SearchAsYouTypeAnalyzer;
+import org.elasticsearch.index.mapper.OldSearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
+public class OldSearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDefaultConfiguration() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
@@ -53,10 +53,10 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             .parse("_doc", new CompressedXContent(mapping));
 
         Mapper fieldMapper = defaultMapper.mappers().getMapper("a_field");
-        assertThat(fieldMapper, instanceOf(SearchAsYouTypeFieldMapper.class));
-        SearchAsYouTypeFieldMapper searchAsYouTypeFieldMapper = (SearchAsYouTypeFieldMapper) fieldMapper;
+        assertThat(fieldMapper, instanceOf(OldSearchAsYouTypeFieldMapper.class));
+        OldSearchAsYouTypeFieldMapper oldSearchAsYouTypeFieldMapper = (OldSearchAsYouTypeFieldMapper) fieldMapper;
 
-        SearchAsYouTypeFieldType fieldType = searchAsYouTypeFieldMapper.fieldType();
+        SearchAsYouTypeFieldType fieldType = oldSearchAsYouTypeFieldMapper.fieldType();
         NamedAnalyzer indexAnalyzer = fieldType.indexAnalyzer(); // true
         NamedAnalyzer searchAnalyzer = fieldType.searchAnalyzer(); // false
 

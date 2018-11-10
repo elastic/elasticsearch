@@ -51,7 +51,7 @@ import java.util.Map;
 import static org.elasticsearch.index.mapper.TypeParsers.nodeIndexOptionValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseMultiField;
 
-public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValueMapperParser {
+public class OldSearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValueMapperParser {
     public static final String CONTENT_TYPE = "search_as_you_type";
 
     public static class Defaults {
@@ -69,7 +69,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
         public Mapper.Builder<?, ?> parse(String name,
                                             Map<String, Object> node,
                                             ParserContext parserContext) throws MapperParsingException {
-            SearchAsYouTypeFieldMapper.Builder builder = new SearchAsYouTypeFieldMapper.Builder(name);
+            OldSearchAsYouTypeFieldMapper.Builder builder = new OldSearchAsYouTypeFieldMapper.Builder(name);
             NamedAnalyzer indexAnalyzer = null;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -181,24 +181,24 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
     }
 
     /**
-     * Builder for {@link SearchAsYouTypeFieldMapper}
+     * Builder for {@link OldSearchAsYouTypeFieldMapper}
      */
-    public static class Builder extends FieldMapper.Builder<Builder, SearchAsYouTypeFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, OldSearchAsYouTypeFieldMapper> {
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
         }
 
         @Override
-        public SearchAsYouTypeFieldMapper build(BuilderContext context) {
+        public OldSearchAsYouTypeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new SearchAsYouTypeFieldMapper(name, this.fieldType, context.indexSettings(),
+            return new OldSearchAsYouTypeFieldMapper(name, this.fieldType, context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
-    public SearchAsYouTypeFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings,
-                                      MultiFields multiFields, CopyTo copyTo) {
+    public OldSearchAsYouTypeFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings,
+                                         MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
     }
 

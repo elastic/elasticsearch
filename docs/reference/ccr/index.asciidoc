@@ -3,6 +3,8 @@
 [[xpack-ccr]]
 = Cross-cluster replication
 
+beta[]
+
 [partintro]
 --
 

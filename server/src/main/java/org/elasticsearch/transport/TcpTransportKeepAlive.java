@@ -20,10 +20,13 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -39,14 +42,18 @@ public class TcpTransportKeepAlive {
     private static final int PING_DATA_SIZE = -1;
 
     private final Logger logger = LogManager.getLogger(ConnectionManager.class);
+    private final CounterMetric successfulPings = new CounterMetric();
+    private final CounterMetric failedPings = new CounterMetric();
     private final ConcurrentMap<Long, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentSkipListMap<Long, TcpTransport.NodeChannels> map = null;
+    private final ConcurrentMap<TcpChannel, KeepAliveStats> channelStats = ConcurrentCollections.newConcurrentMap();
     private final Lifecycle lifecycle = new Lifecycle();
     private final ThreadPool threadPool;
+    private final PingSender pingSender;
     private final BytesReference pingMessage;
 
-    public TcpTransportKeepAlive(ThreadPool threadPool) {
+    public TcpTransportKeepAlive(ThreadPool threadPool, PingSender pingSender) {
         this.threadPool = threadPool;
+        this.pingSender = pingSender;
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeByte((byte) 'E');
@@ -68,22 +75,76 @@ public class TcpTransportKeepAlive {
         if (scheduledPing != null) {
 
         } else {
-            scheduledPing = new ScheduledPing();
+            scheduledPing = new ScheduledPing(connectionProfile.getPingInterval());
         }
 
         final ScheduledPing finalScheduledPing = scheduledPing;
-        for (TcpChannel channel : nodeChannels.getChannels()) {
-            channel.addCloseListener(ActionListener.wrap(() -> finalScheduledPing.removeChannel(channel)));
-        }
 
+
+        long currentTime = System.nanoTime();
+        for (TcpChannel channel : nodeChannels.getChannels()) {
+            finalScheduledPing.addChannel(channel);
+            channelStats.put(channel, new KeepAliveStats(currentTime));
+
+            channel.addCloseListener(ActionListener.wrap(() -> {
+                finalScheduledPing.removeChannel(channel);
+                channelStats.remove(channel);
+            }));
+        }
     }
 
-    public void receiveKeepAlive(TcpChannel tcpChannel) {
-        boolean isClient = true;
-        if (isClient)  {
+    public void receiveKeepAlive(TcpChannel channel) {
+        boolean isClient = channel.isClient();
+        KeepAliveStats keepAliveStats = channelStats.get(channel);
+
+        if (isClient) {
+            if (keepAliveStats != null) {
+                keepAliveStats.lastReadTime = System.nanoTime();
+            }
 
         } else {
-//            tcpChannel.sendMessage(null, null);
+            sendPing(channel);
+            if (keepAliveStats != null) {
+                keepAliveStats.lastWriteTime = System.nanoTime();
+            }
+        }
+    }
+
+    public void receiveNonKeepAlive(TcpChannel channel) {
+        KeepAliveStats keepAliveStats = channelStats.get(channel);
+        if (keepAliveStats != null) {
+            keepAliveStats.lastReadTime = System.nanoTime();
+        }
+    }
+
+    private void sendPing(TcpChannel channel) {
+        pingSender.send(channel, pingMessage, new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void v) {
+                successfulPings.inc();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (channel.isOpen()) {
+                    logger.debug(() -> new ParameterizedMessage("[{}] failed to send transport ping", channel), e);
+                    failedPings.inc();
+                } else {
+                    logger.trace(() -> new ParameterizedMessage("[{}] failed to send transport ping (channel closed)", channel), e);
+                }
+            }
+        });
+    }
+
+    private void updateKeepAlive(TcpChannel channel, boolean read, boolean write) {
+        KeepAliveStats keepAliveStats = channelStats.get(channel);
+        if (keepAliveStats != null) {
+            if (read) {
+                keepAliveStats.lastReadTime = System.nanoTime();
+            }
+            if (write) {
+                keepAliveStats.lastWriteTime = System.nanoTime();
+            }
         }
     }
 
@@ -92,17 +153,27 @@ public class TcpTransportKeepAlive {
         private long lastReadTime;
         private long lastWriteTime;
 
-        private KeepAliveStats() {
-
+        private KeepAliveStats(long currentTime) {
+            lastReadTime = currentTime;
+            lastWriteTime = currentTime;
         }
     }
 
     private class ScheduledPing extends AbstractLifecycleRunnable {
 
-        private Set<TcpTransport.NodeChannels> nodes = ConcurrentCollections.newConcurrentSet();
+        private final TimeValue pingInterval;
+        private Set<TcpChannel> channels = ConcurrentCollections.newConcurrentSet();
+        private volatile long lastRuntime;
 
-        private ScheduledPing() {
+        private ScheduledPing(TimeValue pingInterval) {
             super(lifecycle, logger);
+            this.pingInterval = pingInterval;
+            // Set lastRuntime to a pingInterval in the past to avoid timing out channels on the first run
+            this.lastRuntime = System.nanoTime() - pingInterval.getNanos();
+        }
+
+        public void addChannel(TcpChannel channel) {
+
         }
 
         public void removeChannel(TcpChannel channel) {
@@ -111,17 +182,16 @@ public class TcpTransportKeepAlive {
 
         @Override
         protected void doRunInLifecycle() {
-            for (TcpTransport.NodeChannels nodeChannels : nodes) {
-                if (nodeChannels.sendPing() == false) {
-                    logger.warn("attempted to send ping to connection without support for pings [{}]", nodeChannels);
-                }
+            for (TcpChannel channel : channels) {
+                sendPing(channel);
             }
+            this.lastRuntime = System.nanoTime();
         }
 
         @Override
         protected void onAfterInLifecycle() {
             try {
-//                threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, this);
+                threadPool.schedule(pingInterval, ThreadPool.Names.GENERIC, this);
             } catch (EsRejectedExecutionException ex) {
                 if (ex.isExecutorShutdown()) {
                     logger.debug("couldn't schedule new ping execution, executor is shutting down", ex);
@@ -139,5 +209,10 @@ public class TcpTransportKeepAlive {
                 logger.warn("failed to send ping transport message", e);
             }
         }
+    }
+
+    private interface PingSender {
+
+        void send(TcpChannel channel, BytesReference message, ActionListener<Void> listener);
     }
 }

@@ -79,4 +79,8 @@ public interface TcpChannel extends CloseableChannel {
      * @param listener to be executed
      */
     void addConnectListener(ActionListener<Void> listener);
+
+    default boolean isClient() {
+        return false;
+    }
 }

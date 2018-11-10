@@ -541,7 +541,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
     public MultiMatchQueryBuilder synonymQueryStyle(MatchQuery.SynonymQueryStyle synQueryStyle) {
         if (synonymQueryStyle == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires synonym query style to be non-null");
+            throw new IllegalArgumentException("[" + NAME + "] requires synonym_query_style to be non-null");
         }
         this.synonymQueryStyle = synQueryStyle;
         return this;

@@ -231,7 +231,7 @@ public class MatchQuery {
 
     protected boolean autoGenerateSynonymsPhraseQuery = true;
 
-    protected SynonymQueryStyle synonymQueryStyle = SynonymQueryStyle.BLENDED_TERMS;
+    protected SynonymQueryStyle synonymQueryStyle = DEFAULT_SYNONYM_QUERY_STYLE;
 
     public MatchQuery(QueryShardContext context) {
         this.context = context;
@@ -431,7 +431,7 @@ public class MatchQuery {
                     case BLENDED_TERMS:
                         return blendTermsQuery(terms, mapper);
                     default:
-                        throw new IllegalStateException("unrecognized synonymQueryStyle passed when creating newSynonymQuery");
+                        throw new IllegalStateException("unrecognized synonymQueryStyle [" + this.synonymQueryStyle + "] passed when creating newSynonymQuery");
             }
         }
 

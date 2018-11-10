@@ -355,7 +355,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
      */
     public MatchQueryBuilder synonymQueryStyle(MatchQuery.SynonymQueryStyle synQueryStyle) {
         if (synQueryStyle == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires synQueryStyle to be non-null");
+            throw new IllegalArgumentException("[" + NAME + "] requires synonym_query_style to be non-null");
         }
         this.synonymQueryStyle = synQueryStyle;
         return this;

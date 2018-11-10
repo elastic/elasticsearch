@@ -3,10 +3,10 @@
 [[xpack-ccr]]
 = Cross-cluster replication
 
-beta[]
-
 [partintro]
 --
+
+beta[]
 
 * <<ccr-overview, Overview>>
 * <<ccr-getting-started,Getting Started>>

@@ -89,6 +89,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -183,70 +184,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         threadPool = null;
     }
 
-    <T> void assertListenerThrows(String msg, PlainActionFuture<T> listener, Class<?> klass) throws InterruptedException {
+    private <T> void assertListenerThrows(String msg, PlainActionFuture<T> listener, Class<?> klass) throws InterruptedException {
         try {
             listener.get();
             fail(msg);
         } catch (ExecutionException ex) {
             assertThat(ex.getCause(), instanceOf(klass));
         }
-    }
-
-    public void testBlocksInReroutePhase() throws Exception {
-        Request request = new Request();
-        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
-        ReplicationTask task = maybeTask();
-        TestAction action = new TestAction(Settings.EMPTY, "internal:testActionWithBlocks",
-                transportService, clusterService, shardStateAction, threadPool) {
-            @Override
-            protected ClusterBlockLevel globalBlockLevel() {
-                return ClusterBlockLevel.WRITE;
-            }
-        };
-
-        ClusterBlocks.Builder block = ClusterBlocks.builder().addGlobalBlock(new ClusterBlock(1, "non retryable", false, true,
-            false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
-        TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
-        reroutePhase.run();
-        assertListenerThrows("primary phase should fail operation", listener, ClusterBlockException.class);
-        assertPhase(task, "failed");
-
-        block = ClusterBlocks.builder()
-            .addGlobalBlock(new ClusterBlock(1, "retryable", true, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
-        listener = new PlainActionFuture<>();
-        reroutePhase = action.new ReroutePhase(task, new Request().timeout("5ms"), listener);
-        reroutePhase.run();
-        assertListenerThrows("failed to timeout on retryable block", listener, ClusterBlockException.class);
-        assertPhase(task, "failed");
-        assertFalse(request.isRetrySet.get());
-
-        listener = new PlainActionFuture<>();
-        reroutePhase = action.new ReroutePhase(task, request = new Request(), listener);
-        reroutePhase.run();
-        assertFalse("primary phase should wait on retryable block", listener.isDone());
-        assertPhase(task, "waiting_for_retry");
-        assertTrue(request.isRetrySet.get());
-
-        block = ClusterBlocks.builder().addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, false,
-            RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
-        assertListenerThrows("primary phase should fail operation when moving from a retryable block to a non-retryable one", listener,
-            ClusterBlockException.class);
-        assertIndexShardUninitialized();
-
-        action = new TestAction(Settings.EMPTY, "internal:testActionWithNoBlocks", transportService, clusterService, shardStateAction,
-            threadPool) {
-            @Override
-            protected ClusterBlockLevel globalBlockLevel() {
-                return null;
-            }
-        };
-        listener = new PlainActionFuture<>();
-        reroutePhase = action.new ReroutePhase(task, new Request().timeout("5ms"), listener);
-        reroutePhase.run();
-        assertListenerThrows("should fail with an IndexNotFoundException when no blocks checked", listener, IndexNotFoundException.class);
     }
 
     public void testBlocksInPrimaryAction() {
@@ -425,21 +369,12 @@ public class TransportReplicationActionTests extends ESTestCase {
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
 
-        ClusterBlockLevel indexBlockLevel = randomBoolean() ? ClusterBlockLevel.WRITE : null;
         TestAction action = new TestAction(Settings.EMPTY, "internal:testActionWithBlocks", transportService,
-                clusterService, shardStateAction, threadPool) {
-            @Override
-            protected ClusterBlockLevel indexBlockLevel() {
-                return indexBlockLevel;
-            }
-        };
+                clusterService, shardStateAction, threadPool);
         TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
         reroutePhase.run();
-        if (indexBlockLevel == ClusterBlockLevel.WRITE) {
-            assertListenerThrows("must throw block exception", listener, ClusterBlockException.class);
-        } else {
-            assertListenerThrows("must throw index closed exception", listener, IndexClosedException.class);
-        }
+        assertListenerThrows("must throw index closed exception", listener, IndexClosedException.class);
+
         assertPhase(task, "failed");
         assertFalse(request.isRetrySet.get());
     }
@@ -1068,6 +1003,17 @@ public class TransportReplicationActionTests extends ESTestCase {
         // Assert that the request was retried, this time successful
         assertTrue("action should have been successfully called on retry but was not", calledSuccessfully.get());
         transportService.stop();
+    }
+
+    public void testIsRetryableClusterBlockException() {
+        final TestAction action = new TestAction(Settings.EMPTY, "internal:testIsRetryableClusterBlockException", transportService,
+            clusterService, shardStateAction, threadPool);
+        assertFalse(action.isRetryableClusterBlockException(randomRetryPrimaryException(new ShardId("index", "_na_", 0))));
+
+        final boolean retryable = randomBoolean();
+        ClusterBlock randomBlock = new ClusterBlock(randomIntBetween(1, 16), "test", retryable, randomBoolean(),
+            randomBoolean(), randomFrom(RestStatus.values()), EnumSet.of(randomFrom(ClusterBlockLevel.values())));
+        assertEquals(retryable, action.isRetryableClusterBlockException(new ClusterBlockException(Collections.singleton(randomBlock))));
     }
 
     private void assertConcreteShardRequest(TransportRequest capturedRequest, Request expectedRequest, AllocationId expectedAllocationId) {

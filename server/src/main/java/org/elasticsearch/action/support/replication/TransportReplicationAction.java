@@ -259,7 +259,15 @@ public abstract class TransportReplicationAction<
 
     protected boolean retryPrimaryException(final Throwable e) {
         return e.getClass() == ReplicationOperation.RetryOnPrimaryException.class
-                || TransportActions.isShardNotAvailableException(e);
+                || TransportActions.isShardNotAvailableException(e)
+                || isRetryableClusterBlockException(e);
+    }
+
+    boolean isRetryableClusterBlockException(final Throwable e) {
+        if (e instanceof ClusterBlockException) {
+            return ((ClusterBlockException) e).retryable();
+        }
+        return false;
     }
 
     protected class OperationTransportHandler implements TransportRequestHandler<Request> {
@@ -343,7 +351,7 @@ public abstract class TransportReplicationAction<
 
                 if (primaryShardReference.isRelocated()) {
                     primaryShardReference.close(); // release shard operation lock as soon as possible
-                        setPhase(replicationTask, "primary_delegation");
+                    setPhase(replicationTask, "primary_delegation");
                     // delegate primary phase to relocation target
                     // it is safe to execute primary phase on relocation target as there are no more in-flight operations where primary
                     // phase is executed on local shard and all subsequent operations are executed on relocation target as primary phase.
@@ -729,41 +737,31 @@ public abstract class TransportReplicationAction<
             final ClusterState state = observer.setAndGetObservedState();
             final String concreteIndex = concreteIndex(state, request);
 
-            final ClusterBlockException blockException = blockExceptions(state, concreteIndex);
-            if (blockException != null) {
-                if (blockException.retryable()) {
-                    logger.trace("cluster is blocked, scheduling a retry", blockException);
-                    retry(blockException);
-                } else {
-                    finishAsFailed(blockException);
-                }
+            // request does not have a shardId yet, we need to pass the concrete index to resolve shardId
+            final IndexMetaData indexMetaData = state.metaData().index(concreteIndex);
+            if (indexMetaData == null) {
+                retry(new IndexNotFoundException(concreteIndex));
+                return;
+            }
+            if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                throw new IndexClosedException(indexMetaData.getIndex());
+            }
+
+            // resolve all derived request fields, so we can route and apply it
+            resolveRequest(indexMetaData, request);
+            assert request.shardId() != null : "request shardId must be set in resolveRequest";
+            assert request.waitForActiveShards() != ActiveShardCount.DEFAULT :
+                "request waitForActiveShards must be set in resolveRequest";
+
+            final ShardRouting primary = primary(state);
+            if (retryIfUnavailable(state, primary)) {
+                return;
+            }
+            final DiscoveryNode node = state.nodes().get(primary.currentNodeId());
+            if (primary.currentNodeId().equals(state.nodes().getLocalNodeId())) {
+                performLocalAction(state, primary, node, indexMetaData);
             } else {
-                // request does not have a shardId yet, we need to pass the concrete index to resolve shardId
-                final IndexMetaData indexMetaData = state.metaData().index(concreteIndex);
-                if (indexMetaData == null) {
-                    retry(new IndexNotFoundException(concreteIndex));
-                    return;
-                }
-                if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                    throw new IndexClosedException(indexMetaData.getIndex());
-                }
-
-                // resolve all derived request fields, so we can route and apply it
-                resolveRequest(indexMetaData, request);
-                assert request.shardId() != null : "request shardId must be set in resolveRequest";
-                assert request.waitForActiveShards() != ActiveShardCount.DEFAULT :
-                    "request waitForActiveShards must be set in resolveRequest";
-
-                final ShardRouting primary = primary(state);
-                if (retryIfUnavailable(state, primary)) {
-                    return;
-                }
-                final DiscoveryNode node = state.nodes().get(primary.currentNodeId());
-                if (primary.currentNodeId().equals(state.nodes().getLocalNodeId())) {
-                    performLocalAction(state, primary, node, indexMetaData);
-                } else {
-                    performRemoteAction(state, primary, node);
-                }
+                performRemoteAction(state, primary, node);
             }
         }
 

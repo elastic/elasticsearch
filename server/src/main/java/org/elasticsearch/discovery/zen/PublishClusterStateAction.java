@@ -458,9 +458,9 @@ public class PublishClusterStateAction extends AbstractComponent {
         }
     }
 
-    protected static class CommitClusterStateRequest extends TransportRequest {
+    public static class CommitClusterStateRequest extends TransportRequest {
 
-        String stateUUID;
+        public String stateUUID;
 
         public CommitClusterStateRequest() {
         }

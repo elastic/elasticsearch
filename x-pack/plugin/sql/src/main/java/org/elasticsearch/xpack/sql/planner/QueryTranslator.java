@@ -487,7 +487,7 @@ final class QueryTranslator {
             if (onAggs) {
                 aggFilter = new AggFilter(not.id().toString(), not.asScript());
             } else {
-                query = generateQuery(not, not.field(),
+                query = handleQuery(not, not.field(),
                     () -> new NotQuery(not.location(), toQuery(not.field(), false).query));
             }
 
@@ -505,7 +505,7 @@ final class QueryTranslator {
             if (onAggs) {
                 aggFilter = new AggFilter(isNotNull.id().toString(), isNotNull.asScript());
             } else {
-                query = generateQuery(isNotNull, isNotNull.field(),
+                query = handleQuery(isNotNull, isNotNull.field(),
                     () -> new ExistsQuery(isNotNull.location(), nameOf(isNotNull.field())));
             }
 
@@ -523,7 +523,7 @@ final class QueryTranslator {
             if (onAggs) {
                 aggFilter = new AggFilter(isNull.id().toString(), isNull.asScript());
             } else {
-                query = generateQuery(isNull, isNull.field(),
+                query = handleQuery(isNull, isNull.field(),
                     () -> new NotQuery(isNull.location(), new ExistsQuery(isNull.location(), nameOf(isNull.field()))));
             }
 
@@ -555,7 +555,7 @@ final class QueryTranslator {
                     aggFilter = new AggFilter(at.id().toString(), bc.asScript());
                 }
                 else {
-                    query = generateQuery(bc, ne, () -> translateQuery(bc));
+                    query = handleQuery(bc, ne, () -> translateQuery(bc));
                 }
                 return new QueryTranslation(query, aggFilter);
             }
@@ -636,7 +636,7 @@ final class QueryTranslator {
                     aggFilter = new AggFilter(at.id().toString(), in.asScript());
                 }
                 else {
-                    query = generateQuery(in, ne, () -> new TermsQuery(in.location(), ne.name(), in.list()));
+                    query = handleQuery(in, ne, () -> new TermsQuery(in.location(), ne.name(), in.list()));
                 }
                 return new QueryTranslation(query, aggFilter);
             }
@@ -667,7 +667,7 @@ final class QueryTranslator {
                 if (onAggs) {
                     aggFilter = new AggFilter(at.id().toString(), r.asScript());
                 } else {
-                    query = generateQuery(r, r.value(),
+                    query = handleQuery(r, r.value(),
                         () -> new RangeQuery(r.location(), nameOf(r.value()), valueOf(r.lower()), r.includeLower(),
                             valueOf(r.upper()), r.includeUpper(), dateFormat(r.value())));
                 }
@@ -819,7 +819,7 @@ final class QueryTranslator {
         protected abstract QueryTranslation asQuery(E e, boolean onAggs);
 
 
-        protected static Query generateQuery(ScalarFunction sf, Expression field, Supplier<Query> query) {
+        protected static Query handleQuery(ScalarFunction sf, Expression field, Supplier<Query> query) {
             if (field instanceof FieldAttribute) {
                 return wrapIfNested(query.get(), field);
             }

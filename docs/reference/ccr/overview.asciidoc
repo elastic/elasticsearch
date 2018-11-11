@@ -1,7 +1,180 @@
 [role="xpack"]
 [testenv="platinum"]
-[[ccr-overview]]
+[[ccr-ov]]
 == Overview
 
 beta[]
-This is the overview section of the {ccr} docs.
+
+The {ccr} feature enables replication of indices in remote clusters to a local
+cluster. This functionality can be used in some common production use-cases:
+
+* disaster recovery in case a primary cluster fails, a secondary cluster can
+  serve as a hot backup
+* geo-proximity so that reads can be served locally
+
+This guide provides an overview of {ccr}:
+
+* <<ccr-ov-introduction,Introduction to Cross-Cluster Replication>>
+* <<ccr-ov-soft-deletes,Requirements for Leader Indices>>
+* <<ccr-ov-auto-follow,Automatically Following Indices>>
+
+[[ccr-ov-introduction]]
+=== Introduction to Cross-Cluster Replication
+
+Replication in {ccr} is done on an index-by-index basis. Replication is
+configured at the index level. For each configured replication there is a
+replication source index called the "leader index", and a replication target
+index called the "follower index".
+
+Replication is active-passive. This means that while the leader index
+can directly be written into, the follower index can not directly receive
+writes.
+
+Replication is pull-based. This means that replication is driven by the
+follower index. This simplifies state management on the leader index, and means
+that {ccr} does not interfere with indexing on the leader index.
+
+[float]
+==== Configuring replication
+
+Replication can be configured in two ways.
+
+. Replication can be configured manually using the
+  <<ccr-put-follow,create follower API>>.
+
+. Replication can be configured automatically using
+  <<ccr-ov-auto-follow,auto-follow patterns>>.
+
+Note that {ccr} also <<ccr-ov-soft-deletes,requires configuration on the leader
+index>>.
+
+[float]
+==== The mechanics of replication
+
+While replication is managed at the index level, replication is performed at the
+shard level. When a follower index is created, it will be automatically
+configured to have an identical number of shards as the leader index. A follower
+shard task in the follower index pulls from the corresponding leader shard in
+the leader index by sending read requests for new operations. These read
+requests can be served from any copy of the leader shard (primary or replicas).
+
+For each read request sent by the follower shard task, if there are new
+operations available on the leader shard, the leader shard will respond with
+operations limited by the read parameters established when you configured the
+follower index. If there are no new operations available on the leader shard,
+the leader shard will wait up to a configured timeout for new operations. If new
+operations within that timeout, the leader shard will immediately respond with
+those new operations. Otherwise, if the timeout elapses, the follower shard will
+reply that there are no new operations. The follower shard task will update some
+statistics and immediately send another read request to the leader shard. This
+ensures that the network connections between the remote cluster and the local
+cluster are continually being used so as to avoid forceful termination by an
+external source (e.g., a firewall).
+
+If a read request fails, the cause of the failure will be inspected. If the
+cause of the failure is deemed to be a failure that can be recovered from (e.g.,
+a network failure), the follower shard task will enter into a retry
+loop. Otherwise, the follower shard task will be paused and requires user
+intervention before the shard follower task can be resumed using the
+<<ccr-post-resume-follow,resume follower API>>.
+
+When operations are received by the follower shard task, they are placed in a
+write buffer. The follower shard task will manage this write buffer and submit
+bulk write requests from this write buffer to the follower shard.  The write
+buffer and these write requests will be managed by the write parameters
+established when you configured the follower index.  The write buffer serves as
+back-pressure against read requests. If the write buffer exceeds its configured
+limits, no additional read requests will be sent by the follower shard task. The
+follower shard task will resume sending read requests when the write buffer no
+longer exceeds its configured limits.
+
+[float]
+==== Inspecting the progress of replication
+
+You can inspect the progress of replication at the shard level using the
+<<ccr-get-follow-stats,get follower stats API>>. This API will give you insight
+into the read and writes managed by the follower shard task as well as report
+read exceptions that can be retried, and fatal exceptions that require user
+intervention.
+
+[float]
+==== Pausing and resuming replication
+
+You can pause replication using the <<ccr-post-pause-follow,pause follower
+API>>, and then later resume replication using the
+<<ccr-post-resume-follow,resume follower API>>; using these APIs in tandem
+permits you to adjust the read and write parameters on the follower shard task
+if your initial configuration is not suitable for your use-case.
+
+[float]
+==== Terminating replication
+
+You can terminate replication using the <<ccr-post-unfollow,unfollow API>>.
+This will convert a follower index to a regular (non-follower) index.
+
+[[ccr-ov-soft-deletes]]
+=== Requirements for Leader Indices
+
+Cross-cluster replication works by replaying the history of individual write
+operations performed on the shards of the leader index. This means that the
+history of these operations needs to be retained on the leader shards so that
+they can be pulled by the follower shard tasks. The underlying mechanism used to
+retain these operations is soft deletes. A soft delete occurs whenever an
+existing document is deleted or updated. By retaining these soft deletes up to
+configurable limits, the history of operations can be retained on the leader
+shards and made available to the follower shard tasks as it replays the history
+of operations.
+
+Soft deletes must be enabled for indices that you want to use as leader
+indices. Enabling soft deletes requires the addition of some index settings at
+index creation time. You will need to add these settings to your create index
+requests, or to the index templates that you use to manage creation of new
+indices.
+
+NOTE: This means that {ccr} can not be used on existing indices. If you have
+existing data that you want to replicate from another cluster, you must
+<<docs-reindex,reindex>> your data into a new index with soft-deletes enabled.
+
+[float]
+==== Soft-delete settings
+
+`index.soft_deletes.enabled`::
+
+Whether or not soft deletes are enabled on the index. Soft deletes can only be
+configured at index creation, and only on indices created on or after 6.5.0.
+
+`index.soft_deletes.retention.operations`::
+
+The number of soft deletes to retain. Soft deletes are collected during merges
+on the underlying Lucene index yet retained up to the number of operations
+configured by this setting.
+
+[[ccr-ov-auto-follow]]
+=== Automatically Following Indices
+
+In time-series use-cases where new indices that you want to follow are
+periodically created (e.g., daily Beats indices), manually configuring follower
+indices for each new leader index can be an operational burden. The auto-follow
+functionality in {ccr} is aimed at easing this burden. With the auto-follow
+functionality, you can configure that newly created indices in a remote cluster
+with a name that matches a pattern are automatically followed as they are
+created.
+
+==== Managing auto-follow patterns
+
+You can add a new auto-follow pattern configuration using the
+<<ccr-put-auto-follow-pattern,create auto-follow pattern API>>.  When you create
+a new auto-follow pattern configuration, you are configuring a collection of
+patterns against a single remote cluster. Any time a new index with a name
+matching one of the patterns in the collection is created in the remote cluster,
+a follower index will be configured in the local cluster to replicate with the
+new index as its leader index.
+
+You can inspect all configured auto-follow pattern collections using the
+<<ccr-get-auto-follow-pattern,get auto-follow pattern API>>, and delete a
+configured auto-follow pattern collection using the
+<<ccr-delete-auto-follow-pattern,delete auto-follow pattern API>>.
+
+Since auto-follow functionality is handled automatically in the background on
+your behalf, error reporting is done through logs on the elected master node,
+and through the <<ccr-get-stats,{ccr} stats API>>.

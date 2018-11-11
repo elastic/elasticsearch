@@ -8,7 +8,7 @@
 
 beta[]
 
-* <<ccr-overview, Overview>>
+* <<ccr-ov,Overview>>
 * <<ccr-getting-started,Getting Started>>
 
 --

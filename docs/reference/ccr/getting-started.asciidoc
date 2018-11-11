@@ -12,6 +12,8 @@ This getting-started guide for {ccr} shows you how to:
   replicated to a follower index in a local cluster
 * <<ccr-gs-follower-index,Create a follower index>> that replicates a leader
   index in a remote cluster
+* <<ccr-gs-auto-follow,Automatically create follower indices>> that replicate
+  new indices in a remote cluster
 
 [float]
 [[ccr-gs-before-you-begin]]
@@ -212,7 +214,7 @@ PUT /server-metrics
 Follower indices are created with the <<ccr-put-follow,create follower API>>.
 When creating a follower index, you will reference the
 <<ccr-gs-remote-cluster,remote cluster>> that you connected your
-local cluster to and the <<ccr-gs-leader-index,leader index>> that
+local cluster to, and the <<ccr-gs-leader-index,leader index>> that
 you created in the remote cluster.
 
 [source,js]
@@ -254,6 +256,62 @@ POST /server-metrics-copy/_ccr/pause_follow
 POST /server-metrics-copy/_close
 
 POST /server-metrics-copy/_ccr/unfollow
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+//////////////////////////
+
+[float]
+[[ccr-gs-auto-follow]]
+=== Automatically create follower indices
+
+The auto-follow feature in {ccr} helps for time-series use-cases where new
+indices that you want to follow are periodically created in the remote cluster
+(e.g., daily Beats indices).  Auto-following is configured using the
+<<ccr-put-auto-follow-pattern,create auto-follow pattern API>>. With an
+auto-follow pattern, you reference the <<ccr-gs-remote-cluster,remote cluster>>
+that you connected your local cluster to, and a collection of patterns that
+match the indices that you want to be automatically followed when they are
+created in the remote cluster.
+
+[source,js]
+--------------------------------------------------
+PUT /_ccr/auto_follow/beats
+{
+  "remote_cluster" : "leader",
+  "leader_index_patterns" :
+  [
+    "metricbeat-*", <1>
+    "packetbeat-*" <2>
+  ],
+  "follow_index_pattern" : "{{leader_index}}-copy" <3>
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+<1> Automatically follow newly-created Metricbeat indices.
+<2> Automatically follow newly-created Packetbeat indices.
+<3> The name of the follower index is derived from the name of the leader index
+    by adding the suffix `-copy` to the name of the leader index.
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+{
+  "acknowledged" : true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+//////////////////////////
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+DELETE /_ccr/auto_follow/beats
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

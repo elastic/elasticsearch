@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -63,7 +64,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             followIndex(client(), "leader_cluster", allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(allowedIndex, numDocs, "*:*"));
             assertThat(countCcrNodeTasks(), equalTo(1));
-            assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex));
+            assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex), 30, TimeUnit.SECONDS);
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/pause_follow")));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
@@ -167,7 +168,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         assertBusy(() -> {
             verifyCcrMonitoring(allowedIndex, allowedIndex);
             verifyAutoFollowMonitoring();
-        });
+        }, 30, TimeUnit.SECONDS);
 
         // Cleanup by deleting auto follow pattern and pause following:
         request = new Request("DELETE", "/_ccr/auto_follow/test_pattern");

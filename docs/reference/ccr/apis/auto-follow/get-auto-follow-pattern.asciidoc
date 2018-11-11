@@ -6,6 +6,8 @@
 <titleabbrev>Get Auto-Follow Pattern</titleabbrev>
 ++++
 
+beta[]
+
 Get auto-follow patterns.
 
 ==== Description

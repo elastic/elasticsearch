@@ -32,19 +32,21 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class TcpTransportKeepAlive {
+public class TcpTransportKeepAlive implements Closeable {
 
     private static final int PING_DATA_SIZE = -1;
 
-    private final Logger logger = LogManager.getLogger(ConnectionManager.class);
+    private final Logger logger = LogManager.getLogger(TcpTransportKeepAlive.class);
     private final CounterMetric successfulPings = new CounterMetric();
     private final CounterMetric failedPings = new CounterMetric();
-    private final ConcurrentMap<Long, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<TimeValue, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<TcpChannel, KeepAliveStats> channelStats = ConcurrentCollections.newConcurrentMap();
     private final Lifecycle lifecycle = new Lifecycle();
     private final ThreadPool threadPool;
@@ -65,29 +67,25 @@ public class TcpTransportKeepAlive {
         }
     }
 
-    public void registerNodeConnection(TcpTransport.NodeChannels nodeChannels, ConnectionProfile connectionProfile) {
-        long pingInterval = connectionProfile.getPingInterval().millis();
-        if (pingInterval < 0) {
+    // TODO: NEED BACKWARDS COMPATIBILITY. AT LEAST IF WE ADD TIMEOUTS
+
+    public void registerNodeConnection(List<TcpChannel> nodeChannels, ConnectionProfile connectionProfile) {
+        TimeValue pingInterval = connectionProfile.getPingInterval();
+        if (pingInterval.millis() < 0) {
             return;
         }
 
-        ScheduledPing scheduledPing = pingIntervals.get(pingInterval);
-        if (scheduledPing != null) {
-
-        } else {
-            scheduledPing = new ScheduledPing(connectionProfile.getPingInterval());
-        }
-
-        final ScheduledPing finalScheduledPing = scheduledPing;
+        final ScheduledPing scheduledPing = pingIntervals.computeIfAbsent(pingInterval, ScheduledPing::new);
+        scheduledPing.ensureStarted();
 
 
         long currentTime = System.nanoTime();
-        for (TcpChannel channel : nodeChannels.getChannels()) {
-            finalScheduledPing.addChannel(channel);
+        for (TcpChannel channel : nodeChannels) {
+            scheduledPing.addChannel(channel);
             channelStats.put(channel, new KeepAliveStats(currentTime));
 
             channel.addCloseListener(ActionListener.wrap(() -> {
-                finalScheduledPing.removeChannel(channel);
+                scheduledPing.removeChannel(channel);
                 channelStats.remove(channel);
             }));
         }
@@ -149,6 +147,12 @@ public class TcpTransportKeepAlive {
         }
     }
 
+    @Override
+    public void close() {
+        lifecycle.moveToStopped();
+        lifecycle.moveToClosed();
+    }
+
     private class KeepAliveStats {
 
         private long lastReadTime;
@@ -163,21 +167,28 @@ public class TcpTransportKeepAlive {
     private class ScheduledPing extends AbstractLifecycleRunnable {
 
         private final TimeValue pingInterval;
-        private Set<TcpChannel> channels = ConcurrentCollections.newConcurrentSet();
+        private final Set<TcpChannel> channels = ConcurrentCollections.newConcurrentSet();
+        private final AtomicBoolean isStarted = new AtomicBoolean(false);
         private volatile long lastPingTime;
 
         private ScheduledPing(TimeValue pingInterval) {
             super(lifecycle, logger);
             this.pingInterval = pingInterval;
-            // Set lastRuntime to a pingInterval in the past to avoid timing out channels on the first run
+            // Set lastPingTime to a pingInterval in the past to avoid timing out channels on the first run
             this.lastPingTime = System.nanoTime() - pingInterval.getNanos();
         }
 
-        public void addChannel(TcpChannel channel) {
+        void ensureStarted() {
+            if (isStarted.get() == false && isStarted.compareAndSet(false, true)) {
+                threadPool.schedule(pingInterval, ThreadPool.Names.GENERIC, this);
+            }
+        }
+
+        void addChannel(TcpChannel channel) {
             channels.add(channel);
         }
 
-        public void removeChannel(TcpChannel channel) {
+        void removeChannel(TcpChannel channel) {
             channels.remove(channel);
         }
 
@@ -219,7 +230,7 @@ public class TcpTransportKeepAlive {
         }
     }
 
-    private interface PingSender {
+    interface PingSender {
 
         void send(TcpChannel channel, BytesReference message, ActionListener<Void> listener);
     }

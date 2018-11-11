@@ -145,13 +145,12 @@ public final class ConnectionProfile {
     private final Boolean compressionEnabled;
 
     private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout,
-                              TimeValue handshakeTimeout, Boolean compressionEnabled) {
+                              TimeValue handshakeTimeout, TimeValue pingInterval, Boolean compressionEnabled) {
         this.handles = handles;
         this.numConnections = numConnections;
         this.connectTimeout = connectTimeout;
         this.handshakeTimeout = handshakeTimeout;
-        // TODO: Replace by real value
-        this.pingInterval = TimeValue.timeValueSeconds(5);
+        this.pingInterval = pingInterval;
         this.compressionEnabled = compressionEnabled;
     }
 
@@ -162,9 +161,10 @@ public final class ConnectionProfile {
         private final List<ConnectionTypeHandle> handles = new ArrayList<>();
         private final Set<TransportRequestOptions.Type> addedTypes = EnumSet.noneOf(TransportRequestOptions.Type.class);
         private int numConnections = 0;
-        private Boolean compressionEnabled;
         private TimeValue connectTimeout;
         private TimeValue handshakeTimeout;
+        private Boolean compressionEnabled;
+        private TimeValue pingInterval;
 
         /** create an empty builder */
         public Builder() {
@@ -178,32 +178,44 @@ public final class ConnectionProfile {
             connectTimeout = source.getConnectTimeout();
             handshakeTimeout = source.getHandshakeTimeout();
             compressionEnabled = source.getCompressionEnabled();
+            pingInterval = source.getPingInterval();
         }
         /**
          * Sets a connect timeout for this connection profile
          */
-        public void setConnectTimeout(TimeValue connectTimeout) {
+        public Builder setConnectTimeout(TimeValue connectTimeout) {
             if (connectTimeout.millis() < 0) {
                 throw new IllegalArgumentException("connectTimeout must be non-negative but was: " + connectTimeout);
             }
             this.connectTimeout = connectTimeout;
+            return this;
         }
 
         /**
          * Sets a handshake timeout for this connection profile
          */
-        public void setHandshakeTimeout(TimeValue handshakeTimeout) {
+        public Builder setHandshakeTimeout(TimeValue handshakeTimeout) {
             if (handshakeTimeout.millis() < 0) {
                 throw new IllegalArgumentException("handshakeTimeout must be non-negative but was: " + handshakeTimeout);
             }
             this.handshakeTimeout = handshakeTimeout;
+            return this;
+        }
+
+        /**
+         * Sets a ping interval for this connection profile
+         */
+        public Builder setPingInterval(TimeValue pingInterval) {
+            this.pingInterval = pingInterval;
+            return this;
         }
 
         /**
          * Sets compression enabled for this connection profile
          */
-        public void setCompressionEnabled(boolean compressionEnabled) {
+        public Builder setCompressionEnabled(boolean compressionEnabled) {
             this.compressionEnabled = compressionEnabled;
+            return this;
         }
 
         /**
@@ -211,7 +223,7 @@ public final class ConnectionProfile {
          * @param numConnections the number of connections to use in the pool for the given connection types
          * @param types a set of types that should share the given number of connections
          */
-        public void addConnections(int numConnections, TransportRequestOptions.Type... types) {
+        public Builder addConnections(int numConnections, TransportRequestOptions.Type... types) {
             if (types == null || types.length == 0) {
                 throw new IllegalArgumentException("types must not be null");
             }
@@ -223,6 +235,7 @@ public final class ConnectionProfile {
             addedTypes.addAll(Arrays.asList(types));
             handles.add(new ConnectionTypeHandle(this.numConnections, numConnections, EnumSet.copyOf(Arrays.asList(types))));
             this.numConnections += numConnections;
+            return this;
         }
 
         /**
@@ -236,7 +249,7 @@ public final class ConnectionProfile {
                 throw new IllegalStateException("not all types are added for this connection profile - missing types: " + types);
             }
             return new ConnectionProfile(Collections.unmodifiableList(handles), numConnections, connectTimeout, handshakeTimeout,
-                compressionEnabled);
+                pingInterval, compressionEnabled);
         }
 
     }
@@ -255,7 +268,9 @@ public final class ConnectionProfile {
         return handshakeTimeout;
     }
 
-    //  TODO: Add doc
+    /**
+     * Returns the ping interval or <code>null</code> if no explicit ping interval is set on this profile.
+     */
     public TimeValue getPingInterval() {
         return pingInterval;
     }

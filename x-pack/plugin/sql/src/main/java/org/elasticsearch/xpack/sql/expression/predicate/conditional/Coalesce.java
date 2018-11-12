@@ -63,6 +63,11 @@ public class Coalesce extends ConditionalFunction {
     }
 
     @Override
+    public boolean nullable() {
+        return false;
+    }
+
+    @Override
     public Object fold() {
         List<Expression> children = children();
         return children.isEmpty() ? null : children.get(0).fold();

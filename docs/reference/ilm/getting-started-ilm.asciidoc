@@ -9,7 +9,7 @@ you may not be familiar with. The following sections will explore
 these in more details.
 
 The goal of this example is to set up a set of indices that will encapsulate
-the logs from our logging source. We can imagine there is a system
+the data from a time series data source. We can imagine there is a system
 like {filebeat-ref}[Filebeat] that continuously indexes documents into
 our writing index. We wish to roll over the index after it reaches a size of 50 gigabytes,
 or has been created 30 days ago, and then delete the index after 90 days.

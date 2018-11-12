@@ -157,5 +157,5 @@ POST /myindex/_ilm/retry
 
 Once this has been issue, index lifecycle management will asynchronously pick up
 on the step that is in a failed state, attempting to re-run it. The
-<<ilm-explain,ILM Explain API>> can again be used to monitor the status of
+<<ilm-explain-lifecycle,ILM Explain API>> can again be used to monitor the status of
 re-running the step.

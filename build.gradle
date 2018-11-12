@@ -639,20 +639,30 @@ allprojects {
 }
 
 allprojects {
-  def startsWith = System.getProperty("tests.task.only.startsWith", "")
-  def notStartsWith = System.getProperty("tests.task.only.not.startsWith", "")
-  if (startsWith.isEmpty() == false) {
-    tasks.withType(RandomizedTestingTask) { task ->
-      task.onlyIf {
-        task.path.startsWith(startsWith)
-      }
+  String testsSplit = System.getProperty("tests.split", "")
+  if (testsSplit.isEmpty() == false) {
+    List<Integer> split = testsSplit.split("/")
+            .collect( {Integer.parseInt(it)})
+    if (split[1] != 2) {
+      throw new IllegalArgumentException("test.split can only split in two")
     }
-  }
-  if (notStartsWith.isEmpty() == false) {
-    tasks.withType(RandomizedTestingTask) { task ->
-      task.onlyIf {
-        task.path.startsWith(notStartsWith) == false
-      }
+    switch (split[0]) {
+      case 1:
+        tasks.withType(RandomizedTestingTask) { task ->
+            task.onlyIf {
+              task.path.startsWith(":x-pack:")
+            }
+        }
+        break
+      case 2:
+        tasks.withType(RandomizedTestingTask) { task ->
+          task.onlyIf {
+            task.path.startsWith(":x-pack:") == false
+          }
+        }
+        break
+      default:
+        throw new IllegalArgumentException("test.split invalid part: " + split[0] + " of " + split[1])
     }
   }
 }

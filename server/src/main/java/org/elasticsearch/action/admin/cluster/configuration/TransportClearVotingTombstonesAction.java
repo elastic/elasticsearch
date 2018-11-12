@@ -76,6 +76,8 @@ public class TransportClearVotingTombstonesAction
 
         final Predicate<ClusterState> allTombstonedNodesRemoved = newState -> {
             for (DiscoveryNode tombstone : initialState.getVotingTombstones()) {
+                // NB checking for the existence of any node with this persistent ID, because persistent IDs are how votes are counted.
+                // Calling nodeExists(tombstone) is insufficient because this compares on the ephemeral ID.
                 if (newState.nodes().nodeExists(tombstone.getId())) {
                     return false;
                 }
@@ -112,7 +114,7 @@ public class TransportClearVotingTombstonesAction
 
     private void submitClearTombstonesTask(ClearVotingTombstonesRequest request, long startTimeMillis,
                                            ActionListener<ClearVotingTombstonesResponse> listener) {
-        clusterService.getMasterService().submitStateUpdateTask("clear-voting-tombstones", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("clear-voting-tombstones", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final Builder builder = ClusterState.builder(currentState);

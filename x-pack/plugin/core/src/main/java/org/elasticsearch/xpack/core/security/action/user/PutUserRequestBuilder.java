@@ -54,9 +54,10 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         if (password != null) {
             Validation.Error error = Validation.Users.validatePassword(password);
             if (error != null) {
-                ValidationException validationException = new ValidationException();
-                validationException.addValidationError(error.toString());
-                throw validationException;
+                throw validationException(error.toString());
+            }
+            if (request.passwordHash() != null) {
+                throw validationException("password_hash has already been set");
             }
             request.passwordHash(hasher.hash(new SecureString(password)));
         } else {
@@ -85,6 +86,9 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         if (resolvedHasher.equals(configuredHasher) == false) {
             throw new IllegalArgumentException("Provided password hash uses [" + resolvedHasher
                 + "] but the configured hashing algorithm is [" + configuredHasher + "]");
+        }
+        if (request.passwordHash() != null) {
+            throw validationException("password_hash has already been set");
         }
         request.passwordHash(passwordHash);
         return this;
@@ -180,5 +184,11 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
             }
             return this;
         }
+    }
+
+    private ValidationException validationException(String abc) {
+        ValidationException validationException = new ValidationException();
+        validationException.addValidationError(abc);
+        return validationException;
     }
 }

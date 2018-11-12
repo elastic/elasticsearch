@@ -7,8 +7,11 @@ package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
@@ -17,6 +20,8 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -183,5 +188,23 @@ public class PutUserRequestBuilderTests extends ESTestCase {
         });
         assertThat(ex.getMessage(), containsString(Hasher.NOOP.name()));
         assertThat(ex.getMessage(), containsString(systemHasher.name()));
+    }
+
+    public void testWithBothPasswordAndHash() throws IOException {
+        final Hasher hasher = randomFrom(Hasher.BCRYPT4, Hasher.PBKDF2_1000);
+        final String password = randomAlphaOfLength(12);
+        final char[] hash = hasher.hash(new SecureString(password.toCharArray()));
+        final LinkedHashMap<String, Object> fields = new LinkedHashMap<>();
+        fields.put("password", password);
+        fields.put("password_hash", new String(hash));
+        fields.put("roles", Collections.emptyList());
+        BytesReference json = BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent())
+            .map(shuffleMap(fields, Collections.emptySet())));
+
+        PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
+        final IllegalArgumentException ex = expectThrows(ValidationException.class, () -> {
+            builder.source("hash_user", json, XContentType.JSON, hasher).request();
+        });
+        assertThat(ex.getMessage(), containsString("password_hash has already been set"));
     }
 }

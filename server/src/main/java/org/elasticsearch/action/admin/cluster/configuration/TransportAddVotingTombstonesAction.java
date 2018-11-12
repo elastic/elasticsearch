@@ -120,17 +120,9 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
 
                 final Set<String> resolvedNodeIds = resolvedNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
 
-                final Predicate<ClusterState> allNodesRemoved = new Predicate<ClusterState>() {
-                    @Override
-                    public boolean test(ClusterState clusterState) {
-                        final Set<String> votingNodeIds = clusterState.getLastCommittedConfiguration().getNodeIds();
-                        return resolvedNodeIds.stream().anyMatch(votingNodeIds::contains) == false;
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "withdrawal of votes from " + resolvedNodes;
-                    }
+                final Predicate<ClusterState> allNodesRemoved = clusterState -> {
+                    final Set<String> votingNodeIds = clusterState.getLastCommittedConfiguration().getNodeIds();
+                    return resolvedNodeIds.stream().noneMatch(votingNodeIds::contains);
                 };
 
                 final Listener clusterStateListener = new Listener() {
@@ -141,12 +133,14 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
 
                     @Override
                     public void onClusterServiceClose() {
-                        listener.onFailure(new ElasticsearchException("cluster service closed while waiting for " + allNodesRemoved));
+                        listener.onFailure(new ElasticsearchException("cluster service closed while waiting for withdrawal of votes from "
+                            + resolvedNodes));
                     }
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        listener.onFailure(new ElasticsearchTimeoutException("timed out waiting for " + allNodesRemoved));
+                        listener.onFailure(new ElasticsearchTimeoutException("timed out waiting for withdrawal of votes from "
+                            + resolvedNodes));
                     }
                 };
 

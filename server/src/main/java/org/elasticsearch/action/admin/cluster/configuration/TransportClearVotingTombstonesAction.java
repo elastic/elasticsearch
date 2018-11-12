@@ -74,21 +74,13 @@ public class TransportClearVotingTombstonesAction
 
         final long startTimeMillis = threadPool.relativeTimeInMillis();
 
-        final Predicate<ClusterState> allTombstonedNodesRemoved = new Predicate<ClusterState>() {
-            @Override
-            public boolean test(ClusterState newState) {
-                for (DiscoveryNode tombstone : initialState.getVotingTombstones()) {
-                    if (newState.nodes().nodeExists(tombstone.getId())) {
-                        return false;
-                    }
+        final Predicate<ClusterState> allTombstonedNodesRemoved = newState -> {
+            for (DiscoveryNode tombstone : initialState.getVotingTombstones()) {
+                if (newState.nodes().nodeExists(tombstone.getId())) {
+                    return false;
                 }
-                return true;
             }
-
-            @Override
-            public String toString() {
-                return "removal of nodes " + initialState.getVotingTombstones();
-            }
+            return true;
         };
 
         if (request.getWaitForRemoval() && allTombstonedNodesRemoved.test(initialState) == false) {
@@ -103,12 +95,14 @@ public class TransportClearVotingTombstonesAction
 
                 @Override
                 public void onClusterServiceClose() {
-                    listener.onFailure(new ElasticsearchException("cluster service closed while waiting for " + allTombstonedNodesRemoved));
+                    listener.onFailure(new ElasticsearchException("cluster service closed while waiting for removal of nodes "
+                        + initialState.getVotingTombstones()));
                 }
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new ElasticsearchTimeoutException("timed out waiting for " + allTombstonedNodesRemoved));
+                    listener.onFailure(new ElasticsearchTimeoutException("timed out waiting for removal of nodes "
+                        + initialState.getVotingTombstones()));
                 }
             }, allTombstonedNodesRemoved);
         } else {

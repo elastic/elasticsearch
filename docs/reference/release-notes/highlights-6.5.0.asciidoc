@@ -22,7 +22,7 @@ the new File Data Visualizer in {kib}.
 [float]
 === Improved {ml} results for partitioned multi-metric jobs
 
-If you use the `partition_field_name` parameter in a {ml} job (or the 
+If you use the +partition_field_name+ parameter in a {ml} job (or the 
 *Split Data* field in the {kib} multi-metric job wizard), it generates many 
 simultaneous analyses that are modeled independently. In 6.5, we have decreased 
 the influence of the anomaly scores in each partition on other partitions' scores. 

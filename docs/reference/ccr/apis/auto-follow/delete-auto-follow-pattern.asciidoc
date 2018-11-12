@@ -6,6 +6,8 @@
 <titleabbrev>Delete Auto-Follow Pattern</titleabbrev>
 ++++
 
+beta[]
+
 Delete auto-follow patterns.
 
 ==== Description

@@ -106,7 +106,7 @@ POST parent_example/_search?size=0
       "aggs": {
         "to-questions": {
           "parent": {
-            "type" : "answer"
+            "type" : "answer" <1>
           },
           "aggs": {
             "top-tags": {
@@ -179,9 +179,9 @@ Possible response:
         },
         {
           "key": "Troll",
-          "doc_count": 1, <1>
+          "doc_count": 1,
           "to-questions": {
-            "doc_count": 1, <2>
+            "doc_count": 1,
             "top-tags": {
               "doc_count_error_upper_bound": 0,
               "sum_other_doc_count": 0,

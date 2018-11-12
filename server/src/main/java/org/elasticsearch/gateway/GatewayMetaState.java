@@ -116,11 +116,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                 List<Runnable> cleanupActions = new ArrayList<>();
                 final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
 
-                long globalStateGeneration = manifest.getGlobalGeneration();
+                final long globalStateGeneration;
                 if (MetaData.isGlobalStateEquals(metaData, upgradedMetaData) == false) {
                     globalStateGeneration = metaStateService.writeGlobalState("upgrade", upgradedMetaData);
-                    final long currentGlobalStateGeneration = globalStateGeneration;
-                    cleanupActions.add(() -> metaStateService.cleanupGlobalState(currentGlobalStateGeneration));
+                    cleanupActions.add(() -> metaStateService.cleanupGlobalState(globalStateGeneration));
+                } else {
+                    globalStateGeneration = manifest.getGlobalGeneration();
                 }
 
                 Map<Index, Long> indices = new HashMap<>(manifest.getIndexGenerations());

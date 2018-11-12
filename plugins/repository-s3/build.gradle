@@ -49,7 +49,7 @@ dependencies {
   compile 'com.fasterxml.jackson.core:jackson-databind:2.6.7.1'
   compile 'com.fasterxml.jackson.core:jackson-annotations:2.6.0'
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  compile 'joda-time:joda-time:2.10'
+  compile "joda-time:joda-time:${versions.joda}"
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell 

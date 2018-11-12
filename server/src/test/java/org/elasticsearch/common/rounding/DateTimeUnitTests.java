@@ -59,4 +59,5 @@ public class DateTimeUnitTests extends ESTestCase {
         assertEquals(8, SECOND_OF_MINUTE.id());
         assertEquals(SECOND_OF_MINUTE, DateTimeUnit.resolve((byte) 8));
     }
+
 }

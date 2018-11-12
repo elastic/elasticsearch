@@ -249,7 +249,7 @@ public final class IndicesPrivileges implements ToXContentObject {
         private @Nullable Collection<String> deniedFields = null;
         private @Nullable String query = null;
 
-        private Builder() {
+        public Builder() {
         }
 
         public Builder indices(String... indices) {

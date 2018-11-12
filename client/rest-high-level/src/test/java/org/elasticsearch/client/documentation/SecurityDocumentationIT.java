@@ -62,6 +62,7 @@ import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleM
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
+import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
@@ -389,18 +390,50 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetRoles() throws Exception {
-        RestHighLevelClient client = highLevelClient();
+        final RestHighLevelClient client = highLevelClient();
         addRole("my_role");
+        addRole("my_role2");
+        addRole("my_role3");
         {
             //tag::get-roles-request
             GetRolesRequest request = new GetRolesRequest("my_role");
-            //end::get-roles-request
-            //tag::get-roles-execute
             GetRolesResponse response = client.security().getRoles(request, RequestOptions.DEFAULT);
             //end::get-roles-execute
 
+            //tag::get-roles-response
+            List<Role> roles = response.getRoles();
+            //end::get-roles-response
+
             assertNotNull(response);
-            //TODO: Once response is implemented
+            assertThat(roles.size(), equalTo(1));
+            assertThat(roles.get(0).getClusterPrivileges().contains("all"), equalTo(true));
+        }
+
+        {
+            //tag::get-roles-list-request
+            GetRolesRequest request = new GetRolesRequest("my_role", "my_role2");
+            GetRolesResponse response = client.security().getRoles(request, RequestOptions.DEFAULT);
+            //end::get-roles-list-request
+
+            List<Role> roles = response.getRoles();
+            assertNotNull(response);
+            assertThat(roles.size(), equalTo(2));
+            assertThat(roles.get(0).getClusterPrivileges().contains("all"), equalTo(true));
+            assertThat(roles.get(1).getClusterPrivileges().contains("all"), equalTo(true));
+        }
+
+        {
+            //tag::get-roles-all-request
+            GetRolesRequest request = new GetRolesRequest();
+            GetRolesResponse response = client.security().getRoles(request, RequestOptions.DEFAULT);
+            //end::get-roles-all-request
+
+            List<Role> roles = response.getRoles();
+            assertNotNull(response);
+            assertThat(roles.size(), equalTo(3));
+            assertThat(roles.get(0).getClusterPrivileges().contains("all"), equalTo(true));
+            assertThat(roles.get(1).getClusterPrivileges().contains("all"), equalTo(true));
+            assertThat(roles.get(1).getClusterPrivileges().contains("all"), equalTo(true));
         }
 
         {

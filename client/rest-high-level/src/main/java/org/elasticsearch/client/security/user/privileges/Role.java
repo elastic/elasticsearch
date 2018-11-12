@@ -55,7 +55,7 @@ public final class Role implements ToXContentObject {
     public static final ParseField METADATA = new ParseField("metadata");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Role, Void> PARSER = new ConstructingObjectParser<>("role_descriptor", false,
+    public static final ConstructingObjectParser<Role, Void> PARSER = new ConstructingObjectParser<>("role_descriptor", false,
             constructorObjects -> {
                 // Don't ignore unknown fields. It is dangerous if the object we parse is also
                 // part of a request that we build later on, and the fields that we now ignore
@@ -214,7 +214,7 @@ public final class Role implements ToXContentObject {
             return this;
         }
 
-        public Builder glabalApplicationPrivileges(GlobalPrivileges globalApplicationPrivileges) {
+        public Builder globalApplicationPrivileges(GlobalPrivileges globalApplicationPrivileges) {
             this.globalApplicationPrivileges = globalApplicationPrivileges;
             return this;
         }

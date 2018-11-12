@@ -19,10 +19,49 @@
 
 package org.elasticsearch.client.security;
 
+import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 public final class GetRolesResponse {
-    public static <Resp> Resp fromXContent(XContentParser xContentParser) {
-        return null;
+
+    private final List<Role> roles;
+
+    public GetRolesResponse(List<Role> roles) {
+        this.roles = Collections.unmodifiableList(roles);
+    }
+
+    public List<Role> getRoles() {
+        return roles;
+    }
+
+    public static GetRolesResponse fromXContent(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        final List<Role> roles = new ArrayList<>();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            roles.add(Role.PARSER.parse(parser, null));
+        }
+        return new GetRolesResponse(roles);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetRolesResponse response = (GetRolesResponse) o;
+        return Objects.equals(roles, response.roles);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(roles);
     }
 }

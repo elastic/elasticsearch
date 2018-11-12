@@ -215,8 +215,8 @@ public class FunctionRegistry {
                 def(UCase.class, UCase::new));
 
         // Geo Functions
-        addToMap(def(StAswkt.class, StAswkt::new));
-        addToMap(def(StWkttosql.class, StWkttosql::new));
+        addToMap(def(StAswkt.class, StAswkt::new, "ST_ASTEXT"));
+        addToMap(def(StWkttosql.class, StWkttosql::new, "ST_GEOMFROMTEXT"));
         // DataType conversion
         addToMap(def(Cast.class, Cast::new, "CONVERT"));
         // Special

@@ -22,3 +22,15 @@ selectNamedPlaces
 SELECT fid, name, boundary FROM named_places ORDER BY fid;
 selectMapNeatLines
 SELECT fid, neatline FROM map_neatlines ORDER BY fid;
+
+//
+// Type conversion functions
+//
+
+// The string serialization is slightly different between ES and H2, so we need to tweak it a bit by uppercasing both
+// and removing floating point
+selectRoadSegmentsAsWkt
+SELECT fid, name, num_lanes, aliases, REPLACE(UCASE(ST_AsText(centerline)), '.0', '') centerline_wkt FROM road_segments ORDER BY fid;
+
+selectSinglePoint
+SELECT ST_GeomFromText('point (10.0 12.0)') point;

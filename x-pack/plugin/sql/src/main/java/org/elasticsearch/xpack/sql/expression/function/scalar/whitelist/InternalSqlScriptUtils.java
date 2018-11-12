@@ -406,7 +406,7 @@ public final class InternalSqlScriptUtils {
         return GeoProcessor.GeoOperation.ASWKT_SHAPE.apply(v).toString();
     }
 
-    public static GeoShape wktToSql(String v) {
-        return StWkttosqlProcessor.apply(v);
+    public static GeoShape wktToSql(String wktString) {
+        return StWkttosqlProcessor.apply(wktString);
     }
 }

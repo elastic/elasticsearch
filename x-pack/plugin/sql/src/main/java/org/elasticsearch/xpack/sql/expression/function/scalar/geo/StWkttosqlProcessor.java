@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -19,16 +20,16 @@ public class StWkttosqlProcessor implements Processor {
 
     public static final String NAME = "geo_wkttosql";
 
-    private StWkttosqlProcessor() {
+    StWkttosqlProcessor() {
     }
 
-    public StWkttosqlProcessor(StreamInput in) throws IOException {}
+    public StWkttosqlProcessor(StreamInput in) throws IOException {
+    }
 
     @Override
     public Object process(Object input) {
         return StWkttosqlProcessor.apply(input);
     }
-
 
     public static GeoShape apply(Object input) {
         if (input == null) {
@@ -36,11 +37,11 @@ public class StWkttosqlProcessor implements Processor {
         }
 
         if ((input instanceof String) == false) {
-            throw new SqlIllegalArgumentException("A string is required; received {}", input);
+            throw new SqlIllegalArgumentException("A string is required; received [{}]", input);
         }
         try {
             return new GeoShape(input);
-        } catch (IOException ex) {
+        } catch (IOException | IllegalArgumentException | ElasticsearchParseException ex) {
             throw new SqlIllegalArgumentException("Cannot parse [{}] as a geo_shape value", input);
         }
     }

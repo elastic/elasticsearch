@@ -18,6 +18,7 @@ DESCRIBE "geo";
 city                 | VARCHAR    | KEYWORD
 location             | OTHER      | GEO_POINT
 region               | VARCHAR    | KEYWORD
+region_point         | VARCHAR    | KEYWORD
 shape                | OTHER      | GEO_SHAPE
 ;
 
@@ -103,31 +104,46 @@ SELECT COUNT(city) count, CAST(SUBSTRING(ST_ASWKT(location), 8, 1) = '-' AS STRI
 6              |true
 ;
 
-selectFakeCoordinatesFromCityAndRegion
-SELECT region, city, ST_ASWKT(ST_WKTTOSQL(CONCAT(CONCAT(CONCAT(CONCAT('POINT (', CAST(LENGTH(city) AS STRING)), ' '), CAST(LENGTH(region) AS STRING)), ')'))) loc  FROM geo ORDER BY region, city;
+selectRegionUsingWktToSql
+SELECT region, city, ST_ASWKT(ST_WKTTOSQL(region_point)) region_wkt  FROM geo ORDER BY region, city;
 
-   region:s    |    city:s     |       loc:s
-Americas       |Chicago        |point (7.0 8.0)
-Americas       |Mountain View  |point (13.0 8.0)
-Americas       |New York       |point (8.0 8.0)
-Americas       |Phoenix        |point (7.0 8.0)
-Americas       |San Francisco  |point (13.0 8.0)
-Asia           |Hong Kong      |point (9.0 4.0)
-Asia           |Seoul          |point (5.0 4.0)
-Asia           |Singapore      |point (9.0 4.0)
-Asia           |Sydney         |point (6.0 4.0)
-Asia           |Tokyo          |point (5.0 4.0)
-Europe         |Amsterdam      |point (9.0 6.0)
-Europe         |Berlin         |point (6.0 6.0)
-Europe         |London         |point (6.0 6.0)
-Europe         |Munich         |point (6.0 6.0)
-Europe         |Paris          |point (5.0 6.0)
+   region:s    |    city:s     |       region_wkt:s
+Americas       |Chicago        |point (-105.2551 54.526)
+Americas       |Mountain View  |point (-105.2551 54.526)
+Americas       |New York       |point (-105.2551 54.526)
+Americas       |Phoenix        |point (-105.2551 54.526)
+Americas       |San Francisco  |point (-105.2551 54.526)
+Asia           |Hong Kong      |point (100.6197 34.0479)
+Asia           |Seoul          |point (100.6197 34.0479)
+Asia           |Singapore      |point (100.6197 34.0479)
+Asia           |Sydney         |point (100.6197 34.0479)
+Asia           |Tokyo          |point (100.6197 34.0479)
+Europe         |Amsterdam      |point (15.2551 54.526)
+Europe         |Berlin         |point (15.2551 54.526)
+Europe         |London         |point (15.2551 54.526)
+Europe         |Munich         |point (15.2551 54.526)
+Europe         |Paris          |point (15.2551 54.526)
 ;
 
-selectAllPointsGroupByHemisphereFromAsWKT
-SELECT COUNT(city) count, CAST(SUBSTRING(ST_ASWKT(ST_WKTTOSQL(UCASE(ST_ASWKT(location)))), 8, 1) = '-' AS STRING) west FROM "geo" GROUP BY west ORDER BY west;
+selectCitiesWithAGroupByWktToSql
+SELECT COUNT(city) city_by_region, CAST(ST_WKTTOSQL(region_point) AS STRING) region FROM geo WHERE city LIKE '%a%' GROUP BY ST_WKTTOSQL(region_point) ORDER BY ST_WKTTOSQL(region_point);
 
-    count:l    |  west:s
-9              |false
-6              |true
+ city_by_region:l    |       region:s
+3                    |point (-105.2551 54.526)
+1                    |point (100.6197 34.0479)
+2                    |point (15.2551 54.526)
+;
+
+selectCitiesWithEOrderByWktToSql
+SELECT region, city FROM geo WHERE city LIKE '%e%' ORDER BY ST_WKTTOSQL(region_point), city;
+
+   region:s    |    city:s
+Americas       |Mountain View
+Americas       |New York
+Americas       |Phoenix
+Asia           |Seoul
+Asia           |Singapore
+Asia           |Sydney
+Europe         |Amsterdam
+Europe         |Berlin
 ;

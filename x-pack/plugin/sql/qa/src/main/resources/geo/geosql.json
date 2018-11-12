@@ -16,6 +16,9 @@
         },
         "shape": {
           "type": "geo_shape"
+        },
+        "region_point": {
+          "type": "keyword"
         }
       }
     }

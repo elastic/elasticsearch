@@ -104,7 +104,7 @@ public class EmailService extends NotificationService<Account> {
     private final CryptoService cryptoService;
 
     public EmailService(Settings settings, @Nullable CryptoService cryptoService, ClusterSettings clusterSettings) {
-        super(settings, "email", clusterSettings, EmailService.getSettings());
+        super("email", clusterSettings, EmailService.getSettings());
         this.cryptoService = cryptoService;
         // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});

@@ -72,7 +72,7 @@ public class PublicationTests extends ESTestCase {
 
         public MockPublication publish(ClusterState clusterState, Discovery.AckListener ackListener, Set<DiscoveryNode> faultyNodes) {
             PublishRequest publishRequest = coordinationState.handleClientValue(clusterState);
-            MockPublication currentPublication = new MockPublication(Settings.EMPTY, publishRequest, ackListener, () -> 0L) {
+            MockPublication currentPublication = new MockPublication(publishRequest, ackListener, () -> 0L) {
                 @Override
                 protected boolean isPublishQuorum(CoordinationState.VoteCollection votes) {
                     return coordinationState.isPublishQuorum(votes);
@@ -103,9 +103,8 @@ public class PublicationTests extends ESTestCase {
         Map<DiscoveryNode, Join> joins = new HashMap<>();
         Set<DiscoveryNode> missingJoins = new HashSet<>();
 
-        MockPublication(Settings settings, PublishRequest publishRequest, Discovery.AckListener ackListener,
-                               LongSupplier currentTimeSupplier) {
-            super(settings, publishRequest, ackListener, currentTimeSupplier);
+        MockPublication(PublishRequest publishRequest, Discovery.AckListener ackListener, LongSupplier currentTimeSupplier) {
+            super(publishRequest, ackListener, currentTimeSupplier);
             this.publishRequest = publishRequest;
         }
 

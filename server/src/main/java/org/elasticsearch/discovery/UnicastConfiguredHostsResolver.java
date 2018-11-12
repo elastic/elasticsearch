@@ -43,6 +43,7 @@ import static org.elasticsearch.discovery.zen.UnicastZenPing.DISCOVERY_ZEN_PING_
 
 public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent implements ConfiguredHostsResolver {
 
+    private final Settings settings;
     private final AtomicBoolean resolveInProgress = new AtomicBoolean();
     private final TransportService transportService;
     private final UnicastHostsProvider hostsProvider;
@@ -50,9 +51,10 @@ public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent i
     private final TimeValue resolveTimeout;
     private final String nodeName;
 
-    public UnicastConfiguredHostsResolver(String nodeName, Settings settings, TransportService transportService, UnicastHostsProvider
-            hostsProvider) {
+    public UnicastConfiguredHostsResolver(String nodeName, Settings settings, TransportService transportService,
+                                          UnicastHostsProvider hostsProvider) {
         super(settings);
+        this.settings = settings;
         this.nodeName = nodeName;
         this.transportService = transportService;
         this.hostsProvider = hostsProvider;

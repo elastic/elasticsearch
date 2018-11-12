@@ -57,7 +57,6 @@ public class HandshakingTransportAddressConnector extends AbstractComponent impl
     private final TimeValue probeHandshakeTimeout;
 
     public HandshakingTransportAddressConnector(Settings settings, TransportService transportService) {
-        super(settings);
         this.transportService = transportService;
         probeConnectTimeout = PROBE_CONNECT_TIMEOUT_SETTING.get(settings);
         probeHandshakeTimeout = PROBE_HANDSHAKE_TIMEOUT_SETTING.get(settings);

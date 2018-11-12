@@ -35,11 +35,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
@@ -61,7 +63,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -85,7 +89,7 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
-import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_MASTER_NODES_FAILURE_TOLERANCE;
+import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
@@ -96,7 +100,9 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -141,14 +147,12 @@ public class CoordinatorTests extends ESTestCase {
         assertEquals(currentTerm, newTerm);
     }
 
-    public void testExpandsConfigurationWhenGrowingFromOneToThreeNodesAndShrinksOnFailure() {
+    public void testExpandsConfigurationWhenGrowingFromOneNodeToThreeButDoesNotShrink() {
         final Cluster cluster = new Cluster(1);
         cluster.runRandomly();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
-
-        assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(0));
 
         cluster.addNodesAndStabilise(2);
 
@@ -167,22 +171,22 @@ public class CoordinatorTests extends ESTestCase {
         {
             final ClusterNode newLeader = cluster.getAnyLeader();
             final VotingConfiguration lastCommittedConfiguration = newLeader.getLastAppliedClusterState().getLastCommittedConfiguration();
-            assertThat(lastCommittedConfiguration + " should be 1 node", lastCommittedConfiguration.getNodeIds().size(), equalTo(1));
-            assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect1.getId()));
+            assertThat(lastCommittedConfiguration + " should be all nodes", lastCommittedConfiguration.getNodeIds(),
+                equalTo(cluster.clusterNodes.stream().map(ClusterNode::getId).collect(Collectors.toSet())));
         }
     }
 
-    public void testExpandsConfigurationWhenGrowingFromThreeToFiveNodesAndShrinksOnFailure() {
+    public void testExpandsConfigurationWhenGrowingFromThreeToFiveNodesAndShrinksBackToThreeOnFailure() {
         final Cluster cluster = new Cluster(3);
         cluster.runRandomly();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
 
-        logger.info("setting fault tolerance to 1");
-        leader.submitSetMasterNodesFailureTolerance(1);
+        logger.info("setting auto-shrink reconfiguration to true");
+        leader.submitSetAutoShrinkVotingConfiguration(true);
         cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
-        assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(1));
+        assertTrue(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(leader.getLastAppliedClusterState().metaData().settings()));
 
         cluster.addNodesAndStabilise(2);
 
@@ -259,10 +263,10 @@ public class CoordinatorTests extends ESTestCase {
 
         {
             final ClusterNode leader = cluster.getAnyLeader();
-            logger.info("setting fault tolerance to 2");
-            leader.submitSetMasterNodesFailureTolerance(2);
+            logger.info("setting auto-shrink reconfiguration to false");
+            leader.submitSetAutoShrinkVotingConfiguration(false);
             cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
-            assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(2));
+            assertFalse(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(leader.getLastAppliedClusterState().metaData().settings()));
         }
 
         final ClusterNode disconnect1 = cluster.getAnyNode();
@@ -281,9 +285,10 @@ public class CoordinatorTests extends ESTestCase {
                 equalTo(cluster.clusterNodes.stream().map(ClusterNode::getId).collect(Collectors.toSet())));
         }
 
-        leader.submitSetMasterNodesFailureTolerance(1);
+        logger.info("setting auto-shrink reconfiguration to true");
+        leader.submitSetAutoShrinkVotingConfiguration(true);
         cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY * 2); // allow for a reconfiguration
-        assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(1));
+        assertTrue(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(leader.getLastAppliedClusterState().metaData().settings()));
 
         {
             final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
@@ -293,51 +298,10 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
-    public void testCanShrinkFromThreeNodesToTwo() {
+    public void testDoesNotShrinkConfigurationBelowThreeNodes() {
         final Cluster cluster = new Cluster(3);
         cluster.runRandomly();
         cluster.stabilise();
-
-        {
-            final ClusterNode leader = cluster.getAnyLeader();
-            logger.info("setting fault tolerance to 1");
-            leader.submitSetMasterNodesFailureTolerance(1);
-            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
-            assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(1));
-        }
-
-        final ClusterNode disconnect1 = cluster.getAnyNode();
-
-        logger.info("--> disconnecting {}", disconnect1);
-        disconnect1.disconnect();
-        cluster.stabilise();
-
-        final ClusterNode leader = cluster.getAnyLeader();
-
-        {
-            final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
-            assertThat(lastCommittedConfiguration + " should be all nodes", lastCommittedConfiguration.getNodeIds(),
-                equalTo(cluster.clusterNodes.stream().map(ClusterNode::getId).collect(Collectors.toSet())));
-        }
-
-        leader.submitSetMasterNodesFailureTolerance(0);
-        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY * 2); // allow for a reconfiguration
-        assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(0));
-
-        {
-            final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
-            assertThat(lastCommittedConfiguration + " should be 1 node", lastCommittedConfiguration.getNodeIds().size(), equalTo(1));
-            assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect1.getId()));
-        }
-    }
-
-    public void testDoesNotShrinkConfigurationDueToLossToleranceConfigurationWithThreeNodes() {
-        final Cluster cluster = new Cluster(3);
-        cluster.runRandomly();
-        cluster.stabilise();
-
-        cluster.getAnyLeader().submitSetMasterNodesFailureTolerance(1);
-        cluster.stabilise(DEFAULT_ELECTION_DELAY);
 
         final ClusterNode disconnect1 = cluster.getAnyNode();
 
@@ -358,12 +322,12 @@ public class CoordinatorTests extends ESTestCase {
         cluster.stabilise(); // would not work if disconnect1 were removed from the configuration
     }
 
-    public void testDoesNotShrinkConfigurationDueToLossToleranceConfigurationWithFiveNodes() {
+    public void testDoesNotShrinkConfigurationBelowFiveNodesIfAutoShrinkDisabled() {
         final Cluster cluster = new Cluster(5);
         cluster.runRandomly();
         cluster.stabilise();
 
-        cluster.getAnyLeader().submitSetMasterNodesFailureTolerance(2);
+        cluster.getAnyLeader().submitSetAutoShrinkVotingConfiguration(false);
         cluster.stabilise(DEFAULT_ELECTION_DELAY);
 
         final ClusterNode disconnect1 = cluster.getAnyNode();
@@ -702,6 +666,39 @@ public class CoordinatorTests extends ESTestCase {
 //        assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
     }
 
+    public void testDiscoveryOfPeersTriggersNotification() {
+        final Cluster cluster = new Cluster(randomIntBetween(2, 5));
+
+        // register a listener and then deregister it again to show that it is not called after deregistration
+        try (Releasable ignored = cluster.getAnyNode().coordinator.withDiscoveryListener(ns -> {
+            throw new AssertionError("should not be called");
+        })) {
+            // do nothing
+        }
+
+        final long startTimeMillis = cluster.deterministicTaskQueue.getCurrentTimeMillis();
+        final ClusterNode bootstrapNode = cluster.getAnyNode();
+        final AtomicBoolean hasDiscoveredAllPeers = new AtomicBoolean();
+        assertFalse(bootstrapNode.coordinator.getFoundPeers().iterator().hasNext());
+        try (Releasable ignored = bootstrapNode.coordinator.withDiscoveryListener(discoveryNodes -> {
+            int peerCount = 0;
+            for (final DiscoveryNode discoveryNode : discoveryNodes) {
+                peerCount++;
+            }
+            assertThat(peerCount, lessThan(cluster.size()));
+            if (peerCount == cluster.size() - 1 && hasDiscoveredAllPeers.get() == false) {
+                hasDiscoveredAllPeers.set(true);
+                final long elapsedTimeMillis = cluster.deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis;
+                logger.info("--> {} discovered {} peers in {}ms", bootstrapNode.getId(), cluster.size() - 1, elapsedTimeMillis);
+                assertThat(elapsedTimeMillis, lessThanOrEqualTo(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2));
+            }
+        })) {
+            cluster.runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2 + randomLongBetween(0, 60000), "discovery phase");
+        }
+
+        assertTrue(hasDiscoveredAllPeers.get());
+    }
+
     public void testSettingInitialConfigurationTriggersElection() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         cluster.runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2 + randomLongBetween(0, 60000), "initial discovery phase");
@@ -711,13 +708,22 @@ public class CoordinatorTests extends ESTestCase {
             assertThat(nodeId + " is in term 0", clusterNode.coordinator.getCurrentTerm(), is(0L));
             assertThat(nodeId + " last accepted in term 0", clusterNode.coordinator.getLastAcceptedState().term(), is(0L));
             assertThat(nodeId + " last accepted version 0", clusterNode.coordinator.getLastAcceptedState().version(), is(0L));
+            assertFalse(nodeId + " has not received an initial configuration", clusterNode.coordinator.isInitialConfigurationSet());
             assertTrue(nodeId + " has an empty last-accepted configuration",
                 clusterNode.coordinator.getLastAcceptedState().getLastAcceptedConfiguration().isEmpty());
             assertTrue(nodeId + " has an empty last-committed configuration",
                 clusterNode.coordinator.getLastAcceptedState().getLastCommittedConfiguration().isEmpty());
+
+            final Set<DiscoveryNode> foundPeers = new HashSet<>();
+            clusterNode.coordinator.getFoundPeers().forEach(foundPeers::add);
+            assertTrue(nodeId + " should not have discovered itself", foundPeers.add(clusterNode.getLocalNode()));
+            assertThat(nodeId + " should have found all peers", foundPeers, hasSize(cluster.size()));
         }
 
-        cluster.getAnyNode().applyInitialConfiguration();
+        final ClusterNode bootstrapNode = cluster.getAnyNode();
+        bootstrapNode.applyInitialConfiguration();
+        assertTrue(bootstrapNode.getId() + " has been bootstrapped", bootstrapNode.coordinator.isInitialConfigurationSet());
+
         cluster.stabilise(
             // the first election should succeed, because only one node knows of the initial configuration and therefore can win a
             // pre-voting round and proceed to an election, so there cannot be any collisions
@@ -738,10 +744,7 @@ public class CoordinatorTests extends ESTestCase {
         cluster.stabilise();
 
         final Coordinator coordinator = cluster.getAnyNode().coordinator;
-        final CoordinationStateRejectedException exception = expectThrows(CoordinationStateRejectedException.class,
-            () -> coordinator.setInitialConfiguration(coordinator.getLastAcceptedState().getLastCommittedConfiguration()));
-
-        assertThat(exception.getMessage(), is("Cannot set initial configuration: configuration has already been set"));
+        assertFalse(coordinator.setInitialConfiguration(coordinator.getLastAcceptedState().getLastCommittedConfiguration()));
     }
 
     public void testCannotSetInitialConfigurationWithoutQuorum() {
@@ -757,8 +760,83 @@ public class CoordinatorTests extends ESTestCase {
         assertThat(exceptionMessage, containsString(coordinator.getLocalNode().toString()));
 
         // This is VERY BAD: setting a _different_ initial configuration. Yet it works if the first attempt will never be a quorum.
-        coordinator.setInitialConfiguration(new VotingConfiguration(Collections.singleton(coordinator.getLocalNode().getId())));
+        assertTrue(coordinator.setInitialConfiguration(new VotingConfiguration(Collections.singleton(coordinator.getLocalNode().getId()))));
         cluster.stabilise();
+    }
+
+    public void testDiffBasedPublishing() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+        final long finalValue = randomLong();
+        final Map<ClusterNode, PublishClusterStateStats> prePublishStats = cluster.clusterNodes.stream().collect(
+            Collectors.toMap(Function.identity(), cn -> cn.coordinator.stats().getPublishStats()));
+        logger.info("--> submitting value [{}] to [{}]", finalValue, leader);
+        leader.submitValue(finalValue);
+        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        final Map<ClusterNode, PublishClusterStateStats> postPublishStats = cluster.clusterNodes.stream().collect(
+            Collectors.toMap(Function.identity(), cn -> cn.coordinator.stats().getPublishStats()));
+
+        for (ClusterNode cn : cluster.clusterNodes) {
+            assertThat(value(cn.getLastAppliedClusterState()), is(finalValue));
+            if (cn == leader) {
+                // leader does not update publish stats as it's not using the serialized state
+                assertEquals(prePublishStats.get(cn).getFullClusterStateReceivedCount(),
+                    postPublishStats.get(cn).getFullClusterStateReceivedCount());
+                assertEquals(prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount(),
+                    postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount());
+                assertEquals(prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
+                    postPublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount());
+            } else {
+                // followers receive a diff
+                assertEquals(prePublishStats.get(cn).getFullClusterStateReceivedCount(),
+                    postPublishStats.get(cn).getFullClusterStateReceivedCount());
+                assertEquals(prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + 1,
+                    postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount());
+                assertEquals(prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
+                    postPublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount());
+            }
+        }
+    }
+
+    public void testJoiningNodeReceivesFullState() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        cluster.addNodesAndStabilise(1);
+        final ClusterNode newNode = cluster.clusterNodes.get(cluster.clusterNodes.size() - 1);
+        final PublishClusterStateStats newNodePublishStats = newNode.coordinator.stats().getPublishStats();
+        // initial cluster state send when joining
+        assertEquals(1L, newNodePublishStats.getFullClusterStateReceivedCount());
+        // possible follow-up reconfiguration was published as a diff
+        assertEquals(cluster.size() % 2, newNodePublishStats.getCompatibleClusterStateDiffReceivedCount());
+        assertEquals(0L, newNodePublishStats.getIncompatibleClusterStateDiffReceivedCount());
+    }
+
+    public void testIncompatibleDiffResendsFullState() {
+        final Cluster cluster = new Cluster(randomIntBetween(2, 5));
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+        final ClusterNode follower = cluster.getAnyNodeExcept(leader);
+        follower.blackhole();
+        final PublishClusterStateStats prePublishStats = follower.coordinator.stats().getPublishStats();
+        leader.submitValue(randomLong());
+        cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY + defaultMillis(PUBLISH_TIMEOUT_SETTING), "publish first state");
+        follower.heal();
+        leader.submitValue(randomLong());
+        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        final PublishClusterStateStats postPublishStats = follower.coordinator.stats().getPublishStats();
+        assertEquals(prePublishStats.getFullClusterStateReceivedCount() + 1,
+            postPublishStats.getFullClusterStateReceivedCount());
+        assertEquals(prePublishStats.getCompatibleClusterStateDiffReceivedCount(),
+            postPublishStats.getCompatibleClusterStateDiffReceivedCount());
+        assertEquals(prePublishStats.getIncompatibleClusterStateDiffReceivedCount() + 1,
+            postPublishStats.getIncompatibleClusterStateDiffReceivedCount());
     }
 
     private static long defaultMillis(Setting<TimeValue> setting) {
@@ -911,12 +989,12 @@ public class CoordinatorTests extends ESTestCase {
                         }).run();
                     } else if (rarely()) {
                         final ClusterNode clusterNode = getAnyNodePreferringLeaders();
-                        final int masterNodeFailureTolerance = randomIntBetween(0, 2);
+                        final boolean autoShrinkVotingConfiguration = randomBoolean();
                         onNode(clusterNode.getLocalNode(),
                             () -> {
-                                logger.debug("----> [runRandomly {}] setting master-node fault tolerance to {} on {}",
-                                    thisStep, masterNodeFailureTolerance, clusterNode.getId());
-                                clusterNode.submitSetMasterNodesFailureTolerance(masterNodeFailureTolerance);
+                                logger.debug("----> [runRandomly {}] setting auto-shrink configuration to {} on {}",
+                                    thisStep, autoShrinkVotingConfiguration, clusterNode.getId());
+                                clusterNode.submitSetAutoShrinkVotingConfiguration(autoShrinkVotingConfiguration);
                             }).run();
                     } else if (rarely()) {
                         final ClusterNode clusterNode = getAnyNode();
@@ -1007,7 +1085,7 @@ public class CoordinatorTests extends ESTestCase {
                 deterministicTaskQueue.getExecutionDelayVariabilityMillis(), lessThanOrEqualTo(DEFAULT_DELAY_VARIABILITY));
             assertFalse("stabilisation requires stable storage", disruptStorage);
 
-            if (clusterNodes.stream().allMatch(n -> n.coordinator.getLastAcceptedState().getLastAcceptedConfiguration().isEmpty())) {
+            if (clusterNodes.stream().allMatch(n -> n.coordinator.isInitialConfigurationSet() == false)) {
                 assertThat("setting initial configuration may fail with disconnected nodes", disconnectedNodes, empty());
                 assertThat("setting initial configuration may fail with blackholed nodes", blackholedNodes, empty());
                 runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2, "discovery prior to setting initial configuration");
@@ -1025,6 +1103,7 @@ public class CoordinatorTests extends ESTestCase {
             final Matcher<Long> isEqualToLeaderVersion = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
             final String leaderId = leader.getId();
 
+            assertTrue(leaderId + " has been bootstrapped", leader.coordinator.isInitialConfigurationSet());
             assertTrue(leaderId + " exists in its last-applied state", leader.getLastAppliedClusterState().getNodes().nodeExists(leaderId));
             assertThat(leaderId + " has applied its state ", leader.getLastAppliedClusterState().getVersion(), isEqualToLeaderVersion);
 
@@ -1050,6 +1129,7 @@ public class CoordinatorTests extends ESTestCase {
                     }
                     assertTrue(nodeId + " is in the latest applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
+                    assertTrue(nodeId + " has been bootstrapped", clusterNode.coordinator.isInitialConfigurationSet());
                 } else {
                     assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
                     assertFalse(nodeId + " is not in the applied state on " + leaderId,
@@ -1227,7 +1307,6 @@ public class CoordinatorTests extends ESTestCase {
             private ClusterStateApplyResponse clusterStateApplyResponse = ClusterStateApplyResponse.SUCCEED;
 
             ClusterNode(int nodeIndex) {
-                super(Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeIdFromIndex(nodeIndex)).build());
                 this.nodeIndex = nodeIndex;
                 localNode = createDiscoveryNode();
                 persistedState = new MockPersistedState(0L,
@@ -1284,14 +1363,15 @@ public class CoordinatorTests extends ESTestCase {
                     }
                 };
 
+                final Settings settings = Settings.EMPTY;
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterApplier = new FakeClusterApplier(settings, clusterSettings);
-                masterService = new AckedFakeThreadPoolMasterService("test_node","test",
+                masterService = new AckedFakeThreadPoolMasterService("test_node", "test",
                     runnable -> deterministicTaskQueue.scheduleNow(onNode(localNode, runnable)));
                 transportService = mockTransport.createTransportService(
                     settings, deterministicTaskQueue.getThreadPool(runnable -> onNode(localNode, runnable)), NOOP_TRANSPORT_INTERCEPTOR,
                     a -> localNode, null, emptySet());
-                coordinator = new Coordinator("test_node", settings, clusterSettings, transportService,
+                coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, writableRegistry(),
                     ESAllocationTestCase.createAllocationService(Settings.EMPTY), masterService, this::getPersistedState,
                     Cluster.this::provideUnicastHosts, clusterApplier, Randomness.get());
                 masterService.setClusterStatePublisher(coordinator);
@@ -1333,18 +1413,16 @@ public class CoordinatorTests extends ESTestCase {
                 return clusterStateApplyResponse;
             }
 
-            void submitSetMasterNodesFailureTolerance(final int masterNodesFaultTolerance) {
-                submitUpdateTask("set master nodes failure tolerance [" + masterNodesFaultTolerance + "]", cs ->
-                    cs.getLastAcceptedConfiguration().getNodeIds().size() < 2 * masterNodesFaultTolerance + 1 ? cs :
-                        // TODO this rejects invalid updates, but in fact this should be validated elsewhere. Where?
-                        ClusterState.builder(cs).metaData(
-                            MetaData.builder(cs.metaData())
-                                .persistentSettings(Settings.builder()
-                                    .put(cs.metaData().persistentSettings())
-                                    .put(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(), masterNodesFaultTolerance)
-                                    .build())
+            void submitSetAutoShrinkVotingConfiguration(final boolean autoShrinkVotingConfiguration) {
+                submitUpdateTask("set master nodes failure tolerance [" + autoShrinkVotingConfiguration + "]", cs ->
+                    ClusterState.builder(cs).metaData(
+                        MetaData.builder(cs.metaData())
+                            .persistentSettings(Settings.builder()
+                                .put(cs.metaData().persistentSettings())
+                                .put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), autoShrinkVotingConfiguration)
                                 .build())
-                            .build());
+                            .build())
+                        .build());
             }
 
             AckCollector submitValue(final long value) {

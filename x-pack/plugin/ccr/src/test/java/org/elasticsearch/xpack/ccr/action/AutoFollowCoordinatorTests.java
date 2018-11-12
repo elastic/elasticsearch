@@ -83,10 +83,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         };
         AutoFollower autoFollower = new AutoFollower(handler, currentState) {
             @Override
-            void getLeaderClusterState(Map<String, String> headers,
-                                       String remoteCluster,
+            void getLeaderClusterState(String remoteCluster,
                                        BiConsumer<ClusterState, Exception> handler) {
-                assertThat(headers, equalTo(autoFollowHeaders.get("remote")));
+                assertThat(remoteCluster, equalTo("remote"));
                 handler.accept(leaderState, null);
             }
 
@@ -143,8 +142,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         };
         AutoFollower autoFollower = new AutoFollower(handler, followerState) {
             @Override
-            void getLeaderClusterState(Map<String, String> headers,
-                                       String remoteCluster,
+            void getLeaderClusterState(String remoteCluster,
                                        BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(null, failure);
             }
@@ -204,8 +202,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         };
         AutoFollower autoFollower = new AutoFollower(handler, followerState) {
             @Override
-            void getLeaderClusterState(Map<String, String> headers,
-                                       String remoteCluster,
+            void getLeaderClusterState(String remoteCluster,
                                        BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(leaderState, null);
             }
@@ -267,8 +264,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         };
         AutoFollower autoFollower = new AutoFollower(handler, followerState) {
             @Override
-            void getLeaderClusterState(Map<String, String> headers,
-                                       String remoteCluster,
+            void getLeaderClusterState(String remoteCluster,
                                        BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(leaderState, null);
             }

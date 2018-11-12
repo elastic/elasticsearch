@@ -84,8 +84,6 @@ public class ElectionSchedulerFactory extends AbstractComponent {
     private final Random random;
 
     public ElectionSchedulerFactory(Settings settings, Random random, ThreadPool threadPool) {
-        super(settings);
-
         this.random = random;
         this.threadPool = threadPool;
 
@@ -180,7 +178,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
             };
 
             logger.debug("scheduling {}", runnable);
-            threadPool.schedule(TimeValue.timeValueMillis(delayMillis), Names.GENERIC, runnable);
+            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(delayMillis), Names.GENERIC, runnable);
         }
 
         @Override

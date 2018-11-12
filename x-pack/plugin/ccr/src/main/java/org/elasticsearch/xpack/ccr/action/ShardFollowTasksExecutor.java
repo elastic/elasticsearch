@@ -8,16 +8,24 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -57,12 +65,17 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     private final Client client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
+    private final IndexScopedSettings indexScopedSettings;
 
-    public ShardFollowTasksExecutor(Settings settings, Client client, ThreadPool threadPool, ClusterService clusterService) {
-        super(settings, ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
+    public ShardFollowTasksExecutor(Client client,
+                                    ThreadPool threadPool,
+                                    ClusterService clusterService,
+                                    IndexScopedSettings indexScopedSettings) {
+        super(ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.indexScopedSettings = indexScopedSettings;
     }
 
     @Override
@@ -78,11 +91,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                  PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask> taskInProgress,
                                                  Map<String, String> headers) {
         ShardFollowTask params = taskInProgress.getParams();
-        final Client leaderClient;
+        final Client remoteClient;
         if (params.getRemoteCluster() != null) {
-            leaderClient = wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders());
+            remoteClient = wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders());
         } else {
-            leaderClient = wrapClient(client, params.getHeaders());
+            remoteClient = wrapClient(client, params.getHeaders());
         }
         Client followerClient = wrapClient(client, params.getHeaders());
         BiConsumer<TimeValue, Runnable> scheduler = (delay, command) -> {
@@ -111,7 +124,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 clusterStateRequest.metaData(true);
                 clusterStateRequest.indices(leaderIndex.getName());
 
-                leaderClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(clusterStateResponse -> {
+                remoteClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(clusterStateResponse -> {
                     IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
                     if (indexMetaData.getMappings().isEmpty()) {
                         assert indexMetaData.getMappingVersion() == 1;
@@ -133,6 +146,79 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             }
 
             @Override
+            protected void innerUpdateSettings(final LongConsumer finalHandler, final Consumer<Exception> errorHandler) {
+                final Index leaderIndex = params.getLeaderShardId().getIndex();
+                final Index followIndex = params.getFollowShardId().getIndex();
+
+                final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+                clusterStateRequest.clear();
+                clusterStateRequest.metaData(true);
+                clusterStateRequest.indices(leaderIndex.getName());
+
+                CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
+                    final IndexMetaData leaderIMD = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
+                    final IndexMetaData followerIMD = clusterService.state().metaData().getIndexSafe(followIndex);
+
+                    final Settings existingSettings = TransportResumeFollowAction.filter(followerIMD.getSettings());
+                    final Settings settings = TransportResumeFollowAction.filter(leaderIMD.getSettings());
+                    if (existingSettings.equals(settings)) {
+                        // If no settings have been changed then just propagate settings version to shard follow node task:
+                        finalHandler.accept(leaderIMD.getSettingsVersion());
+                    } else {
+                        // Figure out which settings have been updated:
+                        final Settings updatedSettings = settings.filter(
+                            s -> existingSettings.get(s) == null || existingSettings.get(s).equals(settings.get(s)) == false
+                        );
+
+                        // Figure out whether the updated settings are all dynamic settings and
+                        // if so just update the follower index's settings:
+                        if (updatedSettings.keySet().stream().allMatch(indexScopedSettings::isDynamicSetting)) {
+                            // If only dynamic settings have been updated then just update these settings in follower index:
+                            final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex.getName());
+                            updateSettingsRequest.settings(updatedSettings);
+                            followerClient.admin().indices().updateSettings(updateSettingsRequest,
+                                ActionListener.wrap(response -> finalHandler.accept(leaderIMD.getSettingsVersion()), errorHandler));
+                        } else {
+                            // If one or more setting are not dynamic then close follow index, update leader settings and
+                            // then open leader index:
+                            Runnable handler = () -> finalHandler.accept(leaderIMD.getSettingsVersion());
+                            closeIndexUpdateSettingsAndOpenIndex(followIndex.getName(), updatedSettings, handler, errorHandler);
+                        }
+                    }
+                };
+                remoteClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
+            }
+
+            private void closeIndexUpdateSettingsAndOpenIndex(String followIndex,
+                                                              Settings updatedSettings,
+                                                              Runnable handler,
+                                                              Consumer<Exception> onFailure) {
+                CloseIndexRequest closeRequest = new CloseIndexRequest(followIndex);
+                CheckedConsumer<AcknowledgedResponse, Exception> onResponse = response -> {
+                    updateSettingsAndOpenIndex(followIndex, updatedSettings, handler, onFailure);
+                };
+                followerClient.admin().indices().close(closeRequest, ActionListener.wrap(onResponse, onFailure));
+            }
+
+            private void updateSettingsAndOpenIndex(String followIndex,
+                                                    Settings updatedSettings,
+                                                    Runnable handler,
+                                                    Consumer<Exception> onFailure) {
+                final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex);
+                updateSettingsRequest.settings(updatedSettings);
+                CheckedConsumer<AcknowledgedResponse, Exception> onResponse = response -> openIndex(followIndex, handler, onFailure);
+                followerClient.admin().indices().updateSettings(updateSettingsRequest, ActionListener.wrap(onResponse, onFailure));
+            }
+
+            private void openIndex(String followIndex,
+                                   Runnable handler,
+                                   Consumer<Exception> onFailure) {
+                OpenIndexRequest openIndexRequest = new OpenIndexRequest(followIndex);
+                CheckedConsumer<OpenIndexResponse, Exception> onResponse = response -> handler.run();
+                followerClient.admin().indices().open(openIndexRequest, ActionListener.wrap(onResponse, onFailure));
+            }
+
+            @Override
             protected void innerSendBulkShardOperationsRequest(
                 final String followerHistoryUUID,
                 final List<Translog.Operation> operations,
@@ -142,8 +228,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
                 final BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(),
                     followerHistoryUUID, operations, maxSeqNoOfUpdatesOrDeletes);
-                followerClient.execute(BulkShardOperationsAction.INSTANCE, request,
-                    ActionListener.wrap(response -> handler.accept(response), errorHandler));
+                followerClient.execute(BulkShardOperationsAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
             }
 
             @Override
@@ -155,7 +240,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 request.setMaxOperationCount(maxOperationCount);
                 request.setMaxBatchSize(params.getMaxReadRequestSize());
                 request.setPollTimeout(params.getReadPollTimeout());
-                leaderClient.execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
+                remoteClient.execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
             }
         };
     }

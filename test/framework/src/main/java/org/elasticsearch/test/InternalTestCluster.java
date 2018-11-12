@@ -524,7 +524,7 @@ public final class InternalTestCluster extends TestCluster {
         final Runnable onTransportServiceStarted = () -> {}; // do not create unicast host file for this one node.
         final NodeAndClient buildNode = buildNode(ord, random.nextLong(), null, false, 1, onTransportServiceStarted);
         assert nodes.isEmpty();
-        bootstrapNodes(true, buildNode::startNode, Collections.singletonList(buildNode.node()), logger);
+        bootstrapNodes(true, buildNode::startNode, Collections.singletonList(buildNode.node()), logger, clientWrapper);
         buildNode.startNode();
         publishNode(buildNode);
         return buildNode;
@@ -1109,7 +1109,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         bootstrapNodes(prevNodeCount == 0, () -> startAndPublishNodesAndClients(toStartAndPublish),
-            toStartAndPublish.stream().map(NodeAndClient::node).collect(Collectors.toList()), logger);
+            toStartAndPublish.stream().map(NodeAndClient::node).collect(Collectors.toList()), logger, clientWrapper);
 
         startAndPublishNodesAndClients(toStartAndPublish);
 
@@ -1308,12 +1308,7 @@ public final class InternalTestCluster extends TestCluster {
                         } catch (AlreadyClosedException e) {
                             continue; // shard is closed - just ignore
                         }
-                        assertThat(replicaShardRouting + " local checkpoint mismatch",
-                            seqNoStats.getLocalCheckpoint(), equalTo(primarySeqNoStats.getLocalCheckpoint()));
-                        assertThat(replicaShardRouting + " global checkpoint mismatch",
-                            seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
-                        assertThat(replicaShardRouting + " max seq no mismatch",
-                            seqNoStats.getMaxSeqNo(), equalTo(primarySeqNoStats.getMaxSeqNo()));
+                        assertThat(replicaShardRouting + " seq_no_stats mismatch", seqNoStats, equalTo(primarySeqNoStats));
                         // the local knowledge on the primary of the global checkpoint equals the global checkpoint on the shard
                         assertThat(replicaShardRouting + " global checkpoint syncs mismatch", seqNoStats.getGlobalCheckpoint(),
                             equalTo(syncGlobalCheckpoints.get(replicaShardRouting.allocationId().getId())));
@@ -1562,6 +1557,7 @@ public final class InternalTestCluster extends TestCluster {
                 // if we're adding too many master-eligible nodes at once, we can't update the min master setting before adding the nodes.
                 updateMinMasterNodes(currentMasters + newMasters);
             }
+            rebuildUnicastHostFiles(nodeAndClients); // ensure that new nodes can find the existing nodes when they start
             List<Future<?>> futures = nodeAndClients.stream().map(node -> executor.submit(node::startNode)).collect(Collectors.toList());
 
             try {
@@ -1914,7 +1910,7 @@ public final class InternalTestCluster extends TestCluster {
                     validateClusterFormed();
                 }
             },
-            nodes.stream().map(NodeAndClient::node).collect(Collectors.toList()), logger);
+            nodes.stream().map(NodeAndClient::node).collect(Collectors.toList()), logger, clientWrapper);
         return nodes.stream().map(NodeAndClient::getName).collect(Collectors.toList());
     }
 

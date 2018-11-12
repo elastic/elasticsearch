@@ -784,12 +784,12 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     public static ClusterState readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
         ClusterName clusterName = new ClusterName(in);
         Builder builder = new Builder(clusterName);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             builder.term = in.readLong();
         }
         builder.version = in.readLong();
         builder.uuid = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             builder.lastCommittedConfiguration(new VotingConfiguration(in));
             builder.lastAcceptedConfiguration(new VotingConfiguration(in));
         }
@@ -808,12 +808,12 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         clusterName.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeLong(term);
         }
         out.writeLong(version);
         out.writeString(stateUUID);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             lastCommittedConfiguration.writeTo(out);
             lastAcceptedConfiguration.writeTo(out);
         }
@@ -881,13 +881,13 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             clusterName = new ClusterName(in);
             fromUuid = in.readString();
             toUuid = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                 toTerm = in.readLong();
             } else {
                 toTerm = 0L;
             }
             toVersion = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                 lastCommittedConfiguration = new VotingConfiguration(in);
                 lastAcceptedConfiguration = new VotingConfiguration(in);
             } else {
@@ -906,11 +906,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             clusterName.writeTo(out);
             out.writeString(fromUuid);
             out.writeString(toUuid);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 out.writeLong(toTerm);
             }
             out.writeLong(toVersion);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 lastCommittedConfiguration.writeTo(out);
                 lastAcceptedConfiguration.writeTo(out);
             }

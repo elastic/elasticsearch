@@ -85,7 +85,6 @@ public class LeaderChecker extends AbstractComponent {
     private volatile DiscoveryNodes discoveryNodes;
 
     public LeaderChecker(final Settings settings, final TransportService transportService, final Runnable onLeaderFailure) {
-        super(settings);
         leaderCheckInterval = LEADER_CHECK_INTERVAL_SETTING.get(settings);
         leaderCheckTimeout = LEADER_CHECK_TIMEOUT_SETTING.get(settings);
         leaderCheckRetryCount = LEADER_CHECK_RETRY_COUNT_SETTING.get(settings);

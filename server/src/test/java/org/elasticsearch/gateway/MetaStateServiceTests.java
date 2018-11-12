@@ -45,7 +45,7 @@ public class MetaStateServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         env = newNodeEnvironment();
-        metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+        metaStateService = new MetaStateService(env, xContentRegistry());
     }
 
     @Override

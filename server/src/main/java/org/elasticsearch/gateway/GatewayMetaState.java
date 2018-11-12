@@ -20,6 +20,8 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -68,10 +70,12 @@ import java.util.function.UnaryOperator;
  * It means that the first time {@link #applyClusterState(ClusterChangedEvent)} method is called, it won't have any previous metaData in
  * memory and will iterate over all the indices in received {@link ClusterState} and store them to disk.
  */
-public class GatewayMetaState extends AbstractComponent implements ClusterStateApplier {
+public class GatewayMetaState implements ClusterStateApplier {
+    private static final Logger logger = LogManager.getLogger(GatewayMetaState.class);
 
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
+    private final Settings settings;
 
     @Nullable
     //there is a single thread executing applyClusterState calls, hence no volatile modifier
@@ -80,7 +84,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
                             MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) throws IOException {
-        super(settings);
+        this.settings = settings;
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
 

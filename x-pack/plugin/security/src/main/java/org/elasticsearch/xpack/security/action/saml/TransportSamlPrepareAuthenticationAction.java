@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
@@ -35,9 +34,8 @@ public final class TransportSamlPrepareAuthenticationAction
     private final Realms realms;
 
     @Inject
-    public TransportSamlPrepareAuthenticationAction(Settings settings, TransportService transportService,
-                                                    ActionFilters actionFilters, Realms realms) {
-        super(settings, SamlPrepareAuthenticationAction.NAME, transportService, actionFilters,
+    public TransportSamlPrepareAuthenticationAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
+        super(SamlPrepareAuthenticationAction.NAME, transportService, actionFilters,
             SamlPrepareAuthenticationRequest::new);
         this.realms = realms;
     }

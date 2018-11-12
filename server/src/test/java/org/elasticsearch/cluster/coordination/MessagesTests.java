@@ -70,11 +70,10 @@ public class MessagesTests extends ESTestCase {
             });
     }
 
-    public void testPublishRequestEqualsHashCodeSerialization() {
+    public void testPublishRequestEqualsHashCode() {
         PublishRequest initialPublishRequest = new PublishRequest(randomClusterState());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPublishRequest,
-            publishRequest -> copyWriteable(publishRequest, writableRegistry(),
-                in -> new PublishRequest(in, publishRequest.getAcceptedState().nodes().getLocalNode())),
+            publishRequest -> new PublishRequest(publishRequest.getAcceptedState()),
             in -> new PublishRequest(randomClusterState()));
     }
 

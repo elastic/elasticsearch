@@ -44,6 +44,7 @@ import java.util.function.Function;
 
 public class DeterministicTaskQueue extends AbstractComponent {
 
+    private final Settings settings;
     private final List<Runnable> runnableTasks = new ArrayList<>();
     private final Random random;
     private List<DeferredTask> deferredTasks = new ArrayList<>();
@@ -53,7 +54,7 @@ public class DeterministicTaskQueue extends AbstractComponent {
     private long latestDeferredExecutionTime;
 
     public DeterministicTaskQueue(Settings settings, Random random) {
-        super(settings);
+        this.settings = settings;
         this.random = random;
     }
 
@@ -78,6 +79,16 @@ public class DeterministicTaskQueue extends AbstractComponent {
                 advanceTime();
             } else if (hasRunnableTasks()) {
                 runRandomTask();
+            }
+        }
+    }
+
+    public void runAllTasksInTimeOrder() {
+        while (hasDeferredTasks() || hasRunnableTasks()) {
+            if (hasRunnableTasks()) {
+                runRandomTask();
+            } else {
+                advanceTime();
             }
         }
     }

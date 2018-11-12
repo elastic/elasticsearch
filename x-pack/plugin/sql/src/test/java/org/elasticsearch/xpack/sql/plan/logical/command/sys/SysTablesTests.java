@@ -235,7 +235,7 @@ public class SysTablesTests extends ESTestCase {
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params) {
         EsIndex test = new EsIndex("test", mapping);
         Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"));
-        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params), true);
+        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params));
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);

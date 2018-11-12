@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -23,9 +24,12 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
+import org.elasticsearch.xpack.sql.plan.logical.Limit;
+import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
+import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -44,7 +48,7 @@ import java.util.function.Consumer;
 import static java.lang.String.format;
 
 final class Verifier {
-
+    
     private Verifier() {}
 
     static class Failure {
@@ -93,7 +97,7 @@ final class Verifier {
         return new Failure(source, format(Locale.ROOT, message, args));
     }
 
-    static Collection<Failure> verify(LogicalPlan plan) {
+    static Collection<Failure> verify(LogicalPlan plan, Map<String, CounterMetric> featuresMetrics) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // start bottom-up
@@ -103,7 +107,7 @@ final class Verifier {
                 return;
             }
 
-            // if the children are unresolved, this node will also so counting it will only add noise
+            // if the children are unresolved, so will this node; counting it will only add noise
             if (!p.childrenResolved()) {
                 return;
             }
@@ -210,6 +214,29 @@ final class Verifier {
                 }
 
                 failures.addAll(localFailures);
+            });
+        }
+        
+        // gather metrics
+        if (failures.isEmpty() && featuresMetrics != null) {
+            plan.forEachDown(p -> {
+                if (p instanceof Aggregate) {
+                    featuresMetrics.get("groupby").inc();
+                } else if (p instanceof OrderBy) {
+                    featuresMetrics.get("orderby").inc();
+                } else if (p instanceof Filter) {
+                    if (((Filter) p).child() instanceof Aggregate) {
+                        featuresMetrics.get("having").inc();
+                    } else {
+                        featuresMetrics.get("where").inc();
+                    }
+                } else if (p instanceof Limit) {
+                    featuresMetrics.get("limit").inc();
+                } else if (p instanceof LocalRelation) {
+                    featuresMetrics.get("local").inc();
+                } else if (p instanceof Command) {
+                    featuresMetrics.get("command").inc();
+                }
             });
         }
 

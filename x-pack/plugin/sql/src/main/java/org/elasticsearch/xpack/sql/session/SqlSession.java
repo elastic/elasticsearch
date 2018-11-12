@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.session;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer.PreAnalysis;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -87,7 +89,8 @@ public class SqlSession {
         return new SqlParser().createStatement(sql, params);
     }
 
-    public void analyzedPlan(LogicalPlan parsed, boolean verify, ActionListener<LogicalPlan> listener) {
+    private void analyzedPlan(LogicalPlan parsed, boolean verify, ActionListener<LogicalPlan> listener, Map<String,
+            CounterMetric> featuresMetrics) {
         if (parsed.analyzed()) {
             listener.onResponse(parsed);
             return;
@@ -95,9 +98,18 @@ public class SqlSession {
 
         preAnalyze(parsed, c -> {
             Analyzer analyzer = new Analyzer(functionRegistry, c, settings.timeZone());
-            LogicalPlan p = analyzer.analyze(parsed);
-            return verify ? analyzer.verify(p) : p;
+            LogicalPlan p = analyzer.analyzeWithMetrics(parsed, featuresMetrics);
+            return verify ? analyzer.verify(p, null) : p;
         }, listener);
+    }
+    
+    public void analyzedPlan(LogicalPlan parsed, boolean verify, ActionListener<LogicalPlan> listener) {
+        analyzedPlan(parsed, verify, listener, null);
+    }
+    
+    public void analyzedPlanWithMetrics(LogicalPlan parsed, boolean verify, ActionListener<LogicalPlan> listener,
+            Map<String, CounterMetric> featuresMetrics) {
+        analyzedPlan(parsed, verify, listener, featuresMetrics);
     }
 
     public void debugAnalyzedPlan(LogicalPlan parsed, ActionListener<RuleExecutor<LogicalPlan>.ExecutionInfo> listener) {
@@ -139,21 +151,41 @@ public class SqlSession {
         }
     }
 
+    public void optimizedPlanWithMetrics(LogicalPlan verified, ActionListener<LogicalPlan> listener,
+            Map<String, CounterMetric> featuresMetrics) {
+        optimizedPlan(verified, listener, featuresMetrics);
+    }
+    
     public void optimizedPlan(LogicalPlan verified, ActionListener<LogicalPlan> listener) {
-        analyzedPlan(verified, true, wrap(v -> listener.onResponse(optimizer.optimize(v)), listener::onFailure));
+        optimizedPlan(verified, listener, null);
+    }
+    
+    private void optimizedPlan(LogicalPlan verified, ActionListener<LogicalPlan> listener, Map<String, CounterMetric> featuresMetrics) {
+        analyzedPlan(verified, true, wrap(v -> listener.onResponse(optimizer.optimize(v)), listener::onFailure), featuresMetrics);
     }
 
-    public void physicalPlan(LogicalPlan optimized, boolean verify, ActionListener<PhysicalPlan> listener) {
-        optimizedPlan(optimized, wrap(o -> listener.onResponse(planner.plan(o, verify)), listener::onFailure));
+    public void physicalPlan(LogicalPlan optimized, boolean verify, ActionListener<PhysicalPlan> listener,
+            Map<String, CounterMetric> featuresMetrics) {
+        optimizedPlan(optimized, wrap(o -> listener.onResponse(planner.plan(o, verify)), listener::onFailure), featuresMetrics);
     }
 
-    public void sql(String sql, List<SqlTypedParamValue> params, ActionListener<SchemaRowSet> listener) {
-        sqlExecutable(sql, params, wrap(e -> e.execute(this, listener), listener::onFailure));
+    public void sql(String sql, List<SqlTypedParamValue> params, ActionListener<SchemaRowSet> listener,
+            Map<String, CounterMetric> featuresMetrics) {
+        sqlExecutableWithMetrics(sql, params, wrap(e -> e.execute(this, listener), listener::onFailure), featuresMetrics);
     }
 
+    public void sqlExecutableWithMetrics(String sql, List<SqlTypedParamValue> params, ActionListener<PhysicalPlan> listener,
+            Map<String, CounterMetric> featuresMetrics) {
+        try {
+            physicalPlan(doParse(sql, params), true, listener, featuresMetrics);
+        } catch (Exception ex) {
+            listener.onFailure(ex);
+        }
+    }
+    
     public void sqlExecutable(String sql, List<SqlTypedParamValue> params, ActionListener<PhysicalPlan> listener) {
         try {
-            physicalPlan(doParse(sql, params), true, listener);
+            physicalPlan(doParse(sql, params), true, listener, null);
         } catch (Exception ex) {
             listener.onFailure(ex);
         }

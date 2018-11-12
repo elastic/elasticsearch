@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.execution;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import java.util.List;
+import java.util.Map;
 
 public class PlanExecutor {
     private final Client client;
@@ -36,6 +38,7 @@ public class PlanExecutor {
     private final PreAnalyzer preAnalyzer;
     private final Optimizer optimizer;
     private final Planner planner;
+    private Map<String, CounterMetric> featuresMetrics;
 
     public PlanExecutor(Client client, IndexResolver indexResolver, NamedWriteableRegistry writeableRegistry) {
         this.client = client;
@@ -69,7 +72,7 @@ public class PlanExecutor {
     }
 
     public void sql(Configuration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<SchemaRowSet> listener) {
-        newSession(cfg).sql(sql, params, listener);
+        newSession(cfg).sql(sql, params, listener, featuresMetrics);
     }
 
     public void nextPage(Configuration cfg, Cursor cursor, ActionListener<RowSet> listener) {
@@ -78,5 +81,9 @@ public class PlanExecutor {
 
     public void cleanCursor(Configuration cfg, Cursor cursor, ActionListener<Boolean> listener) {
         cursor.clear(cfg, client, listener);
+    }
+    
+    public void setFeaturesMetrics(Map<String, CounterMetric> featuresMetrics) {
+        this.featuresMetrics = featuresMetrics;
     }
 }

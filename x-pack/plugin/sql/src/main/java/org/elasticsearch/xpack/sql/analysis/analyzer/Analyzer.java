@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
@@ -73,7 +74,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      * Verify a plan.
      */
     public static Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = Verifier.verify(plan);
+        Collection<Failure> failures = Verifier.verify(plan, null);
         return failures.stream().collect(toMap(Failure::source, Failure::message));
     }
 
@@ -115,23 +116,35 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         return Arrays.asList(substitution, resolution);
     }
 
+    public LogicalPlan analyzeWithMetrics(LogicalPlan plan, Map<String, CounterMetric> featuresMetrics) {
+        return analyze(plan, true, featuresMetrics);
+    }
+    
     public LogicalPlan analyze(LogicalPlan plan) {
-        return analyze(plan, true);
+        return analyze(plan, true, null);
     }
 
+    public LogicalPlan analyzeWithMetrics(LogicalPlan plan, boolean verify, Map<String, CounterMetric> featuresMetrics) {
+        return analyze(plan, verify, featuresMetrics);
+    }
+    
     public LogicalPlan analyze(LogicalPlan plan, boolean verify) {
+        return analyze(plan, verify, null);
+    }
+    
+    private LogicalPlan analyze(LogicalPlan plan, boolean verify, Map<String, CounterMetric> featuresMetrics) {
         if (plan.analyzed()) {
             return plan;
         }
-        return verify ? verify(execute(plan)) : execute(plan);
+        return verify ? verify(executeWithMetrics(plan, featuresMetrics), featuresMetrics) : executeWithMetrics(plan, featuresMetrics);
     }
 
     public ExecutionInfo debugAnalyze(LogicalPlan plan) {
         return plan.analyzed() ? null : executeWithInfo(plan);
     }
 
-    public LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = Verifier.verify(plan);
+    public LogicalPlan verify(LogicalPlan plan, Map<String, CounterMetric> featuresMetrics) {
+        Collection<Failure> failures = Verifier.verify(plan, featuresMetrics);
         if (!failures.isEmpty()) {
             throw new VerificationException(failures);
         }
@@ -932,7 +945,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         Aggregate tryResolvingCondition = new Aggregate(agg.location(), agg.child(), agg.groupings(),
                                 singletonList(new Alias(f.location(), ".having", condition)));
 
-                        LogicalPlan conditionResolved = analyze(tryResolvingCondition, false);
+                        LogicalPlan conditionResolved = analyze(tryResolvingCondition, false, null);
 
                         // if it got resolved
                         if (conditionResolved.resolved()) {

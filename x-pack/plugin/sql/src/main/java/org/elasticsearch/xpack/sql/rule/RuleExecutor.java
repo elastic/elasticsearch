@@ -7,7 +7,10 @@ package org.elasticsearch.xpack.sql.rule;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
+import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.tree.NodeUtils;
 
@@ -126,16 +129,42 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         }
     }
 
+    protected TreeType executeWithMetrics(TreeType plan, Map<String, CounterMetric> featuresMetrics) {
+        return execute(plan, featuresMetrics);
+    }
+    
     protected TreeType execute(TreeType plan) {
-        return executeWithInfo(plan).after;
+        return execute(plan, null);
+    }
+    
+    private TreeType execute(TreeType plan, Map<String, CounterMetric> featuresMetrics) {
+        return executeWithInfo(plan, featuresMetrics).after;
+    }
+    
+    protected ExecutionInfo executeWithInfo(TreeType plan) {
+        return executeWithInfo(plan, null);
+    }
+    
+    protected ExecutionInfo executeWithInfoWithMetrics(TreeType plan, Map<String, CounterMetric> featuresMetrics) {
+        return executeWithInfo(plan, featuresMetrics);
     }
 
-    protected ExecutionInfo executeWithInfo(TreeType plan) {
+    private ExecutionInfo executeWithInfo(TreeType plan, Map<String, CounterMetric> featuresMetrics) {
         TreeType currentPlan = plan;
 
         long totalDuration = 0;
 
         Map<Batch, List<Transformation>> transformations = new LinkedHashMap<>();
+        
+        // before doing any transformations, look for subselects and count them, because they
+        // will be folded in the next step
+        if (featuresMetrics != null) {
+            plan.forEachDown(p -> {
+                if (p instanceof SubQueryExpression || p instanceof SubQueryAlias) {
+                    featuresMetrics.get("subselect").inc();
+                }
+            });
+        }
 
         for (Batch batch : batches) {
             int batchRuns = 0;

@@ -34,7 +34,7 @@ public class SysCatalogsTests extends ESTestCase {
     private Tuple<Command, SqlSession> sql(String sql) {
         EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
         Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"));
-        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), true);
+        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql));
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn("cluster");

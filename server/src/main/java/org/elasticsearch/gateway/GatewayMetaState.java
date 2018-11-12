@@ -220,7 +220,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
     private Map<Index, Long> writeIndicesMetadata(ClusterState newState, ClusterState previousState, List<Runnable> cleanupActions)
             throws IOException {
         if (previousManifest == null) {
-            previousManifest = metaStateService.loadManifest();
+            previousManifest = metaStateService.loadManifestOrEmpty();
         }
         Map<Index, Long> previouslyWrittenIndices = previousManifest.getIndexGenerations();
         Set<Index> relevantIndices = getRelevantIndices(newState, previousState, previouslyWrittenIndices.keySet());

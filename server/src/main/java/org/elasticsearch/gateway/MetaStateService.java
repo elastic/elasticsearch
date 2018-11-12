@@ -63,7 +63,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
      * @throws IOException if some IOException when loading files occurs or there is no metadata referenced by manifest file.
      */
     Tuple<Manifest, MetaData> loadFullState() throws IOException {
-        final Manifest manifest = loadManifest();
+        final Manifest manifest = loadManifestOrEmpty();
         if (manifest.isEmpty()) {
             return loadFullStateBWC();
         }
@@ -164,7 +164,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
     /**
      * Loads Manifest file from disk, returns <code>Manifest.empty()</code> if there is no manifest file.
      */
-    public Manifest loadManifest() throws IOException {
+    public Manifest loadManifestOrEmpty() throws IOException {
         Manifest manifest = Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
         if (manifest == null) {
             manifest = Manifest.empty();
@@ -267,7 +267,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
      */
     public void writeIndexAndUpdateManifest(String reason, IndexMetaData metaData) throws IOException {
         long generation = writeIndex(reason, metaData);
-        Manifest manifest = loadManifest();
+        Manifest manifest = loadManifestOrEmpty();
         Map<Index, Long> indices = new HashMap<>(manifest.getIndexGenerations());
         indices.put(metaData.getIndex(), generation);
         manifest = new Manifest(manifest.getGlobalGeneration(), indices);
@@ -282,7 +282,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
      */
     public void writeGlobalStateAndUpdateManifest(String reason, MetaData metaData) throws IOException {
         long generation = writeGlobalState(reason, metaData);
-        Manifest manifest = loadManifest();
+        Manifest manifest = loadManifestOrEmpty();
         manifest = new Manifest(generation, manifest.getIndexGenerations());
         long metaStateGeneration = writeManifest(reason, manifest);
         cleanupGlobalState(generation);

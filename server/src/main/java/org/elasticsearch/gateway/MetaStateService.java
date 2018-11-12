@@ -67,14 +67,20 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
         if (manifest.isEmpty()) {
             return loadFullStateBWC();
         }
+
         final MetaData.Builder metaDataBuilder;
-        final MetaData globalMetaData = MetaData.FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(),
-                nodeEnv.nodeDataPaths());
-        if (globalMetaData != null) {
-            metaDataBuilder = MetaData.builder(globalMetaData);
+        if (manifest.isGlobalGenerationMissing()) {
+            metaDataBuilder = MetaData.builder();
         } else {
-            throw new IOException("failed to find global metadata [generation: " + manifest.getGlobalGeneration() + "]");
+            final MetaData globalMetaData = MetaData.FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(),
+                    nodeEnv.nodeDataPaths());
+            if (globalMetaData != null) {
+                metaDataBuilder = MetaData.builder(globalMetaData);
+            } else {
+                throw new IOException("failed to find global metadata [generation: " + manifest.getGlobalGeneration() + "]");
+            }
         }
+
         for (Map.Entry<Index, Long> entry : manifest.getIndexGenerations().entrySet()) {
             Index index = entry.getKey();
             long generation = entry.getValue();
@@ -88,6 +94,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
                         ", generation: " + generation + "]");
             }
         }
+
         return new Tuple<>(manifest, metaDataBuilder.build());
     }
 

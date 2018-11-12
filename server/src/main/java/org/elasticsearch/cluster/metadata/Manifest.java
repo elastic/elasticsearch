@@ -150,6 +150,10 @@ public class Manifest implements ToXContentFragment {
         return new Manifest(MISSING_GLOBAL_GENERATION, Collections.emptyMap());
     }
 
+    public boolean isGlobalGenerationMissing() {
+        return globalGeneration == MISSING_GLOBAL_GENERATION;
+    }
+
     private static final class IndexEntry implements ToXContentFragment {
         private static final ParseField INDEX_GENERATION_PARSE_FIELD = new ParseField("generation");
         private static final ParseField INDEX_PARSE_FIELD = new ParseField("index");

@@ -135,11 +135,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
                 final Manifest newManifest = new Manifest(globalStateGeneration, indices);
 
-                if (newManifest.isEmpty() == false) {
-                    final long metaStateGeneration =
-                            metaStateService.writeManifest("startup", newManifest);
-                    cleanupActions.add(() -> metaStateService.cleanupMetaState(metaStateGeneration));
-                }
+                final long metaStateGeneration =
+                        metaStateService.writeManifest("startup", newManifest);
+                cleanupActions.add(() -> metaStateService.cleanupMetaState(metaStateGeneration));
 
                 for (Runnable action : cleanupActions) {
                     action.run();

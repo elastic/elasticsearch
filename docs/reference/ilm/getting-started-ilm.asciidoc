@@ -185,6 +185,6 @@ write to our to-be-rolled-over write indices using that same alias.
 
 === Next Steps
 
-That's it! We have our first logging use-case managed by {ILM}.
+That's it! We have our first use-case managed by {ILM}.
 
 To learn more about all our APIs, check out <<index-lifecycle-management-api,ILM APIs>>.

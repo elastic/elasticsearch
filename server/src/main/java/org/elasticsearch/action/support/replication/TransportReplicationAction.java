@@ -738,7 +738,7 @@ public abstract class TransportReplicationAction<
             final String concreteIndex = concreteIndex(state, request);
             final ClusterBlockException blockException = blockExceptions(state, concreteIndex);
             if (blockException != null) {
-                if (isRetryableClusterBlockException(blockException)) {
+                if (blockException.retryable()) {
                     logger.trace("cluster is blocked, scheduling a retry", blockException);
                     retry(blockException);
                 } else {

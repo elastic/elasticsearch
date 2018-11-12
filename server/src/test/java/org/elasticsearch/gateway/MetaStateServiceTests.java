@@ -32,7 +32,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.HashMap;
 
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
@@ -106,28 +105,53 @@ public class MetaStateServiceTests extends ESTestCase {
         long globalGeneration = metaStateService.writeGlobalState("test_write", metaData);
         long indexGeneration = metaStateService.writeIndex("test_write", indexMetaData);
 
-        Tuple<Manifest, MetaData> stateAndData = metaStateService.loadFullState();
-        Manifest manifest = stateAndData.v1();
+        Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
+        Manifest manifest = manifestAndMetaData.v1();
         assertThat(manifest.getGlobalGeneration(), equalTo(globalGeneration));
         assertThat(manifest.getIndexGenerations(), hasKey(indexMetaData.getIndex()));
         assertThat(manifest.getIndexGenerations().get(indexMetaData.getIndex()), equalTo(indexGeneration));
 
-        MetaData loadedMetaData = stateAndData.v2();
+        MetaData loadedMetaData = manifestAndMetaData.v2();
         assertThat(loadedMetaData.persistentSettings(), equalTo(metaData.persistentSettings()));
         assertThat(loadedMetaData.hasIndex("test1"), equalTo(true));
         assertThat(loadedMetaData.index("test1"), equalTo(indexMetaData));
     }
 
-    public void testLoadEmptyState() throws IOException {
-        Tuple<Manifest, MetaData> stateAndData = metaStateService.loadFullState();
+    public void testLoadEmptyStateNoManifest() throws IOException {
+        Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
 
-        Manifest manifest = stateAndData.v1();
-        assertThat(manifest.getGlobalGeneration(), equalTo(-1L));
-        assertThat(manifest.getIndexGenerations().entrySet(), empty());
+        Manifest manifest = manifestAndMetaData.v1();
+        assertTrue(manifest.isEmpty());
 
-        MetaData metaData = stateAndData.v2();
-        MetaData emptyMetaData = MetaData.builder().build();
-        assertTrue(MetaData.isGlobalStateEquals(metaData, emptyMetaData));
+        MetaData metaData = manifestAndMetaData.v2();
+        assertTrue(MetaData.isGlobalStateEquals(metaData, MetaData.EMPTY_META_DATA));
+    }
+
+    public void testLoadEmptyStateWithManifest() throws IOException {
+        Manifest manifest = Manifest.empty();
+        metaStateService.writeManifest("test", manifest);
+
+        Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
+        assertTrue(manifestAndMetaData.v1().isEmpty());
+        MetaData metaData = manifestAndMetaData.v2();
+        assertTrue(MetaData.isGlobalStateEquals(metaData, MetaData.EMPTY_META_DATA));
+    }
+
+    public void testLoadFullStateMissingGlobalMetaData() throws IOException {
+        IndexMetaData index = indexMetaData("test1");
+        long indexGeneration = metaStateService.writeIndex("test", index);
+        Manifest manifest = new Manifest(Manifest.empty().getGlobalGeneration(), new HashMap<Index, Long>() {{
+            put(index.getIndex(), indexGeneration);
+        }});
+        assertTrue(manifest.isGlobalGenerationMissing());
+        metaStateService.writeManifest("test", manifest);
+
+        Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
+        assertThat(manifestAndMetaData.v1(), equalTo(manifest));
+        MetaData loadedMetaData = manifestAndMetaData.v2();
+        assertTrue(MetaData.isGlobalStateEquals(loadedMetaData, MetaData.EMPTY_META_DATA));
+        assertThat(loadedMetaData.hasIndex("test1"), equalTo(true));
+        assertThat(loadedMetaData.index("test1"), equalTo(index));
     }
 
     public void testLoadFullStateAndUpdate() throws IOException {
@@ -144,7 +168,7 @@ public class MetaStateServiceTests extends ESTestCase {
             put(index.getIndex(), indexGeneration);
         }});
 
-        metaStateService.writeManifest("first meta state write", manifest);
+        metaStateService.writeManifest("first manifest write", manifest);
 
         MetaData newMetaData = MetaData.builder()
                 .persistentSettings(Settings.builder().put("test1", "value2").build())
@@ -152,10 +176,10 @@ public class MetaStateServiceTests extends ESTestCase {
                 .build();
         globalGeneration = metaStateService.writeGlobalState("second global state write", newMetaData);
 
-        Tuple<Manifest, MetaData> stateAndData = metaStateService.loadFullState();
-        assertThat(stateAndData.v1(), equalTo(manifest));
+        Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
+        assertThat(manifestAndMetaData.v1(), equalTo(manifest));
 
-        MetaData loadedMetaData = stateAndData.v2();
+        MetaData loadedMetaData = manifestAndMetaData.v2();
         assertThat(loadedMetaData.persistentSettings(), equalTo(metaData.persistentSettings()));
         assertThat(loadedMetaData.hasIndex("test1"), equalTo(true));
         assertThat(loadedMetaData.index("test1"), equalTo(index));
@@ -164,15 +188,15 @@ public class MetaStateServiceTests extends ESTestCase {
             put(index.getIndex(), indexGeneration);
         }});
 
-        long metaStateGeneration = metaStateService.writeManifest("test", manifest);
+        long manifestGeneration = metaStateService.writeManifest("second manifest write", manifest);
         metaStateService.cleanupGlobalState(globalGeneration);
         metaStateService.cleanupIndex(index.getIndex(), indexGeneration);
-        metaStateService.cleanupMetaState(metaStateGeneration);
+        metaStateService.cleanupMetaState(manifestGeneration);
 
-        stateAndData = metaStateService.loadFullState();
-        assertThat(stateAndData.v1(), equalTo(manifest));
+        manifestAndMetaData = metaStateService.loadFullState();
+        assertThat(manifestAndMetaData.v1(), equalTo(manifest));
 
-        loadedMetaData = stateAndData.v2();
+        loadedMetaData = manifestAndMetaData.v2();
         assertThat(loadedMetaData.persistentSettings(), equalTo(newMetaData.persistentSettings()));
         assertThat(loadedMetaData.hasIndex("test1"), equalTo(true));
         assertThat(loadedMetaData.index("test1"), equalTo(index));

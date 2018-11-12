@@ -325,8 +325,6 @@ public class Querier {
                         // is all the content already retrieved?
                         (Boolean.TRUE.equals(response.isTerminatedEarly()) 
                                 || response.getHits().getTotalHits() == hits.length
-                                // or maybe the limit has been reached
-                                || (hits.length >= query.limit() && query.limit() > -1)
                                 || hitRowSet.isLimitReached())) {
                     // if so, clear the scroll
                     clear(response.getScrollId(), ActionListener.wrap(

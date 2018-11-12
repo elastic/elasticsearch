@@ -225,8 +225,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
                 if (remote == null) { // this is a new cluster we have to add a new representation
                     String clusterAlias = entry.getKey();
-                    TimeValue pingSchedule = REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings);
-                    // TODO: Handle new ping schedule work
                     ConnectionManager connectionManager = new ConnectionManager(settings, transportService.transport,
                         transportService.threadPool);
                     remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, connectionManager,

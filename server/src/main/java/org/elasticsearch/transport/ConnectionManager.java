@@ -242,8 +242,8 @@ public class ConnectionManager implements Closeable {
         }
     }
 
-    TimeValue getPingSchedule() {
-        return pingSchedule;
+    ConnectionProfile getConnectionProfile() {
+        return defaultProfile;
     }
 
     private static final class DelegatingNodeConnectionListener implements TransportConnectionListener {

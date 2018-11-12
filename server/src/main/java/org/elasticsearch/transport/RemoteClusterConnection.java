@@ -67,6 +67,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_COMPRESS;
+import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE;
 
 /**
  * Represents a connection to a single remote cluster. In contrast to a local cluster a remote cluster is not joined such that the
@@ -118,6 +119,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         this.nodePredicate = nodePredicate;
         this.clusterAlias = clusterAlias;
         this.compress = REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        TimeValue pingInterval = REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings);
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         builder.setConnectTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
         builder.setHandshakeTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
@@ -127,6 +129,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             TransportRequestOptions.Type.STATE,
             TransportRequestOptions.Type.RECOVERY);
         builder.setCompressionEnabled(compress);
+        builder.setPingInterval(pingInterval);
         remoteProfile = builder.build();
         connectedNodes = new ConnectedNodes(clusterAlias);
         this.seedNodes = Collections.unmodifiableList(seedNodes);

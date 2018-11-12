@@ -366,7 +366,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     RemoteClusterConnection remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
-                    assertEquals(pingSchedule, remoteClusterConnection.getConnectionManager().getPingSchedule());
+                    assertEquals(pingSchedule, remoteClusterConnection.getConnectionManager().getConnectionProfile().getPingInterval());
                 }
             }
         }
@@ -406,9 +406,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     RemoteClusterConnection remoteClusterConnection1 = service.getRemoteClusterConnection("cluster_1");
-                    assertEquals(pingSchedule1, remoteClusterConnection1.getConnectionManager().getPingSchedule());
+                    assertEquals(pingSchedule1, remoteClusterConnection1.getConnectionManager().getConnectionProfile().getPingInterval());
                     RemoteClusterConnection remoteClusterConnection2 = service.getRemoteClusterConnection("cluster_2");
-                    assertEquals(pingSchedule2, remoteClusterConnection2.getConnectionManager().getPingSchedule());
+                    assertEquals(pingSchedule2, remoteClusterConnection2.getConnectionManager().getConnectionProfile().getPingInterval());
                 }
             }
         }

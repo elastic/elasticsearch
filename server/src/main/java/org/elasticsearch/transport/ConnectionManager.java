@@ -27,7 +27,6 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -58,7 +57,6 @@ public class ConnectionManager implements Closeable {
     private final KeyedLock<String> connectionLock = new KeyedLock<>();
     private final Transport transport;
     private final ThreadPool threadPool;
-    private final TimeValue pingSchedule = null;
     private final ConnectionProfile defaultProfile;
     private final Lifecycle lifecycle = new Lifecycle();
     private final AtomicBoolean closed = new AtomicBoolean(false);

@@ -243,16 +243,6 @@ public class Netty4Transport extends TcpTransport {
         return esChannel;
     }
 
-    // TODO: Delete
-    long successfulPingCount() {
-        return -1;
-    }
-
-    // TODO: Delete
-    long failedPingCount() {
-        return -1;
-    }
-
     @Override
     @SuppressForbidden(reason = "debug")
     protected void stopInternal() {

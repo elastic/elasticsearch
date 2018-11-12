@@ -130,7 +130,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     class Response extends ActionResponse {}
 
     class Action extends TransportMasterNodeAction<Request, Response> {
-        Action(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+        Action(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
+               ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService, threadPool,
                     new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(settings), Request::new);
         }
@@ -176,7 +177,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         new Action(Settings.EMPTY, "internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
+                    throws Exception {
                 if (masterOperationFailure) {
                     listener.onFailure(exception);
                 } else {

@@ -28,7 +28,6 @@ import static org.hamcrest.core.Is.is;
 public class FollowIndexIT extends ESCCRRestTestCase {
 
     public void testDowngradeRemoteClusterToBasic() throws Exception {
-        assumeFalse("windows is the worst", Constants.WINDOWS);
         if ("follow".equals(targetCluster) == false) {
             return;
         }
@@ -78,27 +77,30 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             assertThat(indexExists(index2), is(false));
 
             // parse the logs and ensure that the auto-coordinator skipped coordination on the leader cluster
-            assertBusy(() -> {
-                final List<String> lines = Files.readAllLines(PathUtils.get(System.getProperty("log")));
-                final Iterator<String> it = lines.iterator();
-                boolean warn = false;
-                while (it.hasNext()) {
-                    final String line = it.next();
-                    if (line.matches(".*\\[WARN\\s*\\]\\[o\\.e\\.x\\.c\\.a\\.AutoFollowCoordinator\\s*\\] \\[node-0\\] " +
-                        "failure occurred while fetching cluster state for auto follow pattern \\[test_pattern\\]")) {
-                        warn = true;
-                        break;
+            // (does not work on windows...)
+            if (Constants.WINDOWS == false) {
+                assertBusy(() -> {
+                    final List<String> lines = Files.readAllLines(PathUtils.get(System.getProperty("log")));
+                    final Iterator<String> it = lines.iterator();
+                    boolean warn = false;
+                    while (it.hasNext()) {
+                        final String line = it.next();
+                        if (line.matches(".*\\[WARN\\s*\\]\\[o\\.e\\.x\\.c\\.a\\.AutoFollowCoordinator\\s*\\] \\[node-0\\] " +
+                            "failure occurred while fetching cluster state for auto follow pattern \\[test_pattern\\]")) {
+                            warn = true;
+                            break;
+                        }
                     }
-                }
-                assertTrue(warn);
-                assertTrue(it.hasNext());
-                final String lineAfterWarn = it.next();
-                assertThat(
-                    lineAfterWarn,
-                    equalTo("org.elasticsearch.ElasticsearchStatusException: " +
-                        "can not fetch remote cluster state as the remote cluster [leader_cluster] is not licensed for [ccr]; " +
-                        "the license mode [BASIC] on cluster [leader_cluster] does not enable [ccr]"));
-            });
+                    assertTrue(warn);
+                    assertTrue(it.hasNext());
+                    final String lineAfterWarn = it.next();
+                    assertThat(
+                        lineAfterWarn,
+                        equalTo("org.elasticsearch.ElasticsearchStatusException: " +
+                            "can not fetch remote cluster state as the remote cluster [leader_cluster] is not licensed for [ccr]; " +
+                            "the license mode [BASIC] on cluster [leader_cluster] does not enable [ccr]"));
+                });
+            }
         });
 
         // Manually following index2 also does not work after the downgrade:

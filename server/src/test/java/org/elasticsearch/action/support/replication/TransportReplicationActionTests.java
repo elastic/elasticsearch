@@ -75,6 +75,8 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTcpTransport;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -101,6 +103,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singleton;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
@@ -113,6 +116,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.Is.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
@@ -184,12 +188,137 @@ public class TransportReplicationActionTests extends ESTestCase {
         threadPool = null;
     }
 
-    private <T> void assertListenerThrows(String msg, PlainActionFuture<T> listener, Class<?> klass) throws InterruptedException {
-        try {
-            listener.get();
-            fail(msg);
-        } catch (ExecutionException ex) {
-            assertThat(ex.getCause(), instanceOf(klass));
+    private <T> T assertListenerThrows(String msg, PlainActionFuture<?> listener, Class<T> klass) {
+        ExecutionException exception = expectThrows(ExecutionException.class, msg, listener::get);
+        assertThat(exception.getCause(), instanceOf(klass));
+        @SuppressWarnings("unchecked")
+        final T cause = (T) exception.getCause();
+        return cause;
+    }
+
+    public void testBlocksInReroutePhase() throws Exception {
+        final ClusterBlock nonRetryableBlock =
+            new ClusterBlock(1, "non retryable", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
+        final ClusterBlock retryableBlock =
+            new ClusterBlock(1, "retryable", true, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
+
+        final TestAction action = new TestAction(Settings.EMPTY, "internal:testActionWithBlocks",
+            transportService, clusterService, shardStateAction, threadPool) {
+            @Override
+            protected ClusterBlockLevel globalBlockLevel() {
+                return ClusterBlockLevel.WRITE;
+            }
+        };
+
+        setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary("index", true, 0));
+
+        {
+            setState(clusterService,
+                ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(nonRetryableBlock)));
+
+            Request request = new Request().index("index").setShardId(new ShardId("index", "_na_", 0));
+            PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+            ReplicationTask task = maybeTask();
+
+            TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
+            reroutePhase.run();
+
+            CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+            assertThat(capturedRequests, arrayWithSize(1));
+            assertThat(capturedRequests[0].action, equalTo("internal:testActionWithBlocks[p]"));
+            transport.handleRemoteError(capturedRequests[0].requestId, new ClusterBlockException(singleton(nonRetryableBlock)));
+            RemoteTransportException exception =
+                assertListenerThrows("primary action should fail operation", listener, RemoteTransportException.class);
+            assertThat(exception.unwrapCause(), instanceOf(ClusterBlockException.class));
+            assertThat(((ClusterBlockException) exception.unwrapCause()).blocks().iterator().next(), is(nonRetryableBlock));
+            assertPhase(task, "failed");
+        }
+        {
+            setState(clusterService,
+                ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(retryableBlock)));
+
+            Request requestWithTimeout = new Request().index("index").setShardId(new ShardId("index", "_na_", 0)).timeout("5ms");
+            PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+            ReplicationTask task = maybeTask();
+
+            TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, requestWithTimeout, listener);
+            reroutePhase.run();
+
+            assertFalse(listener.isDone());
+            assertPhase(task, "waiting_on_primary");
+            assertFalse(requestWithTimeout.isRetrySet.get());
+
+            CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+            assertThat(capturedRequests, arrayWithSize(1));
+            assertThat(capturedRequests[0].action, equalTo("internal:testActionWithBlocks[p]"));
+            transport.handleRemoteError(capturedRequests[0].requestId, new ClusterBlockException(singleton(retryableBlock)));
+
+            assertFalse("reroute phase is retrying", listener.isDone());
+            assertBusy(() -> {
+                assertPhase(task, "waiting_for_retry");
+                assertTrue(requestWithTimeout.isRetrySet.get());
+            });
+
+            assertBusy(() -> {
+                // Cluster state update triggers a retry in the reroute phase
+                setState(clusterService, ClusterState.builder(clusterService.state()));
+                CapturingTransport.CapturedRequest[] capturedRequestsAndClear = transport.getCapturedRequestsAndClear();
+                assertThat(capturedRequestsAndClear, arrayWithSize(1));
+                transport.handleRemoteError(capturedRequestsAndClear[0].requestId, new ClusterBlockException(singleton(retryableBlock)));
+                assertPhase(task, "failed");
+                assertTrue(listener.isDone());
+            });
+        }
+        {
+            setState(clusterService,
+                ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(retryableBlock)));
+
+            Request requestWithTimeout = new Request().index("index").setShardId(new ShardId("index", "_na_", 0)).timeout("5ms");
+            PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+            ReplicationTask task = maybeTask();
+
+            TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, requestWithTimeout, listener);
+            reroutePhase.run();
+
+            assertFalse(listener.isDone());
+            assertPhase(task, "waiting_on_primary");
+            assertFalse(requestWithTimeout.isRetrySet.get());
+
+            CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+            assertThat(capturedRequests, arrayWithSize(1));
+            assertThat(capturedRequests[0].action, equalTo("internal:testActionWithBlocks[p]"));
+            transport.handleRemoteError(capturedRequests[0].requestId, new ClusterBlockException(singleton(retryableBlock)));
+
+            assertFalse("reroute phase is retrying", listener.isDone());
+            assertBusy(() -> {
+                assertPhase(task, "waiting_for_retry");
+                assertTrue(requestWithTimeout.isRetrySet.get());
+            });
+
+            setState(clusterService,
+                ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(nonRetryableBlock)));
+
+            CapturingTransport.CapturedRequest[] capturedRequestsAndClear = transport.getCapturedRequestsAndClear();
+            assertThat(capturedRequestsAndClear, arrayWithSize(1));
+            transport.handleRemoteError(capturedRequestsAndClear[0].requestId, new ClusterBlockException(singleton(nonRetryableBlock)));
+            RemoteTransportException exception = assertListenerThrows("primary phase should fail operation when moving from a retryable " +
+                "block to a non-retryable one", listener, RemoteTransportException.class);
+            assertThat(exception.unwrapCause(), instanceOf(ClusterBlockException.class));
+            assertThat(((ClusterBlockException) exception.unwrapCause()).blocks().iterator().next(), is(nonRetryableBlock));
+            assertPhase(task, "failed");
+            assertIndexShardUninitialized();
+        }
+        {
+            Request requestWithTimeout = new Request().index("unknown").setShardId(new ShardId("unknown", "_na_", 0)).timeout("5ms");
+            PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+            ReplicationTask task = maybeTask();
+
+            TestAction testActionWithNoBlocks = new TestAction(Settings.EMPTY, "internal:testActionWithNoBlocks", transportService,
+                clusterService, shardStateAction, threadPool);
+            listener = new PlainActionFuture<>();
+            TestAction.ReroutePhase reroutePhase = testActionWithNoBlocks.new ReroutePhase(task, requestWithTimeout, listener);
+            reroutePhase.run();
+            assertListenerThrows("should fail with an IndexNotFoundException when no blocks", listener, IndexNotFoundException.class);
         }
     }
 
@@ -670,7 +799,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         when(shard.routingEntry()).thenReturn(routingEntry);
         when(shard.isRelocatedPrimary()).thenReturn(false);
         IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().shardRoutingTable(shardId);
-        Set<String> inSyncIds = randomBoolean() ? Collections.singleton(routingEntry.allocationId().getId()) :
+        Set<String> inSyncIds = randomBoolean() ? singleton(routingEntry.allocationId().getId()) :
             clusterService.state().metaData().index(index).inSyncAllocationIds(0);
         when(shard.getReplicationGroup()).thenReturn(
             new ReplicationGroup(shardRoutingTable,
@@ -1013,7 +1142,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final boolean retryable = randomBoolean();
         ClusterBlock randomBlock = new ClusterBlock(randomIntBetween(1, 16), "test", retryable, randomBoolean(),
             randomBoolean(), randomFrom(RestStatus.values()), EnumSet.of(randomFrom(ClusterBlockLevel.values())));
-        assertEquals(retryable, action.isRetryableClusterBlockException(new ClusterBlockException(Collections.singleton(randomBlock))));
+        assertEquals(retryable, action.isRetryableClusterBlockException(new ClusterBlockException(singleton(randomBlock))));
     }
 
     private void assertConcreteShardRequest(TransportRequest capturedRequest, Request expectedRequest, AllocationId expectedAllocationId) {

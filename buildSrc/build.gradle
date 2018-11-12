@@ -245,7 +245,7 @@ class VersionPropertiesLoader {
                       elasticsearch
       )
     }
-    String qualifier = systemProperties.getProperty("build.version_qualifier", "alpha1");
+    String qualifier = systemProperties.getProperty("build.version_qualifier", "");
     if (qualifier.isEmpty() == false) {
       if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
         throw new IllegalStateException("Invalid qualifier: " + qualifier)

@@ -101,7 +101,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                         return state;
                     } else {
                         state = IndexLifecycleRunner.moveClusterStateToNextStep(index, state, currentStep.getKey(),
-                            currentStep.getNextStepKey(), nowSupplier);
+                            currentStep.getNextStepKey(), nowSupplier, false);
                     }
                 } else {
                     // cluster state wait step so evaluate the
@@ -125,7 +125,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                             return state;
                         } else {
                             state = IndexLifecycleRunner.moveClusterStateToNextStep(index, state, currentStep.getKey(),
-                                currentStep.getNextStepKey(), nowSupplier);
+                                currentStep.getNextStepKey(), nowSupplier, false);
                         }
                     } else {
                         logger.trace("[{}] condition not met ({}) [{}], returning existing state",

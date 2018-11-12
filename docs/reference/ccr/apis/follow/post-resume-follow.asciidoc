@@ -6,6 +6,8 @@
 <titleabbrev>Resume Follower</titleabbrev>
 ++++
 
+beta[]
+
 Resumes a follower index.
 
 ==== Description

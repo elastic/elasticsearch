@@ -40,7 +40,7 @@ that {ccr} does not interfere with indexing on the leader index.
 Replication can be configured in two ways.
 
 . Replication can be configured manually using the
-  <<ccr-put-follow,create follower API>>.
+  {ref}/ccr-put-follow.html[create follower API].
 
 . Replication can be configured automatically using
   <<ccr-ov-auto-follow,auto-follow patterns>>.
@@ -76,7 +76,7 @@ cause of the failure is deemed to be a failure that can be recovered from (e.g.,
 a network failure), the follower shard task will enter into a retry
 loop. Otherwise, the follower shard task will be paused and requires user
 intervention before the shard follower task can be resumed using the
-<<ccr-post-resume-follow,resume follower API>>.
+{ref}/ccr-post-resume-follow.html[resume follower API].
 
 When operations are received by the follower shard task, they are placed in a
 write buffer. The follower shard task will manage this write buffer and submit
@@ -92,7 +92,7 @@ longer exceeds its configured limits.
 ==== Inspecting the progress of replication
 
 You can inspect the progress of replication at the shard level using the
-<<ccr-get-follow-stats,get follower stats API>>. This API will give you insight
+{ref}/ccr-get-follow-stats.html[get follower stats API]. This API will give you insight
 into the read and writes managed by the follower shard task as well as report
 read exceptions that can be retried, and fatal exceptions that require user
 intervention.
@@ -100,16 +100,16 @@ intervention.
 [float]
 ==== Pausing and resuming replication
 
-You can pause replication using the <<ccr-post-pause-follow,pause follower
-API>>, and then later resume replication using the
-<<ccr-post-resume-follow,resume follower API>>; using these APIs in tandem
+You can pause replication using the {ref}/ccr-post-pause-follow.html[pause follower API], 
+and then later resume replication using the
+{ref}/ccr-post-resume-follow.html[resume follower API]; using these APIs in tandem
 permits you to adjust the read and write parameters on the follower shard task
 if your initial configuration is not suitable for your use-case.
 
 [float]
 ==== Terminating replication
 
-You can terminate replication using the <<ccr-post-unfollow,unfollow API>>.
+You can terminate replication using the {ref}/ccr-post-unfollow.html[unfollow API].
 This will convert a follower index to a regular (non-follower) index.
 
 [[ccr-ov-soft-deletes]]
@@ -133,7 +133,7 @@ indices.
 
 NOTE: This means that {ccr} can not be used on existing indices. If you have
 existing data that you want to replicate from another cluster, you must
-<<docs-reindex,reindex>> your data into a new index with soft-deletes enabled.
+{ref}/docs-reindex.html[reindex] your data into a new index with soft-deletes enabled.
 
 [float]
 ==== Soft-delete settings
@@ -163,7 +163,7 @@ created.
 ==== Managing auto-follow patterns
 
 You can add a new auto-follow pattern configuration using the
-<<ccr-put-auto-follow-pattern,create auto-follow pattern API>>.  When you create
+{ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API].  When you create
 a new auto-follow pattern configuration, you are configuring a collection of
 patterns against a single remote cluster. Any time a new index with a name
 matching one of the patterns in the collection is created in the remote cluster,
@@ -171,10 +171,10 @@ a follower index will be configured in the local cluster to replicate with the
 new index as its leader index.
 
 You can inspect all configured auto-follow pattern collections using the
-<<ccr-get-auto-follow-pattern,get auto-follow pattern API>>, and delete a
+{ref}/ccr-get-auto-follow-pattern.html[get auto-follow pattern API], and delete a
 configured auto-follow pattern collection using the
-<<ccr-delete-auto-follow-pattern,delete auto-follow pattern API>>.
+{ref}ccr-delete-auto-follow-pattern.html[delete auto-follow pattern API].
 
 Since auto-follow functionality is handled automatically in the background on
 your behalf, error reporting is done through logs on the elected master node,
-and through the <<ccr-get-stats,{ccr} stats API>>.
+and through the {ref}/ccr-get-stats.html[{ccr} stats API].

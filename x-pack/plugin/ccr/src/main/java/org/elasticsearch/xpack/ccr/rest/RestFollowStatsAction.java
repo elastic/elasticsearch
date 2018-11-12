@@ -21,13 +21,12 @@ public class RestFollowStatsAction extends BaseRestHandler {
 
     public RestFollowStatsAction(final Settings settings, final RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_ccr/stats", this);
         controller.registerHandler(RestRequest.Method.GET, "/{index}/_ccr/stats", this);
     }
 
     @Override
     public String getName() {
-        return "ccr_stats";
+        return "ccr_follower_stats";
     }
 
     @Override

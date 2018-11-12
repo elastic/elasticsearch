@@ -49,22 +49,24 @@ import java.util.stream.Collectors;
  */
 public abstract class AbstractScopedSettings extends AbstractComponent {
     public static final String ARCHIVED_SETTINGS_PREFIX = "archived.";
-    private Settings lastSettingsApplied = Settings.EMPTY;
+    private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
+    private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
+    private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
+
+    private final Settings settings;
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
     private final Map<String, Setting<?>> keySettings;
     private final Map<Setting<?>, SettingUpgrader<?>> settingUpgraders;
     private final Setting.Property scope;
-    private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
-    private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
-    private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
+    private Settings lastSettingsApplied;
 
     protected AbstractScopedSettings(
             final Settings settings,
             final Set<Setting<?>> settingsSet,
             final Set<SettingUpgrader<?>> settingUpgraders,
             final Setting.Property scope) {
-        super(settings);
+        this.settings = settings;
         this.lastSettingsApplied = Settings.EMPTY;
 
         this.settingUpgraders =
@@ -104,7 +106,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other) {
-        super(nodeSettings);
+        this.settings = nodeSettings;
         this.lastSettingsApplied = scopeSettings;
         this.scope = other.scope;
         complexMatchers = other.complexMatchers;
@@ -301,13 +303,13 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * consumer in order to be processed correctly. This consumer will get a namespace to value map instead of each individual namespace
      * and value as in {@link #addAffixUpdateConsumer(Setting.AffixSetting, BiConsumer, BiConsumer)}
      */
-    public synchronized <T> void addAffixMapUpdateConsumer(Setting.AffixSetting<T> setting,  Consumer<Map<String, T>> consumer,
-                                                        BiConsumer<String, T> validator, boolean omitDefaults) {
+    public synchronized <T> void addAffixMapUpdateConsumer(Setting.AffixSetting<T> setting, Consumer<Map<String, T>> consumer,
+                                                           BiConsumer<String, T> validator) {
         final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
         if (setting != registeredSetting) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }
-        addSettingsUpdater(setting.newAffixMapUpdater(consumer, logger, validator, omitDefaults));
+        addSettingsUpdater(setting.newAffixMapUpdater(consumer, logger, validator));
     }
 
     synchronized void addSettingsUpdater(SettingUpdater<?> updater) {

@@ -114,8 +114,8 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Respon
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ActionFilters actionFilters) {
-            super(settings, NAME, transportService, actionFilters, Request::new);
+        public TransportAction(TransportService transportService, ActionFilters actionFilters) {
+            super(NAME, transportService, actionFilters, Request::new);
         }
 
         @Override

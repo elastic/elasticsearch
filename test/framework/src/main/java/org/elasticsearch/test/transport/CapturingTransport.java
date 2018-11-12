@@ -47,6 +47,7 @@ import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportStats;
 
@@ -163,8 +164,10 @@ public class CapturingTransport implements Transport {
     /**
      * simulate a response for the given requestId
      */
-    public void handleResponse(final long requestId, final TransportResponse response) {
-        responseHandlers.onResponseReceived(requestId, listener).handleResponse(response);
+    public <Response extends TransportResponse> void handleResponse(final long requestId, final Response response) {
+        TransportResponseHandler<Response> handler =
+            (TransportResponseHandler<Response>) responseHandlers.onResponseReceived(requestId, listener);
+        handler.handleResponse(response);
     }
 
     /**

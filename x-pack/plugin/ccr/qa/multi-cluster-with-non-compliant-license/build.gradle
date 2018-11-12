@@ -5,6 +5,7 @@ apply plugin: 'elasticsearch.standalone-test'
 dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
+    testCompile project(':x-pack:plugin:ccr:qa:')
 }
 
 task leaderClusterTest(type: RestIntegTestTask) {
@@ -17,27 +18,10 @@ leaderClusterTestCluster {
 }
 
 leaderClusterTestRunner {
-    systemProperty 'tests.is_leader_cluster', 'true'
-}
-
-task writeJavaPolicy {
-    doLast {
-        final File tmp = file("${buildDir}/tmp")
-        if (tmp.exists() == false && tmp.mkdirs() == false) {
-            throw new GradleException("failed to create temporary directory [${tmp}]")
-        }
-        final File javaPolicy = file("${tmp}/java.policy")
-        javaPolicy.write(
-                [
-                        "grant {",
-                        "  permission java.io.FilePermission \"${-> followClusterTest.getNodes().get(0).homeDir}/logs/${-> followClusterTest.getNodes().get(0).clusterName}.log\", \"read\";",
-                        "};"
-                ].join("\n"))
-    }
+    systemProperty 'tests.target_cluster', 'leader'
 }
 
 task followClusterTest(type: RestIntegTestTask) {}
-followClusterTest.dependsOn writeJavaPolicy
 
 followClusterTestCluster {
     dependsOn leaderClusterTestRunner
@@ -48,10 +32,8 @@ followClusterTestCluster {
 }
 
 followClusterTestRunner {
-    systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
-    systemProperty 'tests.is_leader_cluster', 'false'
+    systemProperty 'tests.target_cluster', 'follow'
     systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-    systemProperty 'log', "${-> followClusterTest.getNodes().get(0).homeDir}/logs/${-> followClusterTest.getNodes().get(0).clusterName}.log"
     finalizedBy 'leaderClusterTestCluster#stop'
 }
 

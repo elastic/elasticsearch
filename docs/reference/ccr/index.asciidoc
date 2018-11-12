@@ -1,0 +1,17 @@
+[role="xpack"]
+[testenv="platinum"]
+[[xpack-ccr]]
+= Cross-cluster replication
+
+[partintro]
+--
+
+beta[]
+
+* <<ccr-overview, Overview>>
+* <<ccr-getting-started,Getting Started>>
+
+--
+
+include::overview.asciidoc[]
+include::getting-started.asciidoc[]

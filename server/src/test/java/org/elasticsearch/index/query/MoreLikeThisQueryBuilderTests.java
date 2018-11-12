@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -256,7 +255,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         for (String fieldName : fieldNames) {
             index.addField(fieldName, text, new WhitespaceAnalyzer());
         }
-        return MultiFields.getFields(index.createSearcher().getIndexReader());
+        return index.createSearcher().getIndexReader().getTermVectors(0);
     }
 
     @Override

@@ -462,7 +462,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(settings, clusterService,
             transportService, null, threadPool);
-        final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(settings, threadPool,
+        final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(threadPool,
             transportService, null, clusterService);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);

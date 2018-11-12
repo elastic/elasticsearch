@@ -395,6 +395,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34762")
     public void testRandomizedDateHisto() throws Exception {
         String rollupIndex = randomAlphaOfLengthBetween(5, 10);
 

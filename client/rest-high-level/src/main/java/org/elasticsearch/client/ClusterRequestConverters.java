@@ -31,6 +31,8 @@ import java.io.IOException;
 
 final class ClusterRequestConverters {
 
+    private ClusterRequestConverters() {}
+
     static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
         Request request = new Request(HttpPut.METHOD_NAME, "/_cluster/settings");
 

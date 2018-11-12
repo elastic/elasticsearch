@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptWeaver;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 /**
  * Negation function (@{code -x}).
  */
-public class Neg extends UnaryScalarFunction implements ScriptWeaver {
+public class Neg extends UnaryScalarFunction {
 
     public Neg(Location location, Expression field) {
         super(location, field);
@@ -38,7 +38,7 @@ public class Neg extends UnaryScalarFunction implements ScriptWeaver {
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBeNumeric(field());
+        return Expressions.typeMustBeNumeric(field(), functionName(), ParamOrdinal.DEFAULT);
     }
 
     @Override
@@ -57,12 +57,12 @@ public class Neg extends UnaryScalarFunction implements ScriptWeaver {
     }
 
     @Override
-    public String processScript(String template) {
-        return super.processScript("-" + template);
+    public String processScript(String script) {
+        return Scripts.formatTemplate(Scripts.SQL_SCRIPTS + ".neg(" + script + ")");
     }
 
     @Override
-    protected Pipe makePipe() {
-        return new UnaryPipe(location(), this, Expressions.pipe(field()), new UnaryArithmeticProcessor(UnaryArithmeticOperation.NEGATE));
+    protected Processor makeProcessor() {
+        return new UnaryArithmeticProcessor(UnaryArithmeticOperation.NEGATE);
     }
 }

@@ -17,9 +17,7 @@
  * under the License.
  */
 
-
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import org.elasticsearch.gradle.BuildPlugin
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.optional-base'
@@ -61,8 +59,7 @@ if (!isEclipse && !isIdea) {
 
   forbiddenApisJava9 {
     if (project.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
-      targetCompatibility = JavaVersion.VERSION_1_9
-      javaHome = project.java9Home
+      targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
     }
   }
 
@@ -106,7 +103,7 @@ dependencies {
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
-  compile 'joda-time:joda-time:2.10'
+  compile "joda-time:joda-time:${versions.joda}"
 
   // percentiles aggregation
   compile 'com.tdunning:t-digest:3.2'
@@ -323,7 +320,6 @@ if (isEclipse == false || project.path == ":server-tests") {
                  group: JavaBasePlugin.VERIFICATION_GROUP,
                  description: 'Multi-node tests',
                  dependsOn: test.dependsOn) {
-    configure(BuildPlugin.commonTestConfig(project))
     classpath = project.test.classpath
     testClassesDirs = project.test.testClassesDirs
     include '**/*IT.class'

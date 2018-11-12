@@ -49,15 +49,20 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
@@ -65,6 +70,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -72,6 +78,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -81,6 +88,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -305,6 +313,27 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         return new ParsedDocument(versionField, seqID, id, "test", routing, Arrays.asList(document), source, XContentType.JSON,
                 mappingUpdate);
+    }
+
+    public static CheckedFunction<String, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {
+        final MapperService mapperService = createMapperService("type");
+        final String nestedMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("nested_field").field("type", "nested").endObject().endObject()
+            .endObject().endObject());
+        final DocumentMapper nestedMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(nestedMapping));
+        return docId -> {
+            final XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value");
+            final int nestedValues = between(0, 3);
+            if (nestedValues > 0) {
+                XContentBuilder nestedField = source.startObject("nested_field");
+                for (int i = 0; i < nestedValues; i++) {
+                    nestedField.field("field-" + i, "value-" + i);
+                }
+                source.endObject();
+            }
+            source.endObject();
+            return nestedMapper.parse(SourceToParse.source("test", "type", docId, BytesReference.bytes(source), XContentType.JSON));
+        };
     }
 
     /**
@@ -545,7 +574,15 @@ public abstract class EngineTestCase extends ESTestCase {
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
                                ReferenceManager.RefreshListener refreshListener, Sort indexSort, LongSupplier globalCheckpointSupplier) {
-        IndexWriterConfig iwc = newIndexWriterConfig();
+        return config(indexSettings, store, translogPath, mergePolicy, refreshListener, null, indexSort, globalCheckpointSupplier,
+            new NoneCircuitBreakerService());
+    }
+
+    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
+                               ReferenceManager.RefreshListener externalRefreshListener,
+                               ReferenceManager.RefreshListener internalRefreshListener,
+                               Sort indexSort, LongSupplier globalCheckpointSupplier, CircuitBreakerService breakerService) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         Engine.EventListener listener = new Engine.EventListener() {
             @Override
@@ -553,13 +590,15 @@ public abstract class EngineTestCase extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        final List<ReferenceManager.RefreshListener> refreshListenerList =
-                refreshListener == null ? emptyList() : Collections.singletonList(refreshListener);
+        final List<ReferenceManager.RefreshListener> extRefreshListenerList =
+            externalRefreshListener == null ? emptyList() : Collections.singletonList(externalRefreshListener);
+        final List<ReferenceManager.RefreshListener> intRefreshListenerList =
+            internalRefreshListener == null ? emptyList() : Collections.singletonList(internalRefreshListener);
         EngineConfig config = new EngineConfig(shardId, allocationId.getId(), threadPool, indexSettings, null, store,
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), refreshListenerList, Collections.emptyList(), indexSort,
-                new NoneCircuitBreakerService(),
+                TimeValue.timeValueMinutes(5), extRefreshListenerList, intRefreshListenerList, indexSort,
+                breakerService,
                 globalCheckpointSupplier == null ?
                     new ReplicationTracker(shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED, update -> {}) :
                     globalCheckpointSupplier, primaryTerm::get, tombstoneDocSupplier());

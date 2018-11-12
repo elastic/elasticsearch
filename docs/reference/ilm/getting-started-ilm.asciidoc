@@ -178,7 +178,7 @@ and "rollover" action. Rollover will continue to be called by {ILM} until its
 conditions are met and it rolls over the index. Afterwards, the original index
 will stay in the hot phase until 90 more days pass and it is deleted in the delete
 phase.
-As time goes on, new will be created and deleted. With `datastream-00002` being created
+As time goes on, new indices will be created and deleted. With `datastream-00002` being created
 after the first day, and `datastream-00003` created after that. We will be able to search
 across all of our managed indices using the "logs" alias, and we will be able to
 write to our to-be-rolled-over write indices using that same alias.

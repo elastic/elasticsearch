@@ -229,7 +229,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         }
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             casSeqNp = in.readZLong();
             casPrimaryTerm = in.readVLong();
         } else {
@@ -249,7 +249,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         }
         out.writeLong(version);
         out.writeByte(versionType.getValue());
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeZLong(casSeqNp);
             out.writeVLong(casPrimaryTerm);
         } else if (casSeqNp != SequenceNumbers.UNASSIGNED_SEQ_NO || casPrimaryTerm != 0) {

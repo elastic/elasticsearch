@@ -3745,10 +3745,12 @@ public class InternalEngineTests extends EngineTestCase {
                 final ParsedDocument doc = EngineTestCase.createParsedDoc(id, null);
                 if (isIndexing) {
                     operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, primaryTerm.get(),
-                        i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), -1, true));
+                        i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), -1, true,
+                        UNASSIGNED_SEQ_NO, 0L));
                 } else {
                     operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), seqNo, primaryTerm.get(),
-                        i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis()));
+                        i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(),
+                        UNASSIGNED_SEQ_NO, 0L));
                 }
             }
             seqNo++;
@@ -3774,7 +3776,7 @@ public class InternalEngineTests extends EngineTestCase {
                         assertThat(msg, docIdAndSeqNo.isLive, equalTo(latestOps.get(id).operationType() == Engine.Operation.TYPE.INDEX));
                     }
                     assertThat(VersionsAndSeqNoResolver.loadDocIdAndVersion(
-                        searcher.reader(), newUid("any-" + between(1, 10))), nullValue());
+                        searcher.reader(), newUid("any-" + between(1, 10)), randomBoolean()), nullValue());
                     Map<String, Long> liveOps = latestOps.entrySet().stream()
                         .filter(e -> e.getValue().operationType() == Engine.Operation.TYPE.INDEX)
                         .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().seqNo()));
@@ -5281,10 +5283,12 @@ public class InternalEngineTests extends EngineTestCase {
             final ParsedDocument doc = EngineTestCase.createParsedDoc(Integer.toString(between(1, 100)), null);
             if (randomBoolean()) {
                 operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, primaryTerm.get(),
-                    i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), -1, true));
+                    i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), -1, true,
+                    UNASSIGNED_SEQ_NO, 0L));
             } else if (randomBoolean()) {
                 operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), seqNo, primaryTerm.get(),
-                    i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis()));
+                    i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(),
+                    UNASSIGNED_SEQ_NO, 0L));
             } else {
                 operations.add(new Engine.NoOp(seqNo, primaryTerm.get(), Engine.Operation.Origin.REPLICA,
                     threadPool.relativeTimeInMillis(), "test-" + i));

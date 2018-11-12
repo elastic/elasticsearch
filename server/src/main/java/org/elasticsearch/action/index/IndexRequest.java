@@ -577,7 +577,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             contentType = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             casSeqNo = in.readZLong();
             casPrimaryTerm = in.readVLong();
         } else {
@@ -615,7 +615,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeZLong(casSeqNo);
             out.writeVLong(casPrimaryTerm);
         } else if (casSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO || casPrimaryTerm != 0) {

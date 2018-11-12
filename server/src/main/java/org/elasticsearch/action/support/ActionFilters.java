@@ -30,9 +30,6 @@ import static java.util.Collections.emptySet;
  */
 public class ActionFilters {
 
-    // this could be used in many more places - TODO use this where appropriate
-    public static final ActionFilters EMPTY_FILTERS = new ActionFilters(emptySet());
-
     private final ActionFilter[] filters;
 
     public ActionFilters(Set<ActionFilter> actionFilters) {

@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.cluster.bootstrap;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -57,7 +58,6 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.action.support.ActionFilters.EMPTY_FILTERS;
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.discovery.PeerFinder.REQUEST_PEERS_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
@@ -69,6 +69,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
+
+    private static final ActionFilters EMPTY_FILTERS = new ActionFilters(emptySet());
 
     private static ThreadPool threadPool;
     private DiscoveryNode localNode;
@@ -118,7 +120,6 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         verifyZeroInteractions(discovery);
 
         new TransportGetDiscoveredNodesAction(Settings.EMPTY, EMPTY_FILTERS, transportService, discovery); // registers action
-
         transportService.start();
         transportService.acceptIncomingRequests();
 

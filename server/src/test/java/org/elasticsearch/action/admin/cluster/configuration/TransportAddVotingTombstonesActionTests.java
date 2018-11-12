@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.configuration;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
@@ -59,7 +60,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingTombstonesAction.MAXIMUM_VOTING_TOMBSTONES_SETTING;
-import static org.elasticsearch.action.support.ActionFilters.EMPTY_FILTERS;
 import static org.elasticsearch.cluster.ClusterState.builder;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -105,7 +105,7 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
         transportService = transport.createTransportService(Settings.EMPTY, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
 
-        new TransportAddVotingTombstonesAction(transportService, clusterService, threadPool, EMPTY_FILTERS,
+        new TransportAddVotingTombstonesAction(transportService, clusterService, threadPool, new ActionFilters(emptySet()),
             new IndexNameExpressionResolver()); // registers action
 
         transportService.start();

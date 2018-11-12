@@ -180,12 +180,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
         try {
             updateMetaData(event);
-        } catch (WriteStateException e) {
-            if (e.isDirty()) {
-                logger.error("Fatal exception occurred when storing new meta data. Storage is dirty", e);
-            } else {
-                logger.warn("Exception occurred when storing new meta data.", e);
-            }
         } catch (Exception e) {
             logger.warn("Exception occurred when storing new meta data", e);
         }

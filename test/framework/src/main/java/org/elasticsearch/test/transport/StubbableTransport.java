@@ -211,11 +211,6 @@ public final class StubbableTransport implements Transport {
         }
 
         @Override
-        public boolean sendPing() {
-            return connection.sendPing();
-        }
-
-        @Override
         public void addCloseListener(ActionListener<Void> listener) {
             connection.addCloseListener(listener);
         }

@@ -326,11 +326,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         }
 
         @Override
-        public boolean sendPing() {
-            return proxyConnection.sendPing();
-        }
-
-        @Override
         public void close() {
             assert false: "proxy connections must not be closed";
         }

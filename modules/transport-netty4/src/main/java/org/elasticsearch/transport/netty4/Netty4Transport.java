@@ -243,12 +243,14 @@ public class Netty4Transport extends TcpTransport {
         return esChannel;
     }
 
+    // TODO: Delete
     long successfulPingCount() {
-        return successfulPings.count();
+        return -1;
     }
 
+    // TODO: Delete
     long failedPingCount() {
-        return failedPings.count();
+        return -1;
     }
 
     @Override

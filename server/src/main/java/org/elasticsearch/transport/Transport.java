@@ -115,10 +115,6 @@ public interface Transport extends LifecycleComponent {
         void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
             IOException, TransportException;
 
-        default boolean sendPing() {
-            return false;
-        }
-
         /**
          * The listener's {@link ActionListener#onResponse(Object)} method will be called when this
          * connection is closed. No implementations currently throw an exception during close, so

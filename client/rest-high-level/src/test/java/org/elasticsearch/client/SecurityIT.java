@@ -80,7 +80,8 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         final DeleteUserRequest deleteUserRequest =
             new DeleteUserRequest(putUserRequest.getUser().getUsername(), putUserRequest.getRefreshPolicy());
 
-        final Optional<DeleteUserResponse> deleteUserResponse = execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
+        final Optional<DeleteUserResponse> deleteUserResponse =
+            execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
         assertThat(deleteUserResponse.get().isAcknowledged(), is(true));
 
         // authentication no longer works
@@ -89,7 +90,8 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(e.getMessage(), containsString("unable to authenticate user [" + putUserRequest.getUser().getUsername() + "]"));
 
         // delete non-existing user
-        final Optional<DeleteUserResponse> deleteUserResponse2 = execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
+        final Optional<DeleteUserResponse> deleteUserResponse2 =
+            execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
         assertThat(deleteUserResponse2.isPresent(), is(false));
     }
 

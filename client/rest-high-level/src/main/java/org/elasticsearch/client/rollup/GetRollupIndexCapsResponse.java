@@ -26,11 +26,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetRollupCapsResponse {
+public class GetRollupIndexCapsResponse {
 
     private final Map<String, RollableIndexCaps> jobs;
 
-    public GetRollupCapsResponse(final Map<String, RollableIndexCaps> jobs) {
+    public GetRollupIndexCapsResponse(final Map<String, RollableIndexCaps> jobs) {
         this.jobs = Collections.unmodifiableMap(Objects.requireNonNull(jobs));
     }
 
@@ -38,7 +38,7 @@ public class GetRollupCapsResponse {
         return jobs;
     }
 
-    public static GetRollupCapsResponse fromXContent(final XContentParser parser) throws IOException {
+    public static GetRollupIndexCapsResponse fromXContent(final XContentParser parser) throws IOException {
         Map<String, RollableIndexCaps> jobs = new HashMap<>();
         XContentParser.Token token = parser.nextToken();
         if (token.equals(XContentParser.Token.START_OBJECT)) {
@@ -51,7 +51,7 @@ public class GetRollupCapsResponse {
                 }
             }
         }
-        return new GetRollupCapsResponse(jobs);
+        return new GetRollupIndexCapsResponse(jobs);
     }
 
     @Override
@@ -67,7 +67,7 @@ public class GetRollupCapsResponse {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        GetRollupCapsResponse other = (GetRollupCapsResponse) obj;
+        GetRollupIndexCapsResponse other = (GetRollupIndexCapsResponse) obj;
         return Objects.equals(jobs, other.jobs);
     }
 }

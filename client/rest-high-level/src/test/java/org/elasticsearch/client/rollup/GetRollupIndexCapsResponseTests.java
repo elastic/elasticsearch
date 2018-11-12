@@ -24,15 +24,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 
-public class GetRollupCapsResponseTests extends RollupCapsResponseTestCase<GetRollupCapsResponse> {
+public class GetRollupIndexCapsResponseTests extends RollupCapsResponseTestCase<GetRollupIndexCapsResponse> {
 
     @Override
-    protected GetRollupCapsResponse createTestInstance() {
-        return new GetRollupCapsResponse(indices);
+    protected GetRollupIndexCapsResponse createTestInstance() {
+        return new GetRollupIndexCapsResponse(indices);
     }
 
     @Override
-    protected void toXContent(GetRollupCapsResponse response, XContentBuilder builder) throws IOException {
+    protected void toXContent(GetRollupIndexCapsResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
         for (Map.Entry<String, RollableIndexCaps> entry : response.getJobs().entrySet()) {
             entry.getValue().toXContent(builder, null);
@@ -41,7 +41,7 @@ public class GetRollupCapsResponseTests extends RollupCapsResponseTestCase<GetRo
     }
 
     @Override
-    protected GetRollupCapsResponse fromXContent(XContentParser parser) throws IOException {
-        return GetRollupCapsResponse.fromXContent(parser);
+    protected GetRollupIndexCapsResponse fromXContent(XContentParser parser) throws IOException {
+        return GetRollupIndexCapsResponse.fromXContent(parser);
     }
 }

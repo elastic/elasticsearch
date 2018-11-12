@@ -80,7 +80,7 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
     protected void masterOperation(AddVotingTombstonesRequest request, ClusterState state,
                                    ActionListener<AddVotingTombstonesResponse> listener) throws Exception {
 
-        clusterService.getMasterService().submitStateUpdateTask("add-voting-tombstones", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("add-voting-tombstones", new ClusterStateUpdateTask() {
 
             final ClusterStateObserver observer
                 = new ClusterStateObserver(clusterService, request.getTimeout(), logger, threadPool.getThreadContext());
@@ -100,10 +100,6 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
                 }
 
                 resolvedNodes.removeIf(n -> currentState.getVotingTombstones().contains(n));
-                if (resolvedNodes.isEmpty()) {
-                    throw new IllegalArgumentException("add voting tombstones request for " + Arrays.asList(request.getNodeDescriptions())
-                        + " matched no master-eligible nodes that do not already have tombstones");
-                }
 
                 final int oldTombstoneCount = currentState.getVotingTombstones().size();
                 final int newTombstoneCount = resolvedNodes.size();
@@ -148,7 +144,7 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
                 final Listener clusterStateListener = new Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        listener.onResponse(new AddVotingTombstonesResponse(state.getVotingTombstones()));
+                        listener.onResponse(new AddVotingTombstonesResponse());
                     }
 
                     @Override

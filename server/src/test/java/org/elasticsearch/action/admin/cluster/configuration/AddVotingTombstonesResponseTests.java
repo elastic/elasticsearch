@@ -18,26 +18,14 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class AddVotingTombstonesResponseTests extends ESTestCase {
     public void testSerialization() throws IOException {
-        int tombstoneCount = between(0, 5);
-        Set<DiscoveryNode> tombstones = new HashSet<>();
-        while (tombstones.size() < tombstoneCount) {
-            tombstones.add(new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT));
-        }
-        final AddVotingTombstonesResponse originalRequest = new AddVotingTombstonesResponse(tombstones);
-        final AddVotingTombstonesResponse deserialized
-            = copyWriteable(originalRequest, writableRegistry(), AddVotingTombstonesResponse::new);
-        assertThat(deserialized.getCurrentTombstones(), equalTo(originalRequest.getCurrentTombstones()));
+        final AddVotingTombstonesResponse originalRequest = new AddVotingTombstonesResponse();
+        copyWriteable(originalRequest, writableRegistry(), AddVotingTombstonesResponse::new);
+        // there are no fields so we're just checking that this doesn't throw anything
     }
 }

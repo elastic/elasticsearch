@@ -123,92 +123,82 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
 
     public void testWithdrawsVoteFromANode() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<AddVotingTombstonesResponse> responseHolder = new SetOnce<>();
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForTombstones());
         transportService.sendRequest(localNode, AddVotingTombstonesAction.NAME,
             new AddVotingTombstonesRequest(new String[]{"other1"}),
             expectSuccess(r -> {
-                responseHolder.set(r);
+                assertNotNull(r);
                 countDownLatch.countDown();
             })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(responseHolder.get().getCurrentTombstones(), contains(otherNode1));
         assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), contains(otherNode1));
     }
 
     public void testWithdrawsVotesFromMultipleNodes() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<AddVotingTombstonesResponse> responseHolder = new SetOnce<>();
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForTombstones());
         transportService.sendRequest(localNode, AddVotingTombstonesAction.NAME,
             new AddVotingTombstonesRequest(new String[]{"other1", "other2"}),
             expectSuccess(r -> {
-                responseHolder.set(r);
+                assertNotNull(r);
                 countDownLatch.countDown();
             })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(responseHolder.get().getCurrentTombstones(), containsInAnyOrder(otherNode1, otherNode2));
         assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), containsInAnyOrder(otherNode1, otherNode2));
     }
 
     public void testWithdrawsVotesFromNodesMatchingWildcard() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<AddVotingTombstonesResponse> responseHolder = new SetOnce<>();
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForTombstones());
         transportService.sendRequest(localNode, AddVotingTombstonesAction.NAME,
             new AddVotingTombstonesRequest(new String[]{"other*"}),
             expectSuccess(r -> {
-                responseHolder.set(r);
+                assertNotNull(r);
                 countDownLatch.countDown();
             })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(responseHolder.get().getCurrentTombstones(), containsInAnyOrder(otherNode1, otherNode2));
         assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), containsInAnyOrder(otherNode1, otherNode2));
     }
 
     public void testWithdrawsVotesFromAllMasterEligibleNodes() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<AddVotingTombstonesResponse> responseHolder = new SetOnce<>();
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForTombstones());
         transportService.sendRequest(localNode, AddVotingTombstonesAction.NAME,
             new AddVotingTombstonesRequest(new String[]{"_all"}),
             expectSuccess(r -> {
-                responseHolder.set(r);
+                assertNotNull(r);
                 countDownLatch.countDown();
             })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(responseHolder.get().getCurrentTombstones(), containsInAnyOrder(localNode, otherNode1, otherNode2));
         assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(),
             containsInAnyOrder(localNode, otherNode1, otherNode2));
     }
 
     public void testWithdrawsVoteFromLocalNode() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<AddVotingTombstonesResponse> responseHolder = new SetOnce<>();
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForTombstones());
         transportService.sendRequest(localNode, AddVotingTombstonesAction.NAME,
             new AddVotingTombstonesRequest(new String[]{"_local"}),
             expectSuccess(r -> {
-                responseHolder.set(r);
+                assertNotNull(r);
                 countDownLatch.countDown();
             })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(responseHolder.get().getCurrentTombstones(), contains(localNode));
         assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), contains(localNode));
     }
 
@@ -218,19 +208,17 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
             .lastAcceptedConfiguration(VotingConfiguration.of(localNode, otherNode2)));
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<AddVotingTombstonesResponse> responseHolder = new SetOnce<>();
 
         // no observer to reconfigure
         transportService.sendRequest(localNode, AddVotingTombstonesAction.NAME,
             new AddVotingTombstonesRequest(new String[]{"other1"}, TimeValue.ZERO),
             expectSuccess(r -> {
-                responseHolder.set(r);
+                assertNotNull(r);
                 countDownLatch.countDown();
             })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(responseHolder.get().getCurrentTombstones(), contains(otherNode1));
         assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), contains(otherNode1));
     }
 
@@ -271,27 +259,23 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
             equalTo("add voting tombstones request for [_all, master:false] matched no master-eligible nodes"));
     }
 
-    public void testReturnsErrorIfNoTombstonesAdded() throws InterruptedException {
+    public void testSucceedsEvenIfAllTombstonesAlreadyAdded() throws InterruptedException {
         final ClusterState.Builder builder = builder(clusterService.state());
         builder.addVotingTombstone(otherNode1);
         setState(clusterService, builder);
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
 
         transportService.sendRequest(localNode, AddVotingTombstonesAction.NAME,
             new AddVotingTombstonesRequest(new String[]{"other1"}),
-            expectError(e -> {
-                exceptionHolder.set(e);
+            expectSuccess(r -> {
+                assertNotNull(r);
                 countDownLatch.countDown();
             })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        final Throwable rootCause = exceptionHolder.get().getRootCause();
-        assertThat(rootCause, instanceOf(IllegalArgumentException.class));
-        assertThat(rootCause.getMessage(),
-            equalTo("add voting tombstones request for [other1] matched no master-eligible nodes that do not already have tombstones"));
+        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), contains(otherNode1));
     }
 
     public void testReturnsErrorIfMaximumTombstoneCountExceeded() throws InterruptedException {

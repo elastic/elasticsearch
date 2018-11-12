@@ -31,22 +31,12 @@ import java.util.Set;
  * nodes have been removed from the voting configuration.
  */
 public class AddVotingTombstonesResponse extends ActionResponse {
-    private final Set<DiscoveryNode> currentTombstones;
 
-    public AddVotingTombstonesResponse(Set<DiscoveryNode> currentTombstones) {
-        this.currentTombstones = currentTombstones;
+    public AddVotingTombstonesResponse() {
     }
 
     public AddVotingTombstonesResponse(StreamInput in) throws IOException {
         super(in);
-        currentTombstones = in.readSet(DiscoveryNode::new);
-    }
-
-    /**
-     * @return the current set of tombstones at the point in time where all the requested nodes were removed from the voting configuration.
-     */
-    public Set<DiscoveryNode> getCurrentTombstones() {
-        return currentTombstones;
     }
 
     @Override
@@ -57,13 +47,5 @@ public class AddVotingTombstonesResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeCollection(currentTombstones, (o, v) -> v.writeTo(o));
-    }
-
-    @Override
-    public String toString() {
-        return "AddVotingTombstonesResponse{" +
-            "currentTombstones=" + currentTombstones +
-            '}';
     }
 }

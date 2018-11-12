@@ -226,12 +226,38 @@ public class ApiKeyService {
         return roleDescriptors;
     }
 
+    /**
+     * In case the role descriptors from the request are subset except the query
+     * part, then this method takes care of modifying the role descriptors such
+     * that they can be considered a subset.
+     * <p>
+     * Depending on the index patterns in the
+     * {@link SubsetResult#setOfIndexNamesForCombiningDLSQueries()} it finds all
+     * indices privileges from the base descriptors that match and creates a
+     * {@code bool} query with a {@code should} clause and
+     * {@code minimum_should_match} set to 1. For the indices privileges from
+     * the child role descriptors that match, we add them as {@code should}
+     * clause with {@code minimum_should_match} set to 1. The base {@code bool}
+     * query is set as {@code filter} clause on this outer {@code bool} query.
+     *
+     * @param childDescriptors list of {@link RoleDescriptor} from api key
+     * request
+     * @param baseDescriptors list of {@link RoleDescriptor} for current logged
+     * in user
+     * @param result {@link SubsetResult} as determined by the
+     * {@link Role#isSubsetOf(Role)} check
+     * @param user {@link User} current logged in user
+     * @return returns list of role descriptors equal to child descriptors if
+     * they are not modified else returns modified list of role descriptors
+     * @throws IOException thrown in case of invalid query template or if unable
+     * to parse the query
+     */
     private List<RoleDescriptor> modifyRoleDescriptorsToMakeItASubset(final List<RoleDescriptor> childDescriptors,
             final List<RoleDescriptor> baseDescriptors, final SubsetResult result, final User user) throws IOException {
         final Map<Set<String>, BoolQueryBuilder> indexNamePatternsToBoolQueryBuilder = new HashMap<>();
         for (Set<String> indexNamePattern : result.setOfIndexNamesForCombiningDLSQueries()) {
-            Automaton indexNamesAutomaton = Automatons.patterns(indexNamePattern);
-            BoolQueryBuilder parentFilterQueryBuilder = QueryBuilders.boolQuery();
+            final Automaton indexNamesAutomaton = Automatons.patterns(indexNamePattern);
+            final BoolQueryBuilder parentFilterQueryBuilder = QueryBuilders.boolQuery();
             // Now find the index name patterns from all base descriptors that
             // match and combine queries
             for (RoleDescriptor rdbase : baseDescriptors) {
@@ -247,9 +273,9 @@ public class ApiKeyService {
                 }
             }
             parentFilterQueryBuilder.minimumShouldMatch(1);
-            BoolQueryBuilder finalBoolQueryBuilder = QueryBuilders.boolQuery();
-            finalBoolQueryBuilder.filter(parentFilterQueryBuilder);
-            finalBoolQueryBuilder.minimumShouldMatch(1);
+
+            final BoolQueryBuilder outerBoolQueryBuilder = QueryBuilders.boolQuery();
+            outerBoolQueryBuilder.filter(parentFilterQueryBuilder);
             // Iterate on child role descriptors and combine queries if the
             // index name patterns match.
             for (RoleDescriptor childRD : childDescriptors) {
@@ -259,12 +285,13 @@ public class ApiKeyService {
                                 scriptService, user);
                         try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
                                 LoggingDeprecationHandler.INSTANCE, templateResult)) {
-                            finalBoolQueryBuilder.should(AbstractQueryBuilder.parseInnerQueryBuilder(parser));
+                            outerBoolQueryBuilder.should(AbstractQueryBuilder.parseInnerQueryBuilder(parser));
                         }
                     }
                 }
             }
-            indexNamePatternsToBoolQueryBuilder.put(indexNamePattern, finalBoolQueryBuilder);
+            outerBoolQueryBuilder.minimumShouldMatch(1);
+            indexNamePatternsToBoolQueryBuilder.put(indexNamePattern, outerBoolQueryBuilder);
         }
 
         final List<RoleDescriptor> newChildDescriptors = new ArrayList<>();
@@ -273,8 +300,8 @@ public class ApiKeyService {
             for (IndicesPrivileges indicesPriv : childRD.getIndicesPrivileges()) {
                 Set<String> indices = Sets.newHashSet(indicesPriv.getIndices());
                 if (indexNamePatternsToBoolQueryBuilder.get(indices) != null) {
-                    BoolQueryBuilder boolQueryBuilder = indexNamePatternsToBoolQueryBuilder.get(indices);
-                    XContentBuilder builder = XContentFactory.jsonBuilder();
+                    final BoolQueryBuilder boolQueryBuilder = indexNamePatternsToBoolQueryBuilder.get(indices);
+                    final XContentBuilder builder = XContentFactory.jsonBuilder();
                     boolQueryBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     updates.add(IndicesPrivileges.builder()
                             .indices(indicesPriv.getIndices())

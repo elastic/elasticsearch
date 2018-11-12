@@ -94,14 +94,14 @@ public final class ApplicationPermission {
     public boolean isSubsetOf(final ApplicationPermission other) {
         if (permissions.isEmpty() && other.permissions.isEmpty()) {
             return true;
+        } else if (permissions.isEmpty() && other.permissions.isEmpty() == false) {
+            return true;
         }
         boolean isSubset = false;
-        if (permissions.size() > 0) {
-            for (ApplicationPermission.PermissionEntry permEntry : permissions) {
-                isSubset = other.permissions.stream().anyMatch(e -> e.grants(permEntry.privilege, permEntry.resourceAutomaton));
-                if (isSubset == false) {
-                    break;
-                }
+        for (ApplicationPermission.PermissionEntry permEntry : permissions) {
+            isSubset = other.permissions.stream().anyMatch(e -> e.grants(permEntry.privilege, permEntry.resourceAutomaton));
+            if (isSubset == false) {
+                break;
             }
         }
         return isSubset;

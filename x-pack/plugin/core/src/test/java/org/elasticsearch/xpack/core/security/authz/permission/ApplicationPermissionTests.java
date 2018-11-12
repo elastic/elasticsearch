@@ -144,27 +144,32 @@ public class ApplicationPermissionTests extends ESTestCase {
                 new Tuple<>(app1Write, Sets.newHashSet("obj/3", "obj/4")),
                 new Tuple<>(app1All, Sets.newHashSet("obj/6", "obj/7")),
                 new Tuple<>(app2Read, Sets.newHashSet("obj/1", "obj/8"))));
+        final ApplicationPermission allPermBase = new ApplicationPermission(
+                Arrays.asList(new Tuple<>(new ApplicationPrivilege("*", "*", "*"), Sets.newHashSet("*"))));
         final ApplicationPermission emptyPermBase = ApplicationPermission.NONE;
 
         final ApplicationPermission emptyApplicationPermission = ApplicationPermission.NONE;
-        assertThat(emptyApplicationPermission.isSubsetOf(permBase), is(false));
-
+        assertThat(emptyApplicationPermission.isSubsetOf(permBase), is(true));
         assertThat(emptyApplicationPermission.isSubsetOf(emptyPermBase), is(true));
+        assertThat(emptyApplicationPermission.isSubsetOf(allPermBase), is(true));
 
         final ApplicationPermission permIsSubset_basedOnResources = new ApplicationPermission(
                 Arrays.asList(new Tuple<>(app1Read, Sets.newHashSet("obj/1"))));
         assertThat(permIsSubset_basedOnResources.isSubsetOf(permBase), is(true));
         assertThat(permIsSubset_basedOnResources.isSubsetOf(emptyPermBase), is(false));
+        assertThat(permIsSubset_basedOnResources.isSubsetOf(allPermBase), is(true));
 
         final ApplicationPermission permIsSubset_basedOnPrivilege = new ApplicationPermission(Arrays.asList(new Tuple<>(
                 new ApplicationPrivilege("app1", "read", "read/*"), Sets.newHashSet("obj/6"))));
         assertThat(permIsSubset_basedOnPrivilege.isSubsetOf(permBase), is(true));
         assertThat(permIsSubset_basedOnPrivilege.isSubsetOf(emptyPermBase), is(false));
+        assertThat(permIsSubset_basedOnPrivilege.isSubsetOf(allPermBase), is(true));
 
         final ApplicationPermission permIsSubsetFails_basedOnResources = new ApplicationPermission(Arrays.asList(new Tuple<>(
                 new ApplicationPrivilege("app1", "write", "write/*"), Sets.newHashSet("obj/1"))));
         assertThat(permIsSubsetFails_basedOnResources.isSubsetOf(permBase), is(false));
         assertThat(permIsSubsetFails_basedOnResources.isSubsetOf(emptyPermBase), is(false));
+        assertThat(permIsSubsetFails_basedOnResources.isSubsetOf(allPermBase), is(true));
     }
 
     private ApplicationPrivilege actionPrivilege(String appName, String... actions) {

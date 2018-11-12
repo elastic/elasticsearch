@@ -183,6 +183,9 @@ public class CompositeRolesStore {
 
     public void roles(List<RoleDescriptor> roleDescriptors, FieldPermissionsCache fieldPermissionsCache,
             ActionListener<Role> roleActionListener) {
+        if (roleDescriptors == null) {
+            roleActionListener.onResponse(Role.EMPTY);
+        }
         final List<RoleDescriptor> effectiveDescriptors;
         if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
             effectiveDescriptors = roleDescriptors;

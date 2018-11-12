@@ -13,7 +13,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class RunAsPermissionTests extends ESTestCase {
 
-    public void testRunAsPermission_checkUser() {
+    public void testCheckUser() {
         final RunAsPermission runAsPermission = new RunAsPermission(new Privilege(randomAlphaOfLength(4), "user*", "runAsUser*"));
 
         assertThat(runAsPermission.check("user1"), equalTo(true));
@@ -21,12 +21,13 @@ public class RunAsPermissionTests extends ESTestCase {
         assertThat(runAsPermission.check("notMatch"), equalTo(false));
     }
 
-    public void testRunAsPermission_isSubsetOf() {
+    public void testIsSubsetOf() {
         final RunAsPermission runAsPermissionBase = new RunAsPermission(new Privilege(randomAlphaOfLength(4), "user-*", "runAsUser*"));
+
         final RunAsPermission runAsPermissionSubsetSuccess = new RunAsPermission(
                 new Privilege(randomAlphaOfLength(4), "user-1*", "runAsUser1*"));
-
         assertThat(runAsPermissionSubsetSuccess.isSubsetOf(runAsPermissionBase), equalTo(true));
+
         final RunAsPermission runAsPermissionSubsetFail = new RunAsPermission(new Privilege(randomAlphaOfLength(4), "noMatch*"));
         assertThat(runAsPermissionSubsetFail.isSubsetOf(runAsPermissionBase), equalTo(false));
     }

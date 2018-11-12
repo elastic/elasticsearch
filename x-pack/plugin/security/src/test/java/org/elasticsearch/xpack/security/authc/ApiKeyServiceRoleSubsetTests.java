@@ -23,7 +23,12 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -45,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -55,7 +61,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ApiKeyServiceTests extends AbstractBuilderTestCase {
+public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
     private AuthorizationService mockAuthzService = mock(AuthorizationService.class);
     private ScriptService mockScriptService = mock(ScriptService.class);
     private ClusterService mockClusterService = mock(ClusterService.class);
@@ -70,6 +76,10 @@ public class ApiKeyServiceTests extends AbstractBuilderTestCase {
 
     @Before
     public void setup() {
+        MustacheScriptEngine mse = new MustacheScriptEngine();
+        Map<String, ScriptEngine> engines = Collections.singletonMap(mse.getType(), mse);
+        Map<String, ScriptContext<?>> contexts = Collections.singletonMap(TemplateScript.CONTEXT.name, TemplateScript.CONTEXT);
+        mockScriptService = new ScriptService(Settings.EMPTY, engines, contexts);
         apiKeyService = new ApiKeyService(Settings.EMPTY, mockCock, mockClient, mockSecurityIndexManager, mockClusterService,
                 mockAuthzService, mockScriptService, xContentRegistry());
         userForNotASubsetRole = new User("user_not_a_subset", "not-a-subset-role");
@@ -80,7 +90,7 @@ public class ApiKeyServiceTests extends AbstractBuilderTestCase {
         mockRolesForRoleDescriptors();
     }
 
-    public void testWhenRoleDescriptorsAreNotASubset() throws IOException {
+    public void testWhenRoleDescriptorsAreNotASubsetThrowsException() throws IOException {
         final Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(userForNotASubsetRole);
 
@@ -96,7 +106,7 @@ public class ApiKeyServiceTests extends AbstractBuilderTestCase {
         assertThat(ese.getMessage(), equalTo("role descriptors from the request are not subset of the authenticated user"));
     }
 
-    public void testWhenRoleDescriptorsAreSubset() throws IOException {
+    public void testWhenRoleDescriptorsAreSubsetSoNoModificationsAreRequired() throws IOException {
         final Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(userWithSuperUserRole);
 
@@ -126,13 +136,13 @@ public class ApiKeyServiceTests extends AbstractBuilderTestCase {
 
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         CompositeRolesStore.buildRoleFromDescriptors(newChildDescriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
-        Role finalRole = future.actionGet();
-        IndexMetaData.Builder imbBuilder = IndexMetaData
+        final Role finalRole = future.actionGet();
+        final IndexMetaData.Builder imbBuilder = IndexMetaData
                 .builder("index-1-1-1-1").settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .putAlias(AliasMetaData.builder("_1111"));
-        MetaData md = MetaData.builder().put(imbBuilder).build();
-        IndicesAccessControl iac = finalRole.authorize(SearchAction.NAME, Sets.newHashSet("index-1-1-1-1"), md,
+        final MetaData md = MetaData.builder().put(imbBuilder).build();
+        final IndicesAccessControl iac = finalRole.authorize(SearchAction.NAME, Sets.newHashSet("index-1-1-1-1"), md,
                 new FieldPermissionsCache(Settings.EMPTY));
 
         assertThat(iac.isGranted(), equalTo(true));
@@ -154,6 +164,78 @@ public class ApiKeyServiceTests extends AbstractBuilderTestCase {
                     assertThat(fieldName, equalTo("category"));
                     String value = (String) shouldMatchQB.value();
                     assertThat(value, equalTo("RD1"));
+                }
+
+                // Verify filter (from base)
+                assertThat(boolQueryBuilder.filter().size(), is(1));
+                {
+                    QueryBuilder filterBoolQueryBuilder = boolQueryBuilder.filter().get(0);
+                    assertThat(filterBoolQueryBuilder, instanceOf(BoolQueryBuilder.class));
+                    BoolQueryBuilder filter = (BoolQueryBuilder) filterBoolQueryBuilder;
+
+                    assertThat(filter.should().size(), is(2));
+                    assertThat(filter.minimumShouldMatch(), is("1"));
+                    Set<String> valuesExpected = Sets.newHashSet("BRD1", "BRD2");
+                    Set<String> actualValues = new HashSet<>();
+                    for (QueryBuilder qb : filter.should()) {
+                        assertThat(qb, instanceOf(MatchQueryBuilder.class));
+                        MatchQueryBuilder matchQB = (MatchQueryBuilder) qb;
+                        String fieldName = matchQB.fieldName();
+                        assertThat(fieldName, equalTo("category"));
+                        String value = (String) matchQB.value();
+                        actualValues.add(value);
+                    }
+                    assertThat(actualValues, equalTo(valuesExpected));
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    public void testCheckRoleSubsetIsMaybeAndRoleDescriptorsAreModifiedAndAlsoEvaluatesTemplate() throws IOException {
+        final Authentication authentication = mock(Authentication.class);
+        when(authentication.getUser()).thenReturn(userWithRoleForDLS);
+        final List<RoleDescriptor> requestRoleDescriptors = new ArrayList<>();
+        requestRoleDescriptors.add(buildRoleDescriptor("child-rd-1", new String[] { "index-1-1-1-*" }, new String[] { "READ" },
+                "{ \"template\": { \"source\" : { \"term\": { \"category\" : \"{{_user.username}}\" } } } }"));
+        requestRoleDescriptors.add(buildRoleDescriptor("child-rd-2", new String[] { "index-1-1-2-*" }, new String[] { "READ" },
+                "{ \"match\": { \"category\": \"RD2\" } }"));
+        List<RoleDescriptor> newChildDescriptors = apiKeyService
+                .checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(requestRoleDescriptors, authentication);
+
+        assertThat(newChildDescriptors.size(), equalTo(2));
+
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        CompositeRolesStore.buildRoleFromDescriptors(newChildDescriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
+        final Role finalRole = future.actionGet();
+        final IndexMetaData.Builder imbBuilder = IndexMetaData
+                .builder("index-1-1-1-1").settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .putAlias(AliasMetaData.builder("_1111"));
+        final MetaData md = MetaData.builder().put(imbBuilder).build();
+        final IndicesAccessControl iac = finalRole.authorize(SearchAction.NAME, Sets.newHashSet("index-1-1-1-1"), md,
+                new FieldPermissionsCache(Settings.EMPTY));
+
+        assertThat(iac.isGranted(), equalTo(true));
+        assertThat(iac.getIndexPermissions("index-1-1-1-1").getQueries().size(), is(1));
+        iac.getIndexPermissions("index-1-1-1-1").getQueries().stream().forEach(q -> {
+            try {
+                QueryBuilder queryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(createParser(XContentType.JSON.xContent(), q));
+                assertThat(queryBuilder, instanceOf(BoolQueryBuilder.class));
+                BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;
+
+                // Verify should (from child)
+                assertThat(boolQueryBuilder.should().size(), is(1));
+                assertThat(boolQueryBuilder.minimumShouldMatch(), is("1"));
+                {
+                    QueryBuilder shouldQueryBuilder = boolQueryBuilder.should().get(0);
+                    assertThat(shouldQueryBuilder, instanceOf(TermQueryBuilder.class));
+                    TermQueryBuilder termQB = (TermQueryBuilder) shouldQueryBuilder;
+                    String fieldName = termQB.fieldName();
+                    assertThat(fieldName, equalTo("category"));
+                    String value = (String) termQB.value();
+                    assertThat(value, equalTo("user_with_2_roles_with_dls"));
                 }
 
                 // Verify filter (from base)
@@ -238,8 +320,8 @@ public class ApiKeyServiceTests extends AbstractBuilderTestCase {
             switch (user.principal()) {
             case "user_not_a_subset": {
                 final Set<RoleDescriptor> roleDescriptorsWithDls = new HashSet<>();
-                roleDescriptorsWithDls.add(buildRoleDescriptor("not-a-subset-role", new String[] { "index-not-subset-*" }, new String[] { "WRITE" },
-                        "{ \"match\": { \"category\": \"UNKNOWN\" } }"));
+                roleDescriptorsWithDls.add(buildRoleDescriptor("not-a-subset-role", new String[] { "index-not-subset-*" },
+                        new String[] { "WRITE" }, "{ \"match\": { \"category\": \"UNKNOWN\" } }"));
                 roleDescriptorsActionListener.onResponse(roleDescriptorsWithDls);
                 break;
             }

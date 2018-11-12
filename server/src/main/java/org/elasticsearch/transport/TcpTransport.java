@@ -650,6 +650,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         threadPool.generic().execute(() -> {
             closeLock.writeLock().lock();
             try {
+                keepAlive.close();
+
                 // first stop to accept any incoming connections so nobody can connect to this transport
                 for (Map.Entry<String, List<TcpServerChannel>> entry : serverChannels.entrySet()) {
                     String profile = entry.getKey();

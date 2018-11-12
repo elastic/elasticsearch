@@ -120,7 +120,7 @@ and sets the alias to be read-only for the source index.
 
 Now that we have an index managed by our policy, how do we tell what is going on?
 Which phase are we in? Is something broken? This section will go over a few APIs
-and their responses to help us introspect our indices with respect to {ILM}.
+and their responses to help us inspect our indices with respect to {ILM}.
 
 With the help of the <<ilm-explain-lifecycle,Explain API>>, we can know things like which
 phase we're in and when we entered that phase. The API will also provide further

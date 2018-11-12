@@ -83,9 +83,6 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
 
         clusterService.submitStateUpdateTask("add-voting-tombstones", new ClusterStateUpdateTask() {
 
-            final ClusterStateObserver observer
-                = new ClusterStateObserver(clusterService, request.getTimeout(), logger, threadPool.getThreadContext());
-
             private Set<DiscoveryNode> resolvedNodes;
 
             @Override
@@ -117,6 +114,9 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+
+                final ClusterStateObserver observer
+                    = new ClusterStateObserver(clusterService, request.getTimeout(), logger, threadPool.getThreadContext());
 
                 final Set<String> resolvedNodeIds = resolvedNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
 

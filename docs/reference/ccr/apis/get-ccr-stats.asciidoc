@@ -47,7 +47,7 @@ GET /_ccr/stats
 --------------------------------------------------
 // CONSOLE
 
-=== Results
+==== Results
 
 This API returns the following information:
 

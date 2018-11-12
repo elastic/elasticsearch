@@ -18,7 +18,7 @@ PUT _ilm/policy/shrink-the-index
   "policy": {
     "phases": {
       "warm": {
-        "min_age": "5m",
+        "min_age": "5d",
         "actions": {
           "shrink": {
             "number_of_shards": 4
@@ -32,7 +32,7 @@ PUT _ilm/policy/shrink-the-index
 // CONSOLE
 // TEST
 
-This policy waits until the index is at least 5 minutes old, and then shrinks
+This policy waits until the index is at least 5 days old, and then shrinks
 the index to 4 shards.
 
 Now imagine that a user creates a new index "myindex" with two primary shards,
@@ -51,7 +51,7 @@ PUT /myindex
 // CONSOLE
 // TEST[continued]
 
-After five minutes has passed, ILM will attempt to shrink this index from 2
+After five days have passed, ILM will attempt to shrink this index from 2
 shards to 4, which is invalid since the shrink action cannot increase the
 number of shards. When this occurs, ILM will move this
 index to the "error" step. Once an index is in this step, information about the
@@ -89,7 +89,7 @@ Which returns the following information:
       "phase_execution" : {
         "policy" : "shrink-the-index",
         "phase_definition" : {                   <9>
-          "min_age" : "5m",
+          "min_age" : "5d",
           "actions" : {
             "shrink" : {
               "number_of_shards" : 4
@@ -127,7 +127,7 @@ PUT _ilm/policy/shrink-the-index
   "policy": {
     "phases": {
       "warm": {
-        "min_age": "5m",
+        "min_age": "5d",
         "actions": {
           "shrink": {
             "number_of_shards": 1

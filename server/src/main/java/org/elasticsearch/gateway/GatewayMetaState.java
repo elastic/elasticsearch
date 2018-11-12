@@ -74,7 +74,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
     private final MetaStateService metaStateService;
 
     @Nullable
-    //there is happens-before order between subsequent applyClusterState calls, hence no volatile modifier
+    //there is a single thread executing applyClusterState calls, hence no volatile modifier
     private Manifest previousManifest;
     private MetaData previousMetaData;
 

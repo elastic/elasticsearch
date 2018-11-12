@@ -118,7 +118,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     public ModelSnapshot(StreamInput in) throws IOException {
         jobId = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             minVersion = Version.readVersion(in);
         } else {
             minVersion = Version.CURRENT.minimumCompatibilityVersion();
@@ -137,7 +137,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             Version.writeVersion(minVersion, out);
         }
         if (timestamp != null) {

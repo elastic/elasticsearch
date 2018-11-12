@@ -3,18 +3,16 @@
 
  - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
+      reason: types are required in requests before 7.0.0
 
  - do:
       index:
-          include_type_name: false
           index:   test_1
           id:      1
           body:    { foo: bar }
 
  - do:
       delete:
-          include_type_name: false
           index:   test_1
           id:      1
 
@@ -23,7 +21,6 @@
  - do:
       catch: missing
       delete:
-          include_type_name: false
           index:   test_1
           id:      1
 

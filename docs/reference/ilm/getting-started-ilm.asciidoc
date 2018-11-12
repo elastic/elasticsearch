@@ -119,7 +119,7 @@ and sets the alias to be read-only for the source index.
 === Checking progress
 
 Now that we have an index managed by our policy, how do we tell what is going on?
-Which phase are we in? is something broken? This section will go over a few APIs
+Which phase are we in? Is something broken? This section will go over a few APIs
 and their responses to help us introspect our indices with respect to {ILM}.
 
 With the help of the <<ilm-explain-lifecycle,Explain API>>, we can know things like which

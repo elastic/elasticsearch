@@ -26,6 +26,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -101,13 +102,13 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
 
         private final int maxDoc;
         private final int numDocs;
-
         private final Map<String, PointValues> pointValuesMap;
+        private final FieldInfos fieldInfos;
 
         private RewriteCachingLeafReader(LeafReader original) throws IOException {
             this.maxDoc = original.maxDoc();
             this.numDocs = original.numDocs();
-            FieldInfos fieldInfos = original.getFieldInfos();
+            fieldInfos = original.getFieldInfos();
             Map<String, PointValues> valuesMap = new HashMap<>();
             for (FieldInfo info : fieldInfos) {
                 if (info.getPointIndexDimensionCount() != 0) {
@@ -119,6 +120,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
                         int bytesPerDimension = pointValues.getBytesPerDimension();
                         int numDataDimensions = pointValues.getNumDataDimensions();
                         long size = pointValues.size();
+                        int docCount = pointValues.getDocCount();
                         valuesMap.put(info.name, new PointValues() {
                             @Override
                             public void intersect(IntersectVisitor visitor) {
@@ -162,7 +164,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
 
                             @Override
                             public int getDocCount() {
-                                throw new UnsupportedOperationException();
+                                return docCount;
                             }
                         });
                     }
@@ -213,7 +215,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
 
         @Override
         public FieldInfos getFieldInfos() {
-            return new FieldInfos(new FieldInfo[0]);
+            return fieldInfos;
         }
 
         @Override

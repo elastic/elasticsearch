@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.test.TestCustomMetaData;
+import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,6 +50,12 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
 public class GatewayMetaStateTests extends ESAllocationTestCase {
 
@@ -246,48 +253,26 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         for (GatewayMetaState.IndexMetaDataAction action : actions) {
             if (action instanceof GatewayMetaState.KeepPreviousGeneration) {
                 assertThat(action.getIndex(), equalTo(notChangedIndex.getIndex()));
-                assertThat(action.execute(null, cleanupActions), equalTo(3L));
+                GatewayMetaState.Transaction tx = mock(GatewayMetaState.Transaction.class);
+                assertThat(action.execute(tx), equalTo(3L));
+                verifyZeroInteractions(tx);
             }
             if (action instanceof GatewayMetaState.WriteNewIndexMetaData) {
                 assertThat(action.getIndex(), equalTo(newIndex.getIndex()));
-                action.execute(new IndexMetaDataWriter() {
-                    @Override
-                    public long writeIndex(String reason, IndexMetaData indexMetaData) {
-                        assertThat(reason, equalTo("freshly created"));
-                        assertThat(indexMetaData, equalTo(newIndex));
-                        return 0L;
-                    }
-
-                    @Override
-                    public void cleanupIndex(Index index, long currentGeneration) {
-                        assertThat(index, equalTo(newIndex.getIndex()));
-                        assertThat(currentGeneration, equalTo(0L));
-                    }
-                }, cleanupActions);
+                GatewayMetaState.Transaction tx = mock(GatewayMetaState.Transaction.class);
+                when(tx.writeIndex("freshly created", newIndex)).thenReturn(0L);
+                assertThat(action.execute(tx), equalTo(0L));
             }
             if (action instanceof GatewayMetaState.WriteChangedIndexMetaData) {
                 assertThat(action.getIndex(), equalTo(newVersionChangedIndex.getIndex()));
-                action.execute(new IndexMetaDataWriter() {
-                    @Override
-                    public long writeIndex(String reason, IndexMetaData indexMetaData) {
-                        assertThat(reason, containsString(Long.toString(versionChangedIndex.getVersion())));
-                        assertThat(reason, containsString(Long.toString(newVersionChangedIndex.getVersion())));
-                        assertThat(indexMetaData, equalTo(newVersionChangedIndex));
-                        return 3L;
-                    }
-
-                    @Override
-                    public void cleanupIndex(Index index, long currentGeneration) {
-                        assertThat(index, equalTo(newVersionChangedIndex.getIndex()));
-                        assertThat(currentGeneration, equalTo(3L));
-                    }
-                }, cleanupActions);
+                GatewayMetaState.Transaction tx = mock(GatewayMetaState.Transaction.class);
+                when(tx.writeIndex(anyString(), eq(newVersionChangedIndex))).thenReturn(3L);
+                assertThat(action.execute(tx), equalTo(3L));
+                ArgumentCaptor<String> reason = ArgumentCaptor.forClass(String.class);
+                verify(tx).writeIndex(reason.capture(), eq(newVersionChangedIndex));
+                assertThat(reason.getValue(), containsString(Long.toString(versionChangedIndex.getVersion())));
+                assertThat(reason.getValue(), containsString(Long.toString(newVersionChangedIndex.getVersion())));
             }
-        }
-
-        assertThat(cleanupActions, hasSize(2));
-        for (Runnable cleanupAction : cleanupActions) {
-            cleanupAction.run();
         }
     }
 

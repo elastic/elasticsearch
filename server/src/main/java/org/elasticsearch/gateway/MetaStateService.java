@@ -41,7 +41,7 @@ import java.util.function.Predicate;
 /**
  * Handles writing and loading {@link Manifest}, {@link MetaData} and {@link IndexMetaData}
  */
-public class MetaStateService extends AbstractComponent implements IndexMetaDataWriter {
+public class MetaStateService extends AbstractComponent {
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry namedXContentRegistry;
 
@@ -264,7 +264,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
      *
      * @param currentGeneration current state generation to keep in the directory.
      */
-    public void cleanupMetaState(long currentGeneration) {
+    public void cleanupManifest(long currentGeneration) {
         Manifest.FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.nodeDataPaths());
     }
 
@@ -280,7 +280,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
         manifest = new Manifest(manifest.getGlobalGeneration(), indices);
         long metaStateGeneration = writeManifest(reason, manifest);
         cleanupIndex(metaData.getIndex(), generation);
-        cleanupMetaState(metaStateGeneration);
+        cleanupManifest(metaStateGeneration);
     }
 
     /**
@@ -293,6 +293,6 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
         manifest = new Manifest(generation, manifest.getIndexGenerations());
         long metaStateGeneration = writeManifest(reason, manifest);
         cleanupGlobalState(generation);
-        cleanupMetaState(metaStateGeneration);
+        cleanupManifest(metaStateGeneration);
     }
 }

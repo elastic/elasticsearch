@@ -191,7 +191,7 @@ public class MetaStateServiceTests extends ESTestCase {
         long manifestGeneration = metaStateService.writeManifest("second manifest write", manifest);
         metaStateService.cleanupGlobalState(globalGeneration);
         metaStateService.cleanupIndex(index.getIndex(), indexGeneration);
-        metaStateService.cleanupMetaState(manifestGeneration);
+        metaStateService.cleanupManifest(manifestGeneration);
 
         manifestAndMetaData = metaStateService.loadFullState();
         assertThat(manifestAndMetaData.v1(), equalTo(manifest));

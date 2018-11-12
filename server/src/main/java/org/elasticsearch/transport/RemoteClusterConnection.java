@@ -66,6 +66,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_COMPRESS;
+
 /**
  * Represents a connection to a single remote cluster. In contrast to a local cluster a remote cluster is not joined such that the
  * current node is part of the cluster and it won't receive cluster state updates from the remote cluster. Remote clusters are also not
@@ -86,6 +88,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     private final ConnectionProfile remoteProfile;
     private final ConnectedNodes connectedNodes;
     private final String clusterAlias;
+    private final boolean compress;
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
     private final ThreadPool threadPool;
@@ -108,12 +111,13 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
      * @param proxyAddress the proxy address
      */
     RemoteClusterConnection(Settings settings, String clusterAlias, List<Supplier<DiscoveryNode>> seedNodes,
-            TransportService transportService, ConnectionManager connectionManager, int maxNumRemoteConnections,
-            Predicate<DiscoveryNode> nodePredicate, String proxyAddress) {
+                            TransportService transportService, ConnectionManager connectionManager, int maxNumRemoteConnections,
+                            Predicate<DiscoveryNode> nodePredicate, String proxyAddress) {
         this.transportService = transportService;
         this.maxNumRemoteConnections = maxNumRemoteConnections;
         this.nodePredicate = nodePredicate;
         this.clusterAlias = clusterAlias;
+        this.compress = REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         builder.setConnectTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
         builder.setHandshakeTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
@@ -122,6 +126,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             TransportRequestOptions.Type.BULK,
             TransportRequestOptions.Type.STATE,
             TransportRequestOptions.Type.RECOVERY);
+        builder.setCompressionEnabled(compress);
         remoteProfile = builder.build();
         connectedNodes = new ConnectedNodes(clusterAlias);
         this.seedNodes = Collections.unmodifiableList(seedNodes);
@@ -471,8 +476,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             });
         }
 
-        private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes,
-                                final TransportService transportService, final ConnectionManager manager, ActionListener<Void> listener) {
+        private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes, final TransportService transportService,
+                                        final ConnectionManager manager, ActionListener<Void> listener) {
             if (Thread.currentThread().isInterrupted()) {
                 listener.onFailure(new InterruptedException("remote connect thread got interrupted"));
             }
@@ -483,8 +488,9 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                         logger.debug("[{}] opening connection to seed node: [{}] proxy address: [{}]", clusterAlias, seedNode,
                             proxyAddress);
                         final TransportService.HandshakeResponse handshakeResponse;
-                        Transport.Connection connection = manager.openConnection(seedNode,
-                            ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, null, null));
+                        ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG,
+                            compress);
+                        Transport.Connection connection = manager.openConnection(seedNode, profile);
                         boolean success = false;
                         try {
                             try {

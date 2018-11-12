@@ -81,7 +81,7 @@ ccr_user:
 === Connecting to a remote cluster
 
 The {ccr} features require
-<<modules-remote-clusters,connecting your local cluster to a remote cluster>>.
+{ref}/modules-remote-clusters.html[connecting your local cluster to a remote cluster].
 In the example for this getting-started guide, we will connect our local cluster
 to a remote cluster with the cluster alias `leader`.
 
@@ -211,7 +211,7 @@ PUT /server-metrics
 [[ccr-gs-follower-index]]
 === Creating a follower index
 
-Follower indices are created with the <<ccr-put-follow,create follower API>>.
+Follower indices are created with the {ref}/ccr-put-follow.html[create follower API].
 When creating a follower index, you will reference the
 <<ccr-gs-remote-cluster,remote cluster>> that you connected your
 local cluster to, and the <<ccr-gs-leader-index,leader index>> that
@@ -245,7 +245,7 @@ PUT /server-metrics-copy/_ccr/follow
 Now when you index documents into your leader index, you will see these
 documents are replicated by the follower index from the leader index. You can
 inspect the status of replication using the
-<<ccr-get-follow-stats,get follower stats API>>.
+{ref}/ccr-get-follow-stats[get follower stats API].
 
 //////////////////////////
 
@@ -269,7 +269,7 @@ POST /server-metrics-copy/_ccr/unfollow
 The auto-follow feature in {ccr} helps for time-series use-cases where new
 indices that you want to follow are periodically created in the remote cluster
 (e.g., daily Beats indices).  Auto-following is configured using the
-<<ccr-put-auto-follow-pattern,create auto-follow pattern API>>. With an
+{ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API]. With an
 auto-follow pattern, you reference the <<ccr-gs-remote-cluster,remote cluster>>
 that you connected your local cluster to, and a collection of patterns that
 match the indices that you want to be automatically followed when they are

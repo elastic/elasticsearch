@@ -923,18 +923,9 @@ public final class InternalTestCluster extends TestCluster {
             if (!node.isClosed()) {
                 closeNode();
             }
-            recreateNodeOnRestart(callback, clearDataIfNeeded, minMasterNodes, () -> rebuildUnicastHostFiles(emptyList()));
-            startNode();
-        }
-
-        /**
-         * rebuilds a new node object using the current node settings and starts it
-         */
-        void recreateNodeOnRestart(RestartCallback callback, boolean clearDataIfNeeded, int minMasterNodes,
-                                   Runnable onTransportServiceStarted) throws Exception {
             assert callback != null;
             Settings callbackSettings = callback.onNodeStopped(name);
-            Settings.Builder newSettings = Settings.builder();
+            Builder newSettings = Settings.builder();
             if (callbackSettings != null) {
                 newSettings.put(callbackSettings);
             }
@@ -945,9 +936,10 @@ public final class InternalTestCluster extends TestCluster {
             if (clearDataIfNeeded) {
                 clearDataIfNeeded(callback);
             }
-            createNewNode(newSettings.build(), onTransportServiceStarted);
+            createNewNode(newSettings.build(), () -> rebuildUnicastHostFiles(emptyList()));
             // make sure cached client points to new node
             resetClient();
+            startNode();
         }
 
         private void clearDataIfNeeded(RestartCallback callback) throws IOException {
@@ -1769,11 +1761,29 @@ public final class InternalTestCluster extends TestCluster {
         }
         assert nodesByRoles.values().stream().collect(Collectors.summingInt(List::size)) == 0;
 
+        //Let's call onNodeStopped callback on all nodes, before re-creating the nodes
+        final Map<String, Settings> newNodeSettings = new HashMap<>();
+        for (NodeAndClient nodeAndClient : startUpOrder) {
+            Settings callbackSettings = callback.onNodeStopped(nodeAndClient.name);
+            Builder newSettings = Settings.builder();
+            if (callbackSettings != null) {
+                newSettings.put(callbackSettings);
+            }
+            if (autoManageMinMasterNodes) {
+                int minMasterNodes = getMinMasterNodes(getMasterNodesCount());
+                assert DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(newSettings.build()) == false : "min master nodes is auto managed";
+                newSettings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes).build();
+            }
+            newNodeSettings.put(nodeAndClient.name, newSettings.build());
+        }
+
+        //Now we can re-create the nodes
         for (NodeAndClient nodeAndClient : startUpOrder) {
             logger.info("resetting node [{}] ", nodeAndClient.name);
-            // we already cleared data folders, before starting nodes up
-            nodeAndClient.recreateNodeOnRestart(callback, false, autoManageMinMasterNodes ? getMinMasterNodes(getMasterNodesCount()) : -1,
-                () -> rebuildUnicastHostFiles(startUpOrder));
+
+            nodeAndClient.createNewNode(newNodeSettings.get(nodeAndClient.name), () -> rebuildUnicastHostFiles(startUpOrder));
+            // make sure cached client points to new node
+            nodeAndClient.resetClient();
         }
 
         startAndPublishNodesAndClients(startUpOrder);

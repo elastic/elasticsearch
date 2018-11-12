@@ -551,9 +551,10 @@ public class OsProbe {
             if (maybePrettyNameLine.isPresent()) {
                 // we trim since some OS contain trailing space, for example, Oracle Linux Server 6.9 has a trailing space after the quote
                 final String trimmedPrettyNameLine = maybePrettyNameLine.get().trim();
-                final Matcher matcher = Pattern.compile("PRETTY_NAME=(\"?|'?)?([^\"']+)\\1").matcher(trimmedPrettyNameLine);
+                final Matcher matcher = Pattern.compile("PRETTY_NAME=(?:\"?|'?)?([^\"']+)\\1").matcher(trimmedPrettyNameLine);
                 assert matcher.matches() : trimmedPrettyNameLine;
-                return matcher.group(2);
+                assert matcher.groupCount() == 1 : trimmedPrettyNameLine;
+                return matcher.group(1);
             } else {
                 return Constants.OS_NAME;
             }

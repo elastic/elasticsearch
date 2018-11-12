@@ -18,7 +18,7 @@ This getting-started guide for {ccr} shows you how to:
 [float]
 [[ccr-gs-before-you-begin]]
 === Before you begin
-. Install {es} on local and remote clusters.
+. Install {es} your on local and remote clusters.
 
 . Obtain a license that includes the {ccr} features. See
 {stack-ov}/license-management.html[License Management].

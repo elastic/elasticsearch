@@ -468,9 +468,7 @@ final class MLRequestConverters {
 
     static Request putFilter(PutFilterRequest putFilterRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
-            .addPathPartAsIs("filters")
+            .addPathPartAsIs("_xpack", "ml", "filters")
             .addPathPart(putFilterRequest.getMlFilter().getId())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);

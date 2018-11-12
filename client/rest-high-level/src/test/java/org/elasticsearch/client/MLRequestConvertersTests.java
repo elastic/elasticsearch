@@ -529,7 +529,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         }
     }
 
-    public void testDeleteFilter() throws IOException {
+    public void testDeleteFilter() {
         MlFilter filter = MlFilterTests.createRandom("foo");
         DeleteFilterRequest deleteFilterRequest = new DeleteFilterRequest(filter.getId());
 
@@ -537,6 +537,7 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_xpack/ml/filters/foo"));
+        assertNull(request.getEntity());
     }
 
     private static Job createValidJob(String jobId) {

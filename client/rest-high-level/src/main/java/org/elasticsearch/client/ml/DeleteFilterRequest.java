@@ -27,19 +27,19 @@ import java.util.Objects;
  */
 public class DeleteFilterRequest implements Validatable {
 
-    private final String filter_id;
+    private final String filterId;
 
-    public DeleteFilterRequest(String filter_id) {
-        this.filter_id = Objects.requireNonNull(filter_id, "[filter_id] is required");
+    public DeleteFilterRequest(String filterId) {
+        this.filterId = Objects.requireNonNull(filterId, "[filterId] is required");
     }
 
     public String getId() {
-        return filter_id;
+        return filterId;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(filter_id);
+        return Objects.hash(filterId);
     }
 
     @Override
@@ -55,6 +55,6 @@ public class DeleteFilterRequest implements Validatable {
         }
         final DeleteFilterRequest other = (DeleteFilterRequest) obj;
 
-        return Objects.equals(filter_id, other.filter_id);
+        return Objects.equals(filterId, other.filterId);
     }
 }

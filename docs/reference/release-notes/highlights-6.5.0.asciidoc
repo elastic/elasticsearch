@@ -33,8 +33,8 @@ partitioned multi-metric jobs.
 === Find multi-bucket anomalies in {ml} jobs
 
 Sometimes events are not interesting or anomalous in the context of a single 
-bucket. However, they become interesting when you take into consideration the 
-buckets that came before and after. In 6.5, there is a new {ml} 
+bucket. However, they become interesting when you take into consideration a 
+sequence of buckets as a whole. In 6.5, there is a new {ml} 
 _multi-bucket analysis_, which uses features from multiple contiguous buckets 
 for anomaly detection. The final anomaly score is now a combination of values 
 from both the “standard” single-bucket analysis and the new multi-bucket 

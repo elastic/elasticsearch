@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
@@ -384,8 +385,16 @@ public class OptimizerTests extends ESTestCase {
         return ((Literal) new ConstantFolding().rule(b)).value();
     }
 
+    public void testNullFoldingIsNull() {
+        FoldNull foldNull = new FoldNull();
+        assertEquals(true, foldNull.rule(new IsNull(EMPTY, Literal.NULL)).fold());
+        assertEquals(false, foldNull.rule(new IsNull(EMPTY, Literal.TRUE)).fold());
+    }
+
     public void testNullFoldingIsNotNull() {
-        assertEquals(Literal.TRUE, new FoldNull().rule(new IsNotNull(EMPTY, Literal.TRUE)));
+        FoldNull foldNull = new FoldNull();
+        assertEquals(true, foldNull.rule(new IsNotNull(EMPTY, Literal.TRUE)).fold());
+        assertEquals(false, foldNull.rule(new IsNotNull(EMPTY, Literal.NULL)).fold());
     }
 
     public void testGenericNullableExpression() {
@@ -465,6 +474,12 @@ public class OptimizerTests extends ESTestCase {
         Equals eq = (Equals) result;
         assertEquals(a, eq.left());
         assertEquals(FIVE, eq.right());
+    }
+
+    public void testBoolSimplifyNotIsNullAndNotIsNotNull() {
+        BooleanSimplification simplification = new BooleanSimplification();
+        assertTrue(simplification.rule(new Not(EMPTY, new IsNull(EMPTY, ONE))) instanceof IsNotNull);
+        assertTrue(simplification.rule(new Not(EMPTY, new IsNotNull(EMPTY, ONE))) instanceof IsNull);
     }
 
     public void testBoolSimplifyOr() {

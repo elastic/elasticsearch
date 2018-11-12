@@ -25,12 +25,14 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.Group;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.SubsetResult;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -266,6 +268,19 @@ public class IndicesPermissionTests extends ESTestCase {
                 () -> new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, indices.toArray(Strings.EMPTY_ARRAY)));
         assertThat(e.getMessage(), containsString(indices.get(0)));
         assertThat(e.getMessage(), containsString("too complex to evaluate"));
+    }
+
+    public void testSubsetOf_WithNonePermission() {
+        final IndicesPermission permissionBase1 = randomFrom(Arrays.asList(indicesPermission((Group)null), null, IndicesPermission.NONE));
+        assertThat(IndicesPermission.NONE.isSubsetOf(permissionBase1), equalTo(SubsetResult.isASubset()));
+
+        final IndicesPermission permissionBase2 = indicesPermission(group(IndexPrivilege.ALL, "index-1-*"),
+                group(IndexPrivilege.READ, "index-2-*"));
+        assertThat(IndicesPermission.NONE.isSubsetOf(permissionBase2), equalTo(SubsetResult.isASubset()));
+
+        final IndicesPermission permissionForSubset = indicesPermission(
+                group(IndexPrivilege.READ, "index-1-*"), group(IndexPrivilege.READ, "index-2-*"));
+        assertThat(permissionForSubset.isSubsetOf(IndicesPermission.NONE), equalTo(SubsetResult.isNotASubset()));
     }
 
     public void testSubsetOf_IndexPrivilege() {

@@ -134,14 +134,19 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
      * other aspect except DLS queries.
      */
     public SubsetResult isSubsetOf(final IndicesPermission other) {
+        if (this.groups() == null || this.groups().length == 0) {
+            return SubsetResult.isASubset();
+        }
         SubsetResult finalResult = null;
         for (Group thisGroup : this.groups()) {
             SubsetResult resultForThisGroup = null;
-            for (Group otherGroup : other.groups()) {
-                final SubsetResult result = thisGroup.isSubsetOf(otherGroup);
-                resultForThisGroup = SubsetResult.merge(resultForThisGroup, result);
+            if (other.groups() != null) {
+                for (Group otherGroup : other.groups()) {
+                    final SubsetResult result = thisGroup.isSubsetOf(otherGroup);
+                    resultForThisGroup = SubsetResult.merge(resultForThisGroup, result);
+                }
             }
-            if (resultForThisGroup.result() == SubsetResult.Result.NO) {
+            if (resultForThisGroup == null || resultForThisGroup.result() == SubsetResult.Result.NO) {
                 finalResult = SubsetResult.isNotASubset();
                 break;
             } else {

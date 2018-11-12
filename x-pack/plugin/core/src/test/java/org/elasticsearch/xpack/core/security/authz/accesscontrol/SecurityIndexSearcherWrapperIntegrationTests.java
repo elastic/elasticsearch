@@ -38,7 +38,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
 
@@ -63,6 +66,9 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        Authentication authn = mock(Authentication.class);
+        when(authn.getUser()).thenReturn(mock(User.class));
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authn);
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
                 FieldPermissions(),
                 singleton(new BytesArray("{\"match_all\" : {}}")));

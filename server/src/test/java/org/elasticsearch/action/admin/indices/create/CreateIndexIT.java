@@ -363,7 +363,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                     // so evil
                     metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMetaData);
                 }
-                return Settings.EMPTY;
+                return super.onNodeStopped(nodeName);
             }
         });
         ensureGreen(metaData.getIndex().getName()); // we have to wait for the index to show up in the metadata or we will fail in a race

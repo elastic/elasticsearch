@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.ChangePasswordRequest;
@@ -45,6 +46,8 @@ import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.ExpressionRoleMapping;
+import org.elasticsearch.client.security.GetPrivilegesRequest;
+import org.elasticsearch.client.security.GetPrivilegesResponse;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
@@ -62,6 +65,7 @@ import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -916,4 +920,83 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // See https://github.com/elastic/elasticsearch/issues/35115
         }
     }
+
+    public void testGetPrivileges() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+        {
+            final Request createPrivilegeRequest = new Request("POST", "/_xpack/security/privilege");
+            createPrivilegeRequest.setJsonEntity("{" +
+                "  \"testapp\": {" +
+                "    \"read\": {" +
+                "      \"actions\": [ \"action:login\", \"data:read/*\" ]" +
+                "    }," +
+                "    \"write\": {" +
+                "      \"actions\": [ \"action:login\", \"data:write/*\" ]" +
+                "    }," +
+                "    \"all\": {" +
+                "      \"actions\": [ \"action:login\", \"data:write/*\" ]" +
+                "    }" +
+                "  }" +
+                "}");
+            final Response createPrivilegeResponse = client.getLowLevelClient().performRequest(createPrivilegeRequest);
+            assertEquals(RestStatus.OK.getStatus(), createPrivilegeResponse.getStatusLine().getStatusCode());
+        }
+
+        {
+            //tag::get-privileges-request
+            GetPrivilegesRequest request = new GetPrivilegesRequest("testapp", "read");
+            GetPrivilegesResponse response = client.security().getPrivileges(request, RequestOptions.DEFAULT);
+            //end::get-roles-request
+
+            assertNotNull(response);
+            //TODO: When model is in place
+        }
+
+        {
+            //tag::get-all-application-privileges-request
+            GetPrivilegesRequest request = new GetPrivilegesRequest("testapp", null);
+            GetPrivilegesResponse response = client.security().getPrivileges(request, RequestOptions.DEFAULT);
+            //end::get-all-application-privileges-request
+
+            assertNotNull(response);
+            //TODO: When model is in place
+        }
+
+        {
+            //tag::get-all-privileges-request
+            GetPrivilegesRequest request = new GetPrivilegesRequest(null, null);
+            GetPrivilegesResponse response = client.security().getPrivileges(request, RequestOptions.DEFAULT);
+            //end::get-all-privileges-request
+
+            assertNotNull(response);
+            //TODO: When model is in place
+        }
+
+        {
+            //tag::get-privileges-execute-listener
+            GetPrivilegesRequest request = new GetPrivilegesRequest("testapp", "read");
+            ActionListener<GetPrivilegesResponse> listener = new ActionListener<GetPrivilegesResponse>() {
+                @Override
+                public void onResponse(GetPrivilegesResponse getPrivilegesResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::get-privileges-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::get-privileges-execute-async
+            client.security().getPrivilegesAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            //end::get-privileges-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
 }
+

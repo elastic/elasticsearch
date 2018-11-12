@@ -28,6 +28,7 @@ import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -240,5 +241,36 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/security/oauth2/token", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(createTokenRequest, request.getEntity());
+    }
+
+    public void testGetApplicationPrivilege() throws Exception {
+        final String application = randomAlphaOfLength(6);
+        final String privilege = randomAlphaOfLength(4);
+        GetPrivilegesRequest getPrivilegesRequest = new GetPrivilegesRequest(application, privilege);
+        Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/privilege/" + application + "/" + privilege, request.getEndpoint());
+        assertEquals(Collections.emptyMap(), request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    public void testGetAllApplicationPrivileges() throws Exception {
+        final String application = randomAlphaOfLength(6);
+        GetPrivilegesRequest getPrivilegesRequest = new GetPrivilegesRequest(application, null);
+        Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/privilege/" + application, request.getEndpoint());
+        assertEquals(Collections.emptyMap(), request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    public void testGetAllPrivileges() throws Exception {
+        final String application = randomAlphaOfLength(6);
+        GetPrivilegesRequest getPrivilegesRequest = new GetPrivilegesRequest(application, null);
+        Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/privilege", request.getEndpoint());
+        assertEquals(Collections.emptyMap(), request.getParameters());
+        assertNull(request.getEntity());
     }
 }

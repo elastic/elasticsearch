@@ -99,10 +99,10 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
                 "{ \"match\": { \"category\": \"RD1\" } }"));
         requestRoleDescriptors.add(buildRoleDescriptor("child-rd-2", new String[] { "index-1-1-2-*" }, new String[] { "READ" },
                 "{ \"match\": { \"category\": \"RD2\" } }"));
-        ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, () -> {
-            apiKeyService
-            .checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(requestRoleDescriptors, authentication);
-        });
+        final PlainActionFuture<List<RoleDescriptor>> roleDescriptorsFuture = new PlainActionFuture<>();
+        apiKeyService.checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(requestRoleDescriptors, authentication,
+                roleDescriptorsFuture);
+        ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, () -> roleDescriptorsFuture.actionGet());
         assertThat(ese.getMessage(), equalTo("role descriptors from the request are not subset of the authenticated user"));
     }
 
@@ -115,8 +115,10 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
                 "{ \"match\": { \"category\": \"RD1\" } }"));
         requestRoleDescriptors.add(buildRoleDescriptor("child-rd-2", new String[] { "index-1-1-2-*" }, new String[] { "READ" },
                 "{ \"match\": { \"category\": \"RD2\" } }"));
-        List<RoleDescriptor> newChildDescriptors = apiKeyService
-                .checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(requestRoleDescriptors, authentication);
+        final PlainActionFuture<List<RoleDescriptor>> newChildDescriptorsFuture = new PlainActionFuture<>();
+        apiKeyService.checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(requestRoleDescriptors, authentication,
+                newChildDescriptorsFuture);
+        List<RoleDescriptor> newChildDescriptors = newChildDescriptorsFuture.actionGet();
         assertThat(newChildDescriptors, equalTo(requestRoleDescriptors));
     }
 
@@ -129,9 +131,10 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
                 "{ \"match\": { \"category\": \"RD1\" } }"));
         requestRoleDescriptors.add(buildRoleDescriptor("child-rd-2", new String[] { "index-1-1-2-*" }, new String[] { "READ" },
                 "{ \"match\": { \"category\": \"RD2\" } }"));
-        List<RoleDescriptor> newChildDescriptors = apiKeyService
-                .checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(requestRoleDescriptors, authentication);
-
+        final PlainActionFuture<List<RoleDescriptor>> newChildDescriptorsFuture = new PlainActionFuture<>();
+        apiKeyService.checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(requestRoleDescriptors, authentication,
+                newChildDescriptorsFuture);
+        final List<RoleDescriptor> newChildDescriptors = newChildDescriptorsFuture.actionGet();
         assertThat(newChildDescriptors.size(), equalTo(2));
 
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
@@ -201,8 +204,10 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
                 "{ \"template\": { \"source\" : { \"term\": { \"category\" : \"{{_user.username}}\" } } } }"));
         requestRoleDescriptors.add(buildRoleDescriptor("child-rd-2", new String[] { "index-1-1-2-*" }, new String[] { "READ" },
                 "{ \"match\": { \"category\": \"RD2\" } }"));
-        List<RoleDescriptor> newChildDescriptors = apiKeyService
-                .checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(requestRoleDescriptors, authentication);
+        final PlainActionFuture<List<RoleDescriptor>> newChildDescriptorsFuture = new PlainActionFuture<>();
+        apiKeyService.checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(requestRoleDescriptors, authentication,
+                newChildDescriptorsFuture);
+        List<RoleDescriptor> newChildDescriptors = newChildDescriptorsFuture.actionGet();
 
         assertThat(newChildDescriptors.size(), equalTo(2));
 

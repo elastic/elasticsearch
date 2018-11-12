@@ -56,6 +56,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
                 SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         SecurityClient securityClient = new SecurityClient(client);
+
         CreateApiKeyResponse response = securityClient.prepareCreateApiKey()
             .setName("test key")
             .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))

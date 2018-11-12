@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import com.google.common.collect.Sets;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.security.authz.permission.SubsetResult;
@@ -96,15 +95,15 @@ public class SubsetResultTests extends ESTestCase {
     }
 
     public void testEqualsHashCode() {
-        final SubsetResult.Result result = randomFrom(SubsetResult.Result.values());
-        String[] indexNames = new String[] { randomAlphaOfLength(4), randomAlphaOfLength(3) };
-        SubsetResult subsetResult = createSubsetResultFor(result, indexNames);
+        final SubsetResult.Result origResult = randomFrom(SubsetResult.Result.values());
+        final String[] origIndexNames = new String[] { randomAlphaOfLength(4), randomAlphaOfLength(3) };
+        SubsetResult subsetResult = createSubsetResultFor(origResult, origIndexNames);
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(subsetResult, (original) -> {
-            return createSubsetResultFor(result, original.setOfIndexNamesForCombiningDLSQueries().toArray(Strings.EMPTY_ARRAY));
+            return createSubsetResultFor(origResult, origIndexNames);
         });
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(subsetResult, (original) -> {
-            return createSubsetResultFor(result, original.setOfIndexNamesForCombiningDLSQueries().toArray(Strings.EMPTY_ARRAY));
+            return createSubsetResultFor(origResult, origIndexNames);
         }, SubsetResultTests::mutateTestItem);
     }
 
@@ -115,7 +114,7 @@ public class SubsetResultTests extends ESTestCase {
         } else if (result == Result.NO) {
             subsetResult = SubsetResult.isNotASubset();
         } else {
-            if (indexNames != null) {
+            if (indexNames != null && indexNames.length > 0) {
                 subsetResult = SubsetResult.mayBeASubset(Sets.newHashSet(indexNames));
             } else {
                 subsetResult = SubsetResult.mayBeASubset(Sets.newHashSet(randomAlphaOfLength(5)));

@@ -15,7 +15,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CharArrays;
@@ -151,29 +150,29 @@ public class ApiKeyService {
                     }
                 }
 
-                final List<RoleDescriptor> roleDescriptors = checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(
-                        request.getRoleDescriptors(), authentication);
-
-                builder.array("role_descriptors", roleDescriptors)
-                    .field("name", request.getName())
+                builder.field("name", request.getName())
                     .field("version", version.id)
                     .startObject("creator")
                     .field("principal", authentication.getUser().principal())
                     .field("metadata", authentication.getUser().metadata())
                     .field("realm", authentication.getLookedUpBy() == null ?
                         authentication.getAuthenticatedBy().getName() : authentication.getLookedUpBy().getName())
-                    .endObject()
                     .endObject();
-                final IndexRequest indexRequest =
-                    client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE)
-                        .setSource(builder)
-                        .setRefreshPolicy(request.getRefreshPolicy())
-                        .request();
-                securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-                    executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexRequest,
-                        ActionListener.wrap(indexResponse ->
-                                listener.onResponse(new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
-                            listener::onFailure)));
+
+                checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(request.getRoleDescriptors(), authentication,
+                        ActionListener.wrap(roleDescriptors -> {
+                            builder.array("role_descriptors", roleDescriptors)
+                                .endObject();
+                            final IndexRequest indexRequest = client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE)
+                                    .setSource(builder)
+                                    .setRefreshPolicy(request.getRefreshPolicy())
+                                    .request();
+                            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure,
+                                    () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexRequest,
+                                            ActionListener.wrap(indexResponse -> listener.onResponse(
+                                                    new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
+                                                    listener::onFailure)));
+                        }, listener::onFailure));
             } catch (IOException e) {
                 listener.onFailure(e);
             } finally {
@@ -197,33 +196,31 @@ public class ApiKeyService {
     }
 
     // pkg-scope for testing
-    List<RoleDescriptor> checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(
-            final List<RoleDescriptor> requestRoleDescriptors, final Authentication authentication) throws IOException {
-        List<RoleDescriptor> roleDescriptors = requestRoleDescriptors;
+    void checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(final List<RoleDescriptor> requestRoleDescriptors,
+            final Authentication authentication, ActionListener<List<RoleDescriptor>> listener) throws IOException {
 
-        final PlainActionFuture<Role> thisRoleFuture = new PlainActionFuture<>();
-        authorizationService.roles(roleDescriptors, thisRoleFuture);
-        final Role thisRole = thisRoleFuture.actionGet();
+        authorizationService.roles(requestRoleDescriptors, ActionListener.wrap(thisRole -> {
+            authorizationService.roles(authentication.getUser(), ActionListener.wrap(otherRole -> {
+                final SubsetResult subsetResult = thisRole.isSubsetOf(otherRole);
 
-        final PlainActionFuture<Role> otherRoleFuture = new PlainActionFuture<>();
-        authorizationService.roles(authentication.getUser(), otherRoleFuture);
-        final Role otherRole = otherRoleFuture.actionGet();
-
-        final SubsetResult subsetResult = thisRole.isSubsetOf(otherRole);
-
-        if (subsetResult.result() == SubsetResult.Result.NO) {
-            throw new ElasticsearchSecurityException("role descriptors from the request are not subset of the authenticated user");
-        } else if (subsetResult.result() == SubsetResult.Result.MAYBE) {
-            // we can make this work, by combining DLS queries such that
-            // the resultant role descriptors are subset.
-            final PlainActionFuture<Set<RoleDescriptor>> userRoleDescriptorsListener = new PlainActionFuture<>();
-            authorizationService.roleDescriptors(authentication.getUser(), userRoleDescriptorsListener);
-            final List<RoleDescriptor> otherRoleDescriptors = new ArrayList<>(userRoleDescriptorsListener.actionGet());
-            roleDescriptors = modifyRoleDescriptorsToMakeItASubset(roleDescriptors, otherRoleDescriptors, subsetResult,
-                    authentication.getUser());
-        }
-        assert roleDescriptors.size() == requestRoleDescriptors.size();
-        return roleDescriptors;
+                if (subsetResult.result() == SubsetResult.Result.NO) {
+                    listener.onFailure(new ElasticsearchSecurityException(
+                            "role descriptors from the request are not subset of the authenticated user"));
+                } else if (subsetResult.result() == SubsetResult.Result.MAYBE) {
+                    // we can make this work, by combining DLS queries such that
+                    // the resultant role descriptors are subset.
+                    authorizationService.roleDescriptors(authentication.getUser(), ActionListener.wrap(userRoleDescriptors -> {
+                        final List<RoleDescriptor> otherRoleDescriptors = new ArrayList<>(userRoleDescriptors);
+                        List<RoleDescriptor> roleDescriptors = modifyRoleDescriptorsToMakeItASubset(requestRoleDescriptors,
+                                otherRoleDescriptors, subsetResult, authentication.getUser());
+                        assert roleDescriptors.size() == requestRoleDescriptors.size();
+                        listener.onResponse(roleDescriptors);
+                    }, listener::onFailure));
+                } else {
+                    listener.onResponse(requestRoleDescriptors);
+                }
+            }, listener::onFailure));
+        }, listener::onFailure));
     }
 
     /**

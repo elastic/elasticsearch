@@ -6,6 +6,8 @@
 <titleabbrev>Create Auto-Follow Pattern</titleabbrev>
 ++++
 
+beta[]
+
 Creates an auto-follow pattern.
 
 ==== Description

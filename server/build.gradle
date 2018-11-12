@@ -103,7 +103,7 @@ dependencies {
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
-  compile 'joda-time:joda-time:2.10'
+  compile "joda-time:joda-time:${versions.joda}"
 
   // percentiles aggregation
   compile 'com.tdunning:t-digest:3.2'

@@ -80,7 +80,7 @@ The above index template introduces a few new settings specific to {ILM}. The fi
 being `index.lifecycle.name`. This setting will configure the "datastream_policy" to the index
 applying this template. This means that all newly created
 indices prefixed "datastream-" will be managed by our policy. The other setting used here is
-`index.lifecycle.rollover_alias`. This setting is important to associate which alias to
+`index.lifecycle.rollover_alias`. This setting is required when using a policy containing the rollover action and specifies which alias to
 rollover on behalf of this index. The intention here is that the rollover alias is also defined
 on the index.
 

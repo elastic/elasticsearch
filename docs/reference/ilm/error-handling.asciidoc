@@ -52,7 +52,8 @@ PUT /myindex
 // TEST[continued]
 
 After five minutes has passed, ILM will attempt to shrink this index from 2
-shards to 4, which is an invalid amount. When this occurs, ILM will move this
+shards to 4, which is invalid since the shrink action cannot increase the
+number of shards. When this occurs, ILM will move this
 index to the "error" step. Once an index is in this step, information about the
 reason for the error can be retrieved from the <<ilm-explain,ILM Explain API>>:
 

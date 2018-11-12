@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="basic"]
 [[index-lifecycle-error-handling]]
 == Index Lifecycle Error Handling
 

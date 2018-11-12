@@ -144,21 +144,27 @@ public class ApplicationPermissionTests extends ESTestCase {
                 new Tuple<>(app1Write, Sets.newHashSet("obj/3", "obj/4")),
                 new Tuple<>(app1All, Sets.newHashSet("obj/6", "obj/7")),
                 new Tuple<>(app2Read, Sets.newHashSet("obj/1", "obj/8"))));
+        final ApplicationPermission emptyPermBase = ApplicationPermission.NONE;
 
-        final ApplicationPermission emptyApplicationPermission = new ApplicationPermission(Collections.emptyList());
-        assertThat(emptyApplicationPermission.isSubsetOf(permBase), is(true));
+        final ApplicationPermission emptyApplicationPermission = ApplicationPermission.NONE;
+        assertThat(emptyApplicationPermission.isSubsetOf(permBase), is(false));
+
+        assertThat(emptyApplicationPermission.isSubsetOf(emptyPermBase), is(true));
 
         final ApplicationPermission permIsSubset_basedOnResources = new ApplicationPermission(
                 Arrays.asList(new Tuple<>(app1Read, Sets.newHashSet("obj/1"))));
         assertThat(permIsSubset_basedOnResources.isSubsetOf(permBase), is(true));
+        assertThat(permIsSubset_basedOnResources.isSubsetOf(emptyPermBase), is(false));
 
         final ApplicationPermission permIsSubset_basedOnPrivilege = new ApplicationPermission(Arrays.asList(new Tuple<>(
                 new ApplicationPrivilege("app1", "read", "read/*"), Sets.newHashSet("obj/6"))));
         assertThat(permIsSubset_basedOnPrivilege.isSubsetOf(permBase), is(true));
+        assertThat(permIsSubset_basedOnPrivilege.isSubsetOf(emptyPermBase), is(false));
 
         final ApplicationPermission permIsSubsetFails_basedOnResources = new ApplicationPermission(Arrays.asList(new Tuple<>(
                 new ApplicationPrivilege("app1", "write", "write/*"), Sets.newHashSet("obj/1"))));
         assertThat(permIsSubsetFails_basedOnResources.isSubsetOf(permBase), is(false));
+        assertThat(permIsSubsetFails_basedOnResources.isSubsetOf(emptyPermBase), is(false));
     }
 
     private ApplicationPrivilege actionPrivilege(String appName, String... actions) {

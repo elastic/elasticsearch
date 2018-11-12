@@ -527,7 +527,7 @@ POST _reindex
 
 In addition to the standard parameters like `pretty`, the Reindex API also
 supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`,
-`scroll`, `requests_per_second` and `auto_create_index`.
+`scroll` and `requests_per_second`.
 
 Sending the `refresh` url parameter will cause all indexes to which the request
 wrote to be refreshed. This is different than the Index API's `refresh`
@@ -570,9 +570,6 @@ wait_time = target_time - write_time = 2 seconds - .5 seconds = 1.5 seconds
 Since the batch is issued as a single `_bulk` request, large batch sizes will
 cause Elasticsearch to create many requests and then wait for a while before
 starting the next set. This is "bursty" instead of "smooth". The default value is `-1`.
-
-To disable automatic index creation `auto_create_index` parameter has to be set to `false`,
-skip this parameter to follow default behaviour defined by <<index-creation,`action.auto_create_index`>>.
 
 [float]
 [[docs-reindex-response-body]]

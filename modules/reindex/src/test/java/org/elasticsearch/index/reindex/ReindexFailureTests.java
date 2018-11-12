@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
@@ -127,15 +126,6 @@ public class ReindexFailureTests extends ReindexTestCase {
             }
         }
         assumeFalse("Wasn't able to trigger a reindex failure in " + attempt + " attempts.", true);
-    }
-
-    public void testReindexWithDisabledAutoCreateIndex() throws Exception {
-        indexDocs(randomIntBetween(1, 10));
-
-        final IndexNotFoundException exception = expectThrows(IndexNotFoundException.class,
-                () -> reindex().source("source").destination("test", "type").setAutoCreateIndexIfPermitted(false).get());
-        assertThat(exception.getMessage(),
-            containsString("no such index [test] and parameter [auto_create_index] is [false]"));
     }
 
     private void indexDocs(int count) throws Exception {

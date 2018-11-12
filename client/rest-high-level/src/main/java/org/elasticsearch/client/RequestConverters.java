@@ -512,9 +512,6 @@ final class RequestConverters {
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
         }
-        if (reindexRequest.isAutoCreateIndexIfPermitted() == false) {
-            params.putParam("auto_create_index", Boolean.toString(reindexRequest.isAutoCreateIndexIfPermitted()));
-        }
         request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }

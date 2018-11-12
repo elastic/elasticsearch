@@ -345,7 +345,6 @@ public class RequestConvertersTests extends ESTestCase {
         if (reindexRequest.getRemoteInfo() == null && randomBoolean()) {
             reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
         }
-        setRandomlyDisableAutoCreateIndex(reindexRequest::setAutoCreateIndexIfPermitted, expectedParams);
         setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
         expectedParams.put("scroll", reindexRequest.getScrollTime().getStringRep());

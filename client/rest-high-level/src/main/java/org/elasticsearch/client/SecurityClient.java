@@ -48,9 +48,9 @@ import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 
 import java.io.IOException;
+import java.util.Optional;
 
 import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Security APIs.
@@ -396,9 +396,9 @@ public final class SecurityClient {
      * @return the response from the delete role call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public DeleteRoleResponse deleteRole(DeleteRoleRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::deleteRole, options,
-            DeleteRoleResponse::fromXContent, singleton(404));
+    public Optional<DeleteRoleResponse> deleteRole(DeleteRoleRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseOptionalEntity(request, SecurityRequestConverters::deleteRole, options,
+            DeleteRoleResponse::fromXContent);
     }
 
     /**
@@ -409,9 +409,9 @@ public final class SecurityClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void deleteRoleAsync(DeleteRoleRequest request, RequestOptions options, ActionListener<DeleteRoleResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deleteRole, options,
-            DeleteRoleResponse::fromXContent, listener, singleton(404));
+    public void deleteRoleAsync(DeleteRoleRequest request, RequestOptions options, ActionListener<Optional<DeleteRoleResponse>> listener) {
+        restHighLevelClient.performRequestAsyncAndParseOptionalEntity(request, SecurityRequestConverters::deleteRole, options,
+            DeleteRoleResponse::fromXContent, listener);
     }
 
     /**

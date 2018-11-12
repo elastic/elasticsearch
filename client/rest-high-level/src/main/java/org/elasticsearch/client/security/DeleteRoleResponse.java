@@ -19,37 +19,17 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-
-import java.io.IOException;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Response for a role being deleted from the native realm
  */
 public final class DeleteRoleResponse {
 
-    private final boolean found;
-
-    public DeleteRoleResponse(boolean found) {
-        this.found = found;
+    public DeleteRoleResponse() {
     }
 
-    public boolean isFound() {
-        return this.found;
-    }
-
-    private static final ConstructingObjectParser<DeleteRoleResponse, Void> PARSER = new ConstructingObjectParser<>("delete_role_response",
-        true, args -> new DeleteRoleResponse((boolean) args[0]));
-
-    static {
-        PARSER.declareBoolean(constructorArg(), new ParseField("found"));
-    }
-
-    public static DeleteRoleResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public static DeleteRoleResponse fromXContent(XContentParser parser) {
+        return new DeleteRoleResponse();
     }
 }

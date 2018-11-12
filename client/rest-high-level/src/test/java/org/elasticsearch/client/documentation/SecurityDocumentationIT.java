@@ -70,6 +70,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -712,27 +713,27 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::delete-role-request
 
             // tag::delete-role-execute
-            DeleteRoleResponse deleteRoleResponse = client.security().deleteRole(deleteRoleRequest, RequestOptions.DEFAULT);
+            Optional<DeleteRoleResponse> deleteRoleResponse = client.security().deleteRole(deleteRoleRequest, RequestOptions.DEFAULT);
             // end::delete-role-execute
 
             // tag::delete-role-response
-            boolean found = deleteRoleResponse.isFound();    // <1>
+            boolean found = deleteRoleResponse.isPresent();    // <1>
             // end::delete-role-response
             assertTrue(found);
 
             // check if deleting the already deleted role again will give us a different response
             deleteRoleResponse = client.security().deleteRole(deleteRoleRequest, RequestOptions.DEFAULT);
-            assertFalse(deleteRoleResponse.isFound());
+            assertFalse(deleteRoleResponse.isPresent());
         }
 
         {
             DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest("testrole");
 
-            ActionListener<DeleteRoleResponse> listener;
+            ActionListener<Optional<DeleteRoleResponse>> listener;
             //tag::delete-role-execute-listener
-            listener = new ActionListener<DeleteRoleResponse>() {
+            listener = new ActionListener<Optional<DeleteRoleResponse>>() {
                 @Override
-                public void onResponse(DeleteRoleResponse deleteRoleResponse) {
+                public void onResponse(Optional<DeleteRoleResponse> deleteRoleResponse) {
                     // <1>
                 }
 

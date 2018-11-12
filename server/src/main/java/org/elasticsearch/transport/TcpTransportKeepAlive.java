@@ -64,6 +64,8 @@ public class TcpTransportKeepAlive implements Closeable {
         } catch (IOException e) {
             throw new AssertionError(e.getMessage(), e); // won't happen
         }
+
+        this.lifecycle.moveToStarted();
     }
 
     void registerNodeConnection(List<TcpChannel> nodeChannels, ConnectionProfile connectionProfile) {

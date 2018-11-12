@@ -98,7 +98,7 @@ public final class ConnectionProfile {
      * when opening single use connections
      */
     public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType) {
-        return buildSingleChannelProfile(channelType, null, null, null);
+        return buildSingleChannelProfile(channelType, null, null, null, null);
     }
 
     /**
@@ -106,7 +106,7 @@ public final class ConnectionProfile {
      * settings.
      */
     public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, boolean compressionEnabled) {
-        return buildSingleChannelProfile(channelType, null, null, compressionEnabled);
+        return buildSingleChannelProfile(channelType, null, null, null, compressionEnabled);
     }
 
     /**
@@ -115,7 +115,7 @@ public final class ConnectionProfile {
      */
     public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, @Nullable TimeValue connectTimeout,
                                                               @Nullable TimeValue handshakeTimeout) {
-        return buildSingleChannelProfile(channelType, connectTimeout, handshakeTimeout, null);
+        return buildSingleChannelProfile(channelType, connectTimeout, handshakeTimeout, null, null);
     }
 
     /**
@@ -123,7 +123,8 @@ public final class ConnectionProfile {
      * handshake timeouts and compression settings.
      */
     public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, @Nullable TimeValue connectTimeout,
-                                                              @Nullable TimeValue handshakeTimeout, @Nullable Boolean compressionEnabled) {
+                                                              @Nullable TimeValue handshakeTimeout, @Nullable TimeValue pingInterval,
+                                                              @Nullable Boolean compressionEnabled) {
         Builder builder = new Builder();
         builder.addConnections(1, channelType);
         final EnumSet<TransportRequestOptions.Type> otherTypes = EnumSet.allOf(TransportRequestOptions.Type.class);
@@ -134,6 +135,9 @@ public final class ConnectionProfile {
         }
         if (handshakeTimeout != null) {
             builder.setHandshakeTimeout(handshakeTimeout);
+        }
+        if (pingInterval != null) {
+            builder.setPingInterval(pingInterval);
         }
         if (compressionEnabled != null) {
             builder.setCompressionEnabled(compressionEnabled);

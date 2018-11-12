@@ -394,9 +394,11 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 Settings.Builder builder = Settings.builder();
                 builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
                 builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
-                TimeValue pingSchedule1 = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueSeconds(randomIntBetween(1, 10));
+                TimeValue pingSchedule1 = // randomBoolean() ? TimeValue.MINUS_ONE :
+                    TimeValue.timeValueSeconds(randomIntBetween(1, 10));
                 builder.put("cluster.remote.cluster_1.transport.ping_schedule", pingSchedule1);
-                TimeValue pingSchedule2 = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueSeconds(randomIntBetween(1, 10));
+                TimeValue pingSchedule2 = //randomBoolean() ? TimeValue.MINUS_ONE :
+                    TimeValue.timeValueSeconds(randomIntBetween(1, 10));
                 builder.put("cluster.remote.cluster_2.transport.ping_schedule", pingSchedule2);
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());

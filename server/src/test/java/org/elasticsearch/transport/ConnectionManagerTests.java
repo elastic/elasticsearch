@@ -54,7 +54,9 @@ public class ConnectionManagerTests extends ESTestCase {
         transport = mock(Transport.class);
         connectionManager = new ConnectionManager(settings, transport, threadPool);
         TimeValue oneSecond = new TimeValue(1000);
-        connectionProfile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, oneSecond, oneSecond, false);
+        TimeValue oneMinute = TimeValue.timeValueMinutes(1);
+        connectionProfile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, oneSecond, oneSecond,
+            oneMinute, false);
     }
 
     @After

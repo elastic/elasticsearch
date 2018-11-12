@@ -50,6 +50,7 @@ import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 
 import java.io.IOException;
+import java.util.Optional;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
@@ -105,9 +106,9 @@ public final class SecurityClient {
      * @return the response from the delete user call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public DeleteUserResponse deleteUser(DeleteUserRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::deleteUser, options,
-            DeleteUserResponse::fromXContent, singleton(404));
+    public Optional<DeleteUserResponse> deleteUser(DeleteUserRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseOptionalEntity(request, SecurityRequestConverters::deleteUser, options,
+            DeleteUserResponse::fromXContent);
     }
 
     /**
@@ -118,9 +119,9 @@ public final class SecurityClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void deleteUserAsync(DeleteUserRequest request, RequestOptions options, ActionListener<DeleteUserResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deleteUser, options,
-            DeleteUserResponse::fromXContent, listener, singleton(404));
+    public void deleteUserAsync(DeleteUserRequest request, RequestOptions options, ActionListener<Optional<DeleteUserResponse>> listener) {
+        restHighLevelClient.performRequestAsyncAndParseOptionalEntity(request, SecurityRequestConverters::deleteUser, options,
+            DeleteUserResponse::fromXContent, listener);
     }
 
     /**

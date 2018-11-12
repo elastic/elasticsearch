@@ -72,6 +72,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -92,8 +93,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::put-user-execute
             char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-            PutUserRequest request =
-                new PutUserRequest("example", password, Collections.singletonList("superuser"), null, null, true, null, RefreshPolicy.NONE);
+            User user = new User("example", Collections.singletonList("superuser"));
+            PutUserRequest request = new PutUserRequest(user, password, true, RefreshPolicy.NONE);
             PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
             //end::put-user-execute
 
@@ -106,8 +107,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-            PutUserRequest request = new PutUserRequest("example2", password, Collections.singletonList("superuser"), null, null, true,
-                null, RefreshPolicy.NONE);
+            User user2 = new User("example2", Collections.singletonList("superuser"));
+            PutUserRequest request = new PutUserRequest(user2, password, true, RefreshPolicy.NONE);
             // tag::put-user-execute-listener
             ActionListener<PutUserResponse> listener = new ActionListener<PutUserResponse>() {
                 @Override
@@ -145,27 +146,27 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::delete-user-request
 
             // tag::delete-user-execute
-            DeleteUserResponse deleteUserResponse = client.security().deleteUser(deleteUserRequest, RequestOptions.DEFAULT);
+            Optional<DeleteUserResponse> deleteUserResponse = client.security().deleteUser(deleteUserRequest, RequestOptions.DEFAULT);
             // end::delete-user-execute
 
             // tag::delete-user-response
-            boolean found = deleteUserResponse.isAcknowledged();    // <1>
+            boolean found = deleteUserResponse.get().isAcknowledged();    // <1>
             // end::delete-user-response
             assertTrue(found);
 
             // check if deleting the already deleted user again will give us a different response
             deleteUserResponse = client.security().deleteUser(deleteUserRequest, RequestOptions.DEFAULT);
-            assertFalse(deleteUserResponse.isAcknowledged());
+            assertFalse(deleteUserResponse.isPresent());
         }
 
         {
             DeleteUserRequest deleteUserRequest = new DeleteUserRequest("testUser", RefreshPolicy.IMMEDIATE);
 
-            ActionListener<DeleteUserResponse> listener;
+            ActionListener<Optional<DeleteUserResponse>> listener;
             //tag::delete-user-execute-listener
-            listener = new ActionListener<DeleteUserResponse>() {
+            listener = new ActionListener<Optional<DeleteUserResponse>>() {
                 @Override
-                public void onResponse(DeleteUserResponse deleteUserResponse) {
+                public void onResponse(Optional<DeleteUserResponse> deleteUserResponse) {
                     // <1>
                 }
 
@@ -189,8 +190,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     private void addUser(RestHighLevelClient client, String userName, String password) throws IOException {
-        PutUserRequest request = new PutUserRequest(userName, password.toCharArray(),
-            Collections.singletonList("superuser"), null, null, true, null, RefreshPolicy.IMMEDIATE);
+        User user = new User(userName, Collections.singletonList(userName));
+        PutUserRequest request = new PutUserRequest(user, password.toCharArray(), true, RefreshPolicy.NONE);
         PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
         assertTrue(response.isCreated());
     }
@@ -363,8 +364,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testEnableUser() throws Exception {
         RestHighLevelClient client = highLevelClient();
         char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-        PutUserRequest putUserRequest = new PutUserRequest("enable_user", password, Collections.singletonList("superuser"), null,
-            null, true, null, RefreshPolicy.IMMEDIATE);
+        User enable_user = new User("enable_user", Collections.singletonList("superuser"));
+        PutUserRequest putUserRequest = new PutUserRequest(enable_user, password, true, RefreshPolicy.IMMEDIATE);
         PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
         assertTrue(putUserResponse.isCreated());
 
@@ -408,8 +409,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testDisableUser() throws Exception {
         RestHighLevelClient client = highLevelClient();
         char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-        PutUserRequest putUserRequest = new PutUserRequest("disable_user", password, Collections.singletonList("superuser"), null,
-            null, true, null, RefreshPolicy.IMMEDIATE);
+        User disable_user = new User("disable_user", Collections.singletonList("superuser"));
+        PutUserRequest putUserRequest = new PutUserRequest(disable_user, password, true, RefreshPolicy.IMMEDIATE);
         PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
         assertTrue(putUserResponse.isCreated());
         {
@@ -461,11 +462,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             boolean enabled = response.enabled(); // <2>
             //end::authenticate-response
 
-            assertThat(user.username(), is("test_user"));
-            assertThat(user.roles(), contains(new String[]{"superuser"}));
-            assertThat(user.fullName(), nullValue());
-            assertThat(user.email(), nullValue());
-            assertThat(user.metadata().isEmpty(), is(true));
+            assertThat(user.getUsername(), is("test_user"));
+            assertThat(user.getRoles(), contains(new String[] {"superuser"}));
+            assertThat(user.getFullName(), nullValue());
+            assertThat(user.getEmail(), nullValue());
+            assertThat(user.getMetadata().isEmpty(), is(true));
             assertThat(enabled, is(true));
         }
 
@@ -671,8 +672,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
         char[] newPassword = new char[]{'n', 'e', 'w', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-        PutUserRequest putUserRequest = new PutUserRequest("change_password_user", password, Collections.singletonList("superuser"),
-            null, null, true, null, RefreshPolicy.NONE);
+        User user = new User("change_password_user", Collections.singletonList("superuser"), Collections.emptyMap(), null, null);
+        PutUserRequest putUserRequest = new PutUserRequest(user, password, true, RefreshPolicy.NONE);
         PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
         assertTrue(putUserResponse.isCreated());
         {
@@ -837,8 +838,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // Setup user
-            PutUserRequest putUserRequest = new PutUserRequest("token_user", "password".toCharArray(),
-                Collections.singletonList("kibana_user"), null, null, true, null, RefreshPolicy.IMMEDIATE);
+            User token_user = new User("token_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putUserRequest = new PutUserRequest(token_user, "password".toCharArray(), true, RefreshPolicy.IMMEDIATE);
             PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
             assertTrue(putUserResponse.isCreated());
         }
@@ -915,8 +916,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Setup user
             final char[] password = "password".toCharArray();
-            PutUserRequest putUserRequest = new PutUserRequest("invalidate_token", password,
-                Collections.singletonList("kibana_user"), null, null, true, null, RefreshPolicy.IMMEDIATE);
+            User invalidate_token_user = new User("invalidate_token", Collections.singletonList("kibana_user"));
+            PutUserRequest putUserRequest = new PutUserRequest(invalidate_token_user, password, true, RefreshPolicy.IMMEDIATE);
             PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
             assertTrue(putUserResponse.isCreated());
 

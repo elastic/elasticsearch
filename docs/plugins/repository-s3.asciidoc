@@ -208,8 +208,12 @@ The following settings are supported:
 
 `storage_class`::
 
-    Sets the S3 storage class type for the backup files. Values may be
-    `standard`, `reduced_redundancy`, `standard_ia`. Defaults to `standard`.
+    Sets the S3 storage class for objects stored in the snapshot repository.
+    Values may be `standard`, `reduced_redundancy`, `standard_ia`.
+    Defaults to `standard`. Changing this setting on an existing repository
+    only affects the storage class for newly created objects, resulting in a
+    mixed usage of storage classes. Additionally, S3 Lifecycle Policies can
+    be used to manage the storage class of existing objects.
     Due to the extra complexity with the Glacier class lifecycle, it is not
     currently supported by the plugin. For more information about the
     different classes, see http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide]
@@ -303,6 +307,9 @@ You may further restrict the permissions by specifying a prefix within the bucke
 
 The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository
 registration will fail.
+
+Note: Starting in version 7.0, all bucket operations are using the path style access pattern. In previous versions the decision to use virtual hosted style
+or path style access was made by the AWS Java SDK.
 
 [[repository-s3-aws-vpc]]
 [float]

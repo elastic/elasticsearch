@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpDelete;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
@@ -26,6 +27,7 @@ import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.CharArrays;
 
 import java.util.Arrays;
@@ -33,13 +35,31 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 
 public class SecurityIT extends ESRestHighLevelClientTestCase {
+
+    public void testPutUser() throws Exception {
+        final SecurityClient securityClient = highLevelClient().security();
+        // create user
+        final PutUserRequest putUserRequest = randomPutUserRequest(randomBoolean());
+        final PutUserResponse putUserResponse = execute(putUserRequest, securityClient::putUser, securityClient::putUserAsync);
+        // assert user created
+        assertThat(putUserResponse.isCreated(), is(true));
+        // update user
+        final User updatedUser = randomUser(putUserRequest.getUser().getUsername());
+        final PutUserRequest updateUserRequest = randomPutUserRequest(updatedUser, randomBoolean());
+        final PutUserResponse updateUserResponse = execute(updateUserRequest, securityClient::putUser, securityClient::putUserAsync);
+        // assert user not created
+        assertThat(updateUserResponse.isCreated(), is(false));
+        // delete user
+        final Request deleteUserRequest = new Request(HttpDelete.METHOD_NAME,
+                "/_xpack/security/user/" + putUserRequest.getUser().getUsername());
+        highLevelClient().getLowLevelClient().performRequest(deleteUserRequest);
+    }
 
     public void testAuthenticate() throws Exception {
         final SecurityClient securityClient = highLevelClient().security();
@@ -49,42 +69,36 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(putUserResponse.isCreated(), is(true));
 
         // authenticate correctly
-        final String basicAuthHeader = basicAuthHeader(putUserRequest.getUsername(), putUserRequest.getPassword());
+        final String basicAuthHeader = basicAuthHeader(putUserRequest.getUser().getUsername(), putUserRequest.getPassword());
         final AuthenticateResponse authenticateResponse = execute(securityClient::authenticate, securityClient::authenticateAsync,
                 authorizationRequestOptions(basicAuthHeader));
 
-        assertThat(authenticateResponse.getUser().username(), is(putUserRequest.getUsername()));
-        if (putUserRequest.getRoles().isEmpty()) {
-            assertThat(authenticateResponse.getUser().roles(), is(empty()));
-        } else {
-            assertThat(authenticateResponse.getUser().roles(), contains(putUserRequest.getRoles().toArray()));
-        }
-        assertThat(authenticateResponse.getUser().metadata(), is(putUserRequest.getMetadata()));
-        assertThat(authenticateResponse.getUser().fullName(), is(putUserRequest.getFullName()));
-        assertThat(authenticateResponse.getUser().email(), is(putUserRequest.getEmail()));
+        assertThat(authenticateResponse.getUser(), is(putUserRequest.getUser()));
         assertThat(authenticateResponse.enabled(), is(true));
 
         // delete user
         final DeleteUserRequest deleteUserRequest =
-            new DeleteUserRequest(putUserRequest.getUsername(), putUserRequest.getRefreshPolicy());
-        final DeleteUserResponse deleteUserResponse =
-            execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
-        assertThat(deleteUserResponse.isAcknowledged(), is(true));
+            new DeleteUserRequest(putUserRequest.getUser().getUsername(), putUserRequest.getRefreshPolicy());
+
+        final Optional<DeleteUserResponse> deleteUserResponse = execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
+        assertThat(deleteUserResponse.get().isAcknowledged(), is(true));
 
         // authentication no longer works
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> execute(securityClient::authenticate,
                 securityClient::authenticateAsync, authorizationRequestOptions(basicAuthHeader)));
-        assertThat(e.getMessage(), containsString("unable to authenticate user [" + putUserRequest.getUsername() + "]"));
+        assertThat(e.getMessage(), containsString("unable to authenticate user [" + putUserRequest.getUser().getUsername() + "]"));
 
         // delete non-existing user
-        final DeleteUserResponse deleteUserResponse2 =
-            execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
-        assertThat(deleteUserResponse2.isAcknowledged(), is(false));
+        final Optional<DeleteUserResponse> deleteUserResponse2 = execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
+        assertThat(deleteUserResponse2.isPresent(), is(false));
     }
 
-    private static PutUserRequest randomPutUserRequest(boolean enabled) {
+    private static User randomUser() {
         final String username = randomAlphaOfLengthBetween(1, 4);
-        final char[] password = randomAlphaOfLengthBetween(6, 10).toCharArray();
+        return randomUser(username);
+    }
+
+    private static User randomUser(String username) {
         final List<String> roles = Arrays.asList(generateRandomStringArray(3, 3, false, true));
         final String fullName = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 3));
         final String email = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 3));
@@ -100,15 +114,25 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         } else {
             metadata.put("string_list", Arrays.asList(generateRandomStringArray(4, 4, false, true)));
         }
-        return new PutUserRequest(username, password, roles, fullName, email, enabled, metadata, RefreshPolicy.IMMEDIATE);
+        return new User(username, roles, metadata, fullName, email);
     }
-    
+
+    private static PutUserRequest randomPutUserRequest(boolean enabled) {
+        final User user = randomUser();
+        return randomPutUserRequest(user, enabled);
+    }
+
+    private static PutUserRequest randomPutUserRequest(User user, boolean enabled) {
+        final char[] password = randomAlphaOfLengthBetween(6, 10).toCharArray();
+        return new PutUserRequest(user, password, enabled, RefreshPolicy.IMMEDIATE);
+    }
+
     private static String basicAuthHeader(String username, char[] password) {
         final String concat = new StringBuilder().append(username).append(':').append(password).toString();
         final byte[] concatBytes = CharArrays.toUtf8Bytes(concat.toCharArray());
         return "Basic " + Base64.getEncoder().encodeToString(concatBytes);
     }
-    
+
     private static RequestOptions authorizationRequestOptions(String authorizationHeader) {
         final RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.addHeader("Authorization", authorizationHeader);

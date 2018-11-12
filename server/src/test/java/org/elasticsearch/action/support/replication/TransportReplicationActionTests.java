@@ -81,7 +81,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -1252,11 +1251,6 @@ public class TransportReplicationActionTests extends ESTestCase {
 
             @Override
             public void sendResponse(TransportResponse response) throws IOException {
-                listener.onResponse(((TestResponse) response));
-            }
-
-            @Override
-            public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
                 listener.onResponse(((TestResponse) response));
             }
 

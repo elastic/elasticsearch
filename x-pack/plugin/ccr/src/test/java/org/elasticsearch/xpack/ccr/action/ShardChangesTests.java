@@ -96,7 +96,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
                 .put("index.number_of_replicas", 0))
             .get();
 
-        for (int i = 0; i < 16; i++) {
+        for (int i = 0; i < 32; i++) {
             client().prepareIndex("index", "_doc", "1").setSource("{}", XContentType.JSON).get();
             client().prepareDelete("index", "_doc", "1").get();
         }

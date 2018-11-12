@@ -46,7 +46,7 @@ public final class ConnectionProfile {
         if (profile == null) {
             return fallbackProfile;
         } else if (profile.getConnectTimeout() != null && profile.getHandshakeTimeout() != null
-            && profile.getCompressionEnabled() != null) {
+            && profile.getPingInterval() != null && profile.getCompressionEnabled() != null) {
             return profile;
         } else {
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder(profile);
@@ -55,6 +55,9 @@ public final class ConnectionProfile {
             }
             if (profile.getHandshakeTimeout() == null) {
                 builder.setHandshakeTimeout(fallbackProfile.getHandshakeTimeout());
+            }
+            if (profile.getPingInterval() == null) {
+                builder.setPingInterval(fallbackProfile.getPingInterval());
             }
             if (profile.getCompressionEnabled() == null) {
                 builder.setCompressionEnabled(fallbackProfile.getCompressionEnabled());
@@ -78,6 +81,7 @@ public final class ConnectionProfile {
         Builder builder = new Builder();
         builder.setConnectTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
         builder.setHandshakeTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
+        builder.setPingInterval(TcpTransport.PING_SCHEDULE.get(settings));
         builder.setCompressionEnabled(Transport.TRANSPORT_TCP_COMPRESS.get(settings));
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);

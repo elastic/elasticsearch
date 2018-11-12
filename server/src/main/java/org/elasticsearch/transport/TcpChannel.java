@@ -85,9 +85,10 @@ public interface TcpChannel extends CloseableChannel {
      */
     void addConnectListener(ActionListener<Void> listener);
 
-    default Stats getStats() {
-        return new Stats();
-    }
+    /**
+     * Returns stats about this channel
+     */
+    Stats getStats();
 
     class Stats {
 
@@ -100,19 +101,19 @@ public interface TcpChannel extends CloseableChannel {
             lastWriteTime = currentTime;
         }
 
-        public void markRead() {
+        void markRead() {
             lastReadTime = System.nanoTime();
         }
 
-        public void markWrite() {
+        void markWrite() {
             lastWriteTime = System.nanoTime();
         }
 
-        public long lastReadTime() {
+        long lastReadTime() {
             return lastReadTime;
         }
 
-        public long lastWriteTime() {
+        long lastWriteTime() {
             return lastWriteTime;
         }
     }

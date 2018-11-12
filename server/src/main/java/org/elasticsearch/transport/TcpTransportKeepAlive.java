@@ -90,6 +90,14 @@ public class TcpTransportKeepAlive implements Closeable {
         }
     }
 
+    long successfulPingCount() {
+        return successfulPings.count();
+    }
+
+    long failedPingCount() {
+        return failedPings.count();
+    }
+
     private void sendPing(TcpChannel channel) {
         pingSender.send(channel, pingMessage, new ActionListener<Void>() {
 

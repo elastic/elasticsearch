@@ -44,6 +44,7 @@ public class Netty4TcpChannel implements TcpChannel {
     private final String profile;
     private final CompletableContext<Void> connectContext;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
+    private final Stats stats = new Stats();
 
     Netty4TcpChannel(Channel channel, boolean isClient, String profile, @Nullable ChannelFuture connectFuture) {
         this.channel = channel;
@@ -102,6 +103,11 @@ public class Netty4TcpChannel implements TcpChannel {
     @Override
     public void addConnectListener(ActionListener<Void> listener) {
         connectContext.addListener(ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
+    public Stats getStats() {
+        return stats;
     }
 
     @Override

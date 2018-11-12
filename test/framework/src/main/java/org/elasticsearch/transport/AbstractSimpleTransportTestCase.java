@@ -2006,7 +2006,26 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public void testTcpHandshake() throws IOException, InterruptedException {
+    public void testKeepAlivePings() throws Exception {
+        assumeTrue("only tcp transport has keep alive pings", serviceA.getOriginalTransport() instanceof TcpTransport);
+        TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
+
+        ConnectionProfile defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
+        ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile)
+            .setPingInterval(TimeValue.timeValueMillis(50))
+            .build();
+        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null);
+             TcpTransport.NodeChannels connection = originalTransport.openConnection(
+                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
+                 connectionProfile)) {
+            assertBusy(() -> {
+                assertTrue(originalTransport.getKeepAlive().successfulPingCount() > 30);
+            });
+            assertEquals(0, originalTransport.getKeepAlive().failedPingCount());
+        }
+    }
+
+    public void testTcpHandshake() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());

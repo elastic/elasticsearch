@@ -154,6 +154,7 @@ public class MockNioTransport extends TcpTransport {
         }
         builder.setHandshakeTimeout(connectionProfile.getHandshakeTimeout());
         builder.setConnectTimeout(connectionProfile.getConnectTimeout());
+        builder.setPingInterval(connectionProfile.getPingInterval());
         builder.setCompressionEnabled(connectionProfile.getCompressionEnabled());
         return builder.build();
     }
@@ -254,6 +255,7 @@ public class MockNioTransport extends TcpTransport {
 
         private final boolean isClient;
         private final String profile;
+        private final Stats stats = new Stats();
 
         private MockSocketChannel(boolean isClient, String profile, SocketChannel socketChannel) {
             super(socketChannel);
@@ -284,6 +286,11 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public void addConnectListener(ActionListener<Void> listener) {
             addConnectListener(ActionListener.toBiConsumer(listener));
+        }
+
+        @Override
+        public Stats getStats() {
+            return stats;
         }
 
         @Override

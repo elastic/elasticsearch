@@ -44,7 +44,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -191,7 +190,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
-    protected final boolean compressResponses;
+    private final boolean compressResponses;
     private volatile BoundTransportAddress boundAddress;
     private final String transportName;
 
@@ -479,7 +478,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    protected InetSocketAddress bindToPort(final String name, final InetAddress hostAddress, String port) {
+    private InetSocketAddress bindToPort(final String name, final InetAddress hostAddress, String port) {
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
@@ -831,9 +830,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * sends a message to the given channel, using the given callbacks.
      */
     private void internalSendMessage(TcpChannel channel, BytesReference message, ActionListener<Void> listener) {
+        channel.getStats().markWrite();
         transportLogger.logOutboundMessage(channel, message);
         try {
-            // TODO: Switch old listeners
             channel.sendMessage(message, new SendListener(channel, message.length(), listener));
         } catch (Exception ex) {
             // call listener to ensure that any resources are released
@@ -986,10 +985,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public void inboundMessage(TcpChannel channel, BytesReference message) {
         try {
+            channel.getStats().markRead();
             transportLogger.logInboundMessage(channel, message);
             // Message length of 0 is a ping
             if (message.length() != 0) {
                 messageReceived(message, channel);
+            } else {
+                keepAlive.receiveKeepAlive(channel);
             }
         } catch (Exception e) {
             onException(channel, e);
@@ -1389,6 +1391,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         handshaker.sendHandshake(responseHandlers.newRequestId(), node, channel, profile.getHandshakeTimeout(), listener);
     }
 
+    final TcpTransportKeepAlive getKeepAlive() {
+        return keepAlive;
+    }
+
     final int getNumPendingHandshakes() {
         return handshaker.getNumPendingHandshakes();
     }
@@ -1609,6 +1615,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         public void onResponse(Version version) {
                             NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
                             nodeChannels.channels.forEach(ch -> ch.addCloseListener(ActionListener.wrap(nodeChannels::close)));
+                            keepAlive.registerNodeConnection(nodeChannels.channels, connectionProfile);
                             listener.onResponse(nodeChannels);
                         }
 

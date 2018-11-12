@@ -216,6 +216,7 @@ public class MockTcpTransport extends TcpTransport {
         }
         builder.setHandshakeTimeout(connectionProfile.getHandshakeTimeout());
         builder.setConnectTimeout(connectionProfile.getConnectTimeout());
+        builder.setPingInterval(connectionProfile.getPingInterval());
         builder.setCompressionEnabled(connectionProfile.getCompressionEnabled());
         return builder.build();
     }
@@ -244,6 +245,7 @@ public class MockTcpTransport extends TcpTransport {
         private final CancellableThreads cancellableThreads = new CancellableThreads();
         private final CompletableContext<Void> closeFuture = new CompletableContext<>();
         private final CompletableContext<Void> connectFuture = new CompletableContext<>();
+        private final Stats stats = new Stats();
 
         /**
          * Constructs a new MockChannel instance intended for handling the actual incoming / outgoing traffic.
@@ -403,6 +405,11 @@ public class MockTcpTransport extends TcpTransport {
         @Override
         public void addConnectListener(ActionListener<Void> listener) {
             connectFuture.addListener(ActionListener.toBiConsumer(listener));
+        }
+
+        @Override
+        public Stats getStats() {
+            return stats;
         }
 
         @Override

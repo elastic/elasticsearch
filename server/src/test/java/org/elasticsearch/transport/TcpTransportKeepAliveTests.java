@@ -20,17 +20,21 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.concurrent.ScheduledFuture;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -39,6 +43,7 @@ import static org.mockito.Mockito.verify;
 public class TcpTransportKeepAliveTests extends ESTestCase {
 
     private final ConnectionProfile defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
+    private BytesReference expectedPingMessage;
     private TcpTransportKeepAlive.PingSender pingSender;
     private TcpTransportKeepAlive keepAlive;
     private CapturingThreadPool threadPool;
@@ -49,6 +54,15 @@ public class TcpTransportKeepAliveTests extends ESTestCase {
         pingSender = mock(TcpTransportKeepAlive.PingSender.class);
         threadPool = new CapturingThreadPool();
         keepAlive = new TcpTransportKeepAlive(threadPool, pingSender);
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeByte((byte) 'E');
+            out.writeByte((byte) 'S');
+            out.writeInt(-1);
+            expectedPingMessage = out.bytes();
+        } catch (IOException e) {
+            throw new AssertionError(e.getMessage(), e); // won't happen
+        }
     }
 
     @Override
@@ -76,8 +90,8 @@ public class TcpTransportKeepAliveTests extends ESTestCase {
         assertEquals(0, threadPool.scheduledTasks.size());
         keepAliveTask.run();
 
-        verify(pingSender, times(1)).send(same(channel1), any(BytesReference.class), any());
-        verify(pingSender, times(1)).send(same(channel2), any(BytesReference.class), any());
+        verify(pingSender, times(1)).send(same(channel1), eq(expectedPingMessage), any());
+        verify(pingSender, times(1)).send(same(channel2), eq(expectedPingMessage), any());
 
         // Test that the task has rescheduled itself
         assertEquals(1, threadPool.scheduledTasks.size());
@@ -100,8 +114,8 @@ public class TcpTransportKeepAliveTests extends ESTestCase {
 
         TcpChannel channel1 = new FakeTcpChannel();
         TcpChannel channel2 = new FakeTcpChannel();
-        keepAlive.registerNodeConnection(Arrays.asList(channel1), connectionProfile1);
-        keepAlive.registerNodeConnection(Arrays.asList(channel2), connectionProfile2);
+        keepAlive.registerNodeConnection(Collections.singletonList(channel1), connectionProfile1);
+        keepAlive.registerNodeConnection(Collections.singletonList(channel2), connectionProfile2);
 
         assertEquals(2, threadPool.scheduledTasks.size());
         Tuple<TimeValue, Runnable> taskTuple1 = threadPool.scheduledTasks.poll();
@@ -116,7 +130,55 @@ public class TcpTransportKeepAliveTests extends ESTestCase {
         assertEquals(1, threadPool.scheduledTasks.size());
         keepAliveTask2.run();
         assertEquals(2, threadPool.scheduledTasks.size());
+    }
 
+    public void testClosingChannelUnRegistersItFromKeepAlive() {
+        TimeValue pingInterval1 = TimeValue.timeValueSeconds(randomLongBetween(1, 30));
+        ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile)
+            .setPingInterval(pingInterval1)
+            .build();
+
+        TcpChannel channel1 = new FakeTcpChannel();
+        TcpChannel channel2 = new FakeTcpChannel();
+        keepAlive.registerNodeConnection(Collections.singletonList(channel1), connectionProfile);
+        keepAlive.registerNodeConnection(Collections.singletonList(channel2), connectionProfile);
+
+        channel1.close();
+
+        Runnable task = threadPool.scheduledTasks.poll().v2();
+        task.run();
+
+        verify(pingSender, times(0)).send(same(channel1), eq(expectedPingMessage), any());
+        verify(pingSender, times(1)).send(same(channel2), eq(expectedPingMessage), any());
+    }
+
+    public void testKeepAliveResponseIfServer() {
+        TcpChannel channel = new FakeTcpChannel(false);
+
+        keepAlive.receiveKeepAlive(channel);
+
+        verify(pingSender, times(1)).send(same(channel), eq(expectedPingMessage), any());
+    }
+
+    public void testNoKeepAliveResponseIfClient() {
+        TcpChannel channel = new FakeTcpChannel(true);
+
+        keepAlive.receiveKeepAlive(channel);
+
+        verify(pingSender, times(0)).send(same(channel), eq(expectedPingMessage), any());
+    }
+
+    public void testOnlySendPingIfWeHaveNotWrittenAndReadSinceLastPing() {
+        TimeValue pingInterval1 = TimeValue.timeValueSeconds(15);
+        ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile)
+            .setPingInterval(pingInterval1)
+            .build();
+
+        TcpChannel channel1 = new FakeTcpChannel();
+        TcpChannel channel2 = new FakeTcpChannel();
+        keepAlive.registerNodeConnection(Arrays.asList(channel1, channel2), connectionProfile);
+
+        // TODO: Implement
     }
 
     private class CapturingThreadPool extends TestThreadPool {

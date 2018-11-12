@@ -47,13 +47,12 @@ public class TcpTransportKeepAlive implements Closeable {
     private final CounterMetric successfulPings = new CounterMetric();
     private final CounterMetric failedPings = new CounterMetric();
     private final ConcurrentMap<TimeValue, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<TcpChannel, KeepAliveStats> channelStats = ConcurrentCollections.newConcurrentMap();
     private final Lifecycle lifecycle = new Lifecycle();
     private final ThreadPool threadPool;
     private final PingSender pingSender;
     private final BytesReference pingMessage;
 
-    public TcpTransportKeepAlive(ThreadPool threadPool, PingSender pingSender) {
+    TcpTransportKeepAlive(ThreadPool threadPool, PingSender pingSender) {
         this.threadPool = threadPool;
         this.pingSender = pingSender;
 
@@ -67,9 +66,7 @@ public class TcpTransportKeepAlive implements Closeable {
         }
     }
 
-    // TODO: NEED BACKWARDS COMPATIBILITY. AT LEAST IF WE ADD TIMEOUTS
-
-    public void registerNodeConnection(List<TcpChannel> nodeChannels, ConnectionProfile connectionProfile) {
+    void registerNodeConnection(List<TcpChannel> nodeChannels, ConnectionProfile connectionProfile) {
         TimeValue pingInterval = connectionProfile.getPingInterval();
         if (pingInterval.millis() < 0) {
             return;
@@ -78,40 +75,18 @@ public class TcpTransportKeepAlive implements Closeable {
         final ScheduledPing scheduledPing = pingIntervals.computeIfAbsent(pingInterval, ScheduledPing::new);
         scheduledPing.ensureStarted();
 
-
-        long currentTime = System.nanoTime();
         for (TcpChannel channel : nodeChannels) {
             scheduledPing.addChannel(channel);
-            channelStats.put(channel, new KeepAliveStats(currentTime));
 
             channel.addCloseListener(ActionListener.wrap(() -> {
                 scheduledPing.removeChannel(channel);
-                channelStats.remove(channel);
             }));
         }
     }
 
-    public void receiveKeepAlive(TcpChannel channel) {
-        boolean isClient = channel.isClient();
-        KeepAliveStats keepAliveStats = channelStats.get(channel);
-
-        if (isClient) {
-            if (keepAliveStats != null) {
-                keepAliveStats.lastReadTime = System.nanoTime();
-            }
-
-        } else {
+    void receiveKeepAlive(TcpChannel channel) {
+        if (channel.isClient() == false) {
             sendPing(channel);
-            if (keepAliveStats != null) {
-                keepAliveStats.lastWriteTime = System.nanoTime();
-            }
-        }
-    }
-
-    public void receiveNonKeepAlive(TcpChannel channel) {
-        KeepAliveStats keepAliveStats = channelStats.get(channel);
-        if (keepAliveStats != null) {
-            keepAliveStats.lastReadTime = System.nanoTime();
         }
     }
 
@@ -135,42 +110,20 @@ public class TcpTransportKeepAlive implements Closeable {
         });
     }
 
-    private void updateKeepAlive(TcpChannel channel, boolean read, boolean write) {
-        KeepAliveStats keepAliveStats = channelStats.get(channel);
-        if (keepAliveStats != null) {
-            if (read) {
-                keepAliveStats.lastReadTime = System.nanoTime();
-            }
-            if (write) {
-                keepAliveStats.lastWriteTime = System.nanoTime();
-            }
-        }
-    }
-
     @Override
     public void close() {
         lifecycle.moveToStopped();
         lifecycle.moveToClosed();
     }
 
-    private class KeepAliveStats {
-
-        private long lastReadTime;
-        private long lastWriteTime;
-
-        private KeepAliveStats(long currentTime) {
-            lastReadTime = currentTime;
-            lastWriteTime = currentTime;
-        }
-    }
-
     private class ScheduledPing extends AbstractLifecycleRunnable {
 
         private final TimeValue pingInterval;
+
         private final Set<TcpChannel> channels = ConcurrentCollections.newConcurrentSet();
+
         private final AtomicBoolean isStarted = new AtomicBoolean(false);
         private volatile long lastPingTime;
-
         private ScheduledPing(TimeValue pingInterval) {
             super(lifecycle, logger);
             this.pingInterval = pingInterval;
@@ -194,15 +147,13 @@ public class TcpTransportKeepAlive implements Closeable {
 
         @Override
         protected void doRunInLifecycle() {
-            long now = System.nanoTime();
             for (TcpChannel channel : channels) {
-                KeepAliveStats keepAliveStats = channelStats.get(channel);
-                if (keepAliveStats != null && keepAliveStats.lastWriteTime > lastPingTime) {
+                // In the future it is possible that we may want to kill a channel if we have not read from
+                // the channel since the last ping. However, this will need to be backwards compatible with
+                // pre-6.6 nodes that DO NOT respond to pings
+                if (needsKeepAlivePing(channel)) {
                     sendPing(channel);
-                    keepAliveStats.lastWriteTime = now;
                 }
-
-                assert keepAliveStats != null || channel.isOpen() == false : "If keepalive stats are null the channel must be closed";
             }
             this.lastPingTime = System.nanoTime();
         }
@@ -227,6 +178,13 @@ public class TcpTransportKeepAlive implements Closeable {
             } else {
                 logger.warn("failed to send ping transport message", e);
             }
+        }
+
+        private boolean needsKeepAlivePing(TcpChannel channel) {
+            TcpChannel.Stats stats = channel.getStats();
+            long writeDelta = stats.lastWriteTime() - lastPingTime;
+            long readDelta = stats.lastReadTime() - lastPingTime;
+            return writeDelta <= 0 || readDelta <= 0;
         }
     }
 

@@ -28,24 +28,35 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class FakeTcpChannel implements TcpChannel {
 
+    private final boolean isClient;
     private final String profile;
     private final AtomicReference<BytesReference> messageCaptor;
+    private final Stats stats = new Stats();
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
     public FakeTcpChannel() {
-        this("profile", new AtomicReference<>());
+        this(true, "profile", new AtomicReference<>());
     }
 
-    public FakeTcpChannel(AtomicReference<BytesReference> messageCaptor) {
-        this("profile", messageCaptor);
+    public FakeTcpChannel(boolean isClient) {
+        this(isClient, "profile", new AtomicReference<>());
+    }
+
+    public FakeTcpChannel(boolean isClient, AtomicReference<BytesReference> messageCaptor) {
+        this(isClient, "profile", messageCaptor);
     }
 
 
-    public FakeTcpChannel(String profile, AtomicReference<BytesReference> messageCaptor) {
+    public FakeTcpChannel(boolean isClient, String profile, AtomicReference<BytesReference> messageCaptor) {
+        this.isClient = isClient;
         this.profile = profile;
         this.messageCaptor = messageCaptor;
     }
 
+    @Override
+    public boolean isClient() {
+        return isClient;
+    }
 
     @Override
     public String getProfile() {
@@ -53,7 +64,7 @@ public class FakeTcpChannel implements TcpChannel {
     }
 
     @Override
-    public void setSoLinger(int value) throws IOException {
+    public void setSoLinger(int value) {
 
     }
 
@@ -90,5 +101,10 @@ public class FakeTcpChannel implements TcpChannel {
     @Override
     public boolean isOpen() {
         return closeContext.isDone() == false;
+    }
+
+    @Override
+    public Stats getStats() {
+        return stats;
     }
 }

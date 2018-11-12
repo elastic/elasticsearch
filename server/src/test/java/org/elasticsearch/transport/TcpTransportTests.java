@@ -197,7 +197,7 @@ public class TcpTransportTests extends ESTestCase {
 
                 @Override
                 protected FakeTcpChannel initiateChannel(DiscoveryNode node) throws IOException {
-                    return new FakeTcpChannel(messageCaptor);
+                    return new FakeTcpChannel(true, messageCaptor);
                 }
 
                 @Override
@@ -212,7 +212,7 @@ public class TcpTransportTests extends ESTestCase {
                     int numConnections = connectionProfile.getNumConnections();
                     ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);
                     for (int i = 0; i < numConnections; ++i) {
-                        fakeChannels.add(new FakeTcpChannel(messageCaptor));
+                        fakeChannels.add(new FakeTcpChannel(true, messageCaptor));
                     }
                     return new NodeChannels(node, fakeChannels, connectionProfile, Version.CURRENT);
                 }

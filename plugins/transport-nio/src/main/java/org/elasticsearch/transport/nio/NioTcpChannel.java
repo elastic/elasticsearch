@@ -30,10 +30,12 @@ import java.nio.channels.SocketChannel;
 
 public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
 
+    private final boolean isClient;
     private final String profile;
 
-    public NioTcpChannel(String profile, SocketChannel socketChannel) {
+    public NioTcpChannel(boolean isClient, String profile, SocketChannel socketChannel) {
         super(socketChannel);
+        this.isClient = isClient;
         this.profile = profile;
     }
 
@@ -46,6 +48,11 @@ public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
         if (isOpen()) {
             getRawChannel().setOption(StandardSocketOptions.SO_LINGER, value);
         }
+    }
+
+    @Override
+    public boolean isClient() {
+        return isClient;
     }
 
     @Override

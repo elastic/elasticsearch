@@ -35,6 +35,11 @@ import java.net.InetSocketAddress;
 public interface TcpChannel extends CloseableChannel {
 
     /**
+     * Indicates if the channel is a client channel.
+     */
+    boolean isClient();
+
+    /**
      * This returns the profile for this channel.
      */
     String getProfile();
@@ -80,7 +85,35 @@ public interface TcpChannel extends CloseableChannel {
      */
     void addConnectListener(ActionListener<Void> listener);
 
-    default boolean isClient() {
-        return false;
+    default Stats getStats() {
+        return new Stats();
+    }
+
+    class Stats {
+
+        private long lastReadTime;
+        private long lastWriteTime;
+
+        public Stats() {
+            long currentTime = System.nanoTime();
+            lastReadTime = currentTime;
+            lastWriteTime = currentTime;
+        }
+
+        public void markRead() {
+            lastReadTime = System.nanoTime();
+        }
+
+        public void markWrite() {
+            lastReadTime = System.nanoTime();
+        }
+
+        public long lastReadTime() {
+            return lastReadTime;
+        }
+
+        public long lastWriteTime() {
+            return lastWriteTime;
+        }
     }
 }

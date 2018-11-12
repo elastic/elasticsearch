@@ -97,13 +97,13 @@ public class MockNioTransport extends TcpTransport {
                 (s) -> new TestingSocketEventHandler(this::onNonChannelException, s));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
-            clientChannelFactory = new MockTcpChannelFactory(clientProfileSettings, "client");
+            clientChannelFactory = new MockTcpChannelFactory(true, clientProfileSettings, "client");
 
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 // loop through all profiles and start them up, special handling for default one
                 for (ProfileSettings profileSettings : profileSettings) {
                     String profileName = profileSettings.profileName;
-                    MockTcpChannelFactory factory = new MockTcpChannelFactory(profileSettings, profileName);
+                    MockTcpChannelFactory factory = new MockTcpChannelFactory(false, profileSettings, profileName);
                     profileToChannelFactory.putIfAbsent(profileName, factory);
                     bindServer(profileSettings);
                 }
@@ -168,20 +168,22 @@ public class MockNioTransport extends TcpTransport {
 
     private class MockTcpChannelFactory extends ChannelFactory<MockServerChannel, MockSocketChannel> {
 
+        private final boolean isClient;
         private final String profileName;
 
-        private MockTcpChannelFactory(ProfileSettings profileSettings, String profileName) {
+        private MockTcpChannelFactory(boolean isClient, ProfileSettings profileSettings, String profileName) {
             super(new RawChannelFactory(profileSettings.tcpNoDelay,
                 profileSettings.tcpKeepAlive,
                 profileSettings.reuseAddress,
                 Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
                 Math.toIntExact(profileSettings.receiveBufferSize.getBytes())));
+            this.isClient = isClient;
             this.profileName = profileName;
         }
 
         @Override
         public MockSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
-            MockSocketChannel nioChannel = new MockSocketChannel(profileName, channel, selector);
+            MockSocketChannel nioChannel = new MockSocketChannel(isClient, profileName, channel);
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
@@ -250,10 +252,12 @@ public class MockNioTransport extends TcpTransport {
 
     private static class MockSocketChannel extends NioSocketChannel implements TcpChannel {
 
+        private final boolean isClient;
         private final String profile;
 
-        private MockSocketChannel(String profile, java.nio.channels.SocketChannel socketChannel, NioSelector selector) {
+        private MockSocketChannel(boolean isClient, String profile, SocketChannel socketChannel) {
             super(socketChannel);
+            this.isClient = isClient;
             this.profile = profile;
         }
 
@@ -265,6 +269,11 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public String getProfile() {
             return profile;
+        }
+
+        @Override
+        public boolean isClient() {
+            return isClient;
         }
 
         @Override

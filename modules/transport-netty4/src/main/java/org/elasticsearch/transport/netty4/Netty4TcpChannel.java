@@ -40,12 +40,14 @@ import java.net.InetSocketAddress;
 public class Netty4TcpChannel implements TcpChannel {
 
     private final Channel channel;
+    private final boolean isClient;
     private final String profile;
     private final CompletableContext<Void> connectContext;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
-    Netty4TcpChannel(Channel channel, String profile, @Nullable ChannelFuture connectFuture) {
+    Netty4TcpChannel(Channel channel, boolean isClient, String profile, @Nullable ChannelFuture connectFuture) {
         this.channel = channel;
+        this.isClient = isClient;
         this.profile = profile;
         this.connectContext = new CompletableContext<>();
         this.channel.closeFuture().addListener(f -> {
@@ -80,6 +82,11 @@ public class Netty4TcpChannel implements TcpChannel {
     @Override
     public void close() {
         channel.close();
+    }
+
+    @Override
+    public boolean isClient() {
+        return isClient;
     }
 
     @Override

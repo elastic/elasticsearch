@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
 import org.elasticsearch.client.rollup.GetRollupCapsRequest;
+import org.elasticsearch.client.rollup.GetRollupIndexCapsRequest;
 import org.elasticsearch.client.rollup.GetRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.StartRollupJobRequest;
@@ -83,6 +84,16 @@ final class RollupRequestConverters {
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getRollupCapsRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getRollupIndexCaps(final GetRollupIndexCapsRequest getRollupIndexCapsRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addCommaSeparatedPathParts(getRollupIndexCapsRequest.indices())
+            .addPathPartAsIs("_xpack", "rollup", "data")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(getRollupIndexCapsRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 }

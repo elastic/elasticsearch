@@ -50,7 +50,7 @@ PUT _ilm/policy/datastream_policy
 
 Here we created the policy called `datastream_policy` which rolls over the index
 being written to after it reaches 50 gigabytes, or it is 30 days old. The rollover will
-occur when any of these conditions is true. After 90 days, our index will be deleted.
+occur when either of these conditions is true. After 90 days, our index will be deleted.
 
 === Applying a policy to our index
 

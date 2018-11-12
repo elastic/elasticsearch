@@ -29,3 +29,17 @@ the influence of the anomaly scores in each partition on other partitions' score
 The overall effect of the change is to produce a much wider range of scores in 
 partitioned multi-metric jobs. 
 
+[float]
+=== Find multi-bucket anomalies in {ml} jobs
+
+Sometimes events are not interesting or anomalous in the context of a single 
+bucket. However, they become interesting when you take into consideration a 
+sequence of buckets as a whole. In 6.5, there is a new {ml} 
+_multi-bucket analysis_, which uses features from multiple contiguous buckets 
+for anomaly detection. The final anomaly score is now a combination of values 
+from both the “standard” single-bucket analysis and the new multi-bucket 
+analysis. A new `multi_bucket_impact` property in the 
+<<ml-results-records,record results>> indicates how strongly either form of 
+analysis influences the score. In {kib}, anomalies with medium or high 
+multi-bucket impact are depicted in the *Anomaly Explorer* and the 
+*Single Metric Viewer* with a cross symbol instead of a dot. 

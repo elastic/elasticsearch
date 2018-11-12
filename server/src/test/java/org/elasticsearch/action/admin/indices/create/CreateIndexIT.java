@@ -45,7 +45,6 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -351,25 +350,22 @@ public class CreateIndexIT extends ESIntegTestCase {
         }
 
         final IndexMetaData metaData = state.getMetaData().index("test");
-        internalCluster().fullRestart(new InternalTestCluster.FullRestartCallback() {
-
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
-            public void onAllNodesStopped(List<String> nodeNames) throws Exception {
-                for (String nodeName : nodeNames) {
-                    if (dataOrMasterNodeNames.contains(nodeName)) {
-                        final MetaStateService metaStateService = internalCluster().getInstance(MetaStateService.class, nodeName);
-                        final IndexMetaData brokenMetaData =
-                                IndexMetaData
-                                        .builder(metaData)
-                                        .settings(Settings.builder().put(metaData.getSettings()).put("index.foo", true))
-                                        .build();
-                        // so evil
-                        metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMetaData);
-                    }
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                if (dataOrMasterNodeNames.contains(nodeName)) {
+                    final MetaStateService metaStateService = internalCluster().getInstance(MetaStateService.class, nodeName);
+                    final IndexMetaData brokenMetaData =
+                            IndexMetaData
+                                    .builder(metaData)
+                                    .settings(Settings.builder().put(metaData.getSettings()).put("index.foo", true))
+                                    .build();
+                    // so evil
+                    metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMetaData);
                 }
+                return Settings.EMPTY;
             }
         });
-
         ensureGreen(metaData.getIndex().getName()); // we have to wait for the index to show up in the metadata or we will fail in a race
         final ClusterState stateAfterRestart = client().admin().cluster().prepareState().get().getState();
 

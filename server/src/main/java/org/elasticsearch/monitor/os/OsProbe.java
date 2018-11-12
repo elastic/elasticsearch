@@ -570,7 +570,7 @@ public class OsProbe {
 
     /**
      * The lines from {@code /etc/os-release} or {@code /usr/lib/os-release} as a fallback, with an additional fallback to
-     * {@code /etc/system-release}. These file represents identification of the underlying operating system. The structure of the file is
+     * {@code /etc/system-release}. These files represents identification of the underlying operating system. The structure of the file is
      * newlines of key-value pairs of shell-compatible variable assignments.
      *
      * @return the lines from {@code /etc/os-release} or {@code /usr/lib/os-release} or {@code /etc/system-release}

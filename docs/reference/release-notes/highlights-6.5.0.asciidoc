@@ -18,3 +18,14 @@ ingest the file into {es}. If you want to influence the output, you can specify
 optional parameters. For example, if the file contains semi-structured text, you 
 can specify a Grok pattern or let the tool generate it. This API is also used by 
 the new File Data Visualizer in {kib}.  
+
+[float]
+=== Improved {ml} results for partitioned multi-metric jobs
+
+If you use the `partition_field_name` parameter in a {ml} job (or the 
+*Split Data* field in the {kib} multi-metric job wizard), it generates many 
+simultaneous analyses that are modeled independently. In 6.5, we have decreased 
+the influence of the anomaly scores in each partition on other partitions' scores. 
+The overall effect of the change is to produce a much wider range of scores in 
+partitioned multi-metric jobs. 
+

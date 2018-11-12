@@ -75,7 +75,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTcpTransport;
-import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -215,20 +214,15 @@ public class TransportReplicationActionTests extends ESTestCase {
             setState(clusterService,
                 ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(nonRetryableBlock)));
 
-            Request request = new Request().index("index").setShardId(new ShardId("index", "_na_", 0));
+            Request request = new Request();
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
             TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
             reroutePhase.run();
 
-            CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
-            assertThat(capturedRequests, arrayWithSize(1));
-            assertThat(capturedRequests[0].action, equalTo("internal:testActionWithBlocks[p]"));
-            transport.handleRemoteError(capturedRequests[0].requestId, new ClusterBlockException(singleton(nonRetryableBlock)));
-            RemoteTransportException exception =
-                assertListenerThrows("primary action should fail operation", listener, RemoteTransportException.class);
-            assertThat(exception.unwrapCause(), instanceOf(ClusterBlockException.class));
+            ClusterBlockException exception =
+                assertListenerThrows("primary action should fail operation", listener, ClusterBlockException.class);
             assertThat(((ClusterBlockException) exception.unwrapCause()).blocks().iterator().next(), is(nonRetryableBlock));
             assertPhase(task, "failed");
         }
@@ -236,75 +230,40 @@ public class TransportReplicationActionTests extends ESTestCase {
             setState(clusterService,
                 ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(retryableBlock)));
 
-            Request requestWithTimeout = new Request().index("index").setShardId(new ShardId("index", "_na_", 0)).timeout("5ms");
+            Request requestWithTimeout = new Request().timeout("5ms");
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
             TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, requestWithTimeout, listener);
             reroutePhase.run();
 
-            assertFalse(listener.isDone());
-            assertPhase(task, "waiting_on_primary");
-            assertFalse(requestWithTimeout.isRetrySet.get());
-
-            CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
-            assertThat(capturedRequests, arrayWithSize(1));
-            assertThat(capturedRequests[0].action, equalTo("internal:testActionWithBlocks[p]"));
-            transport.handleRemoteError(capturedRequests[0].requestId, new ClusterBlockException(singleton(retryableBlock)));
-
-            assertFalse("reroute phase is retrying", listener.isDone());
-            assertBusy(() -> {
-                assertPhase(task, "waiting_for_retry");
-                assertTrue(requestWithTimeout.isRetrySet.get());
-            });
-
-            assertBusy(() -> {
-                // Cluster state update triggers a retry in the reroute phase
-                setState(clusterService, ClusterState.builder(clusterService.state()));
-                CapturingTransport.CapturedRequest[] capturedRequestsAndClear = transport.getCapturedRequestsAndClear();
-                assertThat(capturedRequestsAndClear, arrayWithSize(1));
-                transport.handleRemoteError(capturedRequestsAndClear[0].requestId, new ClusterBlockException(singleton(retryableBlock)));
-                assertPhase(task, "failed");
-                assertTrue(listener.isDone());
-            });
+            ClusterBlockException exception =
+                assertListenerThrows("failed to timeout on retryable block", listener, ClusterBlockException.class);
+            assertThat(((ClusterBlockException) exception.unwrapCause()).blocks().iterator().next(), is(retryableBlock));
+            assertPhase(task, "failed");
+            assertTrue(requestWithTimeout.isRetrySet.get());
         }
         {
             setState(clusterService,
                 ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(retryableBlock)));
 
-            Request requestWithTimeout = new Request().index("index").setShardId(new ShardId("index", "_na_", 0)).timeout("5ms");
+            Request request = new Request();
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
-            TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, requestWithTimeout, listener);
+            TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
             reroutePhase.run();
 
-            assertFalse(listener.isDone());
-            assertPhase(task, "waiting_on_primary");
-            assertFalse(requestWithTimeout.isRetrySet.get());
-
-            CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
-            assertThat(capturedRequests, arrayWithSize(1));
-            assertThat(capturedRequests[0].action, equalTo("internal:testActionWithBlocks[p]"));
-            transport.handleRemoteError(capturedRequests[0].requestId, new ClusterBlockException(singleton(retryableBlock)));
-
-            assertFalse("reroute phase is retrying", listener.isDone());
-            assertBusy(() -> {
-                assertPhase(task, "waiting_for_retry");
-                assertTrue(requestWithTimeout.isRetrySet.get());
-            });
+            assertFalse("primary phase should wait on retryable block", listener.isDone());
+            assertPhase(task, "waiting_for_retry");
+            assertTrue(request.isRetrySet.get());
 
             setState(clusterService,
                 ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(nonRetryableBlock)));
 
-            CapturingTransport.CapturedRequest[] capturedRequestsAndClear = transport.getCapturedRequestsAndClear();
-            assertThat(capturedRequestsAndClear, arrayWithSize(1));
-            transport.handleRemoteError(capturedRequestsAndClear[0].requestId, new ClusterBlockException(singleton(nonRetryableBlock)));
-            RemoteTransportException exception = assertListenerThrows("primary phase should fail operation when moving from a retryable " +
-                "block to a non-retryable one", listener, RemoteTransportException.class);
-            assertThat(exception.unwrapCause(), instanceOf(ClusterBlockException.class));
+            ClusterBlockException exception = assertListenerThrows("primary phase should fail operation when moving from a retryable " +
+                    "block to a non-retryable one", listener, ClusterBlockException.class);
             assertThat(((ClusterBlockException) exception.unwrapCause()).blocks().iterator().next(), is(nonRetryableBlock));
-            assertPhase(task, "failed");
             assertIndexShardUninitialized();
         }
         {

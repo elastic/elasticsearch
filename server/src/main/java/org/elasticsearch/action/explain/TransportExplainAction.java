@@ -35,6 +35,8 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
@@ -109,10 +111,8 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         Engine.GetResult result = null;
         try {
-            Term uidTerm = context.mapperService().createUidTerm(request.type(), request.id());
-            if (uidTerm == null) {
-                return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);
-            }
+            // No need to check the type, IndexShard#get does it for is
+            Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(request.id()));
             result = context.indexShard().get(new Engine.Get(false, false, request.type(), request.id(), uidTerm));
             if (!result.exists()) {
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);

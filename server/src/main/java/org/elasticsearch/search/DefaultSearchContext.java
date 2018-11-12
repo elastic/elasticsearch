@@ -302,6 +302,11 @@ final class DefaultSearchContext extends SearchContext {
 
     private Query createTypeFilter(String[] types) {
         if (types != null && types.length >= 1) {
+            if (Arrays.asList(types).contains(MapperService.SINGLE_MAPPING_NAME)) {
+                // Typeless APIs use _doc as a type name internally, so we need
+                // to make filtering on _type:_doc a no-op.
+                return null;
+            }
             MappedFieldType ft = mapperService().fullName(TypeFieldMapper.NAME);
             if (ft != null) {
                 // ft might be null if no documents have been indexed yet

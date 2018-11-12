@@ -26,7 +26,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
-import org.apache.lucene.index.Term;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
@@ -772,11 +771,4 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    /** Return a term that uniquely identifies the document, or {@code null} if the type is not allowed. */
-    public Term createUidTerm(String type, String id) {
-        if (mapper == null || mapper.type().equals(type) == false) {
-            return null;
-        }
-        return new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-    }
 }

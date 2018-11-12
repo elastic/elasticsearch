@@ -215,7 +215,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             this.jobs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new,
                     MlMetadataDiff::readJobDiffFrom);
             this.datafeeds = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
-                    MlMetadataDiff::readSchedulerDiffFrom);
+                    MlMetadataDiff::readDatafeedDiffFrom);
             if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
                 lastMemoryRefreshVersion = in.readOptionalLong();
             } else {
@@ -223,11 +223,16 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             }
         }
 
+        /**
+         * Merge the diff with the ML metadata.
+         * @param part The current ML metadata.
+         * @return The new ML metadata.
+         */
         @Override
         public MetaData.Custom apply(MetaData.Custom part) {
             TreeMap<String, Job> newJobs = new TreeMap<>(jobs.apply(((MlMetadata) part).jobs));
             TreeMap<String, DatafeedConfig> newDatafeeds = new TreeMap<>(datafeeds.apply(((MlMetadata) part).datafeeds));
-            Long lastMemoryRefreshVersion = ((MlMetadata) part).lastMemoryRefreshVersion;
+            // lastMemoryRefreshVersion always comes from the diff - no need to merge with the old value
             return new MlMetadata(newJobs, newDatafeeds, lastMemoryRefreshVersion);
         }
 
@@ -249,7 +254,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return AbstractDiffable.readDiffFrom(Job::new, in);
         }
 
-        static Diff<DatafeedConfig> readSchedulerDiffFrom(StreamInput in) throws IOException {
+        static Diff<DatafeedConfig> readDatafeedDiffFrom(StreamInput in) throws IOException {
             return AbstractDiffable.readDiffFrom(DatafeedConfig::new, in);
         }
     }

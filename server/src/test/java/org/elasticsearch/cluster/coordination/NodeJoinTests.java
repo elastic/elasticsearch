@@ -46,7 +46,6 @@ import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -231,11 +230,6 @@ public class NodeJoinTests extends ESTestCase {
                 public void sendResponse(TransportResponse response) {
                     logger.debug("{} completed", future);
                     future.markAsDone();
-                }
-
-                @Override
-                public void sendResponse(TransportResponse response, TransportResponseOptions options) {
-                    sendResponse(response);
                 }
 
                 @Override

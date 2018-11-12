@@ -24,6 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -448,7 +449,8 @@ public abstract class PeerFinder extends AbstractComponent {
             if (Coordinator.isZen1Node(discoveryNode)) {
                 actionName = UnicastZenPing.ACTION_NAME;
                 transportRequest = new UnicastZenPing.UnicastPingRequest(1, ZenDiscovery.PING_TIMEOUT_SETTING.get(settings),
-                    new ZenPing.PingResponse(getLocalNode(), null, ClusterName.CLUSTER_NAME_SETTING.get(settings), 0L));
+                    new ZenPing.PingResponse(getLocalNode(), null, ClusterName.CLUSTER_NAME_SETTING.get(settings),
+                        ClusterState.UNKNOWN_VERSION));
                 transportResponseHandler = peersResponseHandler.wrap(ucResponse -> {
                     Optional<DiscoveryNode> optionalMasterNode = Arrays.stream(ucResponse.pingResponses)
                         .filter(pr -> discoveryNode.equals(pr.node()) && discoveryNode.equals(pr.master()))
@@ -493,7 +495,8 @@ public abstract class PeerFinder extends AbstractComponent {
             final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
             pingResponses.add(new ZenPing.PingResponse(transportService.getLocalNode(), peersResponse.getMasterNode().orElse(null),
                 clusterName, 0L));
-            peersResponse.getKnownPeers().forEach(dn -> pingResponses.add(new ZenPing.PingResponse(dn, null, clusterName, 0L)));
+            peersResponse.getKnownPeers().forEach(dn -> pingResponses.add(
+                new ZenPing.PingResponse(dn, null, clusterName, ClusterState.UNKNOWN_VERSION)));
             channel.sendResponse(new UnicastZenPing.UnicastPingResponse(request.id, pingResponses.toArray(new ZenPing.PingResponse[0])));
         }
     }

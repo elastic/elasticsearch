@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -305,7 +306,7 @@ public class FollowersChecker extends AbstractComponent {
             if (Coordinator.isZen1Node(discoveryNode)) {
                 actionName = NodesFaultDetection.PING_ACTION_NAME;
                 transportRequest = new NodesFaultDetection.PingRequest(discoveryNode, ClusterName.CLUSTER_NAME_SETTING.get(settings),
-                    transportService.getLocalNode(), 0L);
+                    transportService.getLocalNode(), ClusterState.UNKNOWN_VERSION);
             } else {
                 actionName = FOLLOWER_CHECK_ACTION_NAME;
                 transportRequest = request;

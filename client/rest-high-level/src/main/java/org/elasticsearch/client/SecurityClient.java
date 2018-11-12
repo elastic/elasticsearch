@@ -491,7 +491,7 @@ public final class SecurityClient {
 
     /**
      * Asynchronously removes an application privilege
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-role.html">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-privilege.html">
      * the docs</a> for more.
      * @param request the request with the application privilege to delete
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

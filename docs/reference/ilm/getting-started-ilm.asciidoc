@@ -109,7 +109,7 @@ with a number. In our case, we used `00001`. This is important so that Rollover 
 increment this number when naming the new index created from rolling over.
 
 Our index creation request leverages its template to apply our settings, but we
-must also configure out rollover alias: "datastream". To do this, we take advantage of
+must also configure our rollover alias: "datastream". To do this, we take advantage of
 <<aliases-write-index,write indices>>. This is a way to define an alias to be used for
 both reading and writing, with only one index being the index that is being written
 to at a time. Rollover swaps the write index to be the new index created from rollover,

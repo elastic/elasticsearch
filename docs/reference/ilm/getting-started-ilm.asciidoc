@@ -124,7 +124,7 @@ and their responses to help us inspect our indices with respect to {ILM}.
 
 With the help of the <<ilm-explain-lifecycle,Explain API>>, we can know things like which
 phase we're in and when we entered that phase. The API will also provide further
-info if errors occurred, or we are blocked on certain checks within actions.
+info if errors occurred, or if we are blocked on certain checks within actions.
 
 [source,js]
 --------------------------------------------------

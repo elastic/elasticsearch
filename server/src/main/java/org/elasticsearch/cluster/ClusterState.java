@@ -323,7 +323,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         sb.append("state uuid: ").append(stateUUID).append("\n");
         sb.append("last committed config: ").append(getLastCommittedConfiguration()).append("\n");
         sb.append("last accepted config: ").append(getLastAcceptedConfiguration()).append("\n");
-        sb.append("voting tombstones: ").append(votingTombstones.toString()).append("\n");
+        sb.append("voting tombstones: ").append(votingTombstones).append("\n");
         sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
         sb.append("meta data version: ").append(metaData.version()).append("\n");
         final String TAB = "   ";
@@ -766,7 +766,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 uuid = UUIDs.randomBase64UUID();
             }
             return new ClusterState(clusterName, term, version, uuid, metaData, routingTable, nodes, blocks, customs.build(),
-                lastCommittedConfiguration, lastAcceptedConfiguration, Collections.unmodifiableSet(votingTombstones), fromDiff);
+                lastCommittedConfiguration, lastAcceptedConfiguration, Collections.unmodifiableSet(new HashSet<>(votingTombstones)),
+                fromDiff);
         }
 
         public static byte[] toBytes(ClusterState state) throws IOException {

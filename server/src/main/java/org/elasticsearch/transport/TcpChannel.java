@@ -105,7 +105,7 @@ public interface TcpChannel extends CloseableChannel {
         }
 
         public void markWrite() {
-            lastReadTime = System.nanoTime();
+            lastWriteTime = System.nanoTime();
         }
 
         public long lastReadTime() {

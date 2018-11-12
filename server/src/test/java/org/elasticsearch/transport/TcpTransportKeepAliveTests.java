@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -132,7 +133,7 @@ public class TcpTransportKeepAliveTests extends ESTestCase {
         assertEquals(2, threadPool.scheduledTasks.size());
     }
 
-    public void testClosingChannelUnRegistersItFromKeepAlive() {
+    public void testClosingChannelUnregistersItFromKeepAlive() {
         TimeValue pingInterval1 = TimeValue.timeValueSeconds(randomLongBetween(1, 30));
         ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile)
             .setPingInterval(pingInterval1)
@@ -178,7 +179,64 @@ public class TcpTransportKeepAliveTests extends ESTestCase {
         TcpChannel channel2 = new FakeTcpChannel();
         keepAlive.registerNodeConnection(Arrays.asList(channel1, channel2), connectionProfile);
 
-        // TODO: Implement
+        Tuple<TimeValue, Runnable> taskTuple = threadPool.scheduledTasks.poll();
+        taskTuple.v2().run();
+
+        boolean increased = false;
+        long lastReadTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
+        long lastWriteTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
+        while (increased == false) {
+            TcpChannel.Stats stats = channel1.getStats();
+            stats.markRead();
+            stats.markWrite();
+            increased = stats.lastReadTime() - lastReadTime > 0 && stats.lastWriteTime() - lastWriteTime > 0;
+            lastReadTime = stats.lastReadTime();
+            lastWriteTime = stats.lastWriteTime();
+        }
+
+        taskTuple = threadPool.scheduledTasks.poll();
+        taskTuple.v2().run();
+
+        verify(pingSender, times(1)).send(same(channel1), eq(expectedPingMessage), any());
+        verify(pingSender, times(2)).send(same(channel2), eq(expectedPingMessage), any());
+    }
+
+    public void testNeedBothReadAndWriteToPreventPing() {
+        TimeValue pingInterval1 = TimeValue.timeValueSeconds(15);
+        ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile)
+            .setPingInterval(pingInterval1)
+            .build();
+
+        TcpChannel channel1 = new FakeTcpChannel();
+        TcpChannel channel2 = new FakeTcpChannel();
+        keepAlive.registerNodeConnection(Arrays.asList(channel1, channel2), connectionProfile);
+
+        Tuple<TimeValue, Runnable> taskTuple = threadPool.scheduledTasks.poll();
+        taskTuple.v2().run();
+
+        boolean doRead = randomBoolean();
+
+        boolean increased = false;
+        long lastReadTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
+        long lastWriteTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
+        while (increased == false) {
+            TcpChannel.Stats stats = channel1.getStats();
+            if (doRead) {
+                stats.markRead();
+                increased = stats.lastReadTime() - lastReadTime > 0;
+                lastReadTime = stats.lastReadTime();
+            } else {
+                stats.markWrite();
+                increased = stats.lastWriteTime() - lastWriteTime > 0;
+                lastWriteTime = stats.lastWriteTime();
+            }
+        }
+
+        taskTuple = threadPool.scheduledTasks.poll();
+        taskTuple.v2().run();
+
+        verify(pingSender, times(2)).send(same(channel1), eq(expectedPingMessage), any());
+        verify(pingSender, times(2)).send(same(channel2), eq(expectedPingMessage), any());
     }
 
     private class CapturingThreadPool extends TestThreadPool {

@@ -127,8 +127,7 @@ public class TcpTransportKeepAlive implements Closeable {
         private ScheduledPing(TimeValue pingInterval) {
             super(lifecycle, logger);
             this.pingInterval = pingInterval;
-            // Set lastPingTime to a pingInterval in the past to avoid timing out channels on the first run
-            this.lastPingTime = System.nanoTime() - pingInterval.getNanos();
+            this.lastPingTime = System.nanoTime();
         }
 
         void ensureStarted() {

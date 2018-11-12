@@ -143,7 +143,7 @@ public class Manifest implements ToXContentFragment {
     }
 
     public boolean isEmpty() {
-        return globalGeneration == MISSING_GLOBAL_GENERATION || indexGenerations.isEmpty();
+        return globalGeneration == MISSING_GLOBAL_GENERATION && indexGenerations.isEmpty();
     }
 
     public static Manifest empty() {

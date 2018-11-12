@@ -23,8 +23,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Set;
 
-import static java.util.Collections.emptySet;
-
 /**
  * Holds the action filters injected through plugins, properly sorted by {@link org.elasticsearch.action.support.ActionFilter#order()}
  */

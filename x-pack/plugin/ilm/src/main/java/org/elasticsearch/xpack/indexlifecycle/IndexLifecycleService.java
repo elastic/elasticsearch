@@ -84,7 +84,7 @@ public class IndexLifecycleService extends AbstractComponent
 
     public ClusterState moveClusterStateToStep(ClusterState currentState, String indexName, StepKey currentStepKey, StepKey nextStepKey) {
         return IndexLifecycleRunner.moveClusterStateToStep(indexName, currentState, currentStepKey, nextStepKey,
-            nowSupplier, policyRegistry);
+            nowSupplier, policyRegistry, false);
     }
 
     public ClusterState moveClusterStateToFailedStep(ClusterState currentState, String[] indices) {

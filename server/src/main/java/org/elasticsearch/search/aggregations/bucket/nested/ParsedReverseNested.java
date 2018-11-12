@@ -23,7 +23,7 @@ import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregatio
 
 import java.io.IOException;
 
-public class ParsedReverseNested extends ParsedSingleBucketAggregation implements Nested {
+public class ParsedReverseNested extends ParsedSingleBucketAggregation implements ReverseNested {
 
     @Override
     public String getType() {

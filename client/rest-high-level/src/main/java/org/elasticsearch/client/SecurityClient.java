@@ -481,7 +481,7 @@ public final class SecurityClient {
      * the docs</a> for more.
      * @param request the request with the application privilege to delete
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the delete role call
+     * @return the response from the delete application privilege call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public DeletePrivilegesResponse deletePrivileges(DeletePrivilegesRequest request, RequestOptions options) throws IOException {

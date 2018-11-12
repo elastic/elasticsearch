@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -34,7 +36,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -61,7 +62,10 @@ import static java.util.Collections.singletonMap;
 /**
  * Upgrades Templates on behalf of installed {@link Plugin}s when a node joins the cluster
  */
-public class TemplateUpgradeService extends AbstractComponent implements ClusterStateListener {
+public class TemplateUpgradeService implements ClusterStateListener {
+
+    private static final Logger logger = LogManager.getLogger(TemplateUpgradeService.class);
+
     private final UnaryOperator<Map<String, IndexTemplateMetaData>> indexTemplateMetaDataUpgraders;
 
     public final ClusterService clusterService;

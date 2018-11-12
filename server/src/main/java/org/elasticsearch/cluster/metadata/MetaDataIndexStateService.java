@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.Index;
@@ -59,7 +58,7 @@ import java.util.Set;
 /**
  * Service responsible for submitting open/close index requests
  */
-public class MetaDataIndexStateService extends AbstractComponent {
+public class MetaDataIndexStateService {
     private static final Logger logger = LogManager.getLogger(MetaDataIndexStateService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 

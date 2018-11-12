@@ -19,10 +19,10 @@
 
 package org.elasticsearch.monitor.fs;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -33,7 +33,9 @@ import org.elasticsearch.cluster.ClusterInfoService;
 
 import java.io.IOException;
 
-public class FsService extends AbstractComponent {
+public class FsService {
+
+    private static final Logger logger = LogManager.getLogger(FsService.class);
 
     private final FsProbe probe;
     private final TimeValue refreshInterval;

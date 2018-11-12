@@ -13,13 +13,13 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.ssl.SslHandler;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -39,7 +39,6 @@ import javax.net.ssl.SNIMatcher;
 import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -72,25 +71,19 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
         Settings settings1 = Settings.builder()
             .put(settings)
             .put("xpack.security.transport.ssl.enabled", true).build();
-        Transport transport = new SecurityNetty4ServerTransport(settings1, threadPool,
+        Transport transport = new SecurityNetty4ServerTransport(settings1, version, threadPool,
             networkService, BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
             new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
 
             @Override
-            public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
-                InterruptedException {
+            public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,
+                                         ActionListener<Version> listener) {
                 if (doHandshake) {
-                    return super.executeHandshake(node, channel, timeout);
+                    super.executeHandshake(node, channel, profile, listener);
                 } else {
-                    return version.minimumCompatibilityVersion();
+                    listener.onResponse(version.minimumCompatibilityVersion());
                 }
             }
-
-            @Override
-            protected Version getCurrentVersion() {
-                return version;
-            }
-
         };
         MockTransportService mockTransportService =
             MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings,

@@ -33,7 +33,13 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   Boolean and(Boolean, Boolean)
   Boolean or(Boolean, Boolean)
   Boolean not(Boolean)
-  Boolean notNull(Object)    
+  Boolean isNull(Object)
+  Boolean isNotNull(Object)
+
+#
+# Null
+#
+  Object coalesce(java.util.List)
 
 #
 # Regex

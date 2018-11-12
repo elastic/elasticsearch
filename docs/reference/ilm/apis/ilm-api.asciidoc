@@ -25,7 +25,7 @@ You can use the following APIs to manage policies on indices.
 * <<ilm-get-status,Get ILM Operation Mode>>
 * <<ilm-start,Start ILM>>
 * <<ilm-stop,Stop ILM>>
-* <<ilm-explain,Explain API>>
+* <<ilm-explain-lifecycle,Explain API>>
 
 
 include::put-lifecycle.asciidoc[]

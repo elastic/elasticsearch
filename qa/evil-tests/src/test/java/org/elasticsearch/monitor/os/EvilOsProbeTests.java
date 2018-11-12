@@ -40,7 +40,8 @@ public class EvilOsProbeTests extends ESTestCase {
             for (final String line : lines) {
                 if (line != null && line.startsWith("PRETTY_NAME=")) {
                     final Matcher matcher = Pattern.compile("PRETTY_NAME=(\"?|'?)?([^\"']+)\\1").matcher(line.trim());
-                    assert matcher.matches() : line;
+                    final boolean matches = matcher.matches();
+                    assert matches : line;
                     assert matcher.groupCount() == 2 : line;
                     final String prettyName = matcher.group(2);
                     assertThat(osInfo.getPrettyName(), equalTo(prettyName));

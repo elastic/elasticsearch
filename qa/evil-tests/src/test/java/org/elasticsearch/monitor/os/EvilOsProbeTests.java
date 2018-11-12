@@ -39,7 +39,7 @@ public class EvilOsProbeTests extends ESTestCase {
             final List<String> lines = Files.readAllLines(PathUtils.get("/etc/os-release"));
             for (final String line : lines) {
                 if (line != null && line.startsWith("PRETTY_NAME=")) {
-                    final Matcher matcher = Pattern.compile("PRETTY_NAME=(\"?|'?)?([^\"']+)\\1\\s*").matcher(line);
+                    final Matcher matcher = Pattern.compile("PRETTY_NAME=(\"?|'?)?([^\"']+)\\1").matcher(line.trim());
                     assert matcher.matches() : line;
                     final String prettyName = matcher.group(2);
                     assertThat(osInfo.getPrettyName(), equalTo(prettyName));

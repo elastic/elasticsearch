@@ -173,7 +173,7 @@ The above request will retrieve {ILM} execution information for all our managed 
 // TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
 
 There is a lot of information to explain here. For now, let's focus on how
-the response details which phase/action we're in. We are in the "hot" phase,
+the response details which phase, action, and step we're in. We are in the "hot" phase,
 and "rollover" action. Rollover will continue to be called by {ILM} until its
 conditions are met and it rolls over the index. Afterwards, the original index
 will stay in the hot phase until 90 more days pass and it is deleted in the delete

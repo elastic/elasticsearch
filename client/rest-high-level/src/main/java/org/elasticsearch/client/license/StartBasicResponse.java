@@ -84,14 +84,13 @@ public class StartBasicResponse {
                     }
                 }
                 return new Tuple<>(message, acknowledgeMessages);
-            },
-            new ParseField("acknowledge"));
+            }, new ParseField("acknowledge"));
     }
 
     private Map<String, String[]> acknowledgeMessages;
     private String acknowledgeMessage;
 
-    enum Status {
+    public enum Status {
         GENERATED_BASIC(true, null, RestStatus.OK),
         ALREADY_USING_BASIC(false, "Operation failed: Current license is basic.", RestStatus.FORBIDDEN),
         NEED_ACKNOWLEDGEMENT(false, "Operation failed: Needs acknowledgement.", RestStatus.OK);
@@ -139,6 +138,10 @@ public class StartBasicResponse {
         this.status = status;
         this.acknowledgeMessages = acknowledgeMessages;
         this.acknowledgeMessage = acknowledgeMessage;
+    }
+
+    public Status getStatus() {
+        return status;
     }
 
     public boolean isAcknowledged() {

@@ -542,7 +542,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private void indexDataCounts(DataCounts counts, String jobId) throws Exception {
-        JobDataCountsPersister persister = new JobDataCountsPersister(nodeSettings(), client());
+        JobDataCountsPersister persister = new JobDataCountsPersister(client());
 
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -582,17 +582,17 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private void indexModelSizeStats(ModelSizeStats modelSizeStats) {
-        JobResultsPersister persister = new JobResultsPersister(nodeSettings(), client());
+        JobResultsPersister persister = new JobResultsPersister(client());
         persister.persistModelSizeStats(modelSizeStats);
     }
 
     private void indexModelSnapshot(ModelSnapshot snapshot) {
-        JobResultsPersister persister = new JobResultsPersister(nodeSettings(), client());
+        JobResultsPersister persister = new JobResultsPersister(client());
         persister.persistModelSnapshot(snapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
     }
 
     private void indexQuantiles(Quantiles quantiles) {
-        JobResultsPersister persister = new JobResultsPersister(nodeSettings(), client());
+        JobResultsPersister persister = new JobResultsPersister(client());
         persister.persistQuantiles(quantiles);
     }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.script.expression;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.Collections;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -63,7 +62,7 @@ public class ExpressionTermsSetQueryTests extends ESTestCase {
         when(fieldData.getFieldName()).thenReturn("field");
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
-        service = new ExpressionScriptEngine(Settings.EMPTY);
+        service = new ExpressionScriptEngine();
         lookup = new SearchLookup(mapperService, ignored -> fieldData, null);
     }
 

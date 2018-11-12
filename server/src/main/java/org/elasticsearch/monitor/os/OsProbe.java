@@ -19,8 +19,8 @@
 
 package org.elasticsearch.monitor.os;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -36,6 +36,8 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class OsProbe {
 
@@ -519,9 +521,68 @@ public class OsProbe {
 
     private final Logger logger = LogManager.getLogger(getClass());
 
-    public OsInfo osInfo(long refreshInterval, int allocatedProcessors) {
-        return new OsInfo(refreshInterval, Runtime.getRuntime().availableProcessors(),
-                allocatedProcessors, Constants.OS_NAME, Constants.OS_ARCH, Constants.OS_VERSION);
+    OsInfo osInfo(long refreshInterval, int allocatedProcessors) throws IOException {
+        return new OsInfo(
+                refreshInterval,
+                Runtime.getRuntime().availableProcessors(),
+                allocatedProcessors,
+                Constants.OS_NAME,
+                getPrettyName(),
+                Constants.OS_ARCH,
+                Constants.OS_VERSION);
+    }
+
+    private String getPrettyName() throws IOException {
+        // TODO: return a prettier name on non-Linux OS
+        if (Constants.LINUX) {
+            /*
+             * We read the lines from /etc/os-release (or /usr/lib/os-release) to extract the PRETTY_NAME. The format of this file is
+             * newline-separated key-value pairs. The key and value are separated by an equals symbol (=). The value can unquoted, or
+             * wrapped in single- or double-quotes.
+             */
+            final List<String> etcOsReleaseLines = readOsRelease();
+            final List<String> prettyNameLines =
+                    etcOsReleaseLines.stream().filter(line -> line.startsWith("PRETTY_NAME")).collect(Collectors.toList());
+            assert prettyNameLines.size() <= 1 : prettyNameLines;
+            final Optional<String> maybePrettyNameLine =
+                    prettyNameLines.size() == 1 ? Optional.of(prettyNameLines.get(0)) : Optional.empty();
+            if (maybePrettyNameLine.isPresent()) {
+                final String prettyNameLine = maybePrettyNameLine.get();
+                final String[] prettyNameFields = prettyNameLine.split("=");
+                assert prettyNameFields.length == 2 : prettyNameLine;
+                if (prettyNameFields[1].length() >= 3 &&
+                        (prettyNameFields[1].startsWith("\"") && prettyNameFields[1].endsWith("\"")) ||
+                        (prettyNameFields[1].startsWith("'") && prettyNameFields[1].endsWith("'"))) {
+                    return prettyNameFields[1].substring(1, prettyNameFields[1].length() - 1);
+                } else {
+                    return prettyNameFields[1];
+                }
+            } else {
+                return Constants.OS_NAME;
+            }
+
+        } else {
+            return Constants.OS_NAME;
+        }
+    }
+
+    /**
+     * The lines from {@code /etc/os-release} or {@code /usr/lib/os-release} as a fallback. These file represents identification of the
+     * underlying operating system. The structure of the file is newlines of key-value pairs of shell-compatible variable assignments.
+     *
+     * @return the lines from {@code /etc/os-release} or {@code /usr/lib/os-release}
+     * @throws IOException if an I/O exception occurs reading {@code /etc/os-release} or {@code /usr/lib/os-release}
+     */
+    @SuppressForbidden(reason = "access /etc/os-release or /usr/lib/os-release")
+    List<String> readOsRelease() throws IOException {
+        final List<String> lines;
+        if (Files.exists(PathUtils.get("/etc/os-release"))) {
+            lines = Files.readAllLines(PathUtils.get("/etc/os-release"));
+        } else {
+            lines = Files.readAllLines(PathUtils.get("/usr/lib/os-release"));
+        }
+        assert lines != null && lines.isEmpty() == false;
+        return lines;
     }
 
     public OsStats osStats() {

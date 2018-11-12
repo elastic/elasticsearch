@@ -131,6 +131,7 @@ and add it as a dependency. As an example, we will use the `slf4j-simple` logger
 --------------------------------------------------
 
 :client-tests: {docdir}/../../server/src/test/java/org/elasticsearch/client/documentation
+:hlrc-tests: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client
 
 :client-reindex-tests: {docdir}/../../modules/reindex/src/test/java/org/elasticsearch/client/documentation
 

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportMessage;
@@ -19,7 +17,7 @@ import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
 
-public class AuditTrailService extends AbstractComponent implements AuditTrail {
+public class AuditTrailService implements AuditTrail {
 
     private final XPackLicenseState licenseState;
     private final List<AuditTrail> auditTrails;
@@ -29,8 +27,7 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
         return "service";
     }
 
-    public AuditTrailService(Settings settings, List<AuditTrail> auditTrails, XPackLicenseState licenseState) {
-        super(settings);
+    public AuditTrailService(List<AuditTrail> auditTrails, XPackLicenseState licenseState) {
         this.auditTrails = Collections.unmodifiableList(auditTrails);
         this.licenseState = licenseState;
     }

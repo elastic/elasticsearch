@@ -3,4 +3,5 @@
 [[ccr-getting-started]]
 == Getting Started
 
+beta[]
 This is the getting started section of the {ccr} docs.

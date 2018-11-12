@@ -102,7 +102,7 @@ PUT datastream-00001
 // TEST[continued]
 
 When creating our index, we have to consider a few important configurations that
-are tie our index and our policy together correctly. We need to make sure that
+tie our index and our policy together correctly. We need to make sure that
 our index name matches our index template pattern of "datastream-*", which it does. We
 are using the rollover action in our policy, which requires that our index name ends
 with a number. In our case, we used `00001`. This is important so that Rollover can

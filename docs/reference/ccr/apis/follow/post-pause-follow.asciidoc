@@ -6,6 +6,8 @@
 <titleabbrev>Pause Follower</titleabbrev>
 ++++
 
+beta[]
+
 Pauses a follower index.
 
 ==== Description

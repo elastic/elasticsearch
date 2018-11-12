@@ -1636,12 +1636,14 @@ public final class InternalTestCluster extends TestCluster {
             if ((stoppingMasters != currentMasters && currentMasters <= stoppingMasters * 2) || rarely()) {
                 // stopping fewer than _all_ of the master nodes, but at least half of them, requires their votes to be withdrawn first
                 nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).map(NodeAndClient::getName).forEach(withdrawnNodeIds::add);
-                logger.info("withdrawing votes from {} prior to shutdown", withdrawnNodeIds);
-                try {
-                    client().execute(AddVotingTombstonesAction.INSTANCE,
-                        new AddVotingTombstonesRequest(withdrawnNodeIds.toArray(new String[0]))).get();
-                } catch (InterruptedException | ExecutionException e) {
-                    throw new AssertionError("unexpected", e);
+                if (withdrawnNodeIds.isEmpty() == false) {
+                    logger.info("withdrawing votes from {} prior to shutdown", withdrawnNodeIds);
+                    try {
+                        client().execute(AddVotingTombstonesAction.INSTANCE,
+                            new AddVotingTombstonesRequest(withdrawnNodeIds.toArray(new String[0]))).get();
+                    } catch (InterruptedException | ExecutionException e) {
+                        throw new AssertionError("unexpected", e);
+                    }
                 }
             }
 

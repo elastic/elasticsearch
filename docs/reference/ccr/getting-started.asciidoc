@@ -18,13 +18,14 @@ This getting-started guide for {ccr} shows you how to:
 [float]
 [[ccr-gs-before-you-begin]]
 === Before you begin
-. Install {es} your on local and remote clusters.
+. {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[Install {es}]
+  your on local and remote clusters.
 
 . Obtain a license that includes the {ccr} features. See
-{stack-ov}/license-management.html[License Management].
+  {stack-ov}/license-management.html[License Management].
 
 . If {security} is enabled in your local and remote cluster, you need a user
-that has appropriate authority to perform the steps in this tutorial.
+  that has appropriate authority to perform the steps in this tutorial.
 +
 --
 [[ccr-gs-security]]

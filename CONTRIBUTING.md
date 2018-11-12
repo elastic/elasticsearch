@@ -196,11 +196,26 @@ the settings window and/or restart IntelliJ to see your changes take effect.
 
 ### Creating A Distribution
 
-To create a distribution from the source, simply run:
+Run all build commands from within the root directory:
 
 ```sh
 cd elasticsearch/
-./gradlew assemble
+```
+
+To build a tar distribution, run this command:
+
+```sh
+./gradlew -p distribution/archives/tar assemble --parallel
+```
+
+You will find the distribution under:
+`./distribution/archives/tar/build/distributions/`
+
+To create all build artifacts (e.g., plugins and Javadocs) as well as
+distributions in all formats, run this command:
+
+```sh
+./gradlew assemble --parallel
 ```
 
 The package distributions (Debian and RPM) can be found under:
@@ -208,7 +223,6 @@ The package distributions (Debian and RPM) can be found under:
 
 The archive distributions (tar and zip) can be found under:
 `./distribution/archives/(tar|zip)/build/distributions/`
-
 
 ### Running The Full Test Suite
 

@@ -88,7 +88,6 @@ public class InternalClusterInfoService extends AbstractComponent
 
     public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client,
                                       Consumer<ClusterInfo> listener) {
-        super(settings);
         this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
         this.mostAvailableSpaceUsages = ImmutableOpenMap.of();
         this.shardRoutingToDataPath = ImmutableOpenMap.of();

@@ -29,7 +29,10 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.ClearRealmCacheRequest;
+import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
@@ -45,15 +48,18 @@ import org.elasticsearch.client.security.ExpressionRoleMapping;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.InvalidateTokenRequest;
+import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
+import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.client.security.support.CertificateInfo;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
@@ -67,13 +73,14 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.not;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -83,8 +90,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::put-user-execute
             char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-            PutUserRequest request =
-                new PutUserRequest("example", password, Collections.singletonList("superuser"), null, null, true, null, RefreshPolicy.NONE);
+            User user = new User("example", Collections.singletonList("superuser"));
+            PutUserRequest request = new PutUserRequest(user, password, true, RefreshPolicy.NONE);
             PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
             //end::put-user-execute
 
@@ -97,8 +104,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-            PutUserRequest request = new PutUserRequest("example2", password, Collections.singletonList("superuser"), null, null, true,
-                null, RefreshPolicy.NONE);
+            User user2 = new User("example2", Collections.singletonList("superuser"));
+            PutUserRequest request = new PutUserRequest(user2, password, true, RefreshPolicy.NONE);
             // tag::put-user-execute-listener
             ActionListener<PutUserResponse> listener = new ActionListener<PutUserResponse>() {
                 @Override
@@ -131,11 +138,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::put-role-mapping-execute
             final RoleMapperExpression rules = AnyRoleMapperExpression.builder()
-                    .addExpression(FieldRoleMapperExpression.ofUsername("*"))
-                    .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
-                    .build();
+                .addExpression(FieldRoleMapperExpression.ofUsername("*"))
+                .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
+                .build();
             final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.singletonList("superuser"),
-                    rules, null, RefreshPolicy.NONE);
+                rules, null, RefreshPolicy.NONE);
             final PutRoleMappingResponse response = client.security().putRoleMapping(request, RequestOptions.DEFAULT);
             // end::put-role-mapping-execute
             // tag::put-role-mapping-response
@@ -146,11 +153,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             final RoleMapperExpression rules = AnyRoleMapperExpression.builder()
-                    .addExpression(FieldRoleMapperExpression.ofUsername("*"))
-                    .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
-                    .build();
+                .addExpression(FieldRoleMapperExpression.ofUsername("*"))
+                .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
+                .build();
             final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.singletonList("superuser"),
-                    rules, null, RefreshPolicy.NONE);
+                rules, null, RefreshPolicy.NONE);
             // tag::put-role-mapping-execute-listener
             ActionListener<PutRoleMappingResponse> listener = new ActionListener<PutRoleMappingResponse>() {
                 @Override
@@ -181,21 +188,21 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         final RestHighLevelClient client = highLevelClient();
 
         final RoleMapperExpression rules1 = AnyRoleMapperExpression.builder().addExpression(FieldRoleMapperExpression.ofUsername("*"))
-                .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com")).build();
+            .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com")).build();
         final PutRoleMappingRequest putRoleMappingRequest1 = new PutRoleMappingRequest("mapping-example-1", true, Collections.singletonList(
-                "superuser"), rules1, null, RefreshPolicy.NONE);
+            "superuser"), rules1, null, RefreshPolicy.NONE);
         final PutRoleMappingResponse putRoleMappingResponse1 = client.security().putRoleMapping(putRoleMappingRequest1,
-                RequestOptions.DEFAULT);
+            RequestOptions.DEFAULT);
         boolean isCreated1 = putRoleMappingResponse1.isCreated();
         assertTrue(isCreated1);
         final RoleMapperExpression rules2 = AnyRoleMapperExpression.builder().addExpression(FieldRoleMapperExpression.ofGroups(
-                "cn=admins,dc=example,dc=com")).build();
+            "cn=admins,dc=example,dc=com")).build();
         final Map<String, Object> metadata2 = new HashMap<>();
         metadata2.put("k1", "v1");
         final PutRoleMappingRequest putRoleMappingRequest2 = new PutRoleMappingRequest("mapping-example-2", true, Collections.singletonList(
-                "monitoring"), rules2, metadata2, RefreshPolicy.NONE);
+            "monitoring"), rules2, metadata2, RefreshPolicy.NONE);
         final PutRoleMappingResponse putRoleMappingResponse2 = client.security().putRoleMapping(putRoleMappingRequest2,
-                RequestOptions.DEFAULT);
+            RequestOptions.DEFAULT);
         boolean isCreated2 = putRoleMappingResponse2.isCreated();
         assertTrue(isCreated2);
 
@@ -226,7 +233,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(mappings.size(), is(2));
             for (ExpressionRoleMapping roleMapping : mappings) {
                 assertThat(roleMapping.isEnabled(), is(true));
-                assertThat(roleMapping.getName(), isIn(new String[] { "mapping-example-1", "mapping-example-2" }));
+                assertThat(roleMapping.getName(), isIn(new String[]{"mapping-example-1", "mapping-example-2"}));
                 if (roleMapping.getName().equals("mapping-example-1")) {
                     assertThat(roleMapping.getMetadata(), equalTo(Collections.emptyMap()));
                     assertThat(roleMapping.getExpression(), equalTo(rules1));
@@ -249,7 +256,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(mappings.size(), is(2));
             for (ExpressionRoleMapping roleMapping : mappings) {
                 assertThat(roleMapping.isEnabled(), is(true));
-                assertThat(roleMapping.getName(), isIn(new String[] { "mapping-example-1", "mapping-example-2" }));
+                assertThat(roleMapping.getName(), isIn(new String[]{"mapping-example-1", "mapping-example-2"}));
                 if (roleMapping.getName().equals("mapping-example-1")) {
                     assertThat(roleMapping.getMetadata(), equalTo(Collections.emptyMap()));
                     assertThat(roleMapping.getExpression(), equalTo(rules1));
@@ -293,8 +300,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testEnableUser() throws Exception {
         RestHighLevelClient client = highLevelClient();
         char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-        PutUserRequest putUserRequest = new PutUserRequest("enable_user", password, Collections.singletonList("superuser"), null,
-            null, true, null, RefreshPolicy.IMMEDIATE);
+        User enable_user = new User("enable_user", Collections.singletonList("superuser"));
+        PutUserRequest putUserRequest = new PutUserRequest(enable_user, password, true, RefreshPolicy.IMMEDIATE);
         PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
         assertTrue(putUserResponse.isCreated());
 
@@ -338,8 +345,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testDisableUser() throws Exception {
         RestHighLevelClient client = highLevelClient();
         char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-        PutUserRequest putUserRequest = new PutUserRequest("disable_user", password, Collections.singletonList("superuser"), null,
-            null, true, null, RefreshPolicy.IMMEDIATE);
+        User disable_user = new User("disable_user", Collections.singletonList("superuser"));
+        PutUserRequest putUserRequest = new PutUserRequest(disable_user, password, true, RefreshPolicy.IMMEDIATE);
         PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
         assertTrue(putUserResponse.isCreated());
         {
@@ -379,6 +386,97 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testAuthenticate() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::authenticate-execute
+            AuthenticateResponse response = client.security().authenticate(RequestOptions.DEFAULT);
+            //end::authenticate-execute
+
+            //tag::authenticate-response
+            User user = response.getUser(); // <1>
+            boolean enabled = response.enabled(); // <2>
+            //end::authenticate-response
+
+            assertThat(user.getUsername(), is("test_user"));
+            assertThat(user.getRoles(), contains(new String[] {"superuser"}));
+            assertThat(user.getFullName(), nullValue());
+            assertThat(user.getEmail(), nullValue());
+            assertThat(user.getMetadata().isEmpty(), is(true));
+            assertThat(enabled, is(true));
+        }
+
+        {
+            // tag::authenticate-execute-listener
+            ActionListener<AuthenticateResponse> listener = new ActionListener<AuthenticateResponse>() {
+                @Override
+                public void onResponse(AuthenticateResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::authenticate-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::authenticate-execute-async
+            client.security().authenticateAsync(RequestOptions.DEFAULT, listener); // <1>
+            // end::authenticate-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testClearRealmCache() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::clear-realm-cache-request
+            ClearRealmCacheRequest request = new ClearRealmCacheRequest(Collections.emptyList(), Collections.emptyList());
+            //end::clear-realm-cache-request
+            //tag::clear-realm-cache-execute
+            ClearRealmCacheResponse response = client.security().clearRealmCache(request, RequestOptions.DEFAULT);
+            //end::clear-realm-cache-execute
+
+            assertNotNull(response);
+            assertThat(response.getNodes(), not(empty()));
+
+            //tag::clear-realm-cache-response
+            List<ClearRealmCacheResponse.Node> nodes = response.getNodes(); // <1>
+            //end::clear-realm-cache-response
+        }
+        {
+            //tag::clear-realm-cache-execute-listener
+            ClearRealmCacheRequest request = new ClearRealmCacheRequest(Collections.emptyList(), Collections.emptyList());
+            ActionListener<ClearRealmCacheResponse> listener = new ActionListener<ClearRealmCacheResponse>() {
+                @Override
+                public void onResponse(ClearRealmCacheResponse clearRealmCacheResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::clear-realm-cache-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::clear-realm-cache-execute-async
+            client.security().clearRealmCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::clear-realm-cache-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
 
     public void testClearRolesCache() throws Exception {
         RestHighLevelClient client = highLevelClient();
@@ -510,8 +608,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
         char[] newPassword = new char[]{'n', 'e', 'w', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-        PutUserRequest putUserRequest = new PutUserRequest("change_password_user", password, Collections.singletonList("superuser"),
-            null, null, true, null, RefreshPolicy.NONE);
+        User user = new User("change_password_user", Collections.singletonList("superuser"), Collections.emptyMap(), null, null);
+        PutUserRequest putUserRequest = new PutUserRequest(user, password, true, RefreshPolicy.NONE);
         PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
         assertTrue(putUserResponse.isCreated());
         {
@@ -557,7 +655,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // Create role mappings
             final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("*");
             final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.singletonList("superuser"),
-                    rules, null, RefreshPolicy.NONE);
+                rules, null, RefreshPolicy.NONE);
             final PutRoleMappingResponse response = client.security().putRoleMapping(request, RequestOptions.DEFAULT);
             boolean isCreated = response.isCreated();
             assertTrue(isCreated);
@@ -676,8 +774,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // Setup user
-            PutUserRequest putUserRequest = new PutUserRequest("token_user", "password".toCharArray(),
-                Collections.singletonList("kibana_user"), null, null, true, null, RefreshPolicy.IMMEDIATE);
+            User token_user = new User("token_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putUserRequest = new PutUserRequest(token_user, "password".toCharArray(), true, RefreshPolicy.IMMEDIATE);
             PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
             assertTrue(putUserResponse.isCreated());
         }
@@ -744,6 +842,78 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // "client-credentials" grants aren't refreshable
             assertNull(future.get().getRefreshToken());
         }
+    }
 
+    public void testInvalidateToken() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        String accessToken;
+        String refreshToken;
+        {
+            // Setup user
+            final char[] password = "password".toCharArray();
+            User invalidate_token_user = new User("invalidate_token", Collections.singletonList("kibana_user"));
+            PutUserRequest putUserRequest = new PutUserRequest(invalidate_token_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putUserResponse.isCreated());
+
+            // Create tokens
+            final CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant("invalidate_token", password);
+            final CreateTokenResponse tokenResponse = client.security().createToken(createTokenRequest, RequestOptions.DEFAULT);
+            accessToken = tokenResponse.getAccessToken();
+            refreshToken = tokenResponse.getRefreshToken();
+        }
+        {
+            // tag::invalidate-access-token-request
+            InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.accessToken(accessToken);
+            // end::invalidate-access-token-request
+
+            // tag::invalidate-token-execute
+            InvalidateTokenResponse invalidateTokenResponse =
+                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            // end::invalidate-token-execute
+
+            // tag::invalidate-token-response
+            boolean isCreated = invalidateTokenResponse.isCreated();
+            // end::invalidate-token-response
+            assertTrue(isCreated);
+        }
+
+        {
+            // tag::invalidate-refresh-token-request
+            InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.refreshToken(refreshToken);
+            // end::invalidate-refresh-token-request
+
+            ActionListener<InvalidateTokenResponse> listener;
+            //tag::invalidate-token-execute-listener
+            listener = new ActionListener<InvalidateTokenResponse>() {
+                @Override
+                public void onResponse(InvalidateTokenResponse invalidateTokenResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::invalidate-token-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<InvalidateTokenResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            //tag::invalidate-token-execute-async
+            client.security().invalidateTokenAsync(invalidateTokenRequest, RequestOptions.DEFAULT, listener); // <1>
+            //end::invalidate-token-execute-async
+
+            final InvalidateTokenResponse response = future.get(30, TimeUnit.SECONDS);
+            assertNotNull(response);
+            assertTrue(response.isCreated());// technically, this should be false, but the API is broken
+            // See https://github.com/elastic/elasticsearch/issues/35115
+        }
     }
 }

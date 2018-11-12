@@ -81,7 +81,7 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase<GraphExp
 
     @Override
     protected  GraphExploreResponse doParseInstance(XContentParser parser) throws IOException {
-        return GraphExploreResponse.fromXContext(parser);
+        return GraphExploreResponse.fromXContent(parser);
     }
 
     @Override

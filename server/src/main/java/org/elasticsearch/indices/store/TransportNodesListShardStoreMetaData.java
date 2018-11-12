@@ -66,6 +66,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
     public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store";
 
+    private final Settings settings;
     private final IndicesService indicesService;
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry namedXContentRegistry;
@@ -75,8 +76,9 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                                                 ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, NodeEnvironment nodeEnv,
                                                 ActionFilters actionFilters, NamedXContentRegistry namedXContentRegistry) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
             Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STORE, NodeStoreFilesMetaData.class);
+        this.settings = settings;
         this.indicesService = indicesService;
         this.nodeEnv = nodeEnv;
         this.namedXContentRegistry = namedXContentRegistry;

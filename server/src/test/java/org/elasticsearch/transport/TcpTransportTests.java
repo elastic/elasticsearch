@@ -187,8 +187,7 @@ public class TcpTransportTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool(TcpTransportTests.class.getName());
         AtomicReference<BytesReference> messageCaptor = new AtomicReference<>();
         try {
-            TcpTransport transport = new TcpTransport(
-                "test", Settings.builder().put("transport.tcp.compress", compressed).build(), threadPool,
+            TcpTransport transport = new TcpTransport("test", Settings.EMPTY, Version.CURRENT, threadPool,
                 new BigArrays(new PageCacheRecycler(Settings.EMPTY), null), null, null, null) {
 
                 @Override
@@ -197,7 +196,7 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected FakeChannel initiateChannel(DiscoveryNode node, ActionListener<Void> connectListener) throws IOException {
+                protected FakeChannel initiateChannel(DiscoveryNode node) throws IOException {
                     return new FakeChannel(messageCaptor);
                 }
 
@@ -207,17 +206,26 @@ public class TcpTransportTests extends ESTestCase {
 
                 @Override
                 public NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-                    int numConnections = MockTcpTransport.LIGHT_PROFILE.getNumConnections();
+                    if (compressed)  {
+                        assertTrue(connectionProfile.getCompressionEnabled());
+                    }
+                    int numConnections = connectionProfile.getNumConnections();
                     ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);
                     for (int i = 0; i < numConnections; ++i) {
                         fakeChannels.add(new FakeChannel(messageCaptor));
                     }
-                    return new NodeChannels(node, fakeChannels, MockTcpTransport.LIGHT_PROFILE, Version.CURRENT);
+                    return new NodeChannels(node, fakeChannels, connectionProfile, Version.CURRENT);
                 }
             };
 
             DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-            Transport.Connection connection = transport.openConnection(node, null);
+            ConnectionProfile.Builder profileBuilder = new ConnectionProfile.Builder(MockTcpTransport.LIGHT_PROFILE);
+            if (compressed) {
+                profileBuilder.setCompressionEnabled(true);
+            } else {
+                profileBuilder.setCompressionEnabled(false);
+            }
+            Transport.Connection connection = transport.openConnection(node, profileBuilder.build());
             connection.sendRequest(42, "foobar", request, TransportRequestOptions.EMPTY);
 
             BytesReference reference = messageCaptor.get();
@@ -269,6 +277,10 @@ public class TcpTransportTests extends ESTestCase {
 
         @Override
         public void addCloseListener(ActionListener<Void> listener) {
+        }
+
+        @Override
+        public void addConnectListener(ActionListener<Void> listener) {
         }
 
         @Override

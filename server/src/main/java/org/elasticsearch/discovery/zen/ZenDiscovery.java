@@ -121,6 +121,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private final NodesFaultDetection nodesFD;
     private final PublishClusterStateAction publishClusterState;
     private final MembershipAction membership;
+    private final ClusterName clusterName;
     private final ThreadPool threadPool;
 
     private final TimeValue pingTimeout;
@@ -172,7 +173,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         this.maxPingsFromAnotherMaster = MAX_PINGS_FROM_ANOTHER_MASTER_SETTING.get(settings);
         this.sendLeaveRequest = SEND_LEAVE_REQUEST_SETTING.get(settings);
         this.threadPool = threadPool;
-        ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.committedState = new AtomicReference<>();
 
         this.masterElectionIgnoreNonMasters = MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING.get(settings);
@@ -210,15 +211,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         this.publishClusterState =
                 new PublishClusterStateAction(
-                        settings,
                         transportService,
                         namedWriteableRegistry,
                         this,
                         discoverySettings);
-        this.membership = new MembershipAction(settings, transportService, new MembershipListener(), onJoinValidators);
+        this.membership = new MembershipAction(transportService, new MembershipListener(), onJoinValidators);
         this.joinThreadControl = new JoinThreadControl();
 
-        this.nodeJoinController = new NodeJoinController(masterService, allocationService, electMaster, settings);
+        this.nodeJoinController = new NodeJoinController(masterService, allocationService, electMaster);
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, electMaster, this::submitRejoin, logger);
 
         masterService.setClusterStateSupplier(this::clusterState);
@@ -252,7 +252,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // set initial state
             assert committedState.get() == null;
             assert localNode != null;
-            ClusterState.Builder builder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
+            ClusterState.Builder builder = ClusterState.builder(clusterName);
             ClusterState initialState = builder
                 .blocks(ClusterBlocks.builder()
                     .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)

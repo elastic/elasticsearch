@@ -18,11 +18,22 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNode.Role;
+import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AddVotingTombstonesRequestTests extends ESTestCase {
@@ -37,5 +48,31 @@ public class AddVotingTombstonesRequestTests extends ESTestCase {
         final AddVotingTombstonesRequest deserialized = copyWriteable(originalRequest, writableRegistry(), AddVotingTombstonesRequest::new);
         assertThat(deserialized.getNodeDescriptions(), equalTo(originalRequest.getNodeDescriptions()));
         assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));
+    }
+
+    public void testResolve() {
+        final DiscoveryNode localNode
+            = new DiscoveryNode("local", "local", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
+        final DiscoveryNode otherNode1
+            = new DiscoveryNode("other1", "other1", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
+        final DiscoveryNode otherNode2
+            = new DiscoveryNode("other2", "other2", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
+        final DiscoveryNode otherDataNode
+            = new DiscoveryNode("data", "data", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder()
+            .add(localNode).add(otherNode1).add(otherNode2).add(otherDataNode).localNodeId(localNode.getId())).build();
+
+        assertThat(makeRequest().resolveNodes(clusterState), containsInAnyOrder(localNode, otherNode1, otherNode2));
+        assertThat(makeRequest("_all").resolveNodes(clusterState), containsInAnyOrder(localNode, otherNode1, otherNode2));
+        assertThat(makeRequest("_local").resolveNodes(clusterState), contains(localNode));
+        assertThat(makeRequest("other*").resolveNodes(clusterState), containsInAnyOrder(otherNode1, otherNode2));
+
+        assertThat(expectThrows(IllegalArgumentException.class, () -> makeRequest("not-a-node").resolveNodes(clusterState)).getMessage(),
+            equalTo("add voting tombstones request for [not-a-node] matched no master-eligible nodes"));
+    }
+
+    private static AddVotingTombstonesRequest makeRequest(String... descriptions) {
+        return new AddVotingTombstonesRequest(descriptions);
     }
 }

@@ -20,6 +20,8 @@ package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,6 +29,8 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A request to add voting tombstones for certain master-eligible nodes, and wait for these nodes to be removed from the voting
@@ -63,6 +67,20 @@ public class AddVotingTombstonesRequest extends MasterNodeRequest<AddVotingTombs
         super(in);
         nodeDescriptions = in.readStringArray();
         timeout = in.readTimeValue();
+    }
+
+    Set<DiscoveryNode> resolveNodes(ClusterState currentState) {
+        DiscoveryNodes allNodes = currentState.nodes();
+        Set<DiscoveryNode> resolvedNodes = Arrays.stream(allNodes.resolveNodes(nodeDescriptions))
+            .map(allNodes::get).filter(DiscoveryNode::isMasterNode).collect(Collectors.toSet());
+
+        if (resolvedNodes.isEmpty()) {
+            throw new IllegalArgumentException("add voting tombstones request for " + Arrays.asList(nodeDescriptions)
+                + " matched no master-eligible nodes");
+        }
+
+        resolvedNodes.removeIf(n -> currentState.getVotingTombstones().contains(n));
+        return resolvedNodes;
     }
 
     /**

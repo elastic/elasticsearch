@@ -16,7 +16,7 @@ or has been created 30 days ago, and then delete the index after 90 days.
 
 === Setting up a new policy
 
-There are many new APIs introduced by {ILM}, but we will only focus on
+There are many new features introduced by {ILM}, but we will only focus on
 a few that are needed for our example. For starters, we will use the
 <<ilm-put-lifecycle,Put Policy>> API to define our first policy. Lifecycle
 policies are defined in JSON and include specific <<ilm-policy-definition,phases and actions>>.

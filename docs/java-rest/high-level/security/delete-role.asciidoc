@@ -1,7 +1,7 @@
 --
 :api: delete-role
 :request: DeleteRoleRequest
-:response: DeleteRoleResponse
+:response: Optional<DeleteRoleResponse>
 --
 
 [id="{upid}-{api}"]

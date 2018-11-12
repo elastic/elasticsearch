@@ -370,14 +370,14 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         if (usePrefixTrees) {
             gcb = RandomShapeGenerator.createGeometryCollection(random());
         } else {
-            // vector strategy does not yet support point or multipoint queries
+            // vector strategy does not yet support multipoint queries
             gcb = new GeometryCollectionBuilder();
             int numShapes = RandomNumbers.randomIntBetween(random(), 1, 4);
             for (int i = 0; i < numShapes; ++i) {
                 ShapeBuilder shape;
                 do {
                     shape = RandomShapeGenerator.createShape(random());
-                } while (shape instanceof MultiPointBuilder || shape instanceof PointBuilder);
+                } while (shape instanceof MultiPointBuilder);
                 gcb.shape(shape);
             }
         }
@@ -410,6 +410,30 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         SearchResponse result = client().prepareSearch("test").setTypes("type").setQuery(geoShapeQueryBuilder).get();
         assertSearchResponse(result);
         assertTrue(result.getHits().totalHits > 0);
+    }
+
+    /** tests querying a random geometry collection with a point */
+    public void testPointQuery() throws Exception {
+        // Create a random geometry collection to index.
+        GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
+        double[] pt = new double[] {GeoTestUtil.nextLongitude(), GeoTestUtil.nextLatitude()};
+        PointBuilder pb = new PointBuilder(pt[0], pt[1]);
+        gcb.shape(pb);
+        if (randomBoolean()) {
+            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
+                .execute().actionGet();
+        } else {
+            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
+                .execute().actionGet();
+        }
+        XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
+        client().prepareIndex("test", "type", "1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("location", pb);
+        geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
+        SearchResponse result = client().prepareSearch("test").setTypes("type").setQuery(geoShapeQueryBuilder).get();
+        assertSearchResponse(result);
+        assertHitCount(result, 1);
     }
 
     public void testContainsShapeQuery() throws Exception {

@@ -447,9 +447,16 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             geoQuery = LatLonShape.newBoxQuery(fieldName(), relation.getLuceneRelation(),
                 r.minLat, r.maxLat, r.minLon, r.maxLon);
         } else if (queryShape instanceof double[][]) {
+            // note: we decompose point queries into a bounding box query with min values == max values
+            // to do this for multipoint we would have to create a BooleanQuery for each point
+            // this is *way* too costly. So we do not allow multipoint queries
             throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + GeoShapeType.MULTIPOINT + " queries");
         } else if (queryShape instanceof double[] || queryShape instanceof GeoPoint) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + GeoShapeType.POINT + " queries");
+            // for now just create a single bounding box query with min values == max values
+            double[] pt = queryShape instanceof GeoPoint
+                ? new double[] {((GeoPoint)queryShape).lon(), ((GeoPoint)queryShape).lat()}
+                : (double[])queryShape;
+            return LatLonShape.newBoxQuery(fieldName, relation.getLuceneRelation(), pt[1], pt[1], pt[0], pt[0]);
         } else if (queryShape instanceof Object[]) {
             geoQuery = createGeometryCollectionQuery(context, (Object[]) queryShape);
         } else {

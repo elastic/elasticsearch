@@ -64,9 +64,13 @@ public class ConnectionManager implements Closeable {
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
     public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool) {
+        this(ConnectionProfile.buildDefaultConnectionProfile(settings), transport, threadPool);
+    }
+
+    public ConnectionManager(ConnectionProfile connectionProfile, Transport transport, ThreadPool threadPool) {
         this.transport = transport;
         this.threadPool = threadPool;
-        this.defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(settings);
+        this.defaultProfile = connectionProfile;
         this.lifecycle.moveToStarted();
     }
 

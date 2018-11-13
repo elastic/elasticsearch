@@ -8,42 +8,42 @@ beta[]
 This getting-started guide for {ccr} shows you how to:
 
 * <<ccr-gs-remote-cluster,Connect a local cluster to a remote cluster>>
-* <<ccr-gs-leader-index,Create a leader index>> in a remote cluster that can be
-  replicated to a follower index in a local cluster
+* <<ccr-gs-leader-index,Create a leader index>> in a remote cluster
 * <<ccr-gs-follower-index,Create a follower index>> that replicates a leader
-  index in a remote cluster
-* <<ccr-gs-auto-follow,Automatically create follower indices>> that replicate
-  new indices in a remote cluster
+  index
+* <<ccr-gs-auto-follow,Automatically create follower indices>>
 
 [float]
 [[ccr-gs-before-you-begin]]
 === Before you begin
 . {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[Install {es}]
-  your on local and remote clusters.
+  on your local and remote clusters.
 
-. Obtain a license that includes the {ccr} features. See
-  {stack-ov}/license-management.html[License Management].
+. Obtain a license that includes the {ccr} features. See https://www.elastic.co/subscriptions 
+  and <<license-management>>.
 
-. If {security} is enabled in your local and remote cluster, you need a user
-  that has appropriate authority to perform the steps in this tutorial.
+. If the Elastic {security-features} are enabled in your local and remote 
+clusters, you need a user that has appropriate authority to perform the steps in 
+this tutorial.
 +
 --
 [[ccr-gs-security]]
 The {ccr} features use cluster privileges and built-in roles to make it easier
 to control which users have authority to manage {ccr}.
 
-By default, you can perform all of the steps in this getting-started guide by
+By default, you can perform all of the steps in this tutorial by
 using the built-in `elastic` user. However, a password must be set for this user
 before the user can do anything. For information about how to set that password,
-see {stack-ov}/security-getting-started.html[Getting started with security].
+see <<security-getting-started>>.
 
 If you are performing these steps in a production environment, take extra care
 because the `elastic` user has the `superuser` role and you could inadvertently
-make significant changes. You can alternately assign the appropriate privileges
-to a user ID of your choice.
+make significant changes. 
 
-On the remote cluster containing the leader index, a user will need the
-`read_ccr` cluster privilege, and `monitor` and `read` privileges on the leader
+Alternatively, you can assign the appropriate privileges
+to a user ID of your choice. On the remote cluster that contains the leader index, 
+a user will need the
+`read_ccr` cluster privilege and `monitor` and `read` privileges on the leader
 index.
 
 [source,yml]
@@ -58,8 +58,8 @@ ccr_user:
         - read
 --------------------------------------------------
 
-On the local cluster containing the follower index, the same user will need the
-`manage_ccr` cluster privilege, and `monitor`, `read`, `write` and
+On the local cluster that contains the follower index, the same user will need the
+`manage_ccr` cluster privilege and `monitor`, `read`, `write` and
 `manage_follow_index` privileges on the follower index.
 
 [source,yml]
@@ -81,9 +81,9 @@ ccr_user:
 [[ccr-gs-remote-cluster]]
 === Connecting to a remote cluster
 
-The {ccr} features require
-{ref}/modules-remote-clusters.html[connecting your local cluster to a remote cluster].
-In the example for this getting-started guide, we will connect our local cluster
+The {ccr} features require that you 
+{ref}/modules-remote-clusters.html[connect your local cluster to a remote cluster].
+In this tutorial, we will connect our local cluster
 to a remote cluster with the cluster alias `leader`.
 
 [source,js]
@@ -107,7 +107,7 @@ PUT /_cluster/settings
 // TEST[setup:host]
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
 <1> Specifies the hostname and transport port of a seed node in the remote
-    cluster.
+    cluster.    
 
 You can verify that the local cluster is successfully connected to the remote
 cluster.
@@ -151,12 +151,13 @@ remote cluster.
 === Creating a leader index
 
 Leader indices require special index settings to ensure that the operations that
-need to be replicated by the follower from the leader are available when the
+need to be replicated are available when the
 follower requests them from the leader. These settings are used to enable soft
-deletes on the leader index, and control how many soft deletes are retained. A
-soft delete occurs whenever a document is deleted or updated. Soft deletes can
-only be enabled on new indices created on or after {es} 6.5.0. In the following
-example, we will create a leader index in the remote cluster.
+deletes on the leader index and to control how many soft deletes are retained. A
+_soft delete_ occurs whenever a document is deleted or updated. Soft deletes can
+be enabled only on new indices created on or after {es} 6.5.0. 
+
+In the following example, we will create a leader index in the remote cluster:
 
 [source,js]
 --------------------------------------------------
@@ -213,10 +214,9 @@ PUT /server-metrics
 === Creating a follower index
 
 Follower indices are created with the {ref}/ccr-put-follow.html[create follower API].
-When creating a follower index, you will reference the
-<<ccr-gs-remote-cluster,remote cluster>> that you connected your
-local cluster to, and the <<ccr-gs-leader-index,leader index>> that
-you created in the remote cluster.
+When you create a follower index, you must reference the
+<<ccr-gs-remote-cluster,remote cluster>> and the 
+<<ccr-gs-leader-index,leader index>> that you created in the remote cluster.
 
 [source,js]
 --------------------------------------------------
@@ -244,7 +244,7 @@ PUT /server-metrics-copy/_ccr/follow
 //////////////////////////
 
 Now when you index documents into your leader index, you will see these
-documents are replicated by the follower index from the leader index. You can
+documents replicated in the follower index. You can
 inspect the status of replication using the
 {ref}/ccr-get-follow-stats[get follower stats API].
 
@@ -267,14 +267,15 @@ POST /server-metrics-copy/_ccr/unfollow
 [[ccr-gs-auto-follow]]
 === Automatically create follower indices
 
-The auto-follow feature in {ccr} helps for time-series use-cases where new
-indices that you want to follow are periodically created in the remote cluster
-(e.g., daily Beats indices).  Auto-following is configured using the
+The auto-follow feature in {ccr} helps for time series use cases where you want 
+to follow new indices that are periodically created in the remote cluster
+(such as daily Beats indices). Auto-following is configured using the
 {ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API]. With an
 auto-follow pattern, you reference the <<ccr-gs-remote-cluster,remote cluster>>
-that you connected your local cluster to, and a collection of patterns that
-match the indices that you want to be automatically followed when they are
-created in the remote cluster.
+that you connected your local cluster to. You must also specify a collection of 
+patterns that match the indices you want to automatically follow. 
+
+For example:
 
 [source,js]
 --------------------------------------------------
@@ -291,8 +292,8 @@ PUT /_ccr/auto_follow/beats
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
-<1> Automatically follow newly-created Metricbeat indices.
-<2> Automatically follow newly-created Packetbeat indices.
+<1> Automatically follow new {metricbeat} indices.
+<2> Automatically follow new {packetbeat} indices.
 <3> The name of the follower index is derived from the name of the leader index
     by adding the suffix `-copy` to the name of the leader index.
 

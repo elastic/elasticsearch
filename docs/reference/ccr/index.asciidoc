@@ -8,10 +8,23 @@
 
 beta[]
 
-* <<ccr-ov,Overview>>
-* <<ccr-getting-started,Getting Started>>
+The {ccr} (CCR) feature enables replication of indices in remote clusters to a 
+local cluster. This functionality can be used in some common production use cases:
+
+* Disaster recovery in case a primary cluster fails. A secondary cluster can
+  serve as a hot backup
+* Geo-proximity so that reads can be served locally
+
+This guide provides an overview of {ccr}:
+
+* <<ccr-overview>>
+* <<ccr-ov-soft-deletes>>
+* <<ccr-ov-auto-follow>>
+* <<ccr-getting-started>>
 
 --
 
 include::overview.asciidoc[]
+include::requirements.asciidoc[]
+include::auto-follow.asciidoc[]
 include::getting-started.asciidoc[]

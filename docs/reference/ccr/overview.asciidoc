@@ -1,25 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
-[[ccr-ov]]
+[[ccr-overview]]
 == Overview
 
 beta[]
-
-The {ccr} feature enables replication of indices in remote clusters to a local
-cluster. This functionality can be used in some common production use-cases:
-
-* disaster recovery in case a primary cluster fails, a secondary cluster can
-  serve as a hot backup
-* geo-proximity so that reads can be served locally
-
-This guide provides an overview of {ccr}:
-
-* <<ccr-ov-introduction,Introduction to Cross-Cluster Replication>>
-* <<ccr-ov-soft-deletes,Requirements for Leader Indices>>
-* <<ccr-ov-auto-follow,Automatically Following Indices>>
-
-[[ccr-ov-introduction]]
-=== Introduction to Cross-Cluster Replication
 
 Replication in {ccr} is done on an index-by-index basis. Replication is
 configured at the index level. For each configured replication there is a
@@ -111,70 +95,3 @@ if your initial configuration is not suitable for your use-case.
 
 You can terminate replication using the {ref}/ccr-post-unfollow.html[unfollow API].
 This will convert a follower index to a regular (non-follower) index.
-
-[[ccr-ov-soft-deletes]]
-=== Requirements for Leader Indices
-
-Cross-cluster replication works by replaying the history of individual write
-operations performed on the shards of the leader index. This means that the
-history of these operations needs to be retained on the leader shards so that
-they can be pulled by the follower shard tasks. The underlying mechanism used to
-retain these operations is soft deletes. A soft delete occurs whenever an
-existing document is deleted or updated. By retaining these soft deletes up to
-configurable limits, the history of operations can be retained on the leader
-shards and made available to the follower shard tasks as it replays the history
-of operations.
-
-Soft deletes must be enabled for indices that you want to use as leader
-indices. Enabling soft deletes requires the addition of some index settings at
-index creation time. You will need to add these settings to your create index
-requests, or to the index templates that you use to manage creation of new
-indices.
-
-NOTE: This means that {ccr} can not be used on existing indices. If you have
-existing data that you want to replicate from another cluster, you must
-{ref}/docs-reindex.html[reindex] your data into a new index with soft-deletes enabled.
-
-[float]
-==== Soft-delete settings
-
-`index.soft_deletes.enabled`::
-
-Whether or not soft deletes are enabled on the index. Soft deletes can only be
-configured at index creation, and only on indices created on or after 6.5.0.
-
-`index.soft_deletes.retention.operations`::
-
-The number of soft deletes to retain. Soft deletes are collected during merges
-on the underlying Lucene index yet retained up to the number of operations
-configured by this setting.
-
-[[ccr-ov-auto-follow]]
-=== Automatically Following Indices
-
-In time-series use-cases where new indices that you want to follow are
-periodically created (e.g., daily Beats indices), manually configuring follower
-indices for each new leader index can be an operational burden. The auto-follow
-functionality in {ccr} is aimed at easing this burden. With the auto-follow
-functionality, you can configure that newly created indices in a remote cluster
-with a name that matches a pattern are automatically followed as they are
-created.
-
-==== Managing auto-follow patterns
-
-You can add a new auto-follow pattern configuration using the
-{ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API].  When you create
-a new auto-follow pattern configuration, you are configuring a collection of
-patterns against a single remote cluster. Any time a new index with a name
-matching one of the patterns in the collection is created in the remote cluster,
-a follower index will be configured in the local cluster to replicate with the
-new index as its leader index.
-
-You can inspect all configured auto-follow pattern collections using the
-{ref}/ccr-get-auto-follow-pattern.html[get auto-follow pattern API], and delete a
-configured auto-follow pattern collection using the
-{ref}ccr-delete-auto-follow-pattern.html[delete auto-follow pattern API].
-
-Since auto-follow functionality is handled automatically in the background on
-your behalf, error reporting is done through logs on the elected master node,
-and through the {ref}/ccr-get-stats.html[{ccr} stats API].

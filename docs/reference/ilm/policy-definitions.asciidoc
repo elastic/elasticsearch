@@ -297,7 +297,7 @@ Phases allowed: hot.
 index format must match pattern '^.*-\\d+$', for example (`logs-000001`).
 [WARNING]
 The managed index must set `index.lifecycle.rollover_alias` as the
-alias to rollover. The index must also have this alias pointing to it.
+alias to rollover. The index must also be the write index for the alias.
 
 For example, if an index to be managed has an alias `my_data`. The managed
 index "my_index" must be the write index for the alias. For more information, read

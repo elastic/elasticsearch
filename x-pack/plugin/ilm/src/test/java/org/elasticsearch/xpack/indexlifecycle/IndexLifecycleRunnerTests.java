@@ -859,7 +859,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         cause = new IllegalArgumentException("non elasticsearch-exception");
         newClusterState = IndexLifecycleRunner.moveClusterStateToErrorStep(index, clusterState, currentStep, cause, () -> now);
         assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, now,
-            "{\"type\":\"illegal_argument_exception\",\"reason\":\"non elasticsearch-exception\"");
+            "{\"type\":\"illegal_argument_exception\",\"reason\":\"non elasticsearch-exception\",\"stack_trace\":\"");
     }
 
     public void testMoveClusterStateToFailedStep() {

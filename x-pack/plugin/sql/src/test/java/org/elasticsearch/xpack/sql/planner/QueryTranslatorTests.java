@@ -163,6 +163,22 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("Scalar function (LTRIM(keyword)) not allowed (yet) as arguments for LIKE", ex.getMessage());
     }
 
+    public void testTranslateNotExpression_WhereClause_Painless() {
+        LogicalPlan p = plan("SELECT * FROM test WHERE NOT(POSITION('x', keyword) = 0)");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.not(" +
+            "InternalSqlScriptUtils.eq(InternalSqlScriptUtils.position(" +
+            "params.v0,InternalSqlScriptUtils.docValue(doc,params.v1)),params.v2)))",
+            sc.script().toString());
+        assertEquals("[{v=x}, {v=keyword}, {v=0}]", sc.script().params().toString());
+    }
+
     public void testTranslateIsNullExpression_WhereClause() {
         LogicalPlan p = plan("SELECT * FROM test WHERE keyword IS NULL");
         assertTrue(p instanceof Project);
@@ -178,6 +194,21 @@ public class QueryTranslatorTests extends ESTestCase {
             eq.asBuilder().toString().replaceAll("\\s+", ""));
     }
 
+    public void testTranslateIsNullExpression_WhereClause_Painless() {
+        LogicalPlan p = plan("SELECT * FROM test WHERE POSITION('x', keyword) IS NULL");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.isNull(" +
+            "InternalSqlScriptUtils.position(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))))",
+            sc.script().toString());
+        assertEquals("[{v=x}, {v=keyword}]", sc.script().params().toString());
+    }
+
     public void testTranslateIsNotNullExpression_WhereClause() {
         LogicalPlan p = plan("SELECT * FROM test WHERE keyword IS NOT NULL");
         assertTrue(p instanceof Project);
@@ -189,6 +220,21 @@ public class QueryTranslatorTests extends ESTestCase {
         ExistsQuery eq = (ExistsQuery) translation.query;
         assertEquals("{\"exists\":{\"field\":\"keyword\",\"boost\":1.0}}",
             eq.asBuilder().toString().replaceAll("\\s+", ""));
+    }
+
+    public void testTranslateIsNotNullExpression_WhereClause_Painless() {
+        LogicalPlan p = plan("SELECT * FROM test WHERE POSITION('x', keyword) IS NOT NULL");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.isNotNull(" +
+                "InternalSqlScriptUtils.position(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))))",
+            sc.script().toString());
+        assertEquals("[{v=x}, {v=keyword}]", sc.script().params().toString());
     }
 
     public void testTranslateIsNullExpression_HavingClause_Painless() {

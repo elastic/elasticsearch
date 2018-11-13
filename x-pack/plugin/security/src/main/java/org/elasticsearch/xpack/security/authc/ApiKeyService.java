@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
@@ -28,9 +30,16 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -40,8 +49,11 @@ import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -79,8 +91,8 @@ public class ApiKeyService {
     private final Hasher hasher;
     private final boolean enabled;
 
-    public ApiKeyService(Settings settings, Clock clock, Client client,
-                         SecurityIndexManager securityIndex, ClusterService clusterService) {
+    public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex,
+                         ClusterService clusterService) {
         this.clock = clock;
         this.client = client;
         this.securityIndex = securityIndex;
@@ -109,7 +121,11 @@ public class ApiKeyService {
                     "able to use api keys", Version.V_7_0_0);
             }
 
+            final String id = UUIDs.base64UUID();
+            final String roleName = "_es_apikey_role_" + id;
+            final PutRoleRequest putRoleRequest = mergeRoleDescriptors(roleName, request.getRoleDescriptors());
             final char[] keyHash = hasher.hash(apiKey);
+            IndexRequest indexRequest;
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject()
                     .field("doc_type", "api_key")
@@ -126,7 +142,7 @@ public class ApiKeyService {
                     }
                 }
 
-                builder.array("role_descriptors", request.getRoleDescriptors())
+                builder.array("roles", roleName)
                     .field("name", request.getName())
                     .field("version", version.id)
                     .startObject("creator")
@@ -136,22 +152,72 @@ public class ApiKeyService {
                         authentication.getAuthenticatedBy().getName() : authentication.getLookedUpBy().getName())
                     .endObject()
                     .endObject();
-                final IndexRequest indexRequest =
-                    client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE)
+                indexRequest = client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, id)
+                        .setOpType(DocWriteRequest.OpType.CREATE)
                         .setSource(builder)
                         .setRefreshPolicy(request.getRefreshPolicy())
                         .request();
-                securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-                    executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexRequest,
-                        ActionListener.wrap(indexResponse ->
-                                listener.onResponse(new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
-                            listener::onFailure)));
             } catch (IOException e) {
                 listener.onFailure(e);
+                return;
             } finally {
                 Arrays.fill(keyHash, (char) 0);
             }
+
+            if (indexRequest == null) {
+                throw new IllegalStateException("index request cannot be null");
+            }
+
+            client.execute(PutRoleAction.INSTANCE, putRoleRequest, ActionListener.wrap(response ->
+                executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(indexResponse ->
+                    listener.onResponse(new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
+                    e -> {
+                        final DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest();
+                        deleteRoleRequest.name(roleName);
+                        client.execute(DeleteRoleAction.INSTANCE, deleteRoleRequest, ActionListener.wrap(deleteRoleResponse -> {
+                            if (deleteRoleResponse.found()) {
+                                logger.info("api key creation failed, but successfully cleaned up role: " + roleName);
+                            } else {
+                                logger.info("api key creation failed and no role found with name: " + roleName);
+                            }
+                        }, deleteEx -> logger.error(
+                            new ParameterizedMessage("failed to clean up role [{}] after api key creation failure", roleName), deleteEx)));
+                        listener.onFailure(e);
+                    })),
+                listener::onFailure));
         }
+    }
+
+    /**
+     * Combines the provided role descriptors into a put role request with the specified name
+     */
+    private PutRoleRequest mergeRoleDescriptors(String name, List<RoleDescriptor> descriptors) {
+        final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
+        final Map<String, Object> metadata = new HashMap<>();
+        final List<String> clusterPrivileges = new ArrayList<>();
+        final List<String> runAsPrivileges = new ArrayList<>();
+        final List<RoleDescriptor.ApplicationResourcePrivileges> applicationResourcePrivileges = new ArrayList<>();
+        final List<ConditionalClusterPrivilege> conditionalClusterPrivileges = new ArrayList<>();
+        for (RoleDescriptor descriptor : descriptors) {
+            indicesPrivileges.addAll(Arrays.asList(descriptor.getIndicesPrivileges()));
+            metadata.putAll(descriptor.getMetadata().entrySet().stream()
+                .filter(e -> e.getKey().startsWith(MetadataUtils.RESERVED_PREFIX) == false)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+            clusterPrivileges.addAll(Arrays.asList(descriptor.getClusterPrivileges()));
+            runAsPrivileges.addAll(Arrays.asList(descriptor.getRunAs()));
+            applicationResourcePrivileges.addAll(Arrays.asList(descriptor.getApplicationPrivileges()));
+            conditionalClusterPrivileges.addAll(Arrays.asList(descriptor.getConditionalClusterPrivileges()));
+        }
+
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(name);
+        request.cluster(clusterPrivileges.toArray(Strings.EMPTY_ARRAY));
+        request.addIndicesPrivileges(indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[0]));
+        request.addApplicationPrivileges(applicationResourcePrivileges.toArray(new RoleDescriptor.ApplicationResourcePrivileges[0]));
+        request.conditionalClusterPrivileges(conditionalClusterPrivileges.toArray(new ConditionalClusterPrivilege[0]));
+        request.runAs(runAsPrivileges.toArray(Strings.EMPTY_ARRAY));
+        request.metadata(metadata);
+        return request;
     }
 
     /**
@@ -211,12 +277,14 @@ public class ApiKeyService {
             if (expirationEpochMilli == null || Instant.ofEpochMilli(expirationEpochMilli).isAfter(clock.instant())) {
                 final String principal = Objects.requireNonNull((String) source.get("principal"));
                 final Map<String, Object> metadata = (Map<String, Object>) source.get("metadata");
-                final List<Map<String, Object>> roleDescriptors = (List<Map<String, Object>>) source.get("role_descriptors");
-                final String[] roleNames = roleDescriptors.stream()
-                    .map(rdSource -> (String) rdSource.get("name"))
-                    .collect(Collectors.toList())
-                    .toArray(Strings.EMPTY_ARRAY);
-                final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
+                final List<String> roles;
+                final Object rolesObj = source.get("roles");
+                if (rolesObj instanceof String) {
+                    roles = Collections.singletonList((String) rolesObj);
+                } else {
+                    roles = (List<String>) rolesObj;
+                }
+                final User apiKeyUser = new User(principal, roles.toArray(Strings.EMPTY_ARRAY), null, null, metadata, true);
                 listener.onResponse(AuthenticationResult.success(apiKeyUser));
             } else {
                 listener.onResponse(AuthenticationResult.unsuccessful("api key is expired", null));

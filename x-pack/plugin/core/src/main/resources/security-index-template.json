@@ -154,10 +154,6 @@
           "index": false,
           "doc_values": false
         },
-        "role_descriptors" : {
-          "type" : "object",
-          "dynamic" : true
-        },
         "version" : {
           "type" : "integer"
         },

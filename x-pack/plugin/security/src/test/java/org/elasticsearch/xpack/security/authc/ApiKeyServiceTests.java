@@ -71,7 +71,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         sourceMap.put("api_key_hash", new String(hash));
         sourceMap.put("principal", "test_user");
         sourceMap.put("metadata", Collections.emptyMap());
-        sourceMap.put("role_descriptors", Collections.singletonList(Collections.singletonMap("name", "a role")));
+        sourceMap.put("roles", Collections.singletonList("a role"));
 
 
         ApiKeyService.ApiKeyCredentials creds =

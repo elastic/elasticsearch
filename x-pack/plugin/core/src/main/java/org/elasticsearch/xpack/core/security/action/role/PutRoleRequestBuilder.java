@@ -40,8 +40,8 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         assert name.equals(descriptor.getName());
         request.name(name);
         request.cluster(descriptor.getClusterPrivileges());
-        request.conditionalCluster(descriptor.getConditionalClusterPrivileges());
-        request.addIndex(descriptor.getIndicesPrivileges());
+        request.conditionalClusterPrivileges(descriptor.getConditionalClusterPrivileges());
+        request.addIndicesPrivileges(descriptor.getIndicesPrivileges());
         request.addApplicationPrivileges(descriptor.getApplicationPrivileges());
         request.runAs(descriptor.getRunAs());
         request.metadata(descriptor.getMetadata());

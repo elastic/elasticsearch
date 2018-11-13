@@ -153,7 +153,7 @@ public class PutRoleRequestTests extends ESTestCase {
 
         if (randomBoolean()) {
             final String[] appNames = randomArray(1, 4, String[]::new, stringWithInitialLowercase);
-            request.conditionalCluster(new ConditionalClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet(appNames)));
+            request.conditionalClusterPrivileges(new ConditionalClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet(appNames)));
         }
 
         request.runAs(generateRandomStringArray(4, 3, false, true));

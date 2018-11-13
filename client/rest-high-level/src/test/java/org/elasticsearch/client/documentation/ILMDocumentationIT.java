@@ -55,18 +55,24 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // tag::ilm-put-lifecycle-policy-request
         Map<String, Phase> phases = new HashMap<>();
         Map<String, LifecycleAction> hotActions = new HashMap<>();
-        hotActions.put(RolloverAction.NAME, new RolloverAction(new ByteSizeValue(50, ByteSizeUnit.GB), null, null));
+        hotActions.put(RolloverAction.NAME, new RolloverAction(
+                new ByteSizeValue(50, ByteSizeUnit.GB), null, null));
         phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions)); // <1>
 
-        Map<String, LifecycleAction> deleteActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
-        phases.put("delete", new Phase("delete", new TimeValue(90, TimeUnit.DAYS), deleteActions)); // <2>
+        Map<String, LifecycleAction> deleteActions = 
+                Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
+        phases.put("delete", new Phase("delete", 
+                new TimeValue(90, TimeUnit.DAYS), deleteActions)); // <2>
 
-        LifecyclePolicy policy = new LifecyclePolicy("my_policy", phases); // <3>
-        PutLifecyclePolicyRequest request = new PutLifecyclePolicyRequest(policy);
+        LifecyclePolicy policy = new LifecyclePolicy("my_policy",
+                phases); // <3>
+        PutLifecyclePolicyRequest request = 
+                new PutLifecyclePolicyRequest(policy);
         // end::ilm-put-lifecycle-policy-request
 
         // tag::ilm-put-lifecycle-policy-execute
-        AcknowledgedResponse response = client.indexLifecycle().putLifecyclePolicy(request, RequestOptions.DEFAULT);
+        AcknowledgedResponse response = client.indexLifecycle().
+                putLifecyclePolicy(request, RequestOptions.DEFAULT);
         // end::ilm-put-lifecycle-policy-execute
 
         // tag::ilm-put-lifecycle-policy-response
@@ -77,13 +83,17 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // Delete the policy so it can be added again
         {
-            DeleteLifecyclePolicyRequest deleteRequest = new DeleteLifecyclePolicyRequest("my_policy");
-            AcknowledgedResponse deleteResponse = client.indexLifecycle().deleteLifecyclePolicy(deleteRequest, RequestOptions.DEFAULT);
+            DeleteLifecyclePolicyRequest deleteRequest = 
+                    new DeleteLifecyclePolicyRequest("my_policy");
+            AcknowledgedResponse deleteResponse = client.indexLifecycle()
+                    .deleteLifecyclePolicy(deleteRequest, 
+                            RequestOptions.DEFAULT);
             assertTrue(deleteResponse.isAcknowledged());
         }
 
         // tag::ilm-put-lifecycle-policy-execute-listener
-        ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+        ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
                 boolean acknowledged = response.isAcknowledged(); // <1>
@@ -101,7 +111,8 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::ilm-put-lifecycle-policy-execute-async
-        client.indexLifecycle().putLifecyclePolicyAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        client.indexLifecycle().putLifecyclePolicyAsync(request, 
+                RequestOptions.DEFAULT, listener); // <1>
         // end::ilm-put-lifecycle-policy-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));

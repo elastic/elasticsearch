@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
@@ -28,6 +29,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,8 +60,8 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             index(indexName, "_doc", "1", "f", "f");
         }
 
-        final NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, node1);
-        final Path[] node1DataPaths = env.nodeDataPaths();
+        final Path[] node1DataPaths = internalCluster().getInstance(NodeEnvironment.class, node1).nodeDataPaths();
+        final Path[] node2DataPaths = internalCluster().getInstance(NodeEnvironment.class, node2).nodeDataPaths();
 
         cluster.stopRandomNode(InternalTestCluster.nameFilter(node1));
         cluster.stopRandomNode(InternalTestCluster.nameFilter(node2));
@@ -79,8 +81,23 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 equalTo(ClusterHealthStatus.RED));
         } catch (IllegalStateException e) {
             assertThat(allocateOnNode2 || masterNode == false, equalTo(true));
-            assertThat(e.getMessage(), containsString(" node cannot have shard data "));
+            final String message = e.getMessage();
+            assertThat(message, containsString(" node cannot have shard data "));
+            assertThat(message, containsString(", found: ["));
+
+            // resolve and delete all paths those block a node to start
+            final int idx = message.indexOf("[") + 1;
+            final Path[] paths =
+                Arrays.stream(message.substring(idx, message.indexOf(']', idx)).split(",")).
+                    map(s -> PathUtils.get(s.trim())).toArray(Path[]::new);
+            IOUtils.rm(paths);
+
+            // start node again after clean up at the same data path
+            node2 = masterNode ? cluster.startMasterOnlyNode() : cluster.startCoordinatingOnlyNode(Settings.EMPTY);
+            final Path[] newNode2DataPaths = internalCluster().getInstance(NodeEnvironment.class, node2).nodeDataPaths();
+            assertThat(node2DataPaths, equalTo(newNode2DataPaths));
         }
+
     }
 
 }

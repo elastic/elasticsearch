@@ -190,6 +190,7 @@ GET /follower_index/_ccr/stats
 // CONSOLE
 
 The API returns the following results:
+
 [source,js]
 --------------------------------------------------
 {

@@ -73,6 +73,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -853,12 +854,12 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         ClusterState newClusterState = IndexLifecycleRunner.moveClusterStateToErrorStep(index, clusterState, currentStep, cause, () -> now);
         assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, now,
-            "{\"type\":\"exception\",\"reason\":\"THIS IS AN EXPECTED CAUSE\"}");
+            "{\"type\":\"exception\",\"reason\":\"THIS IS AN EXPECTED CAUSE\"");
 
         cause = new IllegalArgumentException("non elasticsearch-exception");
         newClusterState = IndexLifecycleRunner.moveClusterStateToErrorStep(index, clusterState, currentStep, cause, () -> now);
         assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, now,
-            "{\"type\":\"illegal_argument_exception\",\"reason\":\"non elasticsearch-exception\"}");
+            "{\"type\":\"illegal_argument_exception\",\"reason\":\"non elasticsearch-exception\"");
     }
 
     public void testMoveClusterStateToFailedStep() {
@@ -1267,7 +1268,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertEquals(currentStep.getAction(), newLifecycleState.getAction());
         assertEquals(ErrorStep.NAME, newLifecycleState.getStep());
         assertEquals(currentStep.getName(), newLifecycleState.getFailedStep());
-        assertEquals(expectedCauseValue, newLifecycleState.getStepInfo());
+        assertThat(newLifecycleState.getStepInfo(), containsString(expectedCauseValue));
         assertEquals(oldLifecycleState.getPhaseTime(), newLifecycleState.getPhaseTime());
         assertEquals(oldLifecycleState.getActionTime(), newLifecycleState.getActionTime());
         assertEquals(now, newLifecycleState.getStepTime().longValue());

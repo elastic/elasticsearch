@@ -48,6 +48,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -270,7 +271,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(task.getNextStepKey(), equalTo(secondStep.getKey()));
         assertThat(lifecycleState.getPhaseTime(), nullValue());
         assertThat(lifecycleState.getActionTime(), nullValue());
-        assertThat(lifecycleState.getStepInfo(), equalTo("{\"type\":\"runtime_exception\",\"reason\":\"error\"}"));
+        assertThat(lifecycleState.getStepInfo(), containsString("{\"type\":\"runtime_exception\",\"reason\":\"error\""));
     }
 
     public void testClusterWaitStepThrowsException() throws IOException {
@@ -289,7 +290,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(task.getNextStepKey(), equalTo(thirdStepKey));
         assertThat(lifecycleState.getPhaseTime(), nullValue());
         assertThat(lifecycleState.getActionTime(), nullValue());
-        assertThat(lifecycleState.getStepInfo(), equalTo("{\"type\":\"runtime_exception\",\"reason\":\"error\"}"));
+        assertThat(lifecycleState.getStepInfo(), containsString("{\"type\":\"runtime_exception\",\"reason\":\"error\""));
     }
 
     private void setStateToKey(StepKey stepKey) throws IOException {

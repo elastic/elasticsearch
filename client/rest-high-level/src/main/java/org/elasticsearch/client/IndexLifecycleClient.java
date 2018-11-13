@@ -20,7 +20,7 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.client.indexlifecycle.ExplainLifecycleResponse;
@@ -29,9 +29,9 @@ import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyResponse;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyResponse;
+import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 

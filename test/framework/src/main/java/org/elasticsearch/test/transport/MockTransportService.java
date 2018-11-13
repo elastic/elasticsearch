@@ -20,13 +20,13 @@
 package org.elasticsearch.test.transport;
 
 import com.carrotsearch.randomizedtesting.SysGlobals;
-import java.util.concurrent.TimeUnit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -67,7 +67,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -349,8 +349,7 @@ public final class MockTransportService extends TransportService {
                 request.writeTo(bStream);
                 final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
 
-                Runnable runnable = new AbstractRunnable() {
-                    AtomicBoolean requestSent = new AtomicBoolean();
+                final RunOnce runnable = new RunOnce(new AbstractRunnable() {
 
                     @Override
                     public void onFailure(Exception e) {
@@ -359,11 +358,9 @@ public final class MockTransportService extends TransportService {
 
                     @Override
                     protected void doRun() throws IOException {
-                        if (requestSent.compareAndSet(false, true)) {
-                            connection.sendRequest(requestId, action, clonedRequest, options);
-                        }
+                        connection.sendRequest(requestId, action, clonedRequest, options);
                     }
-                };
+                });
 
                 // store the request to send it once the rule is cleared.
                 synchronized (this) {

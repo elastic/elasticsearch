@@ -27,6 +27,10 @@ import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapClusterAction;
 import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesAction;
 import org.elasticsearch.action.admin.cluster.bootstrap.TransportBootstrapClusterAction;
 import org.elasticsearch.action.admin.cluster.bootstrap.TransportGetDiscoveredNodesAction;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingTombstonesAction;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingTombstonesAction;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingTombstonesAction;
+import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingTombstonesAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
@@ -428,6 +432,8 @@ public class ActionModule extends AbstractModule {
 
         actions.register(GetDiscoveredNodesAction.INSTANCE, TransportGetDiscoveredNodesAction.class);
         actions.register(BootstrapClusterAction.INSTANCE, TransportBootstrapClusterAction.class);
+        actions.register(AddVotingTombstonesAction.INSTANCE, TransportAddVotingTombstonesAction.class);
+        actions.register(ClearVotingTombstonesAction.INSTANCE, TransportClearVotingTombstonesAction.class);
         actions.register(ClusterAllocationExplainAction.INSTANCE, TransportClusterAllocationExplainAction.class);
         actions.register(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         actions.register(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);

@@ -45,6 +45,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
@@ -65,6 +66,13 @@ import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class AllocationIdIT extends ESIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
+            .build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -224,15 +232,17 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     private void checkNoValidShardCopy(String indexName, ShardId shardId) throws Exception {
-        final ClusterAllocationExplanation explanation =
-            client().admin().cluster().prepareAllocationExplain()
-                .setIndex(indexName).setShard(shardId.id()).setPrimary(true)
-                .get().getExplanation();
+        assertBusy(() -> {
+            final ClusterAllocationExplanation explanation =
+                client().admin().cluster().prepareAllocationExplain()
+                    .setIndex(indexName).setShard(shardId.id()).setPrimary(true)
+                    .get().getExplanation();
 
-        final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
-        assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
-        assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
-            equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+            final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
+            assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
+            assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
+                equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+        });
     }
 
 }

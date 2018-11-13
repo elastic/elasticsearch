@@ -2,10 +2,15 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
@@ -14,22 +19,33 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
 import java.util.function.Predicate;
 
 public class RBACEngine implements AuthorizationEngine {
 
     private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
         ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
+    private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
+    private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
+    private static final String DELETE_SUB_REQUEST_PRIMARY = DeleteAction.NAME + "[p]";
+    private static final String DELETE_SUB_REQUEST_REPLICA = DeleteAction.NAME + "[r]";
 
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
@@ -71,7 +87,7 @@ public class RBACEngine implements AuthorizationEngine {
     public void authorizeClusterAction(Authentication authentication, TransportRequest request, String action,
                                        AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
-            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getAuthenticatedUserRole();
+            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             if (role.cluster().check(action, request)) {
                 listener.onResponse(AuthorizationResult.granted());
             } else if (checkSameUserPermissions(action, request, authentication)) {
@@ -114,12 +130,19 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public boolean isCompositeAction(String action) {
+    public boolean shouldAuthorizeIndexActionNameOnly(String action) {
         switch (action) {
             case BulkAction.NAME:
+            case IndexAction.NAME:
+            case DeleteAction.NAME:
+            case INDEX_SUB_REQUEST_PRIMARY:
+            case INDEX_SUB_REQUEST_REPLICA:
+            case DELETE_SUB_REQUEST_PRIMARY:
+            case DELETE_SUB_REQUEST_REPLICA:
             case MultiGetAction.NAME:
             case MultiTermVectorsAction.NAME:
             case MultiSearchAction.NAME:
+            case SearchScrollAction.NAME:
             case "indices:data/read/mpercolate":
             case "indices:data/read/msearch/template":
             case "indices:data/read/search/template":
@@ -128,6 +151,9 @@ public class RBACEngine implements AuthorizationEngine {
             case "indices:data/read/sql/translate":
                 return true;
             default:
+                if (TransportActionProxy.isProxyAction(action)) {
+                    return true;
+                }
                 return false;
         }
     }
@@ -136,12 +162,53 @@ public class RBACEngine implements AuthorizationEngine {
     public void authorizeIndexActionName(Authentication authentication, TransportRequest request, String action,
                                          AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
-            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getAuthenticatedUserRole();
+            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             if (role.indices().check(action)) {
                 listener.onResponse(AuthorizationResult.granted());
             } else {
                 listener.onResponse(AuthorizationResult.deny());
             }
+        } else {
+            listener.onFailure(new IllegalArgumentException("unsupported authorization info:" +
+                authorizationInfo.getClass().getSimpleName()));
+        }
+    }
+
+    @Override
+    public List<String> loadAuthorizedIndices(Authentication authentication, TransportRequest request, String action,
+                                              AuthorizationInfo authorizationInfo, Map<String, AliasOrIndex> aliasAndIndexLookup) {
+        if (authorizationInfo instanceof RBACAuthorizationInfo) {
+            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+            Predicate<String> predicate = role.indices().allowedIndicesMatcher(action);
+
+            List<String> indicesAndAliases = new ArrayList<>();
+            // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
+            for (Map.Entry<String, AliasOrIndex> entry : aliasAndIndexLookup.entrySet()) {
+                String aliasOrIndex = entry.getKey();
+                if (predicate.test(aliasOrIndex)) {
+                    indicesAndAliases.add(aliasOrIndex);
+                }
+            }
+
+            if (Arrays.asList(authentication.getUser().roles()).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+                // we should filter out all of the security indices from wildcards
+                indicesAndAliases.removeAll(SecurityIndexManager.indexNames());
+            }
+            return Collections.unmodifiableList(indicesAndAliases);
+        } else {
+            throw new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName());
+        }
+    }
+
+    @Override
+    public void buildIndicesAccessControl(Authentication authentication, TransportRequest request, String action,
+                                          AuthorizationInfo authorizationInfo, Set<String> indices,
+                                          SortedMap<String, AliasOrIndex> aliasAndIndexLookup,
+                                          ActionListener<IndexAuthorizationResult> listener) {
+        if (authorizationInfo instanceof RBACAuthorizationInfo) {
+            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+            final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
+            listener.onResponse(new IndexAuthorizationResult(true, accessControl));
         } else {
             listener.onFailure(new IllegalArgumentException("unsupported authorization info:" +
                 authorizationInfo.getClass().getSimpleName()));

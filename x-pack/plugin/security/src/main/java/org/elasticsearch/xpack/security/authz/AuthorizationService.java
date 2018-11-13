@@ -30,8 +30,10 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -77,6 +79,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
@@ -301,7 +304,7 @@ public class AuthorizationService {
         }
 
         final Set<String> localIndices = new HashSet<>(resolvedIndices.getLocal());
-        IndicesAccessControl indicesAccessControl = permission.authorize(action, localIndices, metaData, fieldPermissionsCache);
+        IndicesAccessControl indicesAccessControl = permission.authorize(action, localIndices, metaData.getAliasAndIndexLookup(), fieldPermissionsCache);
         if (!indicesAccessControl.isGranted()) {
             throw denial(authentication, action, request, permission.names());
         } else if (hasSecurityIndexAccess(indicesAccessControl)
@@ -423,8 +426,26 @@ public class AuthorizationService {
                     authentication.getUser().roles(), e));
             }));
         } else if (IndexPrivilege.ACTION_MATCHER.test(action)) {
-            if (authzEngine.isCompositeAction(action)) {
+            if (authzEngine.shouldAuthorizeIndexActionNameOnly(action)) {
+                authorizeIndexActionName(authentication, action, unwrappedRequest, authzInfo, authzEngine, listener);
+            } else {
+                final MetaData metaData = clusterService.state().metaData();
+                final AuthorizedIndices authorizedIndices = new AuthorizedIndices(() -> authzEngine.loadAuthorizedIndices(authentication,
+                    unwrappedRequest, action, authzInfo, metaData.getAliasAndIndexLookup()));
+                final ResolvedIndices resolvedIndices = resolveIndexNames(authentication, action, unwrappedRequest,
+                    metaData, authorizedIndices, authzInfo);
+                assert !resolvedIndices.isEmpty()
+                    : "every indices request needs to have its indices set thus the resolved indices must not be empty";
 
+                //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
+                //'-*' matches no indices so we allow the request to go through, which will yield an empty response
+                if (resolvedIndices.isNoIndicesPlaceholder()) {
+                    putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_NO_INDICES);
+                    auditTrail.accessGranted(authentication, action, unwrappedRequest, authentication.getUser().roles());
+                    listener.onResponse(null);
+                } else {
+
+                }
             }
         } else {
             listener.onFailure(denial(authentication, action, unwrappedRequest, authentication.getUser().roles()));
@@ -452,6 +473,22 @@ public class AuthorizationService {
             }));
     }
 
+    private void authorizeIndexAction(final Authentication authentication, final String action,
+                                      final TransportRequest unwrappedRequest, final AuthorizationInfo authzInfo,
+                                      final AuthorizationEngine authzEngine, final ResolvedIndices resolvedIndices,
+                                      final SortedMap<String, AliasOrIndex> aliasAndIndexLookup,
+                                      final ActionListener<Void> listener) {
+        final Set<String> localIndices = Collections.unmodifiableSet(new HashSet<>(resolvedIndices.getLocal()));
+        authzEngine.buildIndicesAccessControl(authentication, unwrappedRequest, action, authzInfo, localIndices, aliasAndIndexLookup,
+            ActionListener.wrap(indicesAccessControl -> {
+
+                }, e -> {
+                    // TODO need a failure handler better than this!
+                    listener.onFailure(denial(authentication, action, unwrappedRequest,
+                        authentication.getUser().roles(), e));
+                }));
+
+    }
     private AuthorizationEngine getRunAsAuthorizationEngine(final Authentication authentication) {
         return ClientReservedRealm.isReserved(authentication.getUser().authenticatedUser().principal(), settings) ?
             rbacEngine : rbacEngine;
@@ -560,7 +597,7 @@ public class AuthorizationService {
             final Tuple<String, String> indexAndAction = new Tuple<>(resolvedIndex, itemAction);
             final boolean granted = indexActionAuthority.computeIfAbsent(indexAndAction, key -> {
                 final IndicesAccessControl itemAccessControl = permission.authorize(itemAction, Collections.singleton(resolvedIndex),
-                        metaData, fieldPermissionsCache);
+                        metaData.getAliasAndIndexLookup(), fieldPermissionsCache);
                 return itemAccessControl.isGranted();
             });
             if (granted == false) {
@@ -589,11 +626,11 @@ public class AuthorizationService {
     }
 
     private ResolvedIndices resolveIndexNames(Authentication authentication, String action, TransportRequest request,
-                                              MetaData metaData, AuthorizedIndices authorizedIndices, Role permission) {
+                                              MetaData metaData, AuthorizedIndices authorizedIndices, AuthorizationInfo info) {
         try {
             return indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices);
         } catch (Exception e) {
-            auditTrail.accessDenied(authentication, action, request, permission.names());
+            auditTrail.accessDenied(authentication, action, request, Strings.EMPTY_ARRAY); // nocommit
             throw e;
         }
     }

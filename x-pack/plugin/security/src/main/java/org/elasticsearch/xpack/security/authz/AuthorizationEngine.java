@@ -7,10 +7,15 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
 
 public interface AuthorizationEngine {
 
@@ -25,10 +30,17 @@ public interface AuthorizationEngine {
 
     boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication);
 
-    boolean isCompositeAction(String action);
+    boolean shouldAuthorizeIndexActionNameOnly(String action);
 
     void authorizeIndexActionName(Authentication authentication, TransportRequest request, String action,
                                   AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener);
+
+    List<String> loadAuthorizedIndices(Authentication authentication, TransportRequest request, String action, AuthorizationInfo info,
+                                       Map<String, AliasOrIndex> aliasAndIndexLookup);
+
+    void buildIndicesAccessControl(Authentication authentication, TransportRequest request, String action,
+                                   AuthorizationInfo authorizationInfo, Set<String> indices,
+                                   SortedMap<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<IndexAuthorizationResult> listener);
 
     interface AuthorizationInfo {
 
@@ -63,6 +75,20 @@ public interface AuthorizationEngine {
 
         public static AuthorizationResult deny() {
             return new AuthorizationResult(false);
+        }
+    }
+
+    class IndexAuthorizationResult extends AuthorizationResult {
+
+        private final IndicesAccessControl indicesAccessControl;
+
+        IndexAuthorizationResult(boolean auditable, IndicesAccessControl indicesAccessControl) {
+            super(indicesAccessControl.isGranted(), auditable);
+            this.indicesAccessControl = indicesAccessControl;
+        }
+
+        public IndicesAccessControl getIndicesAccessControl() {
+            return indicesAccessControl;
         }
     }
 }

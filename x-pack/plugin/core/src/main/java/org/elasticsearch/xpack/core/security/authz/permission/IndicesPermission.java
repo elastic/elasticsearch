@@ -122,11 +122,10 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
      * Authorizes the provided action against the provided indices, given the current cluster metadata
      */
     public Map<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases,
-                                                                          MetaData metaData, FieldPermissionsCache fieldPermissionsCache) {
+                                                                          SortedMap<String, AliasOrIndex> allAliasesAndIndices,
+                                                                          FieldPermissionsCache fieldPermissionsCache) {
         // now... every index that is associated with the request, must be granted
         // by at least one indices permission group
-
-        SortedMap<String, AliasOrIndex> allAliasesAndIndices = metaData.getAliasAndIndexLookup();
         Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = new HashMap<>();
         Map<String, DocumentLevelPermissions> roleQueriesByIndex = new HashMap<>();
         Map<String, Boolean> grantedBuilder = new HashMap<>();

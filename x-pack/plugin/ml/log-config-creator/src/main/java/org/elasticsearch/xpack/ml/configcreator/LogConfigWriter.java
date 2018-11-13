@@ -699,7 +699,7 @@ public final class LogConfigWriter {
     void createConfigs(FileStructure structure, List<String> sampleMessages) {
 
         switch (structure.getFormat()) {
-            case JSON:
+            case NDJSON:
                 createJsonConfigs(structure);
                 break;
             case XML:

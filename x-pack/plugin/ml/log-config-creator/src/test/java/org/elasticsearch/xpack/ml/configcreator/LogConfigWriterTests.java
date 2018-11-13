@@ -72,7 +72,7 @@ public class LogConfigWriterTests extends LogConfigCreatorTestCase {
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         FileStructureFinder structureFinder = structureFinderManager.findFileStructure(explanation, Integer.MAX_VALUE,
-            new ByteArrayInputStream((randomByteOrderMarker(charset) + JSON_SAMPLE).getBytes(charset)));
+            new ByteArrayInputStream((randomByteOrderMarker(charset) + NDJSON_SAMPLE).getBytes(charset)));
         LogConfigWriter logConfigWriter = new LogConfigWriter(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME,
             "ml-cpp", elasticsearchHost, logstashHost, timezone);
         logConfigWriter.createConfigs(structureFinder.getStructure(), structureFinder.getSampleMessages());

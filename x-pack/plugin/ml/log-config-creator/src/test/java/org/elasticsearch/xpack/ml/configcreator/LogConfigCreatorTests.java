@@ -53,7 +53,7 @@ public class LogConfigCreatorTests extends LogConfigCreatorTestCase {
     public void testFindLogFileFormatGivenJson() throws Exception {
         Path outputDirectory = createTempDir();
 
-        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(JSON_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(NDJSON_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
             FileStructureFinder logFileStructureFinder =
                 structureFinderManager.findFileStructure(explanation, IDEAL_SAMPLE_LINE_COUNT, inputStream);
             logConfigWriter.writeConfigs(logFileStructureFinder.getStructure(), logFileStructureFinder.getSampleMessages(),

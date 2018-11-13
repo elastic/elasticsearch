@@ -234,7 +234,7 @@ public final class FilebeatModuleStore {
     /**
      * Given a module manifest, parse the ingest pipeline definition, making a few simplifying adjustments
      * - "{{.format}}" is replaced with "plain".
-     * - "{< if .convert_timezone >}" is taken to be true.
+     * - "{&lt; if .convert_timezone &gt;}" is taken to be true.
      * - "{{ _ingest.on_failure_message }}" is preserved.
      * - Other lines containing variables are removed.
      */

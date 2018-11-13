@@ -50,8 +50,27 @@ public class InternalTestClusterIT extends ESIntegTestCase {
             final int nodesToRemain = randomIntBetween(1, internalCluster().size() - 1);
             logger.info("--> reducing to [{}] nodes", nodesToRemain);
             internalCluster().ensureAtMostNumDataNodes(nodesToRemain);
-            ensureGreen();
             assertThat(internalCluster().size(), lessThanOrEqualTo(nodesToRemain));
         }
+
+        ensureGreen();
+    }
+
+    public void testStoppingNodesOneByOne() throws IOException {
+        // In a 5+ node cluster there must be at least one reconfiguration as the nodes are shut down one-by-one before we drop to 2 nodes.
+        // If the nodes shut down too quickly then this reconfiguration does not have time to occur and the quorum is lost in the 3->2
+        // transition, even though in a stable cluster the 3->2 transition requires no special treatment.
+
+        internalCluster().startNodes(5);
+        ensureGreen();
+
+        while (internalCluster().size() > 1) {
+            final int nodesToRemain = internalCluster().size() - 1;
+            logger.info("--> reducing to [{}] nodes", nodesToRemain);
+            internalCluster().ensureAtMostNumDataNodes(nodesToRemain);
+            assertThat(internalCluster().size(), lessThanOrEqualTo(nodesToRemain));
+        }
+
+        ensureGreen();
     }
 }

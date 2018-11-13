@@ -1633,17 +1633,20 @@ public final class InternalTestCluster extends TestCluster {
             final long stoppingMasters = nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).count();
 
             assert stoppingMasters <= currentMasters : currentMasters + " < " + stoppingMasters;
-            if ((stoppingMasters != currentMasters && currentMasters <= stoppingMasters * 2) || rarely()) {
-                // stopping fewer than _all_ of the master nodes, but at least half of them, requires their votes to be withdrawn first
+            if (stoppingMasters != currentMasters && stoppingMasters > 0) {
+                // If stopping few enough master-nodes that there's still a majority left, there is no need to withdraw their votes first.
+                // However, we do not yet have a way to be sure there's a majority left, because the voting configuration may not yet have
+                // been updated when the previous nodes shut down, so we must always explicitly withdraw votes.
+                // TODO add cluster health API to check that voting configuration is optimal so this isn't always needed
                 nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).map(NodeAndClient::getName).forEach(withdrawnNodeIds::add);
-                if (withdrawnNodeIds.isEmpty() == false) {
-                    logger.info("withdrawing votes from {} prior to shutdown", withdrawnNodeIds);
-                    try {
-                        client().execute(AddVotingTombstonesAction.INSTANCE,
-                            new AddVotingTombstonesRequest(withdrawnNodeIds.toArray(new String[0]))).get();
-                    } catch (InterruptedException | ExecutionException e) {
-                        throw new AssertionError("unexpected", e);
-                    }
+                assert withdrawnNodeIds.size() == stoppingMasters;
+
+                logger.info("withdrawing votes from {} prior to shutdown", withdrawnNodeIds);
+                try {
+                    client().execute(AddVotingTombstonesAction.INSTANCE,
+                        new AddVotingTombstonesRequest(withdrawnNodeIds.toArray(new String[0]))).get();
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new AssertionError("unexpected", e);
                 }
             }
 

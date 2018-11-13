@@ -19,12 +19,13 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -56,7 +57,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * temporarily stand down on occasion, e.g. if it needs to move to a higher term. On deciding that the leader has failed a follower will
  * become a candidate and attempt to become a leader itself.
  */
-public class LeaderChecker extends AbstractComponent {
+public class LeaderChecker {
+
+    private static final Logger logger = LogManager.getLogger(LeaderChecker.class);
 
     public static final String LEADER_CHECK_ACTION_NAME = "internal:coordination/fault_detection/leader_check";
 
@@ -149,7 +152,7 @@ public class LeaderChecker extends AbstractComponent {
      * Update the "known" discovery nodes. Should be called on the leader before a new cluster state is published to reflect the new
      * publication targets, and also called if a leader becomes a non-leader.
      * TODO if heartbeats can make nodes become followers then this needs to be called before a heartbeat is sent to a new node too.
-     *
+     * <p>
      * isLocalNodeElectedMaster() should reflect whether this node is a leader, and nodeExists()
      * should indicate whether nodes are known publication targets or not.
      */

@@ -298,8 +298,10 @@ include::ml/get-filters.asciidoc[]
 The Java High Level REST Client supports the following Migration APIs:
 
 * <<java-rest-high-migration-get-assistance>>
+* <<java-rest-high-migration-upgrade>>
 
 include::migration/get-assistance.asciidoc[]
+include::migration/upgrade.asciidoc[]
 
 == Rollup APIs
 :upid: {mainid}-rollup

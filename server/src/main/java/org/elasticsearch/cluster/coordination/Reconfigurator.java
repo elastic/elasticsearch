@@ -19,9 +19,10 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -37,7 +38,9 @@ import java.util.stream.Stream;
 /**
  * Computes the optimal configuration of voting nodes in the cluster.
  */
-public class Reconfigurator extends AbstractComponent {
+public class Reconfigurator {
+
+    private final Logger logger = LogManager.getLogger(getClass());
 
     /**
      * The cluster usually requires a vote from at least half of the master nodes in order to commit a cluster state update, and to achieve

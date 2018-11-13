@@ -353,7 +353,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         return equals;
     }
 
-    private MetaData randomMetaData() {
+    private static MetaData randomMetaDataForTx() {
         int settingNo = randomIntBetween(0, 10);
         MetaData.Builder builder = MetaData.builder()
                 .persistentSettings(Settings.builder().put("setting" + settingNo, randomAlphaOfLength(5)).build());
@@ -390,7 +390,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
 
             for (int i = 0; i < randomIntBetween(1, 5); i++) {
                 GatewayMetaState.Transaction tx = new GatewayMetaState.Transaction(metaStateService, manifest);
-                metaData = randomMetaData();
+                metaData = randomMetaDataForTx();
                 Map<Index, Long> indexGenerations = new HashMap<>();
 
                 try {

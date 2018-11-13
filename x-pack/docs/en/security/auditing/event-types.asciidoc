@@ -420,6 +420,47 @@ of event, in addition to the common ones previously described:
                          `principal` attribute.
 | `run_by_realm`       | The realm name that `run_by_principal` belongs to
                          (when applicable).
+| `roles`              | The set of roles granting permissions.
+| `action`             | The name of the action that was executed.
+| `indices`            | A comma-separated list of indices this request
+                         relates to (when applicable).
+| `request`            | The type of request that was executed.
+|======
+
+.Transport run_as_granted attributes
+[cols="2,7",options="header"]
+|======
+| Attribute            | Description
+| `origin_type`        | Where the request originated: `rest` (request
+                         originated from a REST API request), `transport`
+                         (request was received on the transport channel),
+                         `local_node` (the local node issued the request).
+| `principal`          | The _authenticated_ (_impersonator_) username for which
+                         the impersonation operation was granted.
+| `realm`              | The realm name that the _authenticated_ user belongs to.
+| `run_as_principal`   | The _impersonated_ username.
+| `run_as_realm`       | The realm name that the _impersonated_ username belongs to.
+| `roles`              | The set of roles granting permissions.
+| `action`             | The name of the action that was executed.
+| `indices`            | A comma-separated list of indices this request
+                         relates to (when applicable).
+| `request`            | The type of request that was executed.
+|======
+
+.Transport run_as_denied attributes
+[cols="2,7",options="header"]
+|======
+| Attribute            | Description
+| `origin_type`        | Where the request originated: `rest` (request
+                         originated from a REST API request), `transport`
+                         (request was received on the transport channel),
+                         `local_node` (the local node issued the request).
+| `principal`          | The _authenticated_ (_impersonator_) username for which
+                         the impersonation operation was denied.
+| `realm`              | The realm name that the _authenticated_ user belongs to.
+| `run_as_principal`   | The _impersonated_ username.
+| `run_as_realm`       | The realm name that the _impersonated_ username belongs to.
+| `roles`              | The set of roles granting permissions.
 | `action`             | The name of the action that was executed.
 | `indices`            | A comma-separated list of indices this request
                          relates to (when applicable).

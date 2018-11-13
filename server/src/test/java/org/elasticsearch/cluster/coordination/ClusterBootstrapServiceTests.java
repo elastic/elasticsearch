@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportChannel;
@@ -95,6 +94,20 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         clusterBootstrapService.start();
     }
 
+    private void scheduleStopAfter(long delay) {
+        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + delay, new Runnable() {
+            @Override
+            public void run() {
+                clusterBootstrapService.stop();
+            }
+
+            @Override
+            public String toString() {
+                return "stop cluster bootstrap service";
+            }
+        });
+    }
+
     public void testDoesNothingOnNonMasterNodes() {
         localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         transportService.registerRequestHandler(GetDiscoveredNodesAction.NAME, Names.SAME, GetDiscoveredNodesRequest::new,
@@ -154,6 +167,23 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         }
     }
 
+    public void testStopsRetryingDiscoveryWhenStopped() {
+        transportService.registerRequestHandler(GetDiscoveredNodesAction.NAME, Names.SAME, GetDiscoveredNodesRequest::new,
+            (request, channel, task) -> deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 30000, () -> {
+                try {
+                    channel.sendResponse(new ElasticsearchTimeoutException("simulated timeout"));
+                } catch (IOException e) {
+                    throw new AssertionError("unexpected", e);
+                }
+            }));
+
+        scheduleStopAfter(150000);
+
+        startServices();
+        deterministicTaskQueue.runAllTasks();
+        // termination means success
+    }
+
     public void testBootstrapsOnDiscoverySuccess() {
         final AtomicBoolean discoveryAttempted = new AtomicBoolean();
         final Set<DiscoveryNode> discoveredNodes = Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toSet());
@@ -196,5 +226,22 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             }
             deterministicTaskQueue.runAllRunnableTasks();
         }
+    }
+
+    public void testStopsRetryingBootstrapWhenStopped() {
+        final Set<DiscoveryNode> discoveredNodes = Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toSet());
+        transportService.registerRequestHandler(GetDiscoveredNodesAction.NAME, Names.SAME, GetDiscoveredNodesRequest::new,
+            (request, channel, task) -> channel.sendResponse(new GetDiscoveredNodesResponse(discoveredNodes)));
+
+        transportService.registerRequestHandler(BootstrapClusterAction.NAME, Names.SAME, BootstrapClusterRequest::new,
+            (request, channel, task) -> {
+                channel.sendResponse(new ElasticsearchException("simulated exception"));
+            });
+
+        scheduleStopAfter(200000);
+
+        startServices();
+        deterministicTaskQueue.runAllTasks();
+        // termination means success
     }
 }

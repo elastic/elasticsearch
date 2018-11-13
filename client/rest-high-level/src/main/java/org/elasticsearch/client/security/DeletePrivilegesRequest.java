@@ -20,8 +20,9 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
-
-import java.util.Objects;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.CollectionUtils;
 
 /**
  * A request to delete application privileges
@@ -32,14 +33,33 @@ public final class DeletePrivilegesRequest implements Validatable {
     private final String[] privileges;
     private final RefreshPolicy refreshPolicy;
 
+    /**
+     * Creates a new {@link DeletePrivilegesRequest} using the default {@link RefreshPolicy#getDefault()} refresh policy.
+     *
+     * @param application   the name of the application for which the privileges will be deleted
+     * @param privileges    the privileges to delete
+     */
     public DeletePrivilegesRequest(String application, String... privileges) {
-        this(application, privileges, RefreshPolicy.IMMEDIATE);
+        this(application, privileges, null);
     }
 
-    public DeletePrivilegesRequest(String application, String[] privileges, RefreshPolicy refreshPolicy) {
-        this.application = Objects.requireNonNull(application, "application is required");
-        this.privileges = Objects.requireNonNull(privileges, "privileges are required");
-        this.refreshPolicy =  Objects.requireNonNull(refreshPolicy, "refresh policy is required");
+    /**
+     * Creates a new {@link DeletePrivilegesRequest}.
+     *
+     * @param application   the name of the application for which the privileges will be deleted
+     * @param privileges    the privileges to delete
+     * @param refreshPolicy the refresh policy {@link RefreshPolicy} for the request, defaults to {@link RefreshPolicy#getDefault()}
+     */
+    public DeletePrivilegesRequest(String application, String[] privileges, @Nullable RefreshPolicy refreshPolicy) {
+        if (Strings.hasText(application) == false) {
+            throw new IllegalArgumentException("application name is required");
+        }
+        if (CollectionUtils.isEmpty(privileges)) {
+            throw new IllegalArgumentException("privileges are required");
+        }
+        this.application = application;
+        this.privileges = privileges;
+        this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.getDefault() : refreshPolicy;
     }
 
     public String getApplication() {

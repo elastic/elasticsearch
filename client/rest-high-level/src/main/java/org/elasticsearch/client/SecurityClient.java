@@ -476,7 +476,7 @@ public final class SecurityClient {
     }
 
     /**
-     * Removes an application privilege
+     * Removes application privilege(s)
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-privilege.html">
      * the docs</a> for more.
      * @param request the request with the application privilege to delete

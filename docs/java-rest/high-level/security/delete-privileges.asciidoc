@@ -1,6 +1,6 @@
 --
 :api: delete-privileges
-:request: DeletePrivilegesResponse
+:request: DeletePrivilegesRequest
 :response: DeletePrivilegesResponse
 --
 

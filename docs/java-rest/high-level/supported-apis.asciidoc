@@ -351,7 +351,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-delete-role-mapping>>
 * <<java-rest-high-security-create-token>>
 * <<{upid}-invalidate-token>>
-* <<java-rest-high-security-delete-privileges>>
+* <<{upid}-delete-privileges>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]

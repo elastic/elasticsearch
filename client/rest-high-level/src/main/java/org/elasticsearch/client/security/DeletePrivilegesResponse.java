@@ -19,13 +19,14 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Response for application privileges deletion
@@ -44,6 +45,12 @@ public final class DeletePrivilegesResponse {
         return application;
     }
 
+    /**
+     * Indicates if the given privilege was successfully found and deleted from the list of application privileges.
+     *
+     * @param privilege the privilege
+     * @return true if the privilege was found and deleted, false otherwise.
+     */
     public boolean isFound(final String privilege) {
         return privileges.contains(privilege);
     }
@@ -53,35 +60,32 @@ public final class DeletePrivilegesResponse {
         if (token == null) {
             token = parser.nextToken();
         }
+        ensureExpectedToken(token, XContentParser.Token.START_OBJECT, parser::getTokenLocation);
+        token = parser.nextToken();
+        ensureExpectedToken(token, XContentParser.Token.FIELD_NAME, parser::getTokenLocation);
+        final String application = parser.currentName();
+        final List<String> foundAndDeletedPrivileges = new ArrayList<>();
+        token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
-            token = parser.nextToken();
-            if (token == XContentParser.Token.FIELD_NAME) {
-                final String application = parser.currentName();
-                final List<String> found = new ArrayList<>();
-                token = parser.nextToken();
-                if (token == XContentParser.Token.START_OBJECT) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            String privilege = parser.currentName();
-                            token = parser.nextToken();
-                            if (token == XContentParser.Token.START_OBJECT) {
-                                String currentFieldName = null;
-                                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                    if (token == XContentParser.Token.FIELD_NAME) {
-                                        currentFieldName = parser.currentName();
-                                    } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                                        if ("found".equals(currentFieldName) && parser.booleanValue()) {
-                                            found.add(privilege);
-                                        }
-                                    }
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    String privilege = parser.currentName();
+                    token = parser.nextToken();
+                    if (token == XContentParser.Token.START_OBJECT) {
+                        String currentFieldName = null;
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                                if ("found".equals(currentFieldName) && parser.booleanValue()) {
+                                    foundAndDeletedPrivileges.add(privilege);
                                 }
                             }
                         }
                     }
                 }
-                return new DeletePrivilegesResponse(application, found);
             }
         }
-        throw new ElasticsearchParseException("Unable to parse DeletePrivilegesResponse");
+        return new DeletePrivilegesResponse(application, foundAndDeletedPrivileges);
     }
 }

@@ -62,8 +62,7 @@ public class DatafeedConfig implements ToXContentObject {
     public static final ParseField AGGREGATIONS = new ParseField("aggregations");
     public static final ParseField SCRIPT_FIELDS = new ParseField("script_fields");
     public static final ParseField CHUNKING_CONFIG = new ParseField("chunking_config");
-    public static final ParseField DELAYED_DATA_CHECK_WINDOW = new ParseField("delayed_data_check_window");
-    public static final ParseField SHOULD_RUN_DELAYED_DATA_CHECK = new ParseField("should_run_delayed_data_check");
+    public static final ParseField DELAYED_DATA_CHECK_CONFIG = new ParseField("delayed_data_check_config");
 
     public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
         "datafeed_config", true, a -> new Builder((String)a[0], (String)a[1]));
@@ -90,9 +89,7 @@ public class DatafeedConfig implements ToXContentObject {
         }, SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, SCROLL_SIZE);
         PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.PARSER, CHUNKING_CONFIG);
-        PARSER.declareString((builder, val) -> builder.setDelayedDataCheckWindow(
-            TimeValue.parseTimeValue(val, DELAYED_DATA_CHECK_WINDOW.getPreferredName())), DELAYED_DATA_CHECK_WINDOW);
-        PARSER.declareBoolean(Builder::setShouldRunDelayedDataCheck, SHOULD_RUN_DELAYED_DATA_CHECK);
+        PARSER.declareObject(Builder::setDelayedDataCheckConfig, DelayedDataCheckConfig.PARSER, DELAYED_DATA_CHECK_CONFIG);
     }
 
     private static BytesReference parseBytes(XContentParser parser) throws IOException {
@@ -112,17 +109,12 @@ public class DatafeedConfig implements ToXContentObject {
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
     private final ChunkingConfig chunkingConfig;
+    private final DelayedDataCheckConfig delayedDataCheckConfig;
 
-    /**
-     * The window of time to check for missing data
-     */
-    private final TimeValue delayedDataCheckWindow;
-    private final Boolean shouldRunDelayedDataCheck;
 
     private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, List<String> types,
                            BytesReference query, BytesReference aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
-                           Integer scrollSize, ChunkingConfig chunkingConfig, TimeValue delayedDataCheckWindow,
-                           Boolean shouldRunDelayedDataCheck) {
+                           Integer scrollSize, ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -134,8 +126,7 @@ public class DatafeedConfig implements ToXContentObject {
         this.scriptFields = scriptFields == null ? null : Collections.unmodifiableList(scriptFields);
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
-        this.delayedDataCheckWindow = delayedDataCheckWindow;
-        this.shouldRunDelayedDataCheck = shouldRunDelayedDataCheck;
+        this.delayedDataCheckConfig = delayedDataCheckConfig;
     }
 
     public String getId() {
@@ -182,19 +173,8 @@ public class DatafeedConfig implements ToXContentObject {
         return chunkingConfig;
     }
 
-    /**
-     * The window of time in which to check for latent data
-     * @return The delayed data check window
-     */
-    public TimeValue getDelayedDataCheckWindow() {
-        return delayedDataCheckWindow;
-    }
-
-    /**
-     * Should we check for delayed data
-     */
-    public Boolean getShouldRunDelayedDataCheck() {
-        return shouldRunDelayedDataCheck;
+    public DelayedDataCheckConfig getDelayedDataCheckConfig() {
+        return delayedDataCheckConfig;
     }
 
     @Override
@@ -233,11 +213,8 @@ public class DatafeedConfig implements ToXContentObject {
         if (chunkingConfig != null) {
             builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
         }
-        if (delayedDataCheckWindow != null) {
-            builder.field(DELAYED_DATA_CHECK_WINDOW.getPreferredName(), delayedDataCheckWindow.getStringRep());
-        }
-        if (shouldRunDelayedDataCheck != null) {
-            builder.field(SHOULD_RUN_DELAYED_DATA_CHECK.getPreferredName(), shouldRunDelayedDataCheck);
+        if (delayedDataCheckConfig != null) {
+            builder.field(DELAYED_DATA_CHECK_CONFIG.getPreferredName(), delayedDataCheckConfig);
         }
 
         builder.endObject();
@@ -280,8 +257,7 @@ public class DatafeedConfig implements ToXContentObject {
             && Objects.equals(asMap(this.aggregations), asMap(that.aggregations))
             && Objects.equals(this.scriptFields, that.scriptFields)
             && Objects.equals(this.chunkingConfig, that.chunkingConfig)
-            && Objects.equals(this.delayedDataCheckWindow, that.delayedDataCheckWindow)
-            && Objects.equals(this.shouldRunDelayedDataCheck, that.shouldRunDelayedDataCheck);
+            && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig);
     }
 
     /**
@@ -292,7 +268,7 @@ public class DatafeedConfig implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indices, types, asMap(query), scrollSize, asMap(aggregations), scriptFields,
-            chunkingConfig, delayedDataCheckWindow, shouldRunDelayedDataCheck);
+            chunkingConfig, delayedDataCheckConfig);
     }
 
     public static Builder builder(String id, String jobId) {
@@ -312,8 +288,7 @@ public class DatafeedConfig implements ToXContentObject {
         private List<SearchSourceBuilder.ScriptField> scriptFields;
         private Integer scrollSize;
         private ChunkingConfig chunkingConfig;
-        private TimeValue delayedDataCheckWindow;
-        private Boolean shouldRunDelayedDataCheck;
+        private DelayedDataCheckConfig delayedDataCheckConfig;
 
         public Builder(String id, String jobId) {
             this.id = Objects.requireNonNull(id, ID.getPreferredName());
@@ -332,8 +307,7 @@ public class DatafeedConfig implements ToXContentObject {
             this.scriptFields = config.scriptFields;
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
-            this.delayedDataCheckWindow = config.getDelayedDataCheckWindow();
-            this.shouldRunDelayedDataCheck = config.getShouldRunDelayedDataCheck();
+            this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();
         }
 
         public Builder setIndices(List<String> indices) {
@@ -408,37 +382,20 @@ public class DatafeedConfig implements ToXContentObject {
         }
 
         /**
-         * This determines how far in the past we look for data being indexed too late for the datafeed to pick it up.
+         * This sets the {@link DelayedDataCheckConfig} settings.
          *
-         * We query the index to the latest finalized bucket from this TimeValue in the past looking to see if any data has been indexed
-         * since the data was read with the Datafeed.
+         * See {@link DelayedDataCheckConfig} for more information.
          *
-         * The window must be larger than the {@link org.elasticsearch.client.ml.job.config.AnalysisConfig#bucketSpan}, less than
-         * 24 hours, and span less than 10,000x buckets.
-         *
-         * @param delayedDataCheckWindow The time length in the past from the latest finalized bucket to look for latent data
-         *                               Defaults to 2 hours.
+         * @param delayedDataCheckConfig the delayed data check configuration
          */
-        public Builder setDelayedDataCheckWindow(TimeValue delayedDataCheckWindow) {
-            this.delayedDataCheckWindow = delayedDataCheckWindow;
-            return this;
-        }
-
-        /**
-         * When running the datafeed in real-time, should there be additional checks for data being indexed after the datafeed
-         * reads from the index.
-         *
-         * @param shouldRunDelayedDataCheck when {@code false} no checks are made for latent data in the real-time datafeed
-         *                                  Defaults to {@code true}
-         */
-        public Builder setShouldRunDelayedDataCheck(Boolean shouldRunDelayedDataCheck) {
-            this.shouldRunDelayedDataCheck = shouldRunDelayedDataCheck;
+        public Builder setDelayedDataCheckConfig(DelayedDataCheckConfig delayedDataCheckConfig) {
+            this.delayedDataCheckConfig = delayedDataCheckConfig;
             return this;
         }
 
         public DatafeedConfig build() {
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, types, query, aggregations, scriptFields, scrollSize,
-                chunkingConfig, delayedDataCheckWindow, shouldRunDelayedDataCheck);
+                chunkingConfig, delayedDataCheckConfig);
         }
 
         private static BytesReference xContentToBytes(ToXContentObject object) throws IOException {

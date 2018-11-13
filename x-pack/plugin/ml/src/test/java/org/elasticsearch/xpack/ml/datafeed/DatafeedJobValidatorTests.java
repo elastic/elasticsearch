@@ -14,6 +14,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
+import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -184,17 +185,16 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         builder.setAnalysisConfig(ac);
         Job job = builder.build(new Date());
         DatafeedConfig.Builder datafeedBuilder = createValidDatafeedConfig();
-        datafeedBuilder.setShouldRunDelayedDataCheck(true);
+        datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10)));
 
-        datafeedBuilder.setDelayedDataCheckWindow(TimeValue.timeValueMinutes(10));
         DatafeedJobValidator.validate(datafeedBuilder.build(), job);
 
-        datafeedBuilder.setDelayedDataCheckWindow(TimeValue.timeValueSeconds(1));
+        datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueSeconds(1)));
         ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
             () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job));
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL, "1s", "2s"), e.getMessage());
 
-        datafeedBuilder.setDelayedDataCheckWindow(TimeValue.timeValueHours(24));
+        datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(24)));
         e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
             () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job));
         assertEquals(Messages.getMessage(

@@ -17,6 +17,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -53,8 +54,9 @@ public class DelayedDataDetector {
         this.bucketSpan = job.getAnalysisConfig().getBucketSpan().millis();
         this.datafeedConfig = datafeedConfig;
 
-        if (datafeedConfig.getShouldRunDelayedDataCheck()) {
-            this.window = calculateWindowSize(datafeedConfig.getDelayedDataCheckWindow(), job.getAnalysisConfig().getBucketSpan());
+        if (datafeedConfig.getDelayedDataCheckConfig().isEnabled()) {
+            this.window = calculateWindowSize(datafeedConfig.getDelayedDataCheckConfig().getCheckWindow(),
+                job.getAnalysisConfig().getBucketSpan());
         } else {
             this.window = 0; //implies that start == end and no queries are made
         }
@@ -67,13 +69,13 @@ public class DelayedDataDetector {
      * It is done synchronously, and can block for a considerable amount of time, it should only be executed within the appropriate
      * thread pool.
      *
-     * If {@link DatafeedConfig#getShouldRunDelayedDataCheck()} is {@code false}, then no action is taken and an empty list is returned.
+     * If {@link DatafeedConfig#getDelayedDataCheckConfig()} is not enabled, then no action is taken and an empty list is returned.
      *
      * @param latestFinalizedBucketMs The latest finalized bucket timestamp in milliseconds, signifies the end of the time window check
      * @return A List of {@link BucketWithMissingData} objects that contain each bucket with the current number of missing docs
      */
     public List<BucketWithMissingData> detectMissingData(long latestFinalizedBucketMs) {
-        if (datafeedConfig.getShouldRunDelayedDataCheck() == false) {
+        if (datafeedConfig.getDelayedDataCheckConfig().isEnabled() == false) {
             return Collections.emptyList();
         }
 
@@ -155,7 +157,7 @@ public class DelayedDataDetector {
 
         if (currentWindow.compareTo(bucketSpan) < 0) {
             // If it is the default value, we assume the user did not set it and the bucket span is very large
-            if (currentWindow.equals(DatafeedConfig.DEFAULT_DELAYED_DATA_WINDOW)) {
+            if (currentWindow.equals(DelayedDataCheckConfig.DEFAULT_DELAYED_DATA_WINDOW)) {
                 //TODO What if bucket_span > 24h?, weird but possible case...
                 return bucketSpan.millis() * FALLBACK_NUMBER_OF_BUCKETS_TO_SPAN;
             } else {

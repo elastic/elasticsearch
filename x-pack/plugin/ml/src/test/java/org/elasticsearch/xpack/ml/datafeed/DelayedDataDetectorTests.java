@@ -9,6 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -49,7 +50,7 @@ public class DelayedDataDetectorTests extends ESTestCase {
                 Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, "12h", "2s"), e.getMessage());
 
             Job withBigBucketSpan = createJob(TimeValue.timeValueHours(3));
-            datafeedConfig = createDatafeed(true, DatafeedConfig.DEFAULT_DELAYED_DATA_WINDOW);
+            datafeedConfig = createDatafeed(true, DelayedDataCheckConfig.DEFAULT_DELAYED_DATA_WINDOW);
 
             // Should not throw
             DelayedDataDetector delayedDataDetector = new DelayedDataDetector(withBigBucketSpan, datafeedConfig, mock(Client.class));
@@ -87,8 +88,11 @@ public class DelayedDataDetectorTests extends ESTestCase {
         builder.setIndices(Collections.singletonList("index1"));
         builder.setTypes(Collections.singletonList("doc"));
 
-        builder.setShouldRunDelayedDataCheck(shouldDetectDelayedData);
-        builder.setDelayedDataCheckWindow(delayedDatacheckWindow);
+        if (shouldDetectDelayedData) {
+            builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(delayedDatacheckWindow));
+        } else {
+            builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+        }
         return builder.build();
     }
 

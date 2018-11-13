@@ -69,10 +69,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }, DatafeedConfig.SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, DatafeedConfig.SCROLL_SIZE);
         PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.STRICT_PARSER, DatafeedConfig.CHUNKING_CONFIG);
-        PARSER.declareString((builder, val) -> builder.setDelayedDataCheckWindow(
-            TimeValue.parseTimeValue(val, DatafeedConfig.DELAYED_DATA_CHECK_WINDOW.getPreferredName())),
-            DatafeedConfig.DELAYED_DATA_CHECK_WINDOW);
-        PARSER.declareBoolean(Builder::setShouldRunDelayedDataCheck, DatafeedConfig.SHOULD_RUN_DELAYED_DATA_CHECK);
+        PARSER.declareObject(Builder::setDelayedDataCheckConfig,
+            DelayedDataCheckConfig.STRICT_PARSER,
+            DatafeedConfig.DELAYED_DATA_CHECK_CONFIG);
     }
 
     private final String id;
@@ -86,13 +85,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
     private final ChunkingConfig chunkingConfig;
-    private final TimeValue delayedDataCheckWindow;
-    private final Boolean shouldRunDelayedDataCheck;
+    private final DelayedDataCheckConfig delayedDataCheckConfig;
 
     private DatafeedUpdate(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, List<String> types,
                            QueryBuilder query, AggregatorFactories.Builder aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
-                           Integer scrollSize, ChunkingConfig chunkingConfig, TimeValue delayedDataCheckWindow,
-                           Boolean shouldRunDelayedDataCheck) {
+                           Integer scrollSize, ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -104,8 +101,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.scriptFields = scriptFields;
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
-        this.delayedDataCheckWindow = delayedDataCheckWindow;
-        this.shouldRunDelayedDataCheck = shouldRunDelayedDataCheck;
+        this.delayedDataCheckConfig = delayedDataCheckConfig;
     }
 
     public DatafeedUpdate(StreamInput in) throws IOException {
@@ -133,11 +129,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.scrollSize = in.readOptionalVInt();
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
         if (in.getVersion().onOrAfter(Version.CURRENT)) {
-            delayedDataCheckWindow = in.readOptionalTimeValue();
-            shouldRunDelayedDataCheck = in.readOptionalBoolean();
+            delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         } else {
-            delayedDataCheckWindow = null;
-            shouldRunDelayedDataCheck = null;
+            delayedDataCheckConfig = null;
         }
     }
 
@@ -177,8 +171,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         out.writeOptionalVInt(scrollSize);
         out.writeOptionalWriteable(chunkingConfig);
         if (out.getVersion().onOrAfter(Version.CURRENT)) {
-            out.writeOptionalTimeValue(delayedDataCheckWindow);
-            out.writeOptionalBoolean(shouldRunDelayedDataCheck);
+            out.writeOptionalWriteable(delayedDataCheckConfig);
         }
     }
 
@@ -206,10 +199,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         addOptionalField(builder, DatafeedConfig.SCROLL_SIZE, scrollSize);
         addOptionalField(builder, DatafeedConfig.CHUNKING_CONFIG, chunkingConfig);
-        if (delayedDataCheckWindow != null) {
-            builder.field(DatafeedConfig.DELAYED_DATA_CHECK_WINDOW.getPreferredName(), delayedDataCheckWindow.getStringRep());
+        if (delayedDataCheckConfig != null) {
+            builder.field(DatafeedConfig.DELAYED_DATA_CHECK_CONFIG.getPreferredName(), delayedDataCheckConfig);
         }
-        addOptionalField(builder, DatafeedConfig.SHOULD_RUN_DELAYED_DATA_CHECK, shouldRunDelayedDataCheck);
         builder.endObject();
         return builder;
     }
@@ -275,12 +267,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         return chunkingConfig;
     }
 
-    public TimeValue getDelayedDataCheckWindow() {
-        return delayedDataCheckWindow;
-    }
-
-    public Boolean getShouldRunDelayedDataCheck() {
-        return shouldRunDelayedDataCheck;
+    public DelayedDataCheckConfig getDelayedDataCheckConfig() {
+        return delayedDataCheckConfig;
     }
 
     /**
@@ -323,11 +311,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (chunkingConfig != null) {
             builder.setChunkingConfig(chunkingConfig);
         }
-        if (delayedDataCheckWindow != null) {
-            builder.setDelayedDataCheckWindow(delayedDataCheckWindow);
-        }
-        if (shouldRunDelayedDataCheck != null) {
-            builder.setShouldRunDelayedDataCheck(shouldRunDelayedDataCheck);
+        if (delayedDataCheckConfig != null) {
+            builder.setDelayedDataCheckConfig(delayedDataCheckConfig);
         }
 
         if (headers.isEmpty() == false) {
@@ -367,8 +352,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 && Objects.equals(this.query, that.query)
                 && Objects.equals(this.scrollSize, that.scrollSize)
                 && Objects.equals(this.aggregations, that.aggregations)
-                && Objects.equals(this.delayedDataCheckWindow, that.delayedDataCheckWindow)
-                && Objects.equals(this.shouldRunDelayedDataCheck, that.shouldRunDelayedDataCheck)
+                && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig)
                 && Objects.equals(this.scriptFields, that.scriptFields)
                 && Objects.equals(this.chunkingConfig, that.chunkingConfig);
     }
@@ -376,7 +360,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indices, types, query, scrollSize, aggregations, scriptFields,
-                chunkingConfig, delayedDataCheckWindow, shouldRunDelayedDataCheck);
+                chunkingConfig, delayedDataCheckConfig);
     }
 
     @Override
@@ -393,8 +377,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 && (scrollSize == null || Objects.equals(scrollSize, datafeed.getQueryDelay()))
                 && (aggregations == null || Objects.equals(aggregations, datafeed.getAggregations()))
                 && (scriptFields == null || Objects.equals(scriptFields, datafeed.getScriptFields()))
-                && (delayedDataCheckWindow == null || Objects.equals(delayedDataCheckWindow, datafeed.getDelayedDataCheckWindow()))
-                && (shouldRunDelayedDataCheck == null || Objects.equals(shouldRunDelayedDataCheck, datafeed.getShouldRunDelayedDataCheck()))
+                && (delayedDataCheckConfig == null || Objects.equals(delayedDataCheckConfig, datafeed.getDelayedDataCheckConfig()))
                 && (chunkingConfig == null || Objects.equals(chunkingConfig, datafeed.getChunkingConfig()));
     }
 
@@ -411,8 +394,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         private List<SearchSourceBuilder.ScriptField> scriptFields;
         private Integer scrollSize;
         private ChunkingConfig chunkingConfig;
-        private TimeValue delayedDataCheckWindow;
-        private Boolean shouldRunDelayedDataCheck;
+        private DelayedDataCheckConfig delayedDataCheckConfig;
 
         public Builder() {
         }
@@ -433,8 +415,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.scriptFields = config.scriptFields;
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
-            this.delayedDataCheckWindow = config.delayedDataCheckWindow;
-            this.shouldRunDelayedDataCheck = config.shouldRunDelayedDataCheck;
+            this.delayedDataCheckConfig = config.delayedDataCheckConfig;
         }
 
         public void setId(String datafeedId) {
@@ -475,12 +456,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.scriptFields = sorted;
         }
 
-        public void setDelayedDataCheckWindow(TimeValue delayedDataCheckWindow) {
-            this.delayedDataCheckWindow = delayedDataCheckWindow;
-        }
-
-        public void setShouldRunDelayedDataCheck(boolean shouldRunDelayedDataCheck) {
-            this.shouldRunDelayedDataCheck = shouldRunDelayedDataCheck;
+        public void setDelayedDataCheckConfig(DelayedDataCheckConfig delayedDataCheckConfig) {
+            this.delayedDataCheckConfig = delayedDataCheckConfig;
         }
 
         public void setScrollSize(int scrollSize) {
@@ -493,7 +470,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
         public DatafeedUpdate build() {
             return new DatafeedUpdate(id, jobId, queryDelay, frequency, indices, types, query, aggregations, scriptFields, scrollSize,
-                    chunkingConfig, delayedDataCheckWindow, shouldRunDelayedDataCheck);
+                    chunkingConfig, delayedDataCheckConfig);
         }
     }
 }

@@ -89,10 +89,8 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         if (randomBoolean()) {
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
         }
-        boolean shouldRunDelayedDataCheck = randomBoolean();
-        builder.setShouldRunDelayedDataCheck(shouldRunDelayedDataCheck);
-        if (shouldRunDelayedDataCheck || randomBoolean()) {
-            builder.setDelayedDataCheckWindow(new TimeValue(randomLongBetween(300_001, 600_000)));
+        if (randomBoolean()) {
+            builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig(randomLongBetween(300_001, 400_000)));
         }
         return builder.build();
     }
@@ -160,8 +158,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         update.setScriptFields(Collections.singletonList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false)));
         update.setScrollSize(8000);
         update.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)));
-        update.setShouldRunDelayedDataCheck(true);
-        update.setDelayedDataCheckWindow(TimeValue.timeValueHours(12));
+        update.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1)));
 
         DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap());
 
@@ -176,8 +173,8 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 equalTo(Collections.singletonList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false))));
         assertThat(updatedDatafeed.getScrollSize(), equalTo(8000));
         assertThat(updatedDatafeed.getChunkingConfig(), equalTo(ChunkingConfig.newManual(TimeValue.timeValueHours(1))));
-        assertThat(updatedDatafeed.getShouldRunDelayedDataCheck(), equalTo(true));
-        assertThat(updatedDatafeed.getDelayedDataCheckWindow(), equalTo(TimeValue.timeValueHours(12)));
+        assertThat(updatedDatafeed.getDelayedDataCheckConfig().isEnabled(), equalTo(true));
+        assertThat(updatedDatafeed.getDelayedDataCheckConfig().getCheckWindow(), equalTo(TimeValue.timeValueHours(1)));
     }
 
     public void testApply_givenAggregations() {

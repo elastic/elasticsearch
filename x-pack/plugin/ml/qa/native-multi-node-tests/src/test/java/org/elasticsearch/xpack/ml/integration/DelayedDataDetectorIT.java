@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -66,8 +67,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
 
         DatafeedConfig.Builder datafeedConfigBuilder =
             createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
-        datafeedConfigBuilder.setShouldRunDelayedDataCheck(true);
-        datafeedConfigBuilder.setDelayedDataCheckWindow(TimeValue.timeValueHours(12));
+        datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         registerJob(job);
         putJob(job);
@@ -105,8 +105,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
 
         DatafeedConfig.Builder datafeedConfigBuilder =
             createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
-        datafeedConfigBuilder.setShouldRunDelayedDataCheck(true);
-        datafeedConfigBuilder.setDelayedDataCheckWindow(TimeValue.timeValueHours(12));
+        datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
 
         registerJob(job);
@@ -163,8 +162,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
                     .interval(TimeValue.timeValueMinutes(5).millis())));
         datafeedConfigBuilder.setQuery(new RangeQueryBuilder("value").gte(numDocs/2));
         datafeedConfigBuilder.setFrequency(TimeValue.timeValueMinutes(5));
-        datafeedConfigBuilder.setShouldRunDelayedDataCheck(true);
-        datafeedConfigBuilder.setDelayedDataCheckWindow(TimeValue.timeValueHours(12));
+        datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
 
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         registerJob(job);

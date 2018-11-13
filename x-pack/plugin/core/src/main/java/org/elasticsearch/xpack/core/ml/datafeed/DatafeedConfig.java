@@ -55,8 +55,6 @@ import java.util.concurrent.TimeUnit;
 public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContentObject {
 
     public static final int DEFAULT_SCROLL_SIZE = 1000;
-    public static final TimeValue MAX_DELAYED_DATA_WINDOW = TimeValue.timeValueHours(24);
-    public static final TimeValue DEFAULT_DELAYED_DATA_WINDOW = TimeValue.timeValueHours(2);
 
     private static final int SECONDS_IN_MINUTE = 60;
     private static final int TWO_MINS_SECONDS = 2 * SECONDS_IN_MINUTE;
@@ -86,8 +84,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public static final ParseField SOURCE = new ParseField("_source");
     public static final ParseField CHUNKING_CONFIG = new ParseField("chunking_config");
     public static final ParseField HEADERS = new ParseField("headers");
-    public static final ParseField DELAYED_DATA_CHECK_WINDOW = new ParseField("delayed_data_check_window");
-    public static final ParseField SHOULD_RUN_DELAYED_DATA_CHECK = new ParseField("should_run_delayed_data_check");
+    public static final ParseField DELAYED_DATA_CHECK_CONFIG = new ParseField("delayed_data_check_config");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -128,10 +125,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             // (For config, headers are explicitly transferred from the auth headers by code in the put/update datafeed actions.)
             parser.declareObject(Builder::setHeaders, (p, c) -> p.mapStrings(), HEADERS);
         }
-        parser.declareString((builder, val) -> builder.setDelayedDataCheckWindow(
-            TimeValue.parseTimeValue(val, DELAYED_DATA_CHECK_WINDOW.getPreferredName())), DELAYED_DATA_CHECK_WINDOW);
-        parser.declareBoolean(Builder::setShouldRunDelayedDataCheck, SHOULD_RUN_DELAYED_DATA_CHECK);
-
+        parser.declareObject(Builder::setDelayedDataCheckConfig,
+            ignoreUnknownFields ? DelayedDataCheckConfig.LENIENT_PARSER : DelayedDataCheckConfig.STRICT_PARSER,
+            DELAYED_DATA_CHECK_CONFIG);
         return parser;
     }
 
@@ -148,11 +144,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
      */
     private final TimeValue frequency;
 
-    /**
-     * The window of time to check for missing data
-     */
-    private final TimeValue delayedDataCheckWindow;
-    private final boolean shouldRunDelayedDataCheck;
     private final List<String> indices;
     private final List<String> types;
     private final QueryBuilder query;
@@ -161,11 +152,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private final Integer scrollSize;
     private final ChunkingConfig chunkingConfig;
     private final Map<String, String> headers;
+    private final DelayedDataCheckConfig delayedDataCheckConfig;
 
     private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, List<String> types,
                            QueryBuilder query, AggregatorFactories.Builder aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
                            Integer scrollSize, ChunkingConfig chunkingConfig, Map<String, String> headers,
-                           TimeValue delayedDataCheckWindow, boolean shouldRunDelayedDataCheck) {
+                           DelayedDataCheckConfig delayedDataCheckConfig) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -178,8 +170,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
         this.headers = Collections.unmodifiableMap(headers);
-        this.delayedDataCheckWindow = delayedDataCheckWindow;
-        this.shouldRunDelayedDataCheck = shouldRunDelayedDataCheck;
+        this.delayedDataCheckConfig = delayedDataCheckConfig;
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {
@@ -212,11 +203,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.headers = Collections.emptyMap();
         }
         if (in.getVersion().onOrAfter(Version.CURRENT)) {
-            delayedDataCheckWindow = in.readOptionalTimeValue();
-            shouldRunDelayedDataCheck = in.readBoolean();
+            delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         } else {
-            delayedDataCheckWindow = null;
-            shouldRunDelayedDataCheck = false;
+            delayedDataCheckConfig = DelayedDataCheckConfig.disabledDelayedDataCheckConfig();
         }
     }
 
@@ -282,19 +271,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         return headers;
     }
 
-    /**
-     * The window of time in which to check for latent data
-     * @return The delayed data check window
-     */
-    public TimeValue getDelayedDataCheckWindow() {
-        return delayedDataCheckWindow;
-    }
-
-    /**
-     * Should we check for delayed data
-     */
-    public boolean getShouldRunDelayedDataCheck() {
-        return shouldRunDelayedDataCheck;
+    public DelayedDataCheckConfig getDelayedDataCheckConfig() {
+        return delayedDataCheckConfig;
     }
 
     @Override
@@ -329,8 +307,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         }
         if (out.getVersion().onOrAfter(Version.CURRENT)) {
-            out.writeOptionalTimeValue(delayedDataCheckWindow);
-            out.writeBoolean(shouldRunDelayedDataCheck);
+            out.writeOptionalWriteable(delayedDataCheckConfig);
         }
     }
 
@@ -369,10 +346,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_CLUSTER_STATE, false) == true) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
-        if (delayedDataCheckWindow != null) {
-            builder.field(DELAYED_DATA_CHECK_WINDOW.getPreferredName(), delayedDataCheckWindow.getStringRep());
+        if (delayedDataCheckConfig != null) {
+            builder.field(DELAYED_DATA_CHECK_CONFIG.getPreferredName(), delayedDataCheckConfig);
         }
-        builder.field(SHOULD_RUN_DELAYED_DATA_CHECK.getPreferredName(), shouldRunDelayedDataCheck);
         return builder;
     }
 
@@ -405,14 +381,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 && Objects.equals(this.scriptFields, that.scriptFields)
                 && Objects.equals(this.chunkingConfig, that.chunkingConfig)
                 && Objects.equals(this.headers, that.headers)
-                && Objects.equals(this.delayedDataCheckWindow, that.delayedDataCheckWindow)
-                && Objects.equals(this.shouldRunDelayedDataCheck, that.shouldRunDelayedDataCheck);
+                && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indices, types, query, scrollSize, aggregations, scriptFields,
-                chunkingConfig, headers, delayedDataCheckWindow, shouldRunDelayedDataCheck);
+                chunkingConfig, headers, delayedDataCheckConfig);
     }
 
     @Override
@@ -485,8 +460,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private Integer scrollSize = DEFAULT_SCROLL_SIZE;
         private ChunkingConfig chunkingConfig;
         private Map<String, String> headers = Collections.emptyMap();
-        private TimeValue delayedDataCheckWindow = DEFAULT_DELAYED_DATA_WINDOW;
-        private boolean shouldRunDelayedDataCheck = true;
+        private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
 
         public Builder() {
         }
@@ -510,8 +484,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
             this.headers = config.headers;
-            this.delayedDataCheckWindow = config.getDelayedDataCheckWindow();
-            this.shouldRunDelayedDataCheck = config.getShouldRunDelayedDataCheck();
+            this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();
         }
 
         public void setId(String datafeedId) {
@@ -570,19 +543,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.scrollSize = scrollSize;
         }
 
-        public void setDelayedDataCheckWindow(TimeValue delayedDataCheckWindow) {
-            if (delayedDataCheckWindow != null) {
-                TimeUtils.checkPositive(delayedDataCheckWindow, DELAYED_DATA_CHECK_WINDOW);
-            }
-            this.delayedDataCheckWindow = delayedDataCheckWindow;
-        }
-
-        public void setShouldRunDelayedDataCheck(boolean shouldRunDelayedDataCheck) {
-            this.shouldRunDelayedDataCheck = shouldRunDelayedDataCheck;
-        }
-
         public void setChunkingConfig(ChunkingConfig chunkingConfig) {
             this.chunkingConfig = chunkingConfig;
+        }
+
+        public void setDelayedDataCheckConfig(DelayedDataCheckConfig delayedDataCheckConfig) {
+            this.delayedDataCheckConfig = delayedDataCheckConfig;
         }
 
         public DatafeedConfig build() {
@@ -597,19 +563,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (types == null || types.contains(null) || types.contains("")) {
                 throw invalidOptionValue(TYPES.getPreferredName(), types);
             }
-            if (shouldRunDelayedDataCheck) {
-                ExceptionsHelper.requireNonNull(delayedDataCheckWindow, DELAYED_DATA_CHECK_WINDOW.getPreferredName());
-            }
-            if (delayedDataCheckWindow != null && delayedDataCheckWindow.compareTo(MAX_DELAYED_DATA_WINDOW) > 0) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_LARGE,
-                    delayedDataCheckWindow.getStringRep()));
-            }
 
             validateAggregations();
             setDefaultChunkingConfig();
             setDefaultQueryDelay();
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, types, query, aggregations, scriptFields, scrollSize,
-                    chunkingConfig, headers, delayedDataCheckWindow, shouldRunDelayedDataCheck);
+                    chunkingConfig, headers, delayedDataCheckConfig);
         }
 
         void validateAggregations() {

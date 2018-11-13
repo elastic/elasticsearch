@@ -33,10 +33,11 @@ public final class DatafeedJobValidator {
             checkFrequencyIsMultipleOfHistogramInterval(datafeedConfig);
         }
 
-        TimeValue delayedDataCheckWindow =  datafeedConfig.getDelayedDataCheckWindow();
+        DelayedDataCheckConfig delayedDataCheckConfig = datafeedConfig.getDelayedDataCheckConfig();
+        TimeValue delayedDataCheckWindow =  delayedDataCheckConfig.getCheckWindow();
         TimeValue bucketSpan = analysisConfig.getBucketSpan();
-        if (datafeedConfig.getShouldRunDelayedDataCheck()
-            && delayedDataCheckWindow.equals(DatafeedConfig.DEFAULT_DELAYED_DATA_WINDOW) == false) {
+        if (delayedDataCheckConfig.isEnabled()
+            && delayedDataCheckWindow.equals(DelayedDataCheckConfig.DEFAULT_DELAYED_DATA_WINDOW) == false) {
             if (delayedDataCheckWindow.compareTo(bucketSpan) < 0) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL,

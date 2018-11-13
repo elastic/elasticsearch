@@ -78,19 +78,9 @@ You must create a job before you create a {dfeed}.  You can associate only one
   For example: `[]`. This property is provided for backwards compatibility with
   releases earlier than 6.0.0. For more information, see <<removal-of-types>>.
 
-`delayed_data_check_window`::
-  (time units) The time window to query that ends at the latest finalized bucket
-  when determining if any data was indexed too late for the {dfeed} to see it. For
-  example, supply `3h` to check for latent data in the {dfeed} `indices` over the
-  last `3h` since the latest finalized bucket. Only valid in real-time analysis
-  and when `should_run_delayed_data_check` is `true`. Defaults to 2 hours.
-  This value must be larger than the bucket_span, less than 24 hours, and span
-  fewer than 10,000 buckets.
-
-`should_run_delayed_data_check`::
-  (boolean) When running a real-time {dfeed}, should the `indices` be checked
-  for latent data. `delayed_data_check_window` must be set when this is `true`.
-  Defaults true `true`
+`delayed_data_check_config`::
+  (object) Specifies if and with how large a window should the data feed check
+  for missing data. See <<ml-datafeed-delayed-data-check-config>>.
 
 For more information about these properties,
 see <<ml-datafeed-resource>>.

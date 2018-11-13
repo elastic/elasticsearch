@@ -1115,7 +1115,6 @@ public final class InternalTestCluster extends TestCluster {
                 onTransportServiceStarted);
             toStartAndPublish.add(nodeAndClient);
         }
-        assert bootstrapNodeRequired == false;
         for (int i = numSharedDedicatedMasterNodes + numSharedDataNodes;
              i < numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
             final Builder settings = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false)

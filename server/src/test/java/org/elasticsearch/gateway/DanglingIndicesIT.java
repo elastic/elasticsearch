@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -37,22 +35,19 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DanglingIndicesIT extends ESIntegTestCase {
 
-    public void testDanglingIndices() throws Exception {
-        // replicating the case described in https://github.com/elastic/elasticsearch/issues/27073
+    public void testNonDataNodeWithShardDataFolders() throws Exception {
         final String indexName = "simple1";
 
         final InternalTestCluster cluster = internalCluster();
-        String node1 = cluster.startNode();
-        String node2 = cluster.startNode();
+        // keep master node to be able to start coordinator-only node
+        final String master = cluster.startMasterOnlyNode();
 
-        final boolean allocateOnNode2 = randomBoolean();
+        String node = cluster.startNode();
 
         createIndex(indexName,
             Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                // explicitly specify shard location
-                .put("index.routing.allocation.include._name", allocateOnNode2 ? node2 : node1)
                 .build());
         ensureGreen(indexName);
 
@@ -60,43 +55,28 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             index(indexName, "_doc", "1", "f", "f");
         }
 
-        final Path[] node1DataPaths = internalCluster().getInstance(NodeEnvironment.class, node1).nodeDataPaths();
-        final Path[] node2DataPaths = internalCluster().getInstance(NodeEnvironment.class, node2).nodeDataPaths();
+        final Path[] nodeDataPaths = internalCluster().getInstance(NodeEnvironment.class, node).nodeDataPaths();
 
-        cluster.stopRandomNode(InternalTestCluster.nameFilter(node1));
-        cluster.stopRandomNode(InternalTestCluster.nameFilter(node2));
+        cluster.stopRandomNode(InternalTestCluster.nameFilter(node));
 
-        // clean up data path on node1 to trigger dangling index being picked up
-        IOUtils.rm(node1DataPaths);
-
-        // start node that could have dangling index
-        node1 = cluster.startNode();
         final boolean masterNode = randomBoolean();
-        try {
-            node2 = masterNode ? cluster.startMasterOnlyNode() : cluster.startCoordinatingOnlyNode(Settings.EMPTY);
-            assertThat("Node 2 has to fail as it contains shard data",
-                allocateOnNode2, equalTo(false));
-            assertThat("index exists but has to be red",
-                client().admin().cluster().health(Requests.clusterHealthRequest(indexName)).get().getStatus(),
-                equalTo(ClusterHealthStatus.RED));
-        } catch (IllegalStateException e) {
-            assertThat(allocateOnNode2 || masterNode == false, equalTo(true));
-            final String message = e.getMessage();
-            assertThat(message, containsString(" node cannot have shard data "));
-            assertThat(message, containsString(", found: ["));
+        final IllegalStateException exception = expectThrows(IllegalStateException.class,
+            () -> {String n = masterNode ? cluster.startMasterOnlyNode() : cluster.startCoordinatingOnlyNode(Settings.EMPTY);});
+        final String message = exception.getMessage();
+        assertThat(message, containsString(" node cannot have shard data "));
+        assertThat(message, containsString(", found: ["));
 
-            // resolve and delete all paths those block a node to start
-            final int idx = message.indexOf("[") + 1;
-            final Path[] paths =
-                Arrays.stream(message.substring(idx, message.indexOf(']', idx)).split(",")).
-                    map(s -> PathUtils.get(s.trim())).toArray(Path[]::new);
-            IOUtils.rm(paths);
+        // resolve and delete all paths those block a node to start
+        final int idx = message.indexOf("[") + 1;
+        final Path[] paths =
+            Arrays.stream(message.substring(idx, message.indexOf(']', idx)).split(",")).
+                map(s -> PathUtils.get(s.trim())).toArray(Path[]::new);
+        IOUtils.rm(paths);
 
-            // start node again after clean up at the same data path
-            node2 = masterNode ? cluster.startMasterOnlyNode() : cluster.startCoordinatingOnlyNode(Settings.EMPTY);
-            final Path[] newNode2DataPaths = internalCluster().getInstance(NodeEnvironment.class, node2).nodeDataPaths();
-            assertThat(node2DataPaths, equalTo(newNode2DataPaths));
-        }
+        // start node again after clean up at the same data path
+        node = masterNode ? cluster.startMasterOnlyNode() : cluster.startCoordinatingOnlyNode(Settings.EMPTY);
+        final Path[] newNodeDataPaths = internalCluster().getInstance(NodeEnvironment.class, node).nodeDataPaths();
+        assertThat(nodeDataPaths, equalTo(newNodeDataPaths));
 
     }
 

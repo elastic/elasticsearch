@@ -48,7 +48,6 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         int i = 0;
         for (LeafReaderContext ctx : readers) {
             LeafReader wrap = new RewriteCachingLeafReader(ctx.reader());
-            assert wrap != null;
             wrapped[i++] = wrap;
         }
         return wrapped;
@@ -56,42 +55,42 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
 
     @Override
     protected DirectoryReader doOpenIfChanged() {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     protected DirectoryReader doOpenIfChanged(IndexCommit commit) {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public long getVersion() {
-        return 0;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public boolean isCurrent() {
-        return true;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public IndexCommit getIndexCommit() {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     protected void doClose() {
-
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CacheHelper getReaderCacheHelper() {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     // except of a couple of selected methods everything else will

@@ -78,6 +78,31 @@ public abstract class DataTypeConversion {
                 return left;
             }
         }
+        // interval and dates
+        if (DataTypes.isInterval(left)) {
+            // intervals widening
+            if (DataTypes.isInterval(right)) {
+                // null returned for incompatible intervals
+                return DataTypes.compatibleInterval(left, right);
+            }
+            if (right == DATE) {
+                return right;
+            }
+            // single unit intervals and numbers
+            if (DataTypes.isSingularInterval(left) && right.isInteger()) {
+                return left;
+            }
+        }
+
+        if (DataTypes.isInterval(right)) {
+            if (left == DATE) {
+                return left;
+            }
+            if (DataTypes.isSingularInterval(right) && left.isInteger()) {
+                return right;
+            }
+        }
+
         // none found
         return null;
     }
@@ -102,10 +127,10 @@ public abstract class DataTypeConversion {
         if (from == to) {
             return Conversion.IDENTITY;
         }
-        if (to == DataType.NULL || from == DataType.NULL) {
+        if (to == NULL || from == NULL) {
             return Conversion.NULL;
         }
-        if (from == DataType.NULL) {
+        if (from == NULL) {
             return Conversion.NULL;
         }
         

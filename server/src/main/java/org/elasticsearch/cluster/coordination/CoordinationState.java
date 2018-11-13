@@ -18,10 +18,11 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Collection;
@@ -34,7 +35,9 @@ import java.util.Optional;
  * The core class of the cluster state coordination algorithm, directly implementing the
  * <a href="https://github.com/elastic/elasticsearch-formal-models/blob/master/ZenWithTerms/tla/ZenWithTerms.tla">formal model</a>
  */
-public class CoordinationState extends AbstractComponent {
+public class CoordinationState {
+
+    private static final Logger logger = LogManager.getLogger(CoordinationState.class);
 
     private final DiscoveryNode localNode;
 

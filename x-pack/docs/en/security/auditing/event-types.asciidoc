@@ -51,7 +51,7 @@ A new <<audit-log-output, `logfile` audit output>> format has been added in the
 The new format is output to the `<clustername>_audit.log` file.
 The audit entries are formatted as flat (that is, no nested objects) JSON documents,
 one per line. Hence, the attribute names are the JSON keys and they follow a dotted
-name syntax. Any attribute that lacks a value (null) will not be present.
+name syntax. Any attribute that lacks a value (`null`) will not be present.
 
 The following list shows attributes that are common to all audit events.
 Their names and values are analogous to those in the deprecated `logfile` or
@@ -94,7 +94,9 @@ descriptions for the format that you are using.
                         be used freely by the client to mark API calls, as it has
                         no semantics in Elasticsearch.
 
-If the `event.type` is `rest`, the following attributes are also present:
+==== Audit event attributes for the REST event type
+
+If the `event.type` is equal to `rest`, the following attributes are also present:
 
 `url.path`        ::    The path part of the URL (between the port and the query
                         string) of the REST request associated with this event.
@@ -133,12 +135,22 @@ have yet more attributes:
 
 * `run_as_denied`:
 
-  `user.roles`         ::    The role names list.
+  `user.roles`         ::    The role names array.
   `user.name`          ::    The _authenticated_ username which is being denied
 	                           the _impersonation_.
   `user.realm`         ::    The realm name that the _authenticated_ username belongs to.
   `user.run_as.name`   ::    The username as which the _impersonation_ is denied.
   `user.run_as.realm`  ::    The realm name of the _impersonated_ username.
+
+==== Audit event attributes for the transport event type
+
+If the `event.type` is equal to `transport`, the following attributes are also present:
+
+`action`              ::    The name of the transport action that was executed.
+                            This is alike the URL for a REST request.
+`indices`             ::    The indices names array that the request associated
+                            with this event pertains to (when applicable).
+`request.name`        ::    The name of the request handler that was executed.
 
 
 [float]

@@ -25,7 +25,7 @@ new index as its leader index.
 You can inspect all configured auto-follow pattern collections with the
 {ref}/ccr-get-auto-follow-pattern.html[get auto-follow pattern API]. To delete a
 configured auto-follow pattern collection, use the
-{ref}ccr-delete-auto-follow-pattern.html[delete auto-follow pattern API].
+{ref}/ccr-delete-auto-follow-pattern.html[delete auto-follow pattern API].
 
 Since auto-follow functionality is handled automatically in the background on
 your behalf, error reporting is done through logs on the elected master node

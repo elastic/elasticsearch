@@ -55,6 +55,7 @@ import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.Strings;
@@ -494,6 +495,19 @@ final class MLRequestConverters {
         if (getFiltersRequest.getFrom() != null) {
             params.putParam(PageParams.FROM.getPreferredName(), getFiltersRequest.getFrom().toString());
         }
+        return request;
+    }
+
+    static Request updateFilter(UpdateFilterRequest updateFilterRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("filters")
+            .addPathPart(updateFilterRequest.getFilterId())
+            .addPathPartAsIs("_update")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(updateFilterRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 }

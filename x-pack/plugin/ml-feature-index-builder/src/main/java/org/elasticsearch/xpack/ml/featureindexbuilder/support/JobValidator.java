@@ -29,7 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class JobValidator {
-    private static final String COMPOSITE_AGGREGATION_NAME = "_dataframe";
+    private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
 
     private static final Logger logger = Logger.getLogger(JobValidator.class.getName());
 

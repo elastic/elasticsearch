@@ -420,3 +420,15 @@ The Java High Level REST Client supports the following CCR APIs:
 
 include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]
+
+== Index Lifecycle Management APIs
+
+:upid: {mainid}-ilm
+:doc-tests-file: {doc-tests}/ILMDocumentationIT.java
+
+The Java High Level REST Client supports the following Index Lifecycle
+Management APIs:
+
+* <<{upid}-ilm-put-lifecycle-policy>>
+
+include::ilm/put_lifecycle_policy.asciidoc[]

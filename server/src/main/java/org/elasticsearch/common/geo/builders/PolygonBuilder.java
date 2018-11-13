@@ -46,6 +46,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
+import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
 import static org.apache.lucene.geo.GeoUtils.orient;
 
 /**
@@ -286,18 +288,18 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return factory.createPolygon(shell, holes);
     }
 
-    protected Object toPolygonLucene() {
+    public Object toPolygonLucene() {
         final org.apache.lucene.geo.Polygon[] holes = new org.apache.lucene.geo.Polygon[this.holes.size()];
         for (int i = 0; i < holes.length; ++i) {
             holes[i] = linearRing(this.holes.get(i).coordinates);
         }
-        return new org.apache.lucene.geo.Polygon(this.shell.coordinates.stream().mapToDouble(i -> i.y).toArray(),
-            this.shell.coordinates.stream().mapToDouble(i -> i.x).toArray(), holes);
+        return new org.apache.lucene.geo.Polygon(this.shell.coordinates.stream().mapToDouble(i -> normalizeLat(i.y)).toArray(),
+            this.shell.coordinates.stream().mapToDouble(i -> normalizeLon(i.x)).toArray(), holes);
     }
 
     protected static org.apache.lucene.geo.Polygon linearRing(List<Coordinate> coordinates) {
-        return new org.apache.lucene.geo.Polygon(coordinates.stream().mapToDouble(i -> i.y).toArray(),
-            coordinates.stream().mapToDouble(i -> i.x).toArray());
+        return new org.apache.lucene.geo.Polygon(coordinates.stream().mapToDouble(i -> normalizeLat(i.y)).toArray(),
+            coordinates.stream().mapToDouble(i -> normalizeLon(i.x)).toArray());
     }
 
     protected static LinearRing linearRingS4J(GeometryFactory factory, List<Coordinate> coordinates) {
@@ -343,8 +345,8 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
                 double[] x = new double[coords.length];
                 double[] y = new double[coords.length];
                 for (int c = 0; c < coords.length; ++c) {
-                    x[c] = coords[c].x;
-                    y[c] = coords[c].y;
+                    x[c] = normalizeLon(coords[c].x);
+                    y[c] = normalizeLat(coords[c].y);
                 }
                 holes[i] = new org.apache.lucene.geo.Polygon(y, x);
             }
@@ -355,8 +357,8 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         double[] x = new double[shell.length];
         double[] y = new double[shell.length];
         for (int i = 0; i < shell.length; ++i) {
-            x[i] = shell[i].x;
-            y[i] = shell[i].y;
+            x[i] = normalizeLon(shell[i].x);
+            y[i] = normalizeLat(shell[i].y);
         }
 
         return new org.apache.lucene.geo.Polygon(y, x, holes);

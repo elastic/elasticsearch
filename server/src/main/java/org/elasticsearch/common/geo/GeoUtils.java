@@ -233,7 +233,10 @@ public class GeoUtils {
      * @return The normalized longitude.
      */
     public static double normalizeLon(double lon) {
-        return centeredModulus(lon, 360);
+        if (lon > 180d || lon < -180d) {
+            return centeredModulus(lon, 360);
+        }
+        return lon;
     }
 
     /**
@@ -250,11 +253,13 @@ public class GeoUtils {
      * @see #normalizePoint(GeoPoint)
      */
     public static double normalizeLat(double lat) {
-        lat = centeredModulus(lat, 360);
-        if (lat < -90) {
-            lat = -180 - lat;
-        } else if (lat > 90) {
-            lat = 180 - lat;
+        if (lat > 90d || lat < -90d) {
+            lat = centeredModulus(lat, 360);
+            if (lat < -90) {
+                lat = -180 - lat;
+            } else if (lat > 90) {
+                lat = 180 - lat;
+            }
         }
         return lat;
     }

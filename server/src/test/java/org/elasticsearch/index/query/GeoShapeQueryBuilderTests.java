@@ -100,11 +100,12 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             // we try to avoid that combination
             // Also, SpatialStrategy.VECTOR does not support MULTIPOINT Queries
             while ((shapeType == ShapeType.MULTILINESTRING && strategy == SpatialStrategy.TERM)
-                || (strategy == SpatialStrategy.VECTOR && (shapeType == ShapeType.MULTIPOINT))) {
+                || (strategy == SpatialStrategy.VECTOR && shapeType == ShapeType.MULTIPOINT)) {
                 strategy = randomFrom(SpatialStrategy.values());
             }
             builder.strategy(strategy);
             if (strategy == SpatialStrategy.VECTOR) {
+                // vector strategy does not yet support CONTAINS queries
                 ShapeRelation relation;
                 if (shapeType != ShapeType.LINESTRING && shapeType != ShapeType.MULTILINESTRING) {
                     // vector strategy does not yet support WITHIN for linestrings

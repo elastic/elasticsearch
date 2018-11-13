@@ -36,6 +36,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
+import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
+
 public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
 
@@ -133,8 +136,8 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuild
                 return strings.toArray(new Line[strings.size()]);
             }
         }
-        return new Line(Arrays.stream(coordinates).mapToDouble(i->i.y).toArray(),
-            Arrays.stream(coordinates).mapToDouble(i->i.x).toArray());
+        return new Line(Arrays.stream(coordinates).mapToDouble(i->normalizeLat(i.y)).toArray(),
+            Arrays.stream(coordinates).mapToDouble(i->normalizeLon(i.x)).toArray());
     }
 
     static ArrayList<LineString> decomposeS4J(GeometryFactory factory, Coordinate[] coordinates, ArrayList<LineString> strings) {
@@ -149,7 +152,8 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuild
     static ArrayList<Line> decomposeLucene(Coordinate[] coordinates, ArrayList<Line> lines) {
         for (Coordinate[] part : decompose(+DATELINE, coordinates)) {
             for (Coordinate[] line : decompose(-DATELINE, part)) {
-                lines.add(new Line(Arrays.stream(line).mapToDouble(i->i.y).toArray(), Arrays.stream(line).mapToDouble(i->i.x).toArray()));
+                lines.add(new Line(Arrays.stream(line).mapToDouble(i->normalizeLat(i.y)).toArray(),
+                    Arrays.stream(line).mapToDouble(i->normalizeLon(i.x)).toArray()));
             }
         }
         return lines;

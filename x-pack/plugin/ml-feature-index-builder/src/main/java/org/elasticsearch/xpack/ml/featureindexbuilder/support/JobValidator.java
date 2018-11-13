@@ -6,10 +6,12 @@
 
 package org.elasticsearch.xpack.ml.featureindexbuilder.support;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
@@ -31,7 +33,7 @@ import java.util.Objects;
 public class JobValidator {
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
 
-    private static final Logger logger = Logger.getLogger(JobValidator.class.getName());
+    private static final Logger logger = LogManager.getLogger(JobValidator.class.getName());
 
     private final Client client;
     private final FeatureIndexBuilderJobConfig config;
@@ -81,42 +83,49 @@ public class JobValidator {
         allFieldNames.putAll(aggregationSourceFieldNames);
         allFieldNames.putAll(fieldNamesForGrouping);
 
-        getSourceFieldMappings(config.getIndexPattern(), allFieldNames.values().toArray(new String[allFieldNames.size()]),
+        getSourceFieldMappings(config.getIndexPattern(), allFieldNames.values().toArray(new String[0]),
                 ActionListener.wrap(sourceMappings -> {
-                    Map<String, String> targetMapping = new HashMap<>();
-
-                    aggregationTypes.forEach((targetFieldName, aggregationName) -> {
-                        String sourceFieldName = aggregationSourceFieldNames.get(targetFieldName);
-                        String destinationMapping = Aggregations.resolveTargetMapping(aggregationName, sourceMappings.get(sourceFieldName));
-
-                        logger.debug("[" + config.getId() + "] Deduced mapping for: [" + targetFieldName + "], agg type [" + aggregationName
-                                + "] to [" + destinationMapping + "]");
-                        if (destinationMapping != null) {
-                            targetMapping.put(targetFieldName, destinationMapping);
-                        } else {
-                            logger.warn("[" + config.getId() + "] Failed to deduce mapping for [" + targetFieldName
-                                    + "], fall back to double.");
-                            targetMapping.put(targetFieldName, "double");
-                        }
-                    });
-
-                    fieldNamesForGrouping.forEach((targetFieldName, sourceFieldName) -> {
-                        String destinationMapping = sourceMappings.get(sourceFieldName);
-                        logger.debug(
-                                "[" + config.getId() + "] Deduced mapping for: [" + targetFieldName + "] to [" + destinationMapping + "]");
-                        if (destinationMapping != null) {
-                            targetMapping.put(targetFieldName, destinationMapping);
-                        } else {
-                            logger.warn("[" + config.getId() + "] Failed to deduce mapping for [" + targetFieldName
-                                    + "], fall back to keyword.");
-                            targetMapping.put(targetFieldName, "keyword");
-                        }
-                    });
+                    Map<String, String> targetMapping = resolveMappings(aggregationSourceFieldNames, aggregationTypes,
+                            fieldNamesForGrouping, sourceMappings);
 
                     listener.onResponse(targetMapping);
-                }, e2 -> {
-                    listener.onFailure(e2);
+                }, e -> {
+                    listener.onFailure(e);
                 }));
+    }
+
+    Map<String, String> resolveMappings(Map<String, String> aggregationSourceFieldNames, Map<String, String> aggregationTypes,
+            Map<String, String> fieldNamesForGrouping, Map<String, String> sourceMappings) {
+        Map<String, String> targetMapping = new HashMap<>();
+
+        aggregationTypes.forEach((targetFieldName, aggregationName) -> {
+            String sourceFieldName = aggregationSourceFieldNames.get(targetFieldName);
+            String destinationMapping = Aggregations.resolveTargetMapping(aggregationName, sourceMappings.get(sourceFieldName));
+
+            logger.debug("[" + config.getId() + "] Deduced mapping for: [" + targetFieldName + "], agg type [" + aggregationName
+                    + "] to [" + destinationMapping + "]");
+            if (destinationMapping != null) {
+                targetMapping.put(targetFieldName, destinationMapping);
+            } else {
+                logger.warn("[" + config.getId() + "] Failed to deduce mapping for [" + targetFieldName
+                        + "], fall back to double.");
+                targetMapping.put(targetFieldName, "double");
+            }
+        });
+
+        fieldNamesForGrouping.forEach((targetFieldName, sourceFieldName) -> {
+            String destinationMapping = sourceMappings.get(sourceFieldName);
+            logger.debug(
+                    "[" + config.getId() + "] Deduced mapping for: [" + targetFieldName + "] to [" + destinationMapping + "]");
+            if (destinationMapping != null) {
+                targetMapping.put(targetFieldName, destinationMapping);
+            } else {
+                logger.warn("[" + config.getId() + "] Failed to deduce mapping for [" + targetFieldName
+                        + "], fall back to keyword.");
+                targetMapping.put(targetFieldName, "keyword");
+            }
+        });
+        return targetMapping;
     }
 
     private void runTestQuery(final ActionListener<Boolean> listener) {
@@ -162,33 +171,38 @@ public class JobValidator {
         fieldMappingRequest.indices(index);
         fieldMappingRequest.fields(fields);
 
-        Map<String, String> extractedTypes = new HashMap<>();
-
         client.execute(GetFieldMappingsAction.INSTANCE, fieldMappingRequest, ActionListener.wrap(response -> {
-            response.mappings().forEach((indexName, docTypeToMapping) -> {
-                // "_doc" ->
-                docTypeToMapping.forEach((docType, fieldNameToMapping) -> {
-                    // "my_field" ->
-                    fieldNameToMapping.forEach((fieldName, fieldMapping) -> {
-                        // "mapping" -> "my_field" -> 
-                        fieldMapping.sourceAsMap().forEach((name, typeMap) -> {
-                            // expected object: { "type": type }
-                            if (typeMap instanceof Map) {
-                                final Map<?,?> map = (Map<?, ?>) typeMap;
-                                if (map.containsKey("type")) {
-                                    String type = map.get("type").toString();
-                                    logger.debug("[" + config.getId() + "] Extracted type for [" + fieldName + "] : [" + type + "]");
-                                    // TODO: overwrites types, requires resolve if types are mixed
-                                    extractedTypes.put(fieldName, type);
-                                }
-                            }
-                        });
-                    });
-                });
-            });
-            listener.onResponse(extractedTypes);
+            listener.onResponse(extractSourceFieldMappings(response.mappings()));
         }, e -> {
             listener.onFailure(e);
         }));
+    }
+
+    Map<String, String> extractSourceFieldMappings(Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings) {
+        Map<String, String> extractedTypes = new HashMap<>();
+
+        mappings.forEach((indexName, docTypeToMapping) -> {
+            // "_doc" ->
+            docTypeToMapping.forEach((docType, fieldNameToMapping) -> {
+                // "my_field" ->
+                fieldNameToMapping.forEach((fieldName, fieldMapping) -> {
+                    // "mapping" -> "my_field" ->
+                    fieldMapping.sourceAsMap().forEach((name, typeMap) -> {
+                        // expected object: { "type": type }
+                        if (typeMap instanceof Map) {
+                            final Map<?, ?> map = (Map<?, ?>) typeMap;
+                            if (map.containsKey("type")) {
+                                String type = map.get("type").toString();
+                                logger.debug("[" + config.getId() + "] Extracted type for [" + fieldName + "] : [" + type + "]");
+                                // TODO: overwrites types, requires resolve if
+                                // types are mixed
+                                extractedTypes.put(fieldName, type);
+                            }
+                        }
+                    });
+                });
+            });
+        });
+        return extractedTypes;
     }
 }

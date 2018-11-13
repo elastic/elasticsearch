@@ -133,7 +133,7 @@ public class JobValidatorTests extends ESTestCase {
     }
 
     private class MyMockClient extends NoOpClient {
-        public MyMockClient(String testName) {
+        MyMockClient(String testName) {
             super(testName);
         }
 

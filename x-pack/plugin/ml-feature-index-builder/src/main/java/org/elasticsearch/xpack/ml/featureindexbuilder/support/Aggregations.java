@@ -45,8 +45,8 @@ public final class Aggregations {
         }
     }
 
-    private static Set<String> aggregationSupported = new HashSet<>(
-            Stream.of(AggregationType.values()).map(AggregationType::name).collect(Collectors.toList()));
+    private static Set<String> aggregationSupported = Stream.of(AggregationType.values()).map(AggregationType::name)
+            .collect(Collectors.toSet());
 
     public static boolean isSupportedByDataframe(String aggregationType) {
         return aggregationSupported.contains(aggregationType.toUpperCase(Locale.ROOT));

@@ -24,7 +24,7 @@ This getting-started guide for {ccr} shows you how to:
   https://www.elastic.co/subscriptions[subscriptions] and
   <<license-management>>.
 
-. If the Elastic {security-features} are enabled in your local and remote 
+. If the Elastic {security-features} are enabled in your local and remote
   clusters, you need a user that has appropriate authority to perform the steps
   in this tutorial.
 +
@@ -40,7 +40,7 @@ see <<security-getting-started>>.
 
 If you are performing these steps in a production environment, take extra care
 because the `elastic` user has the `superuser` role and you could inadvertently
-make significant changes. 
+make significant changes.
 
 Alternatively, you can assign the appropriate privileges to a user ID of your
 choice. On the remote cluster that contains the leader index, a user will need
@@ -87,7 +87,7 @@ privilege.
 [[ccr-getting-started-remote-cluster]]
 === Connecting to a remote cluster
 
-The {ccr} features require that you 
+The {ccr} features require that you
 {ref}/modules-remote-clusters.html[connect your local cluster to a remote
 cluster]. In this tutorial, we will connect our local cluster to a remote
 cluster with the cluster alias `leader`.
@@ -113,7 +113,7 @@ PUT /_cluster/settings
 // TEST[setup:host]
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
 <1> Specifies the hostname and transport port of a seed node in the remote
-    cluster.    
+    cluster.
 
 You can verify that the local cluster is successfully connected to the remote
 cluster.
@@ -274,7 +274,7 @@ POST /server-metrics-copy/_ccr/unfollow
 [[ccr-getting-started-auto-follow]]
 === Automatically create follower indices
 
-The auto-follow feature in {ccr} helps for time series use cases where you want 
+The auto-follow feature in {ccr} helps for time series use cases where you want
 to follow new indices that are periodically created in the remote cluster
 (such as daily Beats indices). Auto-following is configured using the
 {ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API]. With an

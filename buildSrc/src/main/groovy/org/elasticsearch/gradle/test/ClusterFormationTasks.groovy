@@ -343,7 +343,7 @@ class ClusterFormationTasks {
         if (minimumMasterNodes > 0) {
             esConfig['discovery.zen.minimum_master_nodes'] = minimumMasterNodes
         }
-        if (node.config.numNodes > 1) {
+        if (minimumMasterNodes > 1) {
             // don't wait for state.. just start up quickly
             // this will also allow new and old nodes in the BWC case to become the master
             esConfig['discovery.initial_state_timeout'] = '0s'
@@ -715,8 +715,9 @@ class ClusterFormationTasks {
         wait.doLast {
 
             Collection<String> unicastHosts = new HashSet<>()
-            nodes.forEach { otherNode ->
-                String unicastHost = otherNode.config.unicastTransportUri(otherNode, null, project.ant)
+            nodes.forEach { node ->
+                unicastHosts.addAll(node.config.otherUnicastHostAddresses.call())
+                String unicastHost = node.config.unicastTransportUri(node, null, project.ant)
                 if (unicastHost != null) {
                     unicastHosts.addAll(Arrays.asList(unicastHost.split(",")))
                 }

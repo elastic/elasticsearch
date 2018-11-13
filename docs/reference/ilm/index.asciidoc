@@ -1,13 +1,14 @@
 [role="xpack"]
 [testenv="basic"]
 [[index-lifecycle-management]]
-= Managing Indices
+= Managing the index lifecycle
 
 :ilm:             index lifecycle management
-:ILM:             Index lifecycle management
+:Ilm:             Index lifecycle management
+:ILM:             ILM
 [partintro]
 --
-The <<index-lifecycle-management-api, {ilm} APIs>> enable you to automate how you
+The <<index-lifecycle-management-api, {ilm} (ILM) APIs>> enable you to automate how you
 want to manage your indices over time. Rather than simply performing management
 actions on your indices on a set schedule, you can base actions on other factors
 such as shard size and performance requirements.

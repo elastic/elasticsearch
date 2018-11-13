@@ -84,6 +84,7 @@ import static org.mockito.Mockito.when;
 public class TransportSamlLogoutActionTests extends SamlTestCase {
 
     private static final String SP_URL = "https://sp.example.net/saml";
+    private static final String REALM_NAME = "saml1";
 
     private SamlRealm samlRealm;
     private TokenService tokenService;
@@ -94,10 +95,16 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
 
     @Before
     public void setup() throws Exception {
+        final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         final Settings settings = Settings.builder()
-                .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
-                .put("path.home", createTempDir())
-                .build();
+            .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+            .put("path.home", createTempDir())
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), metadata.toString())
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID), SamlRealmTests.TEST_IDP_ENTITY_ID)
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ENTITY_ID), SP_URL)
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ACS), SP_URL)
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
+            .build();
 
         final ThreadContext threadContext = new ThreadContext(settings);
         final ThreadPool threadPool = mock(ThreadPool.class);
@@ -194,20 +201,11 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final Realms realms = mock(Realms.class);
         action = new TransportSamlLogoutAction(transportService, mock(ActionFilters.class), realms, tokenService);
 
-        final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final RealmIdentifier realmIdentifier = new RealmIdentifier("saml", "saml1");
-        final Settings realmSettings = Settings.builder()
-                .put(getFullSettingKey("saml1", SamlRealmSettings.IDP_METADATA_PATH), metadata.toString())
-                .put(getFullSettingKey("saml1", SamlRealmSettings.IDP_ENTITY_ID), SamlRealmTests.TEST_IDP_ENTITY_ID)
-                .put(getFullSettingKey("saml1", SamlRealmSettings.SP_ENTITY_ID), SP_URL)
-                .put(getFullSettingKey("saml1", SamlRealmSettings.SP_ACS), SP_URL)
-                .put(getFullSettingKey("saml1", SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
-                .build();
+        final RealmIdentifier realmIdentifier = new RealmIdentifier("saml", REALM_NAME);
 
-        final RealmConfig realmConfig = new RealmConfig(realmIdentifier, mergeSettings(realmSettings, settings),
-                env, threadContext);
+        final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext);
         samlRealm = SamlRealm.create(realmConfig, mock(SSLService.class), mock(ResourceWatcherService.class), mock(UserRoleMapper.class));
         when(realms.realm(realmConfig.name())).thenReturn(samlRealm);
     }

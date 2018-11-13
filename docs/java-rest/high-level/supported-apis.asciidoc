@@ -370,6 +370,7 @@ The Java High Level REST Client supports the following Watcher APIs:
 * <<java-rest-high-watcher-deactivate-watch>>
 * <<{upid}-ack-watch>>
 * <<{upid}-activate-watch>>
+* <<{upid}-watcher-stats>>
 
 include::watcher/start-watch-service.asciidoc[]
 include::watcher/stop-watch-service.asciidoc[]
@@ -378,6 +379,7 @@ include::watcher/delete-watch.asciidoc[]
 include::watcher/ack-watch.asciidoc[]
 include::watcher/deactivate-watch.asciidoc[]
 include::watcher/activate-watch.asciidoc[]
+include::watcher/watcher-stats.asciidoc[]
 
 == Graph APIs
 

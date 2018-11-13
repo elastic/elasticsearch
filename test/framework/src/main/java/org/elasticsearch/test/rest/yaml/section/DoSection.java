@@ -301,10 +301,14 @@ public class DoSection implements ExecutableSection {
                      * This warning header will come back in the vast majority of our tests that create an index when running against an
                      * older master. Rather than rewrite our tests to assert this warning header, we assume that it is expected.
                      */
-                } else {
-                    if (expected.remove(message) == false) {
-                        unexpected.add(header);
-                    }
+                } else // noinspection StatementWithEmptyBody
+                    if (message.startsWith("[types removal]")) {
+                    /*
+                     * We skip warnings related to types deprecation so that we can continue to run the many
+                     * mixed-version tests that used typed APIs.
+                     */
+                } else if (expected.remove(message) == false) {
+                    unexpected.add(header);
                 }
             } else {
                 unmatched.add(header);

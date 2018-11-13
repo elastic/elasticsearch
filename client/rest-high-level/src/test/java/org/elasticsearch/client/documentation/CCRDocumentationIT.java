@@ -80,10 +80,11 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         // tag::ccr-put-follow-request
-        PutFollowRequest putFollowRequest = new PutFollowRequest();
-        putFollowRequest.setRemoteCluster("local"); // <1>
-        putFollowRequest.setLeaderIndex("leader"); // <2>
-        putFollowRequest.setFollowerIndex("follower"); // <3>
+        PutFollowRequest putFollowRequest = new PutFollowRequest(
+            "local", // <1>
+            "leader", // <2>
+            "follower" // <3>
+        );
         // end::ccr-put-follow-request
 
         // tag::ccr-put-follow-execute
@@ -160,10 +161,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         String followIndex = "follower";
         // Follow index, so that it can be paused:
         {
-            PutFollowRequest putFollowRequest = new PutFollowRequest();
-            putFollowRequest.setRemoteCluster("local");
-            putFollowRequest.setLeaderIndex("leader");
-            putFollowRequest.setFollowerIndex(followIndex);
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex);
             PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
             assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
             assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));

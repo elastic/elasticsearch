@@ -20,7 +20,6 @@
 package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 public final class PutFollowRequest implements Validatable, ToXContentObject {
 
@@ -47,9 +45,9 @@ public final class PutFollowRequest implements Validatable, ToXContentObject {
     static final ParseField MAX_RETRY_DELAY_FIELD = new ParseField("max_retry_delay");
     static final ParseField READ_POLL_TIMEOUT = new ParseField("read_poll_timeout");
 
-    private String remoteCluster;
-    private String leaderIndex;
-    private String followerIndex;
+    private final String remoteCluster;
+    private final String leaderIndex;
+    private final String followerIndex;
     private Integer maxReadRequestOperationCount;
     private Integer maxOutstandingReadRequests;
     private ByteSizeValue maxReadRequestSize;
@@ -61,19 +59,10 @@ public final class PutFollowRequest implements Validatable, ToXContentObject {
     private TimeValue maxRetryDelay;
     private TimeValue readPollTimeout;
 
-    @Override
-    public Optional<ValidationException> validate() {
-        ValidationException validationException = null;
-        if (remoteCluster == null) {
-            validationException = addValidationError("remoteCluster is missing", validationException);
-        }
-        if (leaderIndex == null){
-            validationException = addValidationError("leaderIndex is missing", validationException);
-        }
-        if (followerIndex == null) {
-            validationException = addValidationError("followerIndex is missing", validationException);
-        }
-        return Optional.ofNullable(validationException);
+    public PutFollowRequest(String remoteCluster, String leaderIndex, String followerIndex) {
+        this.remoteCluster = Objects.requireNonNull(remoteCluster, "remoteCluster");
+        this.leaderIndex = Objects.requireNonNull(leaderIndex, "leaderIndex");
+        this.followerIndex = Objects.requireNonNull(followerIndex, "followerIndex");
     }
 
     @Override
@@ -120,24 +109,12 @@ public final class PutFollowRequest implements Validatable, ToXContentObject {
         return remoteCluster;
     }
 
-    public void setRemoteCluster(String remoteCluster) {
-        this.remoteCluster = remoteCluster;
-    }
-
     public String getLeaderIndex() {
         return leaderIndex;
     }
 
-    public void setLeaderIndex(String leaderIndex) {
-        this.leaderIndex = leaderIndex;
-    }
-
     public String getFollowerIndex() {
         return followerIndex;
-    }
-
-    public void setFollowerIndex(String followerIndex) {
-        this.followerIndex = followerIndex;
     }
 
     public Integer getMaxReadRequestOperationCount() {
@@ -257,13 +234,5 @@ public final class PutFollowRequest implements Validatable, ToXContentObject {
             maxRetryDelay,
             readPollTimeout
         );
-    }
-
-    private static ValidationException addValidationError(String error, ValidationException exception) {
-        if (exception == null) {
-            exception = new ValidationException();
-        }
-        exception.addValidationError(error);
-        return exception;
     }
 }

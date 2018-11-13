@@ -139,7 +139,8 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
         assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), containsInAnyOrder(otherNode1, otherNode2));
         final Throwable rootCause = responseHolder.get().getRootCause();
         assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
-        assertThat(rootCause.getMessage(), startsWith("timed out waiting for removal of nodes ["));
+        assertThat(rootCause.getMessage(),
+            startsWith("timed out waiting for removal of nodes; if nodes should not be removed, set waitForRemoval to false. ["));
     }
 
     public void testSucceedsIfNodesAreRemovedWhileWaiting() throws InterruptedException {

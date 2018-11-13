@@ -260,23 +260,23 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         for (GatewayMetaState.IndexMetaDataAction action : actions) {
             if (action instanceof GatewayMetaState.KeepPreviousGeneration) {
                 assertThat(action.getIndex(), equalTo(notChangedIndex.getIndex()));
-                GatewayMetaState.Transaction tx = mock(GatewayMetaState.Transaction.class);
-                assertThat(action.execute(tx), equalTo(3L));
-                verifyZeroInteractions(tx);
+                GatewayMetaState.AtomicClusterStateWriter writer = mock(GatewayMetaState.AtomicClusterStateWriter.class);
+                assertThat(action.execute(writer), equalTo(3L));
+                verifyZeroInteractions(writer);
             }
             if (action instanceof GatewayMetaState.WriteNewIndexMetaData) {
                 assertThat(action.getIndex(), equalTo(newIndex.getIndex()));
-                GatewayMetaState.Transaction tx = mock(GatewayMetaState.Transaction.class);
-                when(tx.writeIndex("freshly created", newIndex)).thenReturn(0L);
-                assertThat(action.execute(tx), equalTo(0L));
+                GatewayMetaState.AtomicClusterStateWriter writer = mock(GatewayMetaState.AtomicClusterStateWriter.class);
+                when(writer.writeIndex("freshly created", newIndex)).thenReturn(0L);
+                assertThat(action.execute(writer), equalTo(0L));
             }
             if (action instanceof GatewayMetaState.WriteChangedIndexMetaData) {
                 assertThat(action.getIndex(), equalTo(newVersionChangedIndex.getIndex()));
-                GatewayMetaState.Transaction tx = mock(GatewayMetaState.Transaction.class);
-                when(tx.writeIndex(anyString(), eq(newVersionChangedIndex))).thenReturn(3L);
-                assertThat(action.execute(tx), equalTo(3L));
+                GatewayMetaState.AtomicClusterStateWriter writer = mock(GatewayMetaState.AtomicClusterStateWriter.class);
+                when(writer.writeIndex(anyString(), eq(newVersionChangedIndex))).thenReturn(3L);
+                assertThat(action.execute(writer), equalTo(3L));
                 ArgumentCaptor<String> reason = ArgumentCaptor.forClass(String.class);
-                verify(tx).writeIndex(reason.capture(), eq(newVersionChangedIndex));
+                verify(writer).writeIndex(reason.capture(), eq(newVersionChangedIndex));
                 assertThat(reason.getValue(), containsString(Long.toString(versionChangedIndex.getVersion())));
                 assertThat(reason.getValue(), containsString(Long.toString(newVersionChangedIndex.getVersion())));
             }
@@ -389,20 +389,20 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
             possibleMetaData.add(metaData);
 
             for (int i = 0; i < randomIntBetween(1, 5); i++) {
-                GatewayMetaState.Transaction tx = new GatewayMetaState.Transaction(metaStateService, manifest);
+                GatewayMetaState.AtomicClusterStateWriter writer = new GatewayMetaState.AtomicClusterStateWriter(metaStateService, manifest);
                 metaData = randomMetaDataForTx();
                 Map<Index, Long> indexGenerations = new HashMap<>();
 
                 try {
-                    long globalGeneration = tx.writeGlobalState("global", metaData);
+                    long globalGeneration = writer.writeGlobalState("global", metaData);
 
                     for (IndexMetaData indexMetaData : metaData) {
-                        long generation = tx.writeIndex("index", indexMetaData);
+                        long generation = writer.writeIndex("index", indexMetaData);
                         indexGenerations.put(indexMetaData.getIndex(), generation);
                     }
 
                     Manifest newManifest = new Manifest(globalGeneration, indexGenerations);
-                    tx.writeManifestAndCleanup("manifest", newManifest);
+                    writer.writeManifestAndCleanup("manifest", newManifest);
                     possibleMetaData.clear();
                     possibleMetaData.add(metaData);
                     manifest = newManifest;

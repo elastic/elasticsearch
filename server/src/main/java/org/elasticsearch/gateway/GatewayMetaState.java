@@ -116,12 +116,12 @@ public class GatewayMetaState implements ClusterStateApplier {
                 // if there is manifest file, it means metadata is properly persisted to all data paths
                 // if there is no manifest file (upgrade from 6.x to 7.x) metadata might be missing on some data paths,
                 // but anyway we will re-write it as soon as we receive first ClusterState
-                final Transaction tx = new Transaction(metaStateService, manifest);
+                final AtomicClusterStateWriter writer = new AtomicClusterStateWriter(metaStateService, manifest);
                 final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
 
                 final long globalStateGeneration;
                 if (MetaData.isGlobalStateEquals(metaData, upgradedMetaData) == false) {
-                    globalStateGeneration = tx.writeGlobalState("upgrade", upgradedMetaData);
+                    globalStateGeneration = writer.writeGlobalState("upgrade", upgradedMetaData);
                 } else {
                     globalStateGeneration = manifest.getGlobalGeneration();
                 }
@@ -129,13 +129,13 @@ public class GatewayMetaState implements ClusterStateApplier {
                 Map<Index, Long> indices = new HashMap<>(manifest.getIndexGenerations());
                 for (IndexMetaData indexMetaData : upgradedMetaData) {
                     if (metaData.hasIndexMetaData(indexMetaData) == false) {
-                        final long generation = tx.writeIndex("upgrade", indexMetaData);
+                        final long generation = writer.writeIndex("upgrade", indexMetaData);
                         indices.put(indexMetaData.getIndex(), generation);
                     }
                 }
 
                 final Manifest newManifest = new Manifest(globalStateGeneration, indices);
-                tx.writeManifestAndCleanup("startup", newManifest);
+                writer.writeManifestAndCleanup("startup", newManifest);
             } catch (Exception e) {
                 logger.error("failed to read or re-write local state, exiting...", e);
                 throw e;
@@ -184,19 +184,16 @@ public class GatewayMetaState implements ClusterStateApplier {
      * This class is used to write changed global {@link MetaData}, {@link IndexMetaData} and {@link Manifest} to disk.
      * This class delegates <code>write*</code> calls to corresponding write calls in {@link MetaStateService} and
      * additionally it keeps track of cleanup actions to be performed if transaction succeeds or fails.
-     * Transaction succeeds if {@link #writeManifestAndCleanup(String, Manifest)} call succeeds, transaction fails if
-     * any <code>write*</code> call fails.
-     * Once transaction succeeds/fails it can no longer be used.
      */
-    static class Transaction {
-        private static final String TRANSACTION_COMPLETED_MSG = "Transaction is already completed";
+    static class AtomicClusterStateWriter {
+        private static final String FINISHED_MSG = "AtomicClusterStateWriter is finished";
         private final List<Runnable> commitCleanupActions;
         private final List<Runnable> rollbackCleanupActions;
         private final Manifest previousManifest;
         private final MetaStateService metaStateService;
         private boolean finished;
 
-        Transaction(MetaStateService metaStateService, Manifest previousManifest) {
+        AtomicClusterStateWriter(MetaStateService metaStateService, Manifest previousManifest) {
             this.metaStateService = metaStateService;
             assert previousManifest != null;
             this.previousManifest = previousManifest;
@@ -206,7 +203,7 @@ public class GatewayMetaState implements ClusterStateApplier {
         }
 
         long writeGlobalState(String reason, MetaData metaData) throws WriteStateException {
-            assert finished == false : TRANSACTION_COMPLETED_MSG;
+            assert finished == false : FINISHED_MSG;
             try {
                 rollbackCleanupActions.add(() -> metaStateService.cleanupGlobalState(previousManifest.getGlobalGeneration()));
                 long generation = metaStateService.writeGlobalState(reason, metaData);
@@ -219,7 +216,7 @@ public class GatewayMetaState implements ClusterStateApplier {
         }
 
         long writeIndex(String reason, IndexMetaData metaData) throws WriteStateException {
-            assert finished == false : TRANSACTION_COMPLETED_MSG;
+            assert finished == false : FINISHED_MSG;
             try {
                 Index index = metaData.getIndex();
                 long previousGeneration = previousManifest.getIndexGenerations().getOrDefault(index, -1L);
@@ -234,7 +231,7 @@ public class GatewayMetaState implements ClusterStateApplier {
         }
 
         long writeManifestAndCleanup(String reason, Manifest manifest) throws WriteStateException {
-            assert finished == false : TRANSACTION_COMPLETED_MSG;
+            assert finished == false : FINISHED_MSG;
             try {
                 long generation = metaStateService.writeManifestAndCleanup(reason, manifest);
                 commitCleanupActions.forEach(Runnable::run);
@@ -263,23 +260,23 @@ public class GatewayMetaState implements ClusterStateApplier {
         ClusterState previousState = event.previousState();
         MetaData newMetaData = newState.metaData();
 
-        final Transaction tx = new Transaction(metaStateService, previousManifest);
-        long globalStateGeneration = writeGlobalState(tx, newMetaData);
-        Map<Index, Long> indexGenerations = writeIndicesMetadata(tx, newState, previousState);
+        final AtomicClusterStateWriter writer = new AtomicClusterStateWriter(metaStateService, previousManifest);
+        long globalStateGeneration = writeGlobalState(writer, newMetaData);
+        Map<Index, Long> indexGenerations = writeIndicesMetadata(writer, newState, previousState);
         Manifest manifest = new Manifest(globalStateGeneration, indexGenerations);
-        writeManifest(tx, manifest);
+        writeManifest(writer, manifest);
 
         previousMetaData = newMetaData;
         previousManifest = manifest;
     }
 
-    private void writeManifest(Transaction tx, Manifest manifest) throws IOException {
+    private void writeManifest(AtomicClusterStateWriter writer, Manifest manifest) throws IOException {
         if (manifest.equals(previousManifest) == false) {
-            tx.writeManifestAndCleanup("changed", manifest);
+            writer.writeManifestAndCleanup("changed", manifest);
         }
     }
 
-    private Map<Index, Long> writeIndicesMetadata(Transaction tx, ClusterState newState, ClusterState previousState)
+    private Map<Index, Long> writeIndicesMetadata(AtomicClusterStateWriter writer, ClusterState newState, ClusterState previousState)
             throws IOException {
         Map<Index, Long> previouslyWrittenIndices = previousManifest.getIndexGenerations();
         Set<Index> relevantIndices = getRelevantIndices(newState, previousState, previouslyWrittenIndices.keySet());
@@ -290,16 +287,16 @@ public class GatewayMetaState implements ClusterStateApplier {
                 newState.metaData());
 
         for (IndexMetaDataAction action : actions) {
-            long generation = action.execute(tx);
+            long generation = action.execute(writer);
             newIndices.put(action.getIndex(), generation);
         }
 
         return newIndices;
     }
 
-    private long writeGlobalState(Transaction tx, MetaData newMetaData) throws IOException {
+    private long writeGlobalState(AtomicClusterStateWriter writer, MetaData newMetaData) throws IOException {
         if (previousMetaData == null || MetaData.isGlobalStateEquals(previousMetaData, newMetaData) == false) {
-            return tx.writeGlobalState("changed", newMetaData);
+            return writer.writeGlobalState("changed", newMetaData);
         }
         return previousManifest.getGlobalGeneration();
     }
@@ -517,12 +514,12 @@ public class GatewayMetaState implements ClusterStateApplier {
         Index getIndex();
 
         /**
-         * Executes this action using provided {@link Transaction}.
+         * Executes this action using provided {@link AtomicClusterStateWriter}.
          *
          * @return new index metadata state generation, to be used in manifest file.
          * @throws WriteStateException if exception occurs.
          */
-        long execute(Transaction tx) throws WriteStateException;
+        long execute(AtomicClusterStateWriter writer) throws WriteStateException;
     }
 
     public static class KeepPreviousGeneration implements IndexMetaDataAction {
@@ -540,7 +537,7 @@ public class GatewayMetaState implements ClusterStateApplier {
         }
 
         @Override
-        public long execute(Transaction tx) {
+        public long execute(AtomicClusterStateWriter writer) {
             return generation;
         }
     }
@@ -558,8 +555,8 @@ public class GatewayMetaState implements ClusterStateApplier {
         }
 
         @Override
-        public long execute(Transaction tx) throws WriteStateException {
-            return tx.writeIndex("freshly created", indexMetaData);
+        public long execute(AtomicClusterStateWriter writer) throws WriteStateException {
+            return writer.writeIndex("freshly created", indexMetaData);
         }
     }
 
@@ -578,8 +575,8 @@ public class GatewayMetaState implements ClusterStateApplier {
         }
 
         @Override
-        public long execute(Transaction tx) throws WriteStateException {
-            return tx.writeIndex(
+        public long execute(AtomicClusterStateWriter writer) throws WriteStateException {
+            return writer.writeIndex(
                     "version changed from [" + oldIndexMetaData.getVersion() + "] to [" + newIndexMetaData.getVersion() + "]",
                     newIndexMetaData);
         }

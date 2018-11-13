@@ -57,8 +57,9 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
     public static final String TYPE = "ml";
     private static final ParseField JOBS_FIELD = new ParseField("jobs");
     private static final ParseField DATAFEEDS_FIELD = new ParseField("datafeeds");
+    private static final ParseField LAST_MEMORY_REFRESH_VERSION_FIELD = new ParseField("last_memory_refresh_version");
 
-    public static final MlMetadata EMPTY_METADATA = new MlMetadata(Collections.emptySortedMap(), Collections.emptySortedMap());
+    public static final MlMetadata EMPTY_METADATA = new MlMetadata(Collections.emptySortedMap(), Collections.emptySortedMap(), null);
     // This parser follows the pattern that metadata is parsed leniently (to allow for enhancements)
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = new ObjectParser<>("ml_metadata", true, Builder::new);
 
@@ -66,15 +67,18 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         LENIENT_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.LENIENT_PARSER.apply(p, c).build(), JOBS_FIELD);
         LENIENT_PARSER.declareObjectArray(Builder::putDatafeeds,
                 (p, c) -> DatafeedConfig.LENIENT_PARSER.apply(p, c).build(), DATAFEEDS_FIELD);
+        LENIENT_PARSER.declareLong(Builder::setLastMemoryRefreshVersion, LAST_MEMORY_REFRESH_VERSION_FIELD);
     }
 
     private final SortedMap<String, Job> jobs;
     private final SortedMap<String, DatafeedConfig> datafeeds;
+    private final Long lastMemoryRefreshVersion;
     private final GroupOrJobLookup groupOrJobLookup;
 
-    private MlMetadata(SortedMap<String, Job> jobs, SortedMap<String, DatafeedConfig> datafeeds) {
+    private MlMetadata(SortedMap<String, Job> jobs, SortedMap<String, DatafeedConfig> datafeeds, Long lastMemoryRefreshVersion) {
         this.jobs = Collections.unmodifiableSortedMap(jobs);
         this.datafeeds = Collections.unmodifiableSortedMap(datafeeds);
+        this.lastMemoryRefreshVersion = lastMemoryRefreshVersion;
         this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
     }
 
@@ -112,6 +116,10 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
                 .expand(expression, allowNoDatafeeds);
     }
 
+    public Long getLastMemoryRefreshVersion() {
+        return lastMemoryRefreshVersion;
+    }
+
     @Override
     public Version getMinimalSupportedVersion() {
         return Version.V_5_4_0;
@@ -145,7 +153,11 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             datafeeds.put(in.readString(), new DatafeedConfig(in));
         }
         this.datafeeds = datafeeds;
-
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            lastMemoryRefreshVersion = in.readOptionalLong();
+        } else {
+            lastMemoryRefreshVersion = null;
+        }
         this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
     }
 
@@ -153,6 +165,9 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
     public void writeTo(StreamOutput out) throws IOException {
         writeMap(jobs, out);
         writeMap(datafeeds, out);
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+            out.writeOptionalLong(lastMemoryRefreshVersion);
+        }
     }
 
     private static <T extends Writeable> void writeMap(Map<String, T> map, StreamOutput out) throws IOException {
@@ -169,6 +184,9 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
                 new DelegatingMapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"), params);
         mapValuesToXContent(JOBS_FIELD, jobs, builder, extendedParams);
         mapValuesToXContent(DATAFEEDS_FIELD, datafeeds, builder, extendedParams);
+        if (lastMemoryRefreshVersion != null) {
+            builder.field(LAST_MEMORY_REFRESH_VERSION_FIELD.getPreferredName(), lastMemoryRefreshVersion);
+        }
         return builder;
     }
 
@@ -185,30 +203,46 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
         final Diff<Map<String, Job>> jobs;
         final Diff<Map<String, DatafeedConfig>> datafeeds;
+        final Long lastMemoryRefreshVersion;
 
         MlMetadataDiff(MlMetadata before, MlMetadata after) {
             this.jobs = DiffableUtils.diff(before.jobs, after.jobs, DiffableUtils.getStringKeySerializer());
             this.datafeeds = DiffableUtils.diff(before.datafeeds, after.datafeeds, DiffableUtils.getStringKeySerializer());
+            this.lastMemoryRefreshVersion = after.lastMemoryRefreshVersion;
         }
 
         public MlMetadataDiff(StreamInput in) throws IOException {
             this.jobs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new,
                     MlMetadataDiff::readJobDiffFrom);
             this.datafeeds = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
-                    MlMetadataDiff::readSchedulerDiffFrom);
+                    MlMetadataDiff::readDatafeedDiffFrom);
+            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+                lastMemoryRefreshVersion = in.readOptionalLong();
+            } else {
+                lastMemoryRefreshVersion = null;
+            }
         }
 
+        /**
+         * Merge the diff with the ML metadata.
+         * @param part The current ML metadata.
+         * @return The new ML metadata.
+         */
         @Override
         public MetaData.Custom apply(MetaData.Custom part) {
             TreeMap<String, Job> newJobs = new TreeMap<>(jobs.apply(((MlMetadata) part).jobs));
             TreeMap<String, DatafeedConfig> newDatafeeds = new TreeMap<>(datafeeds.apply(((MlMetadata) part).datafeeds));
-            return new MlMetadata(newJobs, newDatafeeds);
+            // lastMemoryRefreshVersion always comes from the diff - no need to merge with the old value
+            return new MlMetadata(newJobs, newDatafeeds, lastMemoryRefreshVersion);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             jobs.writeTo(out);
             datafeeds.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+                out.writeOptionalLong(lastMemoryRefreshVersion);
+            }
         }
 
         @Override
@@ -220,7 +254,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return AbstractDiffable.readDiffFrom(Job::new, in);
         }
 
-        static Diff<DatafeedConfig> readSchedulerDiffFrom(StreamInput in) throws IOException {
+        static Diff<DatafeedConfig> readDatafeedDiffFrom(StreamInput in) throws IOException {
             return AbstractDiffable.readDiffFrom(DatafeedConfig::new, in);
         }
     }
@@ -233,7 +267,8 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return false;
         MlMetadata that = (MlMetadata) o;
         return Objects.equals(jobs, that.jobs) &&
-                Objects.equals(datafeeds, that.datafeeds);
+                Objects.equals(datafeeds, that.datafeeds) &&
+                Objects.equals(lastMemoryRefreshVersion, that.lastMemoryRefreshVersion);
     }
 
     @Override
@@ -243,13 +278,14 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobs, datafeeds);
+        return Objects.hash(jobs, datafeeds, lastMemoryRefreshVersion);
     }
 
     public static class Builder {
 
         private TreeMap<String, Job> jobs;
         private TreeMap<String, DatafeedConfig> datafeeds;
+        private Long lastMemoryRefreshVersion;
 
         public Builder() {
             jobs = new TreeMap<>();
@@ -263,6 +299,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             } else {
                 jobs = new TreeMap<>(previous.jobs);
                 datafeeds = new TreeMap<>(previous.datafeeds);
+                lastMemoryRefreshVersion = previous.lastMemoryRefreshVersion;
             }
         }
 
@@ -382,8 +419,13 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return this;
         }
 
+        public Builder setLastMemoryRefreshVersion(Long lastMemoryRefreshVersion) {
+            this.lastMemoryRefreshVersion = lastMemoryRefreshVersion;
+            return this;
+        }
+
         public MlMetadata build() {
-            return new MlMetadata(jobs, datafeeds);
+            return new MlMetadata(jobs, datafeeds, lastMemoryRefreshVersion);
         }
 
         public void markJobAsDeleting(String jobId, PersistentTasksCustomMetaData tasks, boolean allowDeleteOpenJob) {
@@ -419,8 +461,6 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             }
         }
     }
-
-
 
     public static MlMetadata getMlMetadata(ClusterState state) {
         MlMetadata mlMetadata = (state == null) ? null : state.getMetaData().custom(TYPE);

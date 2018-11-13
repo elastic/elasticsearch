@@ -69,6 +69,9 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
                 builder.putJob(job, false);
             }
         }
+        if (randomBoolean()) {
+            builder.setLastMemoryRefreshVersion(randomNonNegativeLong());
+        }
         return builder.build();
     }
 
@@ -438,8 +441,9 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         for (Map.Entry<String, DatafeedConfig> entry : datafeeds.entrySet()) {
             metadataBuilder.putDatafeed(entry.getValue(), Collections.emptyMap());
         }
+        metadataBuilder.setLastMemoryRefreshVersion(instance.getLastMemoryRefreshVersion());
 
-        switch (between(0, 1)) {
+        switch (between(0, 2)) {
         case 0:
             metadataBuilder.putJob(JobTests.createRandomizedJob(), true);
             break;
@@ -458,6 +462,13 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             randomJob = new Job.Builder(randomJob).setAnalysisConfig(analysisConfig).build();
             metadataBuilder.putJob(randomJob, false);
             metadataBuilder.putDatafeed(datafeedConfig, Collections.emptyMap());
+            break;
+        case 2:
+            if (instance.getLastMemoryRefreshVersion() == null) {
+                metadataBuilder.setLastMemoryRefreshVersion(randomNonNegativeLong());
+            } else {
+                metadataBuilder.setLastMemoryRefreshVersion(null);
+            }
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

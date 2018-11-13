@@ -43,16 +43,16 @@ requests can be served from any copy of the leader shard (primary or replicas).
 
 For each read request sent by the follower shard task, if there are new
 operations available on the leader shard, the leader shard responds with
-operations limited by the read parameters that you established when you 
-configured the follower index. If there are no new operations available on the leader shard,
-the leader shard waits up to a configured timeout for new operations. If new
-operations occur within that timeout, the leader shard immediately responds with
-those new operations. Otherwise, if the timeout elapses, the follower shard
-replies that there are no new operations. The follower shard task updates some
-statistics and immediately sends another read request to the leader shard. This
-ensures that the network connections between the remote cluster and the local
-cluster are continually being used so as to avoid forceful termination by an
-external source (such as a firewall).
+operations limited by the read parameters that you established when you
+configured the follower index. If there are no new operations available on the
+leader shard, the leader shard waits up to a configured timeout for new
+operations. If new operations occur within that timeout, the leader shard
+immediately responds with those new operations. Otherwise, if the timeout
+elapses, the follower shard replies that there are no new operations. The
+follower shard task updates some statistics and immediately sends another read
+request to the leader shard. This ensures that the network connections between
+the remote cluster and the local cluster are continually being used so as to
+avoid forceful termination by an external source (such as a firewall).
 
 If a read request fails, the cause of the failure is inspected. If the
 cause of the failure is deemed to be a failure that can be recovered from (for 
@@ -71,26 +71,42 @@ limits, no additional read requests are sent by the follower shard task. The
 follower shard task resumes sending read requests when the write buffer no
 longer exceeds its configured limits.
 
+Mapping updates applied to the leader index are automatically retrieved
+as-needed by the follower index.
+
+Settings updates applied to the leader index that are needed by the follower
+index are automatically retried as-needed by the follower index. Not all
+settings updates are needed by the follower index. For example, changing the
+number of replicas on the leader index is not replicated by the follower index.
+
+NOTE: If you apply a non-dynamic settings change to the leader index that is
+needed by the follower index, the follower index will go through a cycle of
+closing itself, applying the settings update, and then re-opening itself. The
+follower index will be unavailable for reads and not replicating writes
+during this cycle.
+
 [float]
 === Inspecting the progress of replication
 
 You can inspect the progress of replication at the shard level with the
-{ref}/ccr-get-follow-stats.html[get follower stats API]. This API gives you insight
-into the read and writes managed by the follower shard task. It also reports
-read exceptions that can be retried and fatal exceptions that require user
-intervention.
+{ref}/ccr-get-follow-stats.html[get follower stats API]. This API gives you
+insight into the read and writes managed by the follower shard task. It also
+reports read exceptions that can be retried and fatal exceptions that require
+user intervention.
 
 [float]
 === Pausing and resuming replication
 
-You can pause replication with the {ref}/ccr-post-pause-follow.html[pause follower API] 
-and then later resume replication with the
-{ref}/ccr-post-resume-follow.html[resume follower API]. Using these APIs in tandem
-enables you to adjust the read and write parameters on the follower shard task
-if your initial configuration is not suitable for your use case.
+You can pause replication with the
+{ref}/ccr-post-pause-follow.html[pause follower API] and then later resume
+replication with the {ref}/ccr-post-resume-follow.html[resume follower API].
+Using these APIs in tandem enables you to adjust the read and write parameters
+on the follower shard task if your initial configuration is not suitable for
+your use case.
 
 [float]
 === Terminating replication
 
-You can terminate replication with the {ref}/ccr-post-unfollow.html[unfollow API].
-This API converts a follower index to a regular (non-follower) index.
+You can terminate replication with the
+{ref}/ccr-post-unfollow.html[unfollow API]. This API converts a follower index
+to a regular (non-follower) index.

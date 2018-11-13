@@ -194,27 +194,42 @@ public class TransportReplicationActionTests extends ESTestCase {
         return cause;
     }
 
+    private void setStateWithBlock(final ClusterService clusterService, final ClusterBlock block, final boolean globalBlock) {
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder();
+        if (globalBlock) {
+            blocks.addGlobalBlock(block);
+        } else {
+            blocks.addIndexBlock("index", block);
+        }
+        setState(clusterService, ClusterState.builder(clusterService.state()).blocks(blocks).build());
+    }
+
     public void testBlocksInReroutePhase() throws Exception {
         final ClusterBlock nonRetryableBlock =
             new ClusterBlock(1, "non retryable", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
         final ClusterBlock retryableBlock =
             new ClusterBlock(1, "retryable", true, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
 
+        final boolean globalBlock = randomBoolean();
         final TestAction action = new TestAction(Settings.EMPTY, "internal:testActionWithBlocks",
             transportService, clusterService, shardStateAction, threadPool) {
             @Override
             protected ClusterBlockLevel globalBlockLevel() {
-                return ClusterBlockLevel.WRITE;
+                return globalBlock ? ClusterBlockLevel.WRITE : null;
+            }
+
+            @Override
+            protected ClusterBlockLevel indexBlockLevel() {
+                return globalBlock == false ? ClusterBlockLevel.WRITE : null;
             }
         };
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary("index", true, 0));
 
         {
-            setState(clusterService,
-                ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(nonRetryableBlock)));
+            setStateWithBlock(clusterService, nonRetryableBlock, globalBlock);
 
-            Request request = new Request();
+            Request request = globalBlock ? new Request() : new Request().index("index");
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -227,10 +242,9 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertPhase(task, "failed");
         }
         {
-            setState(clusterService,
-                ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(retryableBlock)));
+            setStateWithBlock(clusterService, retryableBlock, globalBlock);
 
-            Request requestWithTimeout = new Request().timeout("5ms");
+            Request requestWithTimeout = (globalBlock ? new Request() : new Request().index("index")).timeout("5ms");
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -244,10 +258,9 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertTrue(requestWithTimeout.isRetrySet.get());
         }
         {
-            setState(clusterService,
-                ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(retryableBlock)));
+            setStateWithBlock(clusterService, retryableBlock, globalBlock);
 
-            Request request = new Request();
+            Request request = globalBlock ? new Request() : new Request().index("index");
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -258,8 +271,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertPhase(task, "waiting_for_retry");
             assertTrue(request.isRetrySet.get());
 
-            setState(clusterService,
-                ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(nonRetryableBlock)));
+            setStateWithBlock(clusterService, nonRetryableBlock, globalBlock);
 
             ClusterBlockException exception = assertListenerThrows("primary phase should fail operation when moving from a retryable " +
                     "block to a non-retryable one", listener, ClusterBlockException.class);

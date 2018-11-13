@@ -6,8 +6,10 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
+import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -22,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,6 +34,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -186,6 +191,13 @@ public final class TransportPutFollowAction
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.metaData(mdBuilder.build());
                 ClusterState updatedState = builder.build();
+
+                // TODO: Snapshot id
+                SnapshotId snapshotId = new SnapshotId("", "");
+                RoutingTable.Builder newRoutingTableBuilder = RoutingTable.builder(updatedState.routingTable())
+                    .addAsNewRestore(updatedState.metaData().index(request.getFollowRequest().getFollowerIndex()),
+                            new RecoverySource.SnapshotRecoverySource(new Snapshot(request.getRemoteCluster(), snapshotId),
+                                Version.CURRENT, leaderIndexMetaData.getIndex().getName()), new IntHashSet());
 
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
                         .addAsNew(updatedState.metaData().index(request.getFollowRequest().getFollowerIndex()));

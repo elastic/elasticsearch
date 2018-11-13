@@ -44,6 +44,8 @@ import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsResponse;
+import org.elasticsearch.client.ml.GetFiltersRequest;
+import org.elasticsearch.client.ml.GetFiltersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
@@ -862,7 +864,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status().getStatus(), equalTo(404));
     }
 
-    public void testFilterJob() throws Exception {
+    public void testPutFilter() throws Exception {
         String filterId = "filter-job-test";
         MlFilter mlFilter = MlFilter.builder(filterId)
             .setDescription(randomAlphaOfLength(10))
@@ -876,6 +878,53 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         MlFilter createdFilter = putFilterResponse.getResponse();
 
         assertThat(createdFilter, equalTo(mlFilter));
+    }
+
+    public void testGetFilters() throws Exception {
+        String filterId1 = "get-filter-test-1";
+        String filterId2 = "get-filter-test-2";
+        String filterId3 = "get-filter-test-3";
+        MlFilter mlFilter1 = MlFilter.builder(filterId1)
+            .setDescription(randomAlphaOfLength(10))
+            .setItems(generateRandomStringArray(10, 10, false, false))
+            .build();
+        MlFilter mlFilter2 = MlFilter.builder(filterId2)
+            .setDescription(randomAlphaOfLength(10))
+            .setItems(generateRandomStringArray(10, 10, false, false))
+            .build();
+        MlFilter mlFilter3 = MlFilter.builder(filterId3)
+            .setDescription(randomAlphaOfLength(10))
+            .setItems(generateRandomStringArray(10, 10, false, false))
+            .build();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putFilter(new PutFilterRequest(mlFilter1), RequestOptions.DEFAULT);
+        machineLearningClient.putFilter(new PutFilterRequest(mlFilter2), RequestOptions.DEFAULT);
+        machineLearningClient.putFilter(new PutFilterRequest(mlFilter3), RequestOptions.DEFAULT);
+
+        {
+            GetFiltersRequest getFiltersRequest = new GetFiltersRequest();
+            getFiltersRequest.setId(filterId1);
+
+            GetFiltersResponse getFiltersResponse = execute(getFiltersRequest,
+                machineLearningClient::getFilter,
+                machineLearningClient::getFilterAsync);
+            assertThat(getFiltersResponse.count(), equalTo(1L));
+            assertThat(getFiltersResponse.filters().get(0), equalTo(mlFilter1));
+        }
+        {
+            GetFiltersRequest getFiltersRequest = new GetFiltersRequest();
+
+            getFiltersRequest.setFrom(1);
+            getFiltersRequest.setSize(2);
+
+            GetFiltersResponse getFiltersResponse = execute(getFiltersRequest,
+                machineLearningClient::getFilter,
+                machineLearningClient::getFilterAsync);
+            assertThat(getFiltersResponse.count(), equalTo(2L));
+            assertThat(getFiltersResponse.filters().size(), equalTo(2));
+            assertThat(getFiltersResponse.filters().stream().map(MlFilter::getId).collect(Collectors.toList()),
+                containsInAnyOrder("get-filter-test-2", "get-filter-test-3"));
+        }
     }
 
     public static String randomValidJobId() {

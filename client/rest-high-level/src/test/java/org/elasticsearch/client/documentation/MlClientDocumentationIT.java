@@ -54,6 +54,8 @@ import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsResponse;
+import org.elasticsearch.client.ml.GetFiltersRequest;
+import org.elasticsearch.client.ml.GetFiltersResponse;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetInfluencersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -2060,6 +2062,70 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-filter-execute-async
             client.machineLearning().putFilterAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-filter-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetFilters() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        String filterId = "get-filter-doc-test";
+        MlFilter.Builder filterBuilder = MlFilter.builder(filterId).setDescription("test").setItems("*.google.com", "wikipedia.org");
+
+        client.machineLearning().putFilter(new PutFilterRequest(filterBuilder.build()), RequestOptions.DEFAULT);
+
+        {
+            // tag::get-filters-request
+            GetFiltersRequest request = new GetFiltersRequest(); // <1>
+            // end::get-filters-request
+
+            // tag::get-filters-filter-id
+            request.setId("get-filter-doc-test"); // <1>
+            // end::get-filters-filter-id
+
+            // tag::get-filters-page-params
+            request.setFrom(100); // <1>
+            request.setSize(200); // <2>
+            // end::get-filters-page-params
+
+            request.setFrom(null);
+            request.setSize(null);
+
+            // tag::get-filters-execute
+            GetFiltersResponse response = client.machineLearning().getFilter(request, RequestOptions.DEFAULT);
+            // end::get-filters-execute
+
+            // tag::get-filters-response
+            long count = response.count(); // <1>
+            List<MlFilter> filters = response.filters(); // <2>
+            // end::get-filters-response
+            assertEquals(1, filters.size());
+        }
+        {
+            GetFiltersRequest request = new GetFiltersRequest();
+            request.setId(filterId);
+
+            // tag::get-filters-execute-listener
+            ActionListener<GetFiltersResponse> listener = new ActionListener<GetFiltersResponse>() {
+                    @Override
+                    public void onResponse(GetFiltersResponse getfiltersResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-filters-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-filters-execute-async
+            client.machineLearning().getFilterAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-filters-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

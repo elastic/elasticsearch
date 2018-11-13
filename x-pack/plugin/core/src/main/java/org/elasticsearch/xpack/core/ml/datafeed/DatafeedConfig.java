@@ -211,7 +211,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         } else {
             this.headers = Collections.emptyMap();
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
             delayedDataCheckWindow = in.readOptionalTimeValue();
             shouldRunDelayedDataCheck = in.readBoolean();
         } else {
@@ -328,7 +328,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
             out.writeOptionalTimeValue(delayedDataCheckWindow);
             out.writeBoolean(shouldRunDelayedDataCheck);
         }

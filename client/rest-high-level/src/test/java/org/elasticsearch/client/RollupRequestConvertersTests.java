@@ -71,7 +71,7 @@ public class RollupRequestConvertersTests extends ESTestCase {
         assertThat(request.getEndpoint(), equalTo("/_xpack/rollup/job/" + jobId + "/_stop"));
         assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(request.getParameters().keySet(), empty());
-        assertThat(request.getEntity(), nullValue());
+        assertNull(request.getEntity());
     }
 
     public void testGetJob() {

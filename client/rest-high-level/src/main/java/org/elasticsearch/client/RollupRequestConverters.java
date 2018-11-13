@@ -59,14 +59,11 @@ final class RollupRequestConverters {
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 
-
     static Request stopJob(final StopRollupJobRequest stopRollupJobRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("rollup")
-            .addPathPartAsIs("job")
+            .addPathPartAsIs("_xpack", "rollup", "job")
             .addPathPart(stopRollupJobRequest.getJobId())
-            .addPathPart("_stop")
+            .addPathPartAsIs("_stop")
             .build();
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }

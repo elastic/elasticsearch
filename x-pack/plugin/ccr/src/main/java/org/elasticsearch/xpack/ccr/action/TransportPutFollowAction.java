@@ -41,6 +41,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.elasticsearch.xpack.ccr.respository.RemoteClusterRepository;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
@@ -192,12 +193,11 @@ public final class TransportPutFollowAction
                 builder.metaData(mdBuilder.build());
                 ClusterState updatedState = builder.build();
 
-                // TODO: Snapshot id
-                SnapshotId snapshotId = new SnapshotId("", "");
                 RoutingTable.Builder newRoutingTableBuilder = RoutingTable.builder(updatedState.routingTable())
                     .addAsNewRestore(updatedState.metaData().index(request.getFollowRequest().getFollowerIndex()),
-                            new RecoverySource.SnapshotRecoverySource(new Snapshot(request.getRemoteCluster(), snapshotId),
-                                Version.CURRENT, leaderIndexMetaData.getIndex().getName()), new IntHashSet());
+                            new RecoverySource.SnapshotRecoverySource(new Snapshot(request.getRemoteCluster(),
+                                RemoteClusterRepository.SNAPSHOT_ID), Version.CURRENT, leaderIndexMetaData.getIndex().getName()),
+                        new IntHashSet());
 
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
                         .addAsNew(updatedState.metaData().index(request.getFollowRequest().getFollowerIndex()));

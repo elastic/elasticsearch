@@ -1,0 +1,82 @@
+[role="xpack"]
+[testenv="basic"]
+[[frozen-indices]]
+= Frozen Indices
+
+Elasticsearch indices can require a significant amount of memory available in order to be open and searchable. Yet, not all indices need
+to be writable at the same time and have different access patters over time. For example indices in the time-series or logging use-case
+are unlikely to be queried once they age out but still need to be kept around for retention policy purposes.
+
+In order to keep indices around for a longer time period but at the same time reducing their hardware requirements they can be transitioned
+into a frozen state. Once an index is frozen, all it's transient shard memory aside of mappings and and necessary in-memory structures for
+analysis is moved to persistent storage. This allows for a much higher disk to heap storage ratio on individual nodes. Once an index is
+frozen their are read-only and require their data-structures required for query execution to be loaded on demand. A search request that hits
+one or more shards from frozen indices will execute it's search through a throttling component that ensures that we never search more than
+`N` (`1` by default) searches concurrently. This protects nodes from exceeding the available memory due to incoming search requests.
+
+In contrast to ordinary open indices, frozen indices are expected to execute slow and are not designed for high query load. Parallelism is
+gained only on a per-node level and loading data-structures on demand is expected to be one or more orders of a magnitude slower than query
+execution on a per shard level. Depending on the index and it's data executing a search on a frozen index is expected to be in the seconds
+or even minutes range compared to milliseconds on a non-frozen index.
+
+== Best Practices
+
+Since frozen indices provide a much higher disk to heap ratio for the expense of latency it is recommended to allocate frozen indices on
+dedicated nodes to prevent searches on frozen indices influencing traffic on low latency nodes. There is a significant overhead in loading
+data-structures on demand which can cause page-faults and garbage collections further slowing down query execution.
+
+Since indices that are eligible for freezing are likely to not change in the future disk space can be optimized. Many strategies are
+outlined in <<tune-for-disk-usage>>.
+
+== Freezing and unfreezing an index
+
+The freeze and unfreeze index APIs allow to freeze an index, and later on
+unfreeze it. A frozen index has almost no overhead on the cluster (except
+for maintaining its metadata in memory), and is blocked for write operations.
+A frozen index can be unfrozen which will then go through the normal recovery process.
+
+The REST endpoint is `/{index}/_freeze` and `/{index}/_unfreeze`. For
+example:
+
+[source,js]
+--------------------------------------------------
+POST /my_index/_freeze
+
+POST /my_index/_unfreeze
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT my_index\n/]
+
+
+[IMPORTANT]
+================================
+ Freezing an index will close the index and reopen it within the same API call. This causes primaries to not be allocated for a short
+ amount of time and causes the cluster to go red until the primaries are allocated again. This limitation might be removed in the future
+================================
+
+== Searching a frozen index
+
+Frozen indices are throttled in order limit memory consumptions per node. The number of concurrently loaded frozen indices per node is
+limited by the number of threads in the `search_throttled` <<modules-threadpool,threadpool>> which is `1` by default. At the same time,
+search requests hitting may indices on a cluster due to concrete lists, expanded wildcards or a date pattern exclude frozen indices by
+default to prevent accidental slowdowns when a frozen index is hit. To include frozen indices a search request must be executed with
+`ignore_throttled=false`.
+
+[source,js]
+--------------------------------------------------
+GET /twitter/_search?q=user:kimchy&ignore_throttled=false
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+[IMPORTANT]
+================================
+While frozen indices are slow to search, they offer an efficient pre-filter phase. The request parameter `pre_filter_shard_size` specifies
+a threshold that enforces a round-trip to filter search shards based on query rewriting if the number of shards the search
+request expands to exceeds the threshold. This filter phase can limit the number of shards significantly if for instance a shard can not
+match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint.
+The default value for `pre_filter_shard_size` is `128` while for searching frozen indices it's recommended to set it to `1`. There is no
+significant overhead associated with this pre-filter phase.
+================================
+
+

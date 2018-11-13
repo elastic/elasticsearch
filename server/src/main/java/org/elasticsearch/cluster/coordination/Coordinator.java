@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapConfiguration;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -1110,7 +1111,18 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         @Override
         protected void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommit,
                                        ActionListener<Empty> responseActionListener) {
-            publicationHandler.sendApplyCommit(destination, applyCommit, wrapWithMutex(responseActionListener));
+            publicationContext.sendApplyCommit(destination, applyCommit, wrapWithMutex(responseActionListener));
         }
+    }
+
+    // TODO: only here temporarily for BWC development, remove once complete
+    public static Settings.Builder addZen1Attribute(Settings.Builder builder) {
+        return builder.put("node.attr.zen1", true);
+    }
+
+    // TODO: only here temporarily for BWC development, remove once complete
+    public static boolean isZen1Node(DiscoveryNode discoveryNode) {
+        return discoveryNode.getVersion().before(Version.V_7_0_0) ||
+            discoveryNode.getAttributes().containsKey("zen1");
     }
 }

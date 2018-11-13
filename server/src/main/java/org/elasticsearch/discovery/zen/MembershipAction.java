@@ -102,12 +102,12 @@ public class MembershipAction extends AbstractComponent {
 
     public static class JoinRequest extends TransportRequest {
 
-        DiscoveryNode node;
+        public DiscoveryNode node;
 
         public JoinRequest() {
         }
 
-        private JoinRequest(DiscoveryNode node) {
+        public JoinRequest(DiscoveryNode node) {
             this.node = node;
         }
 
@@ -152,10 +152,10 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    static class ValidateJoinRequest extends TransportRequest {
+    public static class ValidateJoinRequest extends TransportRequest {
         private ClusterState state;
 
-        ValidateJoinRequest() {}
+        public ValidateJoinRequest() {}
 
         ValidateJoinRequest(ClusterState state) {
             this.state = state;

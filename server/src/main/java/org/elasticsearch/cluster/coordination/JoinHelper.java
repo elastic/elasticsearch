@@ -34,11 +34,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.discovery.zen.MembershipAction;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -98,32 +101,12 @@ public class JoinHelper extends AbstractComponent {
         };
 
         transportService.registerRequestHandler(JOIN_ACTION_NAME, ThreadPool.Names.GENERIC, false, false, JoinRequest::new,
-            (request, channel, task) -> joinHandler.accept(request, new JoinCallback() {
+            (request, channel, task) -> joinHandler.accept(request, transportJoinCallback(request, channel)));
 
-                @Override
-                public void onSuccess() {
-                    try {
-                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    } catch (IOException e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception inner) {
-                        inner.addSuppressed(e);
-                        logger.warn("failed to send back failure on join request", inner);
-                    }
-                }
-
-                @Override
-                public String toString() {
-                    return "JoinCallback{request=" + request + "}";
-                }
-            }));
+        transportService.registerRequestHandler(MembershipAction.DISCOVERY_JOIN_ACTION_NAME, MembershipAction.JoinRequest::new,
+            ThreadPool.Names.GENERIC, false, false,
+            (request, channel, task) -> joinHandler.accept(new JoinRequest(request.node, Optional.empty()), // treat as non-voting join
+                transportJoinCallback(request, channel)));
 
         transportService.registerRequestHandler(START_JOIN_ACTION_NAME, Names.GENERIC, false, false,
             StartJoinRequest::new,
@@ -132,6 +115,47 @@ public class JoinHelper extends AbstractComponent {
                 sendJoinRequest(destination, Optional.of(joinLeaderInTerm.apply(request)));
                 channel.sendResponse(Empty.INSTANCE);
             });
+
+        transportService.registerRequestHandler(MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
+            () -> new MembershipAction.ValidateJoinRequest(), ThreadPool.Names.GENERIC,
+            (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)); // TODO: implement join validation
+
+        transportService.registerRequestHandler(
+            ZenDiscovery.DISCOVERY_REJOIN_ACTION_NAME, ZenDiscovery.RejoinClusterRequest::new, ThreadPool.Names.SAME,
+            (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)); // TODO: do we need to implement anything here?
+
+        transportService.registerRequestHandler(
+            MembershipAction.DISCOVERY_LEAVE_ACTION_NAME, MembershipAction.LeaveRequest::new, ThreadPool.Names.SAME,
+            (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)); // TODO: do we need to implement anything here?
+    }
+
+    private JoinCallback transportJoinCallback(TransportRequest request, TransportChannel channel) {
+        return new JoinCallback() {
+
+            @Override
+            public void onSuccess() {
+                try {
+                    channel.sendResponse(Empty.INSTANCE);
+                } catch (IOException e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    channel.sendResponse(e);
+                } catch (Exception inner) {
+                    inner.addSuppressed(e);
+                    logger.warn("failed to send back failure on join request", inner);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "JoinCallback{request=" + request + "}";
+            }
+        };
     }
 
     public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
@@ -139,7 +163,16 @@ public class JoinHelper extends AbstractComponent {
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         if (pendingOutgoingJoins.add(dedupKey)) {
             logger.debug("attempting to join {} with {}", destination, joinRequest);
-            transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest,
+            final String actionName;
+            final TransportRequest transportRequest;
+            if (Coordinator.isZen1Node(destination)) {
+                actionName = MembershipAction.DISCOVERY_JOIN_ACTION_NAME;
+                transportRequest = new MembershipAction.JoinRequest(transportService.getLocalNode());
+            } else {
+                actionName = JOIN_ACTION_NAME;
+                transportRequest = joinRequest;
+            }
+            transportService.sendRequest(destination, actionName, transportRequest,
                 TransportRequestOptions.builder().withTimeout(joinTimeout).build(),
                 new TransportResponseHandler<Empty>() {
                     @Override

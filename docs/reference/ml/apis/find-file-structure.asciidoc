@@ -74,7 +74,7 @@ chosen.
   structure finder produced its result. The default value is `false`.
 
 `format`::
-  (string) The high level structure of the file. Valid values are `json`, `xml`,
+  (string) The high level structure of the file. Valid values are `ndjson`, `xml`,
   `delimited`, and `semi_structured_text`. If this parameter is not specified,
   the structure finder chooses one.
 
@@ -259,7 +259,7 @@ If the request does not encounter errors, you receive the following result:
   "sample_start" : "{\"name\": \"Leviathan Wakes\", \"author\": \"James S.A. Corey\", \"release_date\": \"2011-06-02\", \"page_count\": 561}\n{\"name\": \"Hyperion\", \"author\": \"Dan Simmons\", \"release_date\": \"1989-05-26\", \"page_count\": 482}\n", <3>
   "charset" : "UTF-8", <4>
   "has_byte_order_marker" : false, <5>
-  "format" : "json", <6>
+  "format" : "ndjson", <6>
   "need_client_timezone" : false, <7>
   "mappings" : { <8>
     "author" : {
@@ -473,14 +473,14 @@ If the request does not encounter errors, you receive the following result:
 
 <1> `num_lines_analyzed` indicates how many lines of the file were analyzed.
 <2> `num_messages_analyzed` indicates how many distinct messages the lines contained.
-     For ND-JSON, this value is the same as `num_lines_analyzed`. For other file
+     For NDJSON, this value is the same as `num_lines_analyzed`. For other file
      formats, messages can span several lines.
 <3> `sample_start` reproduces the first two messages in the file verbatim. This
      may help to diagnose parse errors or accidental uploads of the wrong file.
 <4> `charset` indicates the character encoding used to parse the file.
 <5> For UTF character encodings, `has_byte_order_marker` indicates whether the
     file begins with a byte order marker.
-<6> `format` is one of `json`, `xml`, `delimited` or `semi_structured_text`.
+<6> `format` is one of `ndjson`, `xml`, `delimited` or `semi_structured_text`.
 <7> If a timestamp format is detected that does not include a timezone,
     `need_client_timezone` will be `true`. The server that parses the file must
     therefore be told the correct timezone by the client.

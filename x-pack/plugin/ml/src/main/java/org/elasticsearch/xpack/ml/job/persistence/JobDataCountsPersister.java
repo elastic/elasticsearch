@@ -13,7 +13,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -34,8 +33,7 @@ public class JobDataCountsPersister extends AbstractComponent {
 
     private final Client client;
 
-    public JobDataCountsPersister(Settings settings, Client client) {
-        super(settings);
+    public JobDataCountsPersister(Client client) {
         this.client = client;
     }
 

@@ -24,12 +24,16 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
 
 public final class Scripts {
 
+    public static final String DOC_VALUE = "doc[{}].value";
+    public static final String SQL_SCRIPTS = "{sql}";
+    public static final String PARAM = "{}";
+
     private Scripts() {}
 
     private static final Map<Pattern, String> FORMATTING_PATTERNS = Collections.unmodifiableMap(Stream.of(
-            new SimpleEntry<>("doc[{}].value", "{sql}.docValue(doc,{})"),
-            new SimpleEntry<>("{sql}", InternalSqlScriptUtils.class.getSimpleName()),
-            new SimpleEntry<>("{}", "params.%s"))
+            new SimpleEntry<>(DOC_VALUE, SQL_SCRIPTS + ".docValue(doc,{})"),
+            new SimpleEntry<>(SQL_SCRIPTS, InternalSqlScriptUtils.class.getSimpleName()),
+            new SimpleEntry<>(PARAM, "params.%s"))
             .collect(toMap(e -> Pattern.compile(e.getKey(), Pattern.LITERAL), Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new)));
 
     /**

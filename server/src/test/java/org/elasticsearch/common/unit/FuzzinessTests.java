@@ -67,7 +67,8 @@ public class FuzzinessTests extends ESTestCase {
                 try (XContentParser parser = createParser(json)) {
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-                    assertThat(parser.nextToken(), anyOf(equalTo(XContentParser.Token.VALUE_NUMBER), equalTo(XContentParser.Token.VALUE_STRING)));
+                    assertThat(parser.nextToken(), anyOf(equalTo(XContentParser.Token.VALUE_NUMBER),
+                        equalTo(XContentParser.Token.VALUE_STRING)));
                     Fuzziness fuzziness = Fuzziness.parse(parser);
                     if (value.intValue() >= 1) {
                         assertThat(fuzziness.asDistance(), equalTo(Math.min(2, value.intValue())));

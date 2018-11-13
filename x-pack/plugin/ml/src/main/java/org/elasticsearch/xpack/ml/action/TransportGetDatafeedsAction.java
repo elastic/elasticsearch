@@ -14,11 +14,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
@@ -29,10 +28,10 @@ import java.util.Set;
 public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<GetDatafeedsAction.Request, GetDatafeedsAction.Response> {
 
     @Inject
-    public TransportGetDatafeedsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportGetDatafeedsAction(TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetDatafeedsAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(GetDatafeedsAction.NAME, transportService, clusterService, threadPool, actionFilters,
             GetDatafeedsAction.Request::new, indexNameExpressionResolver);
     }
 

@@ -139,7 +139,7 @@ final class SimilarityProviders {
         if (model == null) {
             String replacement = LEGACY_BASIC_MODELS.get(basicModel);
             if (replacement != null) {
-                if (indexCreatedVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
+                if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
                     throw new IllegalArgumentException("Basic model [" + basicModel + "] isn't supported anymore, " +
                         "please use another model.");
                 } else {
@@ -170,7 +170,7 @@ final class SimilarityProviders {
         if (effect == null) {
             String replacement = LEGACY_AFTER_EFFECTS.get(afterEffect);
             if (replacement != null) {
-                if (indexCreatedVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
+                if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
                     throw new IllegalArgumentException("After effect [" + afterEffect +
                         "] isn't supported anymore, please use another effect.");
                 } else {
@@ -261,7 +261,7 @@ final class SimilarityProviders {
         unknownSettings.removeAll(Arrays.asList(supportedSettings));
         unknownSettings.remove("type"); // used to figure out which sim this is
         if (unknownSettings.isEmpty() == false) {
-            if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (version.onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
                 deprecationLogger.deprecated("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);

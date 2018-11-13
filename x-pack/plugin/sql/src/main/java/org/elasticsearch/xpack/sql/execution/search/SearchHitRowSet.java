@@ -44,9 +44,11 @@ class SearchHitRowSet extends AbstractRowSet {
 
         String innerHit = null;
         for (HitExtractor ex : exts) {
-            innerHit = ex.hitName();
-            if (innerHit != null) {
-                innerHits.add(innerHit);
+            if (ex.hitName() != null) {
+                innerHits.add(ex.hitName());
+                if (innerHit == null) {
+                    innerHit = ex.hitName();
+                }
             }
         }
 

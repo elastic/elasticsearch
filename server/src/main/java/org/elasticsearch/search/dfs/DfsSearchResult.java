@@ -46,6 +46,10 @@ public class DfsSearchResult extends SearchPhaseResult {
     public DfsSearchResult() {
     }
 
+    public DfsSearchResult(StreamInput in) throws IOException {
+        readFrom(in);
+    }
+
     public DfsSearchResult(long id, SearchShardTarget shardTarget) {
         this.setSearchShardTarget(shardTarget);
         this.requestId = id;
@@ -125,7 +129,7 @@ public class DfsSearchResult extends SearchPhaseResult {
             CollectionStatistics statistics = c.value;
             assert statistics.maxDoc() >= 0;
             out.writeVLong(statistics.maxDoc());
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 // stats are always positive numbers
                 out.writeVLong(statistics.docCount());
                 out.writeVLong(statistics.sumTotalTermFreq());
@@ -172,7 +176,7 @@ public class DfsSearchResult extends SearchPhaseResult {
             final long docCount;
             final long sumTotalTermFreq;
             final long sumDocFreq;
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                 // stats are always positive numbers
                 docCount = in.readVLong();
                 sumTotalTermFreq = in.readVLong();

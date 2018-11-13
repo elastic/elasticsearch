@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
@@ -43,7 +44,7 @@ public class Percentile extends NumericAggregate implements EnclosedAgg {
         TypeResolution resolution = super.resolveType();
 
         if (TypeResolution.TYPE_RESOLVED.equals(resolution)) {
-            resolution = Expressions.typeMustBeNumeric(percent());
+            resolution = Expressions.typeMustBeNumeric(percent(), functionName(), ParamOrdinal.DEFAULT);
         }
 
         return resolution;

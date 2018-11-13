@@ -1,0 +1,7 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-overview]]
+== Overview
+
+beta[]
+This is the overview section of the {ccr} docs.

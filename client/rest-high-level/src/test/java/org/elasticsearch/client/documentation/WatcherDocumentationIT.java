@@ -40,10 +40,10 @@ import org.elasticsearch.client.watcher.WatchStatus;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.client.watcher.DeleteWatchRequest;
+import org.elasticsearch.client.watcher.DeleteWatchResponse;
+import org.elasticsearch.client.watcher.PutWatchRequest;
+import org.elasticsearch.client.watcher.PutWatchResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.concurrent.CountDownLatch;

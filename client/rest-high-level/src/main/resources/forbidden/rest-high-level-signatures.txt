@@ -22,7 +22,6 @@ org.apache.http.entity.ContentType#create(java.lang.String,org.apache.http.NameV
 
 @defaultMessage ES's logging infrastructure uses log4j2 which we don't want to force on high level rest client users
 org.elasticsearch.common.logging.DeprecationLogger
-org.elasticsearch.common.logging.ESLoggerFactory
 org.elasticsearch.common.logging.LogConfigurator
 org.elasticsearch.common.logging.LoggerMessageFormat
 org.elasticsearch.common.logging.Loggers

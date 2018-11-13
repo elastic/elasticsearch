@@ -282,7 +282,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Returns whether to preserve the state of the cluster upon completion of this test. Defaults to false. If true, overrides the value of
      * {@link #preserveIndicesUponCompletion()}, {@link #preserveTemplatesUponCompletion()}, {@link #preserveReposUponCompletion()},
-     * {@link #preserveSnapshotsUponCompletion()}, and {@link #preserveRollupJobsUponCompletion()}.
+     * {@link #preserveSnapshotsUponCompletion()},{@link #preserveRollupJobsUponCompletion()},
+     * and {@link #preserveILMPoliciesUponCompletion()}.
      *
      * @return true if the state of the cluster should be preserved
      */
@@ -347,6 +348,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
+    /**
+     * Returns whether to preserve ILM Policies of this test. Defaults to not
+     * preserviing them. Only runs at all if xpack is installed on the cluster
+     * being tested.
+     */
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return false;
+    }
+
     private void wipeCluster() throws Exception {
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
@@ -398,6 +408,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (hasXPack && false == preserveRollupJobsUponCompletion()) {
             wipeRollupJobs();
             waitForPendingRollupTasks();
+        }
+
+        if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
+            deleteAllPolicies();
         }
     }
 
@@ -482,18 +496,19 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         // TODO this is temporary until StopJob API gains the ability to block until stopped
-        awaitBusy(() -> {
+        boolean stopped = awaitBusy(() -> {
             Request request = new Request("GET", "/_xpack/rollup/job/_all");
             try {
                 Response jobsResponse = adminClient().performRequest(request);
                 String body = EntityUtils.toString(jobsResponse.getEntity());
-                logger.error(body);
                 // If the body contains any of the non-stopped states, at least one job is not finished yet
                 return Arrays.stream(new String[]{"started", "aborting", "stopping", "indexing"}).noneMatch(body::contains);
             } catch (IOException e) {
                 return false;
             }
         }, 10, TimeUnit.SECONDS);
+
+        assertTrue("Timed out waiting for rollup job(s) to stop", stopped);
 
         for (Map<String, Object> jobConfig : jobConfigs) {
             @SuppressWarnings("unchecked")
@@ -507,6 +522,29 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private void waitForPendingRollupTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
+    }
+
+    private static void deleteAllPolicies() throws IOException {
+        Map<String, Object> policies;
+
+        try {
+            Response response = adminClient().performRequest(new Request("GET", "/_ilm/policy"));
+            policies = entityAsMap(response);
+        } catch (ResponseException e) {
+            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+                // If bad request returned, ILM is not enabled.
+                return;
+            }
+            throw e;
+        }
+
+        if (policies == null || policies.isEmpty()) {
+            return;
+        }
+
+        for (String policyName : policies.keySet()) {
+            adminClient().performRequest(new Request("DELETE", "/_ilm/policy/" + policyName));
+        }
     }
 
     /**
@@ -700,6 +738,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         Request request = new Request("PUT", "/" + name);
         request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings)
                 + ", \"mappings\" : {" + mapping + "} }");
+        client().performRequest(request);
+    }
+
+    protected static void createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
+        Request request = new Request("PUT", "/" + name);
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings)
+            + ", \"mappings\" : {" + mapping + "}"
+            + ", \"aliases\": {" + aliases + "} }");
         client().performRequest(request);
     }
 

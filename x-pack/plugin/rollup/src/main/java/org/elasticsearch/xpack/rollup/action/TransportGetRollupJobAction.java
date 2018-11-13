@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
@@ -38,9 +37,8 @@ public class TransportGetRollupJobAction extends TransportTasksAction<RollupJobT
         GetRollupJobsAction.Response, GetRollupJobsAction.Response> {
 
     @Inject
-    public TransportGetRollupJobAction(Settings settings, TransportService transportService,
-                                       ActionFilters actionFilters, ClusterService clusterService) {
-        super(settings, GetRollupJobsAction.NAME, clusterService, transportService, actionFilters,
+    public TransportGetRollupJobAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+        super(GetRollupJobsAction.NAME, clusterService, transportService, actionFilters,
             GetRollupJobsAction.Request::new, GetRollupJobsAction.Response::new, ThreadPool.Names.SAME);
     }
 

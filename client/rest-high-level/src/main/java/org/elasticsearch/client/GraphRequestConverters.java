@@ -20,7 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.client.graph.GraphExploreRequest;
 
 import java.io.IOException;
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.transport;
 
 import com.carrotsearch.randomizedtesting.SysGlobals;
+import java.util.concurrent.TimeUnit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
@@ -599,21 +600,21 @@ public final class MockTransportService extends TransportService {
         Transport.Connection connection = super.openConnection(node, profile);
 
         synchronized (openConnections) {
-            List<Transport.Connection> connections = openConnections.computeIfAbsent(node,
-                (n) -> new CopyOnWriteArrayList<>());
-            connections.add(connection);
-        }
-
-        connection.addCloseListener(ActionListener.wrap(() -> {
-            synchronized (openConnections) {
-                List<Transport.Connection> connections = openConnections.get(node);
-                boolean remove = connections.remove(connection);
-                assert remove : "Should have removed connection";
-                if (connections.isEmpty()) {
-                    openConnections.remove(node);
+            openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
+            connection.addCloseListener(ActionListener.wrap(() -> {
+                synchronized (openConnections) {
+                    List<Transport.Connection> connections = openConnections.get(node);
+                    boolean remove = connections.remove(connection);
+                    assert remove : "Should have removed connection";
+                    if (connections.isEmpty()) {
+                        openConnections.remove(node);
+                    }
+                    if (openConnections.isEmpty()) {
+                        openConnections.notifyAll();
+                    }
                 }
-            }
-        }));
+            }));
+        }
 
         return connection;
     }
@@ -621,8 +622,15 @@ public final class MockTransportService extends TransportService {
     @Override
     protected void doClose() throws IOException {
         super.doClose();
-        synchronized (openConnections) {
-            assert openConnections.size() == 0 : "still open connections: " + openConnections;
+        try {
+            synchronized (openConnections) {
+                if (openConnections.isEmpty() == false) {
+                    openConnections.wait(TimeUnit.SECONDS.toMillis(30L));
+                }
+                assert openConnections.size() == 0 : "still open connections: " + openConnections;
+            }
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(e);
         }
     }
 

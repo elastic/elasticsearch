@@ -69,7 +69,6 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
     private final TransportAddressesCache dynamicHosts;
 
     AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
-        super(settings);
         this.transportService = transportService;
         this.awsEc2Service = awsEc2Service;
 

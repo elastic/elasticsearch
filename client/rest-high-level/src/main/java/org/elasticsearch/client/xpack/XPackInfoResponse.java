@@ -21,9 +21,6 @@ package org.elasticsearch.client.xpack;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -252,23 +249,13 @@ public class XPackInfoResponse implements ToXContentObject {
         }
     }
 
-    public static class BuildInfo implements ToXContentObject, Writeable {
+    public static class BuildInfo implements ToXContentObject {
         private final String hash;
         private final String timestamp;
 
         public BuildInfo(String hash, String timestamp) {
             this.hash = hash;
             this.timestamp = timestamp;
-        }
-
-        public BuildInfo(StreamInput input) throws IOException {
-            this(input.readString(), input.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput output) throws IOException {
-            output.writeString(hash);
-            output.writeString(timestamp);
         }
 
         public String getHash() {
@@ -309,7 +296,7 @@ public class XPackInfoResponse implements ToXContentObject {
         }
     }
 
-    public static class FeatureSetsInfo implements ToXContentObject, Writeable {
+    public static class FeatureSetsInfo implements ToXContentObject {
         private final Map<String, FeatureSet> featureSets;
 
         public FeatureSetsInfo(Set<FeatureSet> featureSets) {
@@ -318,24 +305,6 @@ public class XPackInfoResponse implements ToXContentObject {
                 map.put(featureSet.name, featureSet);
             }
             this.featureSets = Collections.unmodifiableMap(map);
-        }
-
-        public FeatureSetsInfo(StreamInput in) throws IOException {
-            int size = in.readVInt();
-            Map<String, FeatureSet> featureSets = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                FeatureSet featureSet = new FeatureSet(in);
-                featureSets.put(featureSet.name, featureSet);
-            }
-            this.featureSets = Collections.unmodifiableMap(featureSets);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(featureSets.size());
-            for (FeatureSet featureSet : featureSets.values()) {
-                featureSet.writeTo(out);
-            }
         }
 
         public Map<String, FeatureSet> getFeatureSets() {
@@ -365,7 +334,7 @@ public class XPackInfoResponse implements ToXContentObject {
             return builder.endObject();
         }
 
-        public static class FeatureSet implements ToXContentObject, Writeable {
+        public static class FeatureSet implements ToXContentObject {
             private final String name;
             @Nullable private final String description;
             private final boolean available;
@@ -379,19 +348,6 @@ public class XPackInfoResponse implements ToXContentObject {
                 this.available = available;
                 this.enabled = enabled;
                 this.nativeCodeInfo = nativeCodeInfo;
-            }
-
-            public FeatureSet(StreamInput in) throws IOException {
-                this(in.readString(), in.readOptionalString(), in.readBoolean(), in.readBoolean(), in.readMap());
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(name);
-                out.writeOptionalString(description);
-                out.writeBoolean(available);
-                out.writeBoolean(enabled);
-                out.writeMap(nativeCodeInfo);
             }
 
             public String name() {

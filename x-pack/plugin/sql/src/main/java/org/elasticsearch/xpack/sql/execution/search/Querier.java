@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -13,7 +14,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -61,7 +61,7 @@ import static java.util.Collections.singletonList;
 // TODO: add retry/back-off
 public class Querier {
 
-    private final Logger log = Loggers.getLogger(getClass());
+    private final Logger log = LogManager.getLogger(getClass());
 
     private final TimeValue keepAlive, timeout;
     private final int size;
@@ -253,8 +253,9 @@ public class Querier {
             List<FieldExtraction> refs = query.columns();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
+            ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits());
             for (FieldExtraction ref : refs) {
-                exts.add(createExtractor(ref, new ConstantExtractor(response.getHits().getTotalHits())));
+                exts.add(createExtractor(ref, totalCount));
             }
             return exts;
         }

@@ -117,7 +117,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+                throws MapperParsingException {
             CompletionFieldMapper.Builder builder = new CompletionFieldMapper.Builder(name);
             NamedAnalyzer indexAnalyzer = null;
             NamedAnalyzer searchAnalyzer = null;
@@ -368,7 +369,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
          */
         public Builder maxInputLength(int maxInputLength) {
             if (maxInputLength <= 0) {
-                throw new IllegalArgumentException(Fields.MAX_INPUT_LENGTH.getPreferredName() + " must be > 0 but was [" + maxInputLength + "]");
+                throw new IllegalArgumentException(Fields.MAX_INPUT_LENGTH.getPreferredName()
+                    + " must be > 0 but was [" + maxInputLength + "]");
             }
             this.maxInputLength = maxInputLength;
             return this;
@@ -400,13 +402,15 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             completionFieldType.setContextMappings(contextMappings);
             completionFieldType.setPreservePositionIncrements(preservePositionIncrements);
             completionFieldType.setPreserveSep(preserveSeparators);
-            return new CompletionFieldMapper(name, this.fieldType, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, maxInputLength);
+            return new CompletionFieldMapper(name, this.fieldType, context.indexSettings(),
+                multiFieldsBuilder.build(this, context), copyTo, maxInputLength);
         }
     }
 
     private int maxInputLength;
 
-    public CompletionFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, int maxInputLength) {
+    public CompletionFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings,
+                                 MultiFields multiFields, CopyTo copyTo, int maxInputLength) {
         super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
         this.maxInputLength = maxInputLength;
     }
@@ -506,7 +510,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
      *  "STRING" - interpreted as the field value (input)
      *  "OBJECT" - { "input": STRING|ARRAY, "weight": STRING|INT, "contexts": ARRAY|OBJECT }
      */
-    private void parse(ParseContext parseContext, Token token, XContentParser parser, Map<String, CompletionInputMetaData> inputMap) throws IOException {
+    private void parse(ParseContext parseContext, Token token,
+                       XContentParser parser, Map<String, CompletionInputMetaData> inputMap) throws IOException {
         String currentFieldName = null;
         if (token == Token.VALUE_STRING) {
             inputMap.put(parser.text(), new CompletionInputMetaData(parser.text(), Collections.emptyMap(), 1));
@@ -518,7 +523,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                 if (token == Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                     if (!ALLOWED_CONTENT_FIELD_NAMES.contains(currentFieldName)) {
-                        throw new IllegalArgumentException("unknown field name [" + currentFieldName + "], must be one of " + ALLOWED_CONTENT_FIELD_NAMES);
+                        throw new IllegalArgumentException("unknown field name [" + currentFieldName
+                            + "], must be one of " + ALLOWED_CONTENT_FIELD_NAMES);
                     }
                 } else if (currentFieldName != null) {
                     if (Fields.CONTENT_FIELD_NAME_INPUT.equals(currentFieldName)) {
@@ -529,7 +535,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                                 if (token == Token.VALUE_STRING) {
                                     inputs.add(parser.text());
                                 } else {
-                                    throw new IllegalArgumentException("input array must have string values, but was [" + token.name() + "]");
+                                    throw new IllegalArgumentException("input array must have string values, but was ["
+                                        + token.name() + "]");
                                 }
                             }
                         } else {
@@ -552,8 +559,10 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                         } else {
                             throw new IllegalArgumentException("weight must be a number or string, but was [" + token.name() + "]");
                         }
-                        if (weightValue.longValue() < 0 || weightValue.longValue() > Integer.MAX_VALUE) { // always parse a long to make sure we don't get overflow
-                            throw new IllegalArgumentException("weight must be in the interval [0..2147483647], but was [" + weightValue.longValue() + "]");
+                        // always parse a long to make sure we don't get overflow
+                        if (weightValue.longValue() < 0 || weightValue.longValue() > Integer.MAX_VALUE) {
+                            throw new IllegalArgumentException("weight must be in the interval [0..2147483647], but was ["
+                                + weightValue.longValue() + "]");
                         }
                         weight = weightValue.intValue();
                     } else if (Fields.CONTENT_FIELD_NAME_CONTEXTS.equals(currentFieldName)) {
@@ -587,7 +596,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                 }
             }
         } else {
-            throw new ParsingException(parser.getTokenLocation(), "failed to parse [" + parser.currentName() + "]: expected text or object, but got " + token.name());
+            throw new ParsingException(parser.getTokenLocation(), "failed to parse [" + parser.currentName()
+                + "]: expected text or object, but got " + token.name());
         }
     }
 

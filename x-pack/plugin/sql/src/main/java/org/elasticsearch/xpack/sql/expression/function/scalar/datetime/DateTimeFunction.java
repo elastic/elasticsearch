@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -63,12 +61,12 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
      */
     protected abstract ChronoField chronoField();
 
-    @Override
-    protected Pipe makePipe() {
-        return new UnaryPipe(location(), this, Expressions.pipe(field()), new DateTimeProcessor(extractor(), timeZone()));
-    }
-
     protected abstract DateTimeExtractor extractor();
+
+    @Override
+    protected Processor makeProcessor() {
+        return new DateTimeProcessor(extractor(), timeZone());
+    }
 
     @Override
     public DataType dataType() {

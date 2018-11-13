@@ -464,10 +464,10 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         private final IndicesService indicesServices;
 
         @Inject
-        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+        public TransportAction(ThreadPool threadPool, TransportService transportService,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                ScriptService scriptService, ClusterService clusterService, IndicesService indicesServices) {
-            super(settings, NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+            super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 // Forking a thread here, because only light weight operations should happen on network thread and
                 // Creating a in-memory index is not light weight
                 // TODO: is MANAGEMENT TP the right TP? Right now this is an admin api (see action name).

@@ -32,7 +32,7 @@ import java.util.TreeMap;
 
 public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> {
 
-    public static final String NAME = "cluster:monitor/ccr/stats";
+    public static final String NAME = "cluster:monitor/ccr/follow_stats";
 
     public static final FollowStatsAction INSTANCE = new FollowStatsAction();
 

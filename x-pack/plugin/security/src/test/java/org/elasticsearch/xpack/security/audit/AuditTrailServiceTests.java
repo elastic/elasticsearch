@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -46,7 +45,7 @@ public class AuditTrailServiceTests extends ESTestCase {
         }
         auditTrails = unmodifiableList(auditTrailsBuilder);
         licenseState = mock(XPackLicenseState.class);
-        service = new AuditTrailService(Settings.EMPTY, auditTrails, licenseState);
+        service = new AuditTrailService(auditTrails, licenseState);
         isAuditingAllowed = randomBoolean();
         when(licenseState.isAuditingAllowed()).thenReturn(isAuditingAllowed);
         token = mock(AuthenticationToken.class);

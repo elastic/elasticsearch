@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
@@ -70,7 +71,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
     public void testUpdateAutoThrottleSettings() throws Exception {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
         mockAppender.start();
-        final Logger settingsLogger = Loggers.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
+        final Logger settingsLogger = LogManager.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
         Loggers.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {
@@ -101,7 +102,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
     public void testUpdateMergeMaxThreadCount() throws Exception {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
         mockAppender.start();
-        final Logger settingsLogger = Loggers.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
+        final Logger settingsLogger = LogManager.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
         Loggers.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {

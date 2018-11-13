@@ -32,8 +32,7 @@ import java.util.List;
 
 public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate> {
 
-    @Override
-    protected DatafeedUpdate createTestInstance() {
+    public static DatafeedUpdate createRandom() {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(DatafeedConfigTests.randomValidDatafeedId());
         if (randomBoolean()) {
             builder.setJobId(randomAlphaOfLength(10));
@@ -85,6 +84,11 @@ public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
         }
         return builder.build();
+    }
+
+    @Override
+    protected DatafeedUpdate createTestInstance() {
+        return createRandom();
     }
 
     @Override

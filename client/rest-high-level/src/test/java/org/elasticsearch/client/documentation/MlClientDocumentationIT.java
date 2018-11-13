@@ -74,17 +74,21 @@ import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
+import org.elasticsearch.client.ml.PutFilterRequest;
+import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
+import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
+import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -92,6 +96,7 @@ import org.elasticsearch.client.ml.job.config.DetectionRule;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
+import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.client.ml.job.config.Operator;
 import org.elasticsearch.client.ml.job.config.RuleCondition;
@@ -625,6 +630,77 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-datafeed-execute-async
             client.machineLearning().putDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-datafeed-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testUpdateDatafeed() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("update-datafeed-job");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        String datafeedId = job.getId() + "-feed";
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId()).setIndices("foo").build();
+        client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+
+        {
+            AggregatorFactories.Builder aggs = AggregatorFactories.builder();
+            List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
+            // tag::update-datafeed-config
+            DatafeedUpdate.Builder datafeedUpdateBuilder = new DatafeedUpdate.Builder(datafeedId) // <1>
+                .setAggregations(aggs) // <2>
+                .setIndices("index_1", "index_2") // <3>
+                .setChunkingConfig(ChunkingConfig.newAuto()) // <4>
+                .setFrequency(TimeValue.timeValueSeconds(30)) // <5>
+                .setQuery(QueryBuilders.matchAllQuery()) // <6>
+                .setQueryDelay(TimeValue.timeValueMinutes(1)) // <7>
+                .setScriptFields(scriptFields) // <8>
+                .setScrollSize(1000) // <9>
+                .setJobId("update-datafeed-job"); // <10>
+            // end::update-datafeed-config
+
+            // Clearing aggregation to avoid complex validation rules
+            datafeedUpdateBuilder.setAggregations((String) null);
+
+            // tag::update-datafeed-request
+            UpdateDatafeedRequest request = new UpdateDatafeedRequest(datafeedUpdateBuilder.build()); // <1>
+            // end::update-datafeed-request
+
+            // tag::update-datafeed-execute
+            PutDatafeedResponse response = client.machineLearning().updateDatafeed(request, RequestOptions.DEFAULT);
+            // end::update-datafeed-execute
+
+            // tag::update-datafeed-response
+            DatafeedConfig updatedDatafeed = response.getResponse(); // <1>
+            // end::update-datafeed-response
+            assertThat(updatedDatafeed.getId(), equalTo(datafeedId));
+        }
+        {
+            DatafeedUpdate datafeedUpdate = new DatafeedUpdate.Builder(datafeedId).setIndices("index_1", "index_2").build();
+
+            UpdateDatafeedRequest request = new UpdateDatafeedRequest(datafeedUpdate);
+            // tag::update-datafeed-execute-listener
+            ActionListener<PutDatafeedResponse> listener = new ActionListener<PutDatafeedResponse>() {
+                @Override
+                public void onResponse(PutDatafeedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::update-datafeed-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::update-datafeed-execute-async
+            client.machineLearning().updateDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::update-datafeed-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -1933,5 +2009,59 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::delete-calendar-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testCreateFilter() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::put-filter-config
+            MlFilter.Builder filterBuilder = MlFilter.builder("my_safe_domains") // <1>
+                .setDescription("A list of safe domains")   // <2>
+                .setItems("*.google.com", "wikipedia.org"); // <3>
+            // end::put-filter-config
+
+            // tag::put-filter-request
+            PutFilterRequest request = new PutFilterRequest(filterBuilder.build()); // <1>
+            // end::put-filter-request
+
+            // tag::put-filter-execute
+            PutFilterResponse response = client.machineLearning().putFilter(request, RequestOptions.DEFAULT);
+            // end::put-filter-execute
+
+            // tag::put-filter-response
+            MlFilter createdFilter = response.getResponse(); // <1>
+            // end::put-filter-response
+            assertThat(createdFilter.getId(), equalTo("my_safe_domains"));
+        }
+        {
+            MlFilter.Builder filterBuilder = MlFilter.builder("safe_domains_async")
+                .setDescription("A list of safe domains")
+                .setItems("*.google.com", "wikipedia.org");
+
+            PutFilterRequest request = new PutFilterRequest(filterBuilder.build());
+            // tag::put-filter-execute-listener
+            ActionListener<PutFilterResponse> listener = new ActionListener<PutFilterResponse>() {
+                @Override
+                public void onResponse(PutFilterResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::put-filter-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-filter-execute-async
+            client.machineLearning().putFilterAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-filter-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
     }
 }

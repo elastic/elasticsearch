@@ -35,7 +35,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -68,8 +67,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
 
     @Inject
-    public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService) {
-        super(settings);
+    public MetaDataMappingService(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
@@ -175,7 +173,8 @@ public class MetaDataMappingService extends AbstractComponent {
         try {
             List<String> updatedTypes = new ArrayList<>();
             MapperService mapperService = indexService.mapperService();
-            for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(), mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
+            for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),
+                                                       mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
                 if (mapper != null) {
                     final String type = mapper.type();
                     if (!mapper.mappingSource().equals(builder.mapping(type).source())) {
@@ -188,7 +187,8 @@ public class MetaDataMappingService extends AbstractComponent {
             if (updatedTypes.isEmpty() == false) {
                 logger.warn("[{}] re-syncing mappings with cluster state because of types [{}]", index, updatedTypes);
                 dirty = true;
-                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(), mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
+                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),
+                                                           mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
                     if (mapper != null) {
                         builder.putMapping(new MappingMetaData(mapper));
                     }
@@ -215,8 +215,8 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
         @Override
-        public ClusterTasksResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState,
-                                                                               List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
+        public ClusterTasksResult<PutMappingClusterStateUpdateRequest>
+        execute(ClusterState currentState, List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             ClusterTasksResult.Builder<PutMappingClusterStateUpdateRequest> builder = ClusterTasksResult.builder();
             try {
@@ -325,7 +325,8 @@ public class MetaDataMappingService extends AbstractComponent {
                 IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
                 // Mapping updates on a single type may have side-effects on other types so we need to
                 // update mapping metadata on all types
-                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(), mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
+                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),
+                                                           mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
                     if (mapper != null) {
                         indexMetaDataBuilder.putMapping(new MappingMetaData(mapper.mappingSource()));
                     }

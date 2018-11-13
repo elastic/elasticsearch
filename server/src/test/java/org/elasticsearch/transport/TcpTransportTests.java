@@ -206,7 +206,9 @@ public class TcpTransportTests extends ESTestCase {
 
                 @Override
                 public NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-                    assertTrue(connectionProfile.getCompressionEnabled());
+                    if (compressed)  {
+                        assertTrue(connectionProfile.getCompressionEnabled());
+                    }
                     int numConnections = connectionProfile.getNumConnections();
                     ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);
                     for (int i = 0; i < numConnections; ++i) {

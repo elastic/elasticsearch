@@ -17,7 +17,7 @@ public class SysColumnsTests extends ESTestCase {
     public void testSysColumns() {
         List<List<?>> rows = new ArrayList<>();
         SysColumns.fillInRows("test", "index", TypesTests.loadMapping("mapping-multi-field-variation.json", true), null, rows, null);
-        assertEquals(16, rows.size());
+        assertEquals(18, rows.size());
         assertEquals(24, rows.get(0).size());
 
         List<?> row = rows.get(0);
@@ -45,13 +45,21 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(24, precision(row));
         assertEquals(8, bufferLength(row));
 
+        row = rows.get(6);
+        assertEquals("point", name(row));
+        assertEquals(Types.OTHER, sqlType(row));
+
         row = rows.get(7);
+        assertEquals("shape", name(row));
+        assertEquals(Types.OTHER, sqlType(row));
+
+        row = rows.get(9);
         assertEquals("some.dotted", name(row));
         assertEquals(Types.STRUCT, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(-1, bufferLength(row));
 
-        row = rows.get(15);
+        row = rows.get(17);
         assertEquals("some.ambiguous.normalized", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));

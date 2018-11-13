@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.TimeZone;
 
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class QueryTranslatorTests extends ESTestCase {
@@ -260,5 +261,57 @@ public class QueryTranslatorTests extends ESTestCase {
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10, null, 20, 30]}]"));
+    }
+
+    public void testTranslateStAsWktForPoints() {
+        LogicalPlan p = plan("SELECT ST_AsWKT(point), ST_AsWKT(shape) FROM test " +
+            "WHERE ST_AsWKT(point) = 'point (10 20)'");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        assertNull(translation.query);
+        AggFilter aggFilter = translation.aggFilter;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(" +
+                "InternalSqlScriptUtils.aswktPoint(InternalSqlScriptUtils.docValue(doc,params.v0))," +
+                "params.v1)" +
+                ")",
+            aggFilter.scriptTemplate().toString());
+        assertEquals("[{v=point}, {v=point (10 20)}]", aggFilter.scriptTemplate().params().toString());
+    }
+
+    public void testTranslateStAsWktForShapes() {
+        LogicalPlan p = plan("SELECT ST_AsWKT(point), ST_AsWKT(shape) FROM test " +
+            "WHERE ST_AsWKT(shape) = 'point (10 20)'");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        assertNull(translation.query);
+        AggFilter aggFilter = translation.aggFilter;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(" +
+                "InternalSqlScriptUtils.aswktShape(InternalSqlScriptUtils.docValue(doc,params.v0))," +
+                "params.v1)" +
+                ")",
+            aggFilter.scriptTemplate().toString());
+        assertEquals("[{v=shape}, {v=point (10 20)}]", aggFilter.scriptTemplate().params().toString());
+    }
+
+    public void testTranslateStWktToSql() {
+        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_WKTToSQL(keyword) = ST_WKTToSQL('point (10 20)')");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        assertNull(translation.query);
+        AggFilter aggFilter = translation.aggFilter;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(" +
+                "InternalSqlScriptUtils.eq(InternalSqlScriptUtils.wktToSql(" +
+                "InternalSqlScriptUtils.docValue(doc,params.v0)),params.v1))",
+            aggFilter.scriptTemplate().toString());
+        assertEquals("[{v=keyword}, {v=point (10.0 20.0)}]", aggFilter.scriptTemplate().params().toString());
     }
 }

@@ -363,7 +363,6 @@ public class GeoShapeFieldMapper extends FieldMapper {
             super(ref);
             this.tree = ref.tree;
             this.strategy = ref.strategy;
-//            this.strategyName = ref.strategyName;
             this.pointsOnly = ref.pointsOnly;
             this.treeLevels = ref.treeLevels;
             this.precisionInMeters = ref.precisionInMeters;
@@ -386,7 +385,6 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 defaultDistanceErrorPct == that.defaultDistanceErrorPct &&
                 Objects.equals(tree, that.tree) &&
                 Objects.equals(strategy, that.strategy) &&
-//                Objects.equals(strategyName, that.strategyName) &&
                 pointsOnly == that.pointsOnly &&
                 Objects.equals(distanceErrorPct, that.distanceErrorPct) &&
                 orientation == that.orientation;

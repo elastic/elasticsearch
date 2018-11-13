@@ -71,7 +71,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         GeoShapeQueryBuilder builder;
         clearShapeFields();
         if (indexedShape == false) {
-            shapeType = randomFrom(new ShapeType[] {ShapeType.LINESTRING, ShapeType.MULTILINESTRING, ShapeType.POLYGON});
+            shapeType = randomFrom(new ShapeType[] {ShapeType.POINT, ShapeType.LINESTRING, ShapeType.MULTILINESTRING, ShapeType.POLYGON});
             shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
             builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
         } else {
@@ -98,9 +98,9 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             SpatialStrategy strategy = randomFrom(SpatialStrategy.values());
             // ShapeType.MULTILINESTRING + SpatialStrategy.TERM can lead to large queries and will slow down tests, so
             // we try to avoid that combination
-            // Also, SpatialStrategy.VECTOR does not support POINT or MULTIPOINT Queries
+            // Also, SpatialStrategy.VECTOR does not support MULTIPOINT Queries
             while ((shapeType == ShapeType.MULTILINESTRING && strategy == SpatialStrategy.TERM)
-                || (strategy == SpatialStrategy.VECTOR && (shapeType == ShapeType.MULTIPOINT || shapeType == ShapeType.POINT))) {
+                || (strategy == SpatialStrategy.VECTOR && (shapeType == ShapeType.MULTIPOINT))) {
                 strategy = randomFrom(SpatialStrategy.values());
             }
             builder.strategy(strategy);
@@ -116,7 +116,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             } else if (strategy != SpatialStrategy.TERM) {
                 builder.relation(randomFrom(ShapeRelation.values()));
             }
-        } else if (shapeType == ShapeType.MULTIPOINT || shapeType == ShapeType.POINT) {
+        } else if (shapeType == ShapeType.MULTIPOINT) {
             builder.strategy(randomFrom(new SpatialStrategy[] {SpatialStrategy.TERM, SpatialStrategy.RECURSIVE}));
         }
 

@@ -196,6 +196,7 @@ SKEWNESS        |AGGREGATE
 STDDEV_POP      |AGGREGATE      
 SUM_OF_SQUARES  |AGGREGATE      
 VAR_POP         |AGGREGATE      
+COALESCE        |CONDITIONAL
 DAY             |SCALAR         
 DAYNAME         |SCALAR         
 DAYOFMONTH      |SCALAR         

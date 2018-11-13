@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.transport.netty4;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -25,6 +26,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     public SecurityNetty4ServerTransport(
             final Settings settings,
+            final Version version,
             final ThreadPool threadPool,
             final NetworkService networkService,
             final BigArrays bigArrays,
@@ -32,7 +34,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
             final CircuitBreakerService circuitBreakerService,
             @Nullable final IPFilter authenticator,
             final SSLService sslService) {
-        super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService, sslService);
+        super(settings, version, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService, sslService);
         this.authenticator = authenticator;
     }
 

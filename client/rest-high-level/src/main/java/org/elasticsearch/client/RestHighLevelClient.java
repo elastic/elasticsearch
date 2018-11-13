@@ -60,6 +60,7 @@ import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
+import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
@@ -228,6 +229,7 @@ public class RestHighLevelClient implements Closeable {
     private final SecurityClient securityClient = new SecurityClient(this);
     private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
     private final RollupClient rollupClient = new RollupClient(this);
+    private final CcrClient ccrClient = new CcrClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -319,6 +321,20 @@ public class RestHighLevelClient implements Closeable {
      */
     public RollupClient rollup() {
         return rollupClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed CCR APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-api.html">
+     * CCR APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making CCR API calls
+     */
+    public final CcrClient ccr() {
+        return ccrClient;
     }
 
     /**
@@ -458,6 +474,20 @@ public class RestHighLevelClient implements Closeable {
     public final BulkByScrollResponse reindex(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
             reindexRequest, RequestConverters::reindex, options, BulkByScrollResponse::fromXContent, emptySet()
+        );
+    }
+
+    /**
+     * Submits a reindex task.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
+     * @param reindexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the submission response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final TaskSubmissionResponse submitReindexTask(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            reindexRequest, RequestConverters::submitReindex, options, TaskSubmissionResponse::fromXContent, emptySet()
         );
     }
 

@@ -6,6 +6,8 @@
 <titleabbrev>Get Follower Stats</titleabbrev>
 ++++
 
+beta[]
+
 Get {ccr} stats.
 
 ==== Description

@@ -36,6 +36,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +46,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
@@ -397,6 +399,26 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertEquals("illegal_argument_exception", stepInfo.get("type"));
         });
 
+    }
+
+    public void testInvalidPolicyNames() throws UnsupportedEncodingException {
+        ResponseException ex;
+
+        policy = randomAlphaOfLengthBetween(0,10) + "," + randomAlphaOfLengthBetween(0,10);
+        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
+        assertThat(ex.getCause().getMessage(), containsString("invalid policy name"));
+        
+        policy = randomAlphaOfLengthBetween(0,10) + "%20" + randomAlphaOfLengthBetween(0,10);
+        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
+        assertThat(ex.getCause().getMessage(), containsString("invalid policy name"));
+
+        policy = "_" + randomAlphaOfLengthBetween(1, 20);
+        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
+        assertThat(ex.getMessage(), containsString("invalid policy name"));
+
+        policy = randomAlphaOfLengthBetween(256, 1000);
+        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
+        assertThat(ex.getMessage(), containsString("invalid policy name"));
     }
 
     private void createFullPolicy(TimeValue hotTime) throws IOException {

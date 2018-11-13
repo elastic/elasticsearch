@@ -1894,7 +1894,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::get-model-snapshots-snapshot-id
 
             // Set snapshot id to null as it is incompatible with other args
-            request.setSnapshotId(null); // <1>
+            request.setSnapshotId(null);
 
             // tag::get-model-snapshots-desc
             request.setDesc(true); // <1>

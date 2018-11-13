@@ -72,5 +72,5 @@ The returned +{response}+ contains the requested snapshots:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The count of categories that were matched
-<2> The categories retrieved
+<1> The count of snapshots that were matched
+<2> The snapshots retrieved

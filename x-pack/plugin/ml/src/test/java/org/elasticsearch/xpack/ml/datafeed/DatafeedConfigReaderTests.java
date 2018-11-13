@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;

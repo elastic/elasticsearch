@@ -48,6 +48,8 @@ import org.elasticsearch.client.security.ExpressionRoleMapping;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.HasPrivilegesRequest;
+import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -60,7 +62,9 @@ import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleM
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
+import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
@@ -76,6 +80,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
@@ -428,6 +433,67 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::authenticate-execute-async
             client.security().authenticateAsync(RequestOptions.DEFAULT, listener); // <1>
             // end::authenticate-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testHasPrivileges() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::has-privileges-request
+            HasPrivilegesRequest request = new HasPrivilegesRequest(
+                Sets.newHashSet("monitor", "manage"),
+                Sets.newHashSet(
+                    IndicesPrivileges.builder().indices("logstash-2018-10-05").privileges("read", "write").build(),
+                    IndicesPrivileges.builder().indices("logstash-2018-*").privileges("read").build()
+                ),
+                null
+            );
+            //end::has-privileges-request
+
+            //tag::has-privileges-execute
+            HasPrivilegesResponse response = client.security().hasPrivileges(request, RequestOptions.DEFAULT);
+            //end::has-privileges-execute
+
+            //tag::has-privileges-response
+            boolean hasMonitor = response.hasClusterPrivilege("monitor"); // <1>
+            boolean hasWrite = response.hasIndexPrivilege("logstash-2018-10-05", "write"); // <2>
+            boolean hasRead = response.hasIndexPrivilege("logstash-2018-*", "read"); // <3>
+            //end::has-privileges-response
+
+            assertThat(response.getUsername(), is("test_user"));
+            assertThat(response.hasAllRequested(), is(true));
+            assertThat(hasMonitor, is(true));
+            assertThat(hasWrite, is(true));
+            assertThat(hasRead, is(true));
+            assertThat(response.getApplicationPrivileges().entrySet(), emptyIterable());
+        }
+
+        {
+            HasPrivilegesRequest request = new HasPrivilegesRequest(Collections.singleton("monitor"),null,null);
+
+            // tag::has-privileges-execute-listener
+            ActionListener<HasPrivilegesResponse> listener = new ActionListener<HasPrivilegesResponse>() {
+                @Override
+                public void onResponse(HasPrivilegesResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::has-privileges-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::has-privileges-execute-async
+            client.security().hasPrivilegesAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::has-privileges-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

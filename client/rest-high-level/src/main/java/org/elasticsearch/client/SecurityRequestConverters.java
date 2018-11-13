@@ -28,6 +28,7 @@ import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
@@ -110,6 +111,12 @@ final class SecurityRequestConverters {
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(setUserEnabledRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request hasPrivileges(HasPrivilegesRequest hasPrivilegesRequest) throws IOException {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/security/user/_has_privileges");
+        request.setEntity(createEntity(hasPrivilegesRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

@@ -143,7 +143,7 @@ remote cluster.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[skip:awaits fixing]
 // TEST[s/127.0.0.1:9300/$body.leader.seeds.0/]
 // TEST[s/"connected" : true/"connected" : $body.leader.connected/]
 // TEST[s/"num_nodes_connected" : 1/"num_nodes_connected" : $body.leader.num_nodes_connected/]

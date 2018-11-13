@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ShrinkStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import org.junit.Before;
@@ -176,6 +177,41 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(originalIndex)));
         // asserts that the delete phase completed for the managed shrunken index
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
+    }
+
+    public void testRetryFailedShrinkAction() throws Exception {
+        int numShards = 6;
+        int divisor = randomFrom(2, 3, 6);
+        int expectedFinalShards = numShards / divisor;
+        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        createNewSingletonPolicy("warm", new ShrinkAction(numShards + randomIntBetween(1, numShards)));
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            String failedStep = getFailedStepForIndex(index);
+            assertThat(failedStep, equalTo(ShrinkStep.NAME));
+        });
+
+        // update policy to be correct
+        createNewSingletonPolicy("warm", new ShrinkAction(expectedFinalShards));
+        updatePolicy(index, policy);
+
+        // retry step
+        Request retryRequest = new Request("POST", index + "/_ilm/retry");
+        assertOK(client().performRequest(retryRequest));
+
+        // assert corrected policy is picked up and index is shrunken
+        assertBusy(() -> {
+            logger.error(explainIndex(index));
+            assertTrue(indexExists(shrunkenIndex));
+            assertTrue(aliasExists(shrunkenIndex, index));
+            Map<String, Object> settings = getOnlyIndexSettings(shrunkenIndex);
+            assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
+        });
+        expectThrows(ResponseException.class, this::indexDocument);
     }
 
     public void testRolloverAction() throws Exception {

@@ -49,9 +49,11 @@ final class MigrationRequestConverters {
     }
 
     private static Request prepareMigrateRequest(IndexUpgradeRequest indexUpgradeRequest, boolean waitForCompletion) {
-        RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack", "migration", "upgrade", indexUpgradeRequest.index());
-        String endpoint = endpointBuilder.build();
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack", "migration", "upgrade")
+            .addPathPart(indexUpgradeRequest.index())
+            .build();
+
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params(request)

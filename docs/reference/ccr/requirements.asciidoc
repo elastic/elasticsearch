@@ -27,7 +27,7 @@ existing data that you want to replicate from another cluster, you must
 enabled.
 
 [float]
-[[ccr-ov-soft-deletes]]
+[[ccr-overview-soft-deletes]]
 ==== Soft delete settings
 
 `index.soft_deletes.enabled`::

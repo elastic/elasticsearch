@@ -19,7 +19,7 @@ This guide provides an overview of {ccr}:
 
 * <<ccr-overview>>
 * <<ccr-requirements>>
-* <<ccr-ov-auto-follow>>
+* <<ccr-overview-auto-follow>>
 * <<ccr-getting-started>>
 
 --

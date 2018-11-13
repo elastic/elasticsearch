@@ -177,13 +177,12 @@ public abstract class MetaDataStateFormat<T> {
     }
 
     /**
-     * Writes the given state to the given directories and performs cleanup.
+     * Writes the given state to the given directories and performs cleanup of old state files if the write succeeds or
+     * newly created state file if write fails.
      * See also {@link #write(Object, Path...)} and {@link #cleanupOldFiles(long, Path[])}.
      */
     public final long writeAndCleanup(final T state, final Path... locations) throws WriteStateException {
-        long currentGeneration = write(state, locations);
-        cleanupOldFiles(currentGeneration,locations);
-        return currentGeneration;
+        return write(state, true, locations);
     }
 
     /**
@@ -207,6 +206,10 @@ public abstract class MetaDataStateFormat<T> {
      * @return generation of newly written state.
      */
     public final long write(final T state, final Path... locations) throws WriteStateException {
+        return write(state, false, locations);
+    }
+
+    private final long write(final T state, boolean cleanup, final Path... locations) throws WriteStateException {
         if (locations == null) {
             throw new IllegalArgumentException("Locations must not be null");
         }
@@ -242,13 +245,19 @@ public abstract class MetaDataStateFormat<T> {
             performRenames(tmpFileName, fileName, directories);
             performStateDirectoriesFsync(directories);
         } catch (WriteStateException e) {
-            cleanupOldFiles(oldGenerationId, locations);
+            if (cleanup) {
+                cleanupOldFiles(oldGenerationId, locations);
+            }
             throw e;
         } finally {
             for (Tuple<Path, Directory> pathAndDirectory : directories) {
                 deleteFileIgnoreExceptions(pathAndDirectory.v1(), pathAndDirectory.v2(), tmpFileName);
                 IOUtils.closeWhileHandlingException(pathAndDirectory.v2());
             }
+        }
+
+        if (cleanup) {
+            cleanupOldFiles(newGenerationId, locations);
         }
 
         return newGenerationId;

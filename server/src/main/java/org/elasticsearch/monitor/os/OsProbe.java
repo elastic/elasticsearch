@@ -37,6 +37,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class OsProbe {
@@ -547,16 +549,13 @@ public class OsProbe {
             final Optional<String> maybePrettyNameLine =
                     prettyNameLines.size() == 1 ? Optional.of(prettyNameLines.get(0)) : Optional.empty();
             if (maybePrettyNameLine.isPresent()) {
-                final String prettyNameLine = maybePrettyNameLine.get();
-                final String[] prettyNameFields = prettyNameLine.split("=");
-                assert prettyNameFields.length == 2 : prettyNameLine;
-                if (prettyNameFields[1].length() >= 3 &&
-                        (prettyNameFields[1].startsWith("\"") && prettyNameFields[1].endsWith("\"")) ||
-                        (prettyNameFields[1].startsWith("'") && prettyNameFields[1].endsWith("'"))) {
-                    return prettyNameFields[1].substring(1, prettyNameFields[1].length() - 1);
-                } else {
-                    return prettyNameFields[1];
-                }
+                // we trim since some OS contain trailing space, for example, Oracle Linux Server 6.9 has a trailing space after the quote
+                final String trimmedPrettyNameLine = maybePrettyNameLine.get().trim();
+                final Matcher matcher = Pattern.compile("PRETTY_NAME=(\"?|'?)?([^\"']+)\\1").matcher(trimmedPrettyNameLine);
+                final boolean matches = matcher.matches();
+                assert matches : trimmedPrettyNameLine;
+                assert matcher.groupCount() == 2 : trimmedPrettyNameLine;
+                return matcher.group(2);
             } else {
                 return Constants.OS_NAME;
             }

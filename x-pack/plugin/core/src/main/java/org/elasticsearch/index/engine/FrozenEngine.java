@@ -31,7 +31,11 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -59,6 +63,8 @@ import java.util.function.Function;
  * stats in order to obtain the number of reopens.
  */
 public final class FrozenEngine extends ReadOnlyEngine {
+    public static final Setting<Boolean> INDEX_FROZEN = Setting.boolSetting("index.frozen", false, Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex);
     private volatile DirectoryReader lastOpenedReader;
 
     public FrozenEngine(EngineConfig config) {
@@ -230,6 +236,49 @@ public final class FrozenEngine extends ReadOnlyEngine {
             reader = ((FilterDirectoryReader) reader).getDelegate();
         }
         return null;
+    }
+
+    /*
+     * We register this listener for a frozen index that will
+     *  1. reset the reader every time the search context is validated which happens when the context is looked up ie. on a fetch phase
+     *  etc.
+     *  2. register a releasable resource that is cleaned after each phase that releases the reader for this searcher
+     */
+    public static class ReacquireEngineSearcherListener implements SearchOperationListener {
+
+        @Override
+        public void validateSearchContext(SearchContext context, TransportRequest transportRequest) {
+            Searcher engineSearcher = context.searcher().getEngineSearcher();
+            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(engineSearcher.getDirectoryReader());
+            if (lazyDirectoryReader != null) {
+                try {
+                    lazyDirectoryReader.reset();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                // also register a release resource in this case if we have multiple roundtrips like in DFS
+                registerRelease(context, lazyDirectoryReader);
+            }
+        }
+
+        private void registerRelease(SearchContext context, LazyDirectoryReader lazyDirectoryReader) {
+            context.addReleasable(() -> {
+                try {
+                    lazyDirectoryReader.release();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }, SearchContext.Lifetime.PHASE);
+        }
+
+        @Override
+        public void onNewContext(SearchContext context) {
+            Searcher engineSearcher = context.searcher().getEngineSearcher();
+            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(engineSearcher.getDirectoryReader());
+            if (lazyDirectoryReader != null) {
+                registerRelease(context, lazyDirectoryReader);
+            }
+        }
     }
 
     /**

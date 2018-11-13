@@ -38,7 +38,7 @@ public class GetFiltersRequest extends ActionRequest implements ToXContentObject
         new ObjectParser<>("get_filters_request", GetFiltersRequest::new);
 
     static {
-        PARSER.declareString(GetFiltersRequest::setId, MlFilter.ID);
+        PARSER.declareString(GetFiltersRequest::setFilterId, MlFilter.ID);
         PARSER.declareInt(GetFiltersRequest::setFrom, PageParams.FROM);
         PARSER.declareInt(GetFiltersRequest::setSize, PageParams.SIZE);
     }
@@ -63,7 +63,7 @@ public class GetFiltersRequest extends ActionRequest implements ToXContentObject
      * Sets the filter id
      * @param filterId the filter id
      */
-    public void setId(String filterId) {
+    public void setFilterId(String filterId) {
         this.filterId = filterId;
     }
 

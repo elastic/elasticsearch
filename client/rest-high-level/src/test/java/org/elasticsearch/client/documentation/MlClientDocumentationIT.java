@@ -2080,7 +2080,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::get-filters-request
 
             // tag::get-filters-filter-id
-            request.setId("get-filter-doc-test"); // <1>
+            request.setFilterId("get-filter-doc-test"); // <1>
             // end::get-filters-filter-id
 
             // tag::get-filters-page-params
@@ -2103,7 +2103,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             GetFiltersRequest request = new GetFiltersRequest();
-            request.setId(filterId);
+            request.setFilterId(filterId);
 
             // tag::get-filters-execute-listener
             ActionListener<GetFiltersResponse> listener = new ActionListener<GetFiltersResponse>() {

@@ -29,7 +29,7 @@ public class GetFiltersRequestTests extends AbstractXContentTestCase<GetFiltersR
     protected GetFiltersRequest createTestInstance() {
         GetFiltersRequest request = new GetFiltersRequest();
         if (randomBoolean()) {
-            request.setId(randomAlphaOfLength(10));
+            request.setFilterId(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             request.setSize(randomInt(100));

@@ -45,7 +45,7 @@ import java.util.function.Function;
 
 public class DeterministicTaskQueue {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(DeterministicTaskQueue.class);
 
     private final Settings settings;
     private final List<Runnable> runnableTasks = new ArrayList<>();

@@ -77,14 +77,14 @@ public class AuthenticateResponseTests extends ESTestCase {
         final User user = response.getUser();
         final boolean enabled = response.enabled();
         builder.startObject();
-        builder.field(AuthenticateResponse.USERNAME.getPreferredName(), user.username());
-        builder.field(AuthenticateResponse.ROLES.getPreferredName(), user.roles());
-        builder.field(AuthenticateResponse.METADATA.getPreferredName(), user.metadata());
-        if (user.fullName() != null) {
-            builder.field(AuthenticateResponse.FULL_NAME.getPreferredName(), user.fullName());
+        builder.field(AuthenticateResponse.USERNAME.getPreferredName(), user.getUsername());
+        builder.field(AuthenticateResponse.ROLES.getPreferredName(), user.getRoles());
+        builder.field(AuthenticateResponse.METADATA.getPreferredName(), user.getMetadata());
+        if (user.getFullName() != null) {
+            builder.field(AuthenticateResponse.FULL_NAME.getPreferredName(), user.getFullName());
         }
-        if (user.email() != null) {
-            builder.field(AuthenticateResponse.EMAIL.getPreferredName(), user.email());
+        if (user.getEmail() != null) {
+            builder.field(AuthenticateResponse.EMAIL.getPreferredName(), user.getEmail());
         }
         builder.field(AuthenticateResponse.ENABLED.getPreferredName(), enabled);
         builder.endObject();
@@ -92,8 +92,8 @@ public class AuthenticateResponseTests extends ESTestCase {
 
     private AuthenticateResponse copy(AuthenticateResponse response) {
         final User originalUser = response.getUser();
-        final User copyUser = new User(originalUser.username(), originalUser.roles(), originalUser.metadata(), originalUser.fullName(),
-                originalUser.email());
+        final User copyUser = new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
+                originalUser.getFullName(), originalUser.getEmail());
         return new AuthenticateResponse(copyUser, response.enabled());
     }
 
@@ -101,27 +101,27 @@ public class AuthenticateResponseTests extends ESTestCase {
         final User originalUser = response.getUser();
         switch (randomIntBetween(1, 6)) {
             case 1:
-            return new AuthenticateResponse(new User(originalUser.username() + "wrong", originalUser.roles(), originalUser.metadata(),
-                    originalUser.fullName(), originalUser.email()), response.enabled());
+            return new AuthenticateResponse(new User(originalUser.getUsername() + "wrong", originalUser.getRoles(),
+                    originalUser.getMetadata(), originalUser.getFullName(), originalUser.getEmail()), response.enabled());
             case 2:
-                final Collection<String> wrongRoles = new ArrayList<>(originalUser.roles());
+                final Collection<String> wrongRoles = new ArrayList<>(originalUser.getRoles());
                 wrongRoles.add(randomAlphaOfLengthBetween(1, 4));
-                return new AuthenticateResponse(new User(originalUser.username(), wrongRoles, originalUser.metadata(),
-                        originalUser.fullName(), originalUser.email()), response.enabled());
+                return new AuthenticateResponse(new User(originalUser.getUsername(), wrongRoles, originalUser.getMetadata(),
+                        originalUser.getFullName(), originalUser.getEmail()), response.enabled());
             case 3:
-                final Map<String, Object> wrongMetadata = new HashMap<>(originalUser.metadata());
+                final Map<String, Object> wrongMetadata = new HashMap<>(originalUser.getMetadata());
                 wrongMetadata.put("wrong_string", randomAlphaOfLengthBetween(0, 4));
-                return new AuthenticateResponse(new User(originalUser.username(), originalUser.roles(), wrongMetadata,
-                        originalUser.fullName(), originalUser.email()), response.enabled());
+                return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), wrongMetadata,
+                        originalUser.getFullName(), originalUser.getEmail()), response.enabled());
             case 4:
-                return new AuthenticateResponse(new User(originalUser.username(), originalUser.roles(), originalUser.metadata(),
-                        originalUser.fullName() + "wrong", originalUser.email()), response.enabled());
+                return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
+                        originalUser.getFullName() + "wrong", originalUser.getEmail()), response.enabled());
             case 5:
-                return new AuthenticateResponse(new User(originalUser.username(), originalUser.roles(), originalUser.metadata(),
-                        originalUser.fullName(), originalUser.email() + "wrong"), response.enabled());
+                return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
+                        originalUser.getFullName(), originalUser.getEmail() + "wrong"), response.enabled());
             case 6:
-                return new AuthenticateResponse(new User(originalUser.username(), originalUser.roles(), originalUser.metadata(),
-                        originalUser.fullName(), originalUser.email()), !response.enabled());
+                return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
+                        originalUser.getFullName(), originalUser.getEmail()), !response.enabled());
         }
         throw new IllegalStateException("Bad random number");
     }

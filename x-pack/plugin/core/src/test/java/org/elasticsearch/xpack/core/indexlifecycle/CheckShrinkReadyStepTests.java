@@ -221,7 +221,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             new ClusterStateWaitStep.Result(false, new CheckShrinkReadyStep.Info("node1", 2, 1)));
     }
 
-    public void testExecuteAllocateUnassigned() throws Exception {
+    public void testExecuteAllocateReplicaUnassigned() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
@@ -239,12 +239,12 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), null, null, true, ShardRoutingState.UNASSIGNED,
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), null, null, false, ShardRoutingState.UNASSIGNED,
                 new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "the shard is intentionally unassigned")));
 
         CheckShrinkReadyStep step = createRandomInstance();
-        assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-            new ClusterStateWaitStep.Result(false, new CheckShrinkReadyStep.Info("", 2, -1)));
+        assertAllocateStatus(index, 1, 1, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
+            new ClusterStateWaitStep.Result(true, null));
     }
 
     /**
@@ -267,7 +267,9 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
     public void testExecuteReplicasNotAllocatedOnSingleNode() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> requires = Collections.singletonMap("_id", "node1");
-        Settings.Builder existingSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
+        Settings.Builder existingSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
@@ -278,12 +280,40 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node1", false, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node2", true, ShardRoutingState.STARTED))
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), null, null, false, ShardRoutingState.UNASSIGNED,
                 new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, "no attempt")));
 
         CheckShrinkReadyStep step = createRandomInstance();
-        assertAllocateStatus(index, 1, 1, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-            new ClusterStateWaitStep.Result(false, new CheckShrinkReadyStep.Info("", 1, -1)));
+        assertAllocateStatus(index, 2, 1, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
+            new ClusterStateWaitStep.Result(true, null));
+    }
+
+    public void testExecuteReplicasButCopiesNotPresent() {
+        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        Map<String, String> requires = Collections.singletonMap("_id", "node1");
+        Settings.Builder existingSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
+            .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
+        Settings.Builder expectedSettings = Settings.builder();
+        Settings.Builder node1Settings = Settings.builder();
+        Settings.Builder node2Settings = Settings.builder();
+        requires.forEach((k, v) -> {
+            expectedSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
+        });
+
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node2", false, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node3", true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), null, null, false, ShardRoutingState.UNASSIGNED,
+                new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, "no attempt")));
+
+        CheckShrinkReadyStep step = createRandomInstance();
+        assertAllocateStatus(index, 2, 1, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
+            new ClusterStateWaitStep.Result(false, new CheckShrinkReadyStep.Info("node1", 2, 1)));
     }
 
     public void testExecuteIndexMissing() throws Exception {

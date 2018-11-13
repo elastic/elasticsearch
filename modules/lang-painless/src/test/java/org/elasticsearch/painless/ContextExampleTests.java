@@ -1,3 +1,4 @@
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -19,8 +20,10 @@
 
 package org.elasticsearch.painless;
 
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.singletonMap;
 
 /**
  * These tests run the Painless scripts used in the context docs against
@@ -313,6 +316,51 @@ public class ContextExampleTests extends ScriptTestCase {
     */
 
 
+    // Use script_fields API to add two extra fields to the hits
+
+    /*
+    curl -X GET localhost:9200/seats/_search
+    {
+        "query" : {
+            "match_all": {}
+        },
+        "script_fields" : {
+            "day-of-week" : {
+                "script" : {
+                    "source": "doc['datetime'].value.getDayOfWeek()"
+                }
+            },
+            "number-of-actors" : {
+                "script" : {
+                    "source": "params['_source']['actors'].length"
+                }
+            }
+        }
+    }
+    */
+
+
+    // Testing only params, as I am not sure how to test Script Doc Values in painless
+    public void testScriptFieldsScript() {
+        Map<String, Object> hit = new HashMap<>();
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("number-of-actors", 4);
+        hit.put("fields", fields);
+
+        Map<String, Object> source = new HashMap<>();
+        String[] actors =  {"James Holland", "Krissy Smith", "Joe Muir", "Ryan Earns"};
+        source.put("actors", actors);
+
+        assertEquals(hit, exec(
+            "Map fields = new HashMap();" +
+                "fields[\"number-of-actors\"] = params['_source']['actors'].length;" +
+                "Map rtn = new HashMap();" +
+                "rtn[\"fields\"] = fields;" +
+                "return rtn;",
+            singletonMap("_source", source), true)
+        );
+    }
+
     // Use script query request to filter documents
     /*
     GET localhost:9200/evening/_search
@@ -334,8 +382,7 @@ public class ContextExampleTests extends ScriptTestCase {
     }
     */
 
-
-    public void testScriptFieldsScript() {
+    public void testFilterScript() {
         Map<String, Object> source = new HashMap<>();
         source.put("sold", false);
         source.put("cost", 15);
@@ -349,5 +396,5 @@ public class ContextExampleTests extends ScriptTestCase {
             params, true);
         assertTrue(result);
     }
-
 }
+

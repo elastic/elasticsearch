@@ -514,7 +514,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         type = in.readOptionalString();
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readOptionalString(); // _parent
         }
         if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
@@ -541,7 +541,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(type);
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalString(null); // _parent
         }
         if (out.getVersion().before(Version.V_6_0_0_alpha1)) {

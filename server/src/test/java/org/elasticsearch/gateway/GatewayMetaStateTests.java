@@ -389,7 +389,8 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
             possibleMetaData.add(metaData);
 
             for (int i = 0; i < randomIntBetween(1, 5); i++) {
-                GatewayMetaState.AtomicClusterStateWriter writer = new GatewayMetaState.AtomicClusterStateWriter(metaStateService, manifest);
+                GatewayMetaState.AtomicClusterStateWriter writer =
+                        new GatewayMetaState.AtomicClusterStateWriter(metaStateService, manifest);
                 metaData = randomMetaDataForTx();
                 Map<Index, Long> indexGenerations = new HashMap<>();
 

@@ -209,7 +209,7 @@ public abstract class MetaDataStateFormat<T> {
         return write(state, false, locations);
     }
 
-    private final long write(final T state, boolean cleanup, final Path... locations) throws WriteStateException {
+    private long write(final T state, boolean cleanup, final Path... locations) throws WriteStateException {
         if (locations == null) {
             throw new IllegalArgumentException("Locations must not be null");
         }

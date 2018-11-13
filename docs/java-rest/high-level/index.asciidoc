@@ -1,4 +1,6 @@
-[[java-rest-high]]
+:mainid: java-rest-high
+
+[id="{mainid}"]
 = Java High Level REST Client
 
 [partintro]
@@ -31,3 +33,4 @@ include::migration.asciidoc[]
 include::../license.asciidoc[]
 
 :doc-tests!:
+:mainid!:

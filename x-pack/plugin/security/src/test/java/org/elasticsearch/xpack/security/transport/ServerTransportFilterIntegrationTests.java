@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -31,7 +32,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.BeforeClass;
@@ -138,8 +138,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
 
         // test that starting up a node works
         Settings.Builder nodeSettings = Settings.builder()
-                .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.file.order", 0)
+                .put("xpack.security.authc.realms.file.file.order", 0)
                 .put("node.name", "my-test-node")
                 .put(SecurityField.USER_SETTING.getKey(), "test_user:" + SecuritySettingsSourceField.TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
@@ -166,7 +165,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             node.start();
             TransportService instance = node.injector().getInstance(TransportService.class);
             try (Transport.Connection connection = instance.openConnection(new DiscoveryNode("theNode", transportAddress, Version.CURRENT),
-                    ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, null, null))) {
+                    ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG))) {
                 // handshake should be ok
                 final DiscoveryNode handshake = instance.handshake(connection, 10000);
                 assertEquals(transport.boundAddress().publishAddress(), handshake.getAddress());
@@ -176,8 +175,12 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                         TransportRequestOptions.EMPTY,
                         new TransportResponseHandler<TransportResponse>() {
                     @Override
-                    public TransportResponse newInstance() {
-                        fail("never get that far");
+                    public TransportResponse read(StreamInput in) {
+                        try {
+                            fail("never get that far");
+                        } finally {
+                            latch.countDown();
+                        }
                         return null;
                     }
 

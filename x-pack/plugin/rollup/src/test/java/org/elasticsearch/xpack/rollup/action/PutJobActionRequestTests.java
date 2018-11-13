@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.rollup.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction.Request;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
+import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction.Request;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -39,8 +39,7 @@ public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected Request doParseInstance(final XContentParser parser) throws IOException {
+    protected Request doParseInstance(XContentParser parser) throws IOException {
         return Request.fromXContent(parser, jobId);
     }
-
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
 import org.elasticsearch.xpack.ml.filestructurefinder.TimestampFormatFinder.TimestampMatch;
 
@@ -15,6 +16,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,6 +38,8 @@ public final class FileStructureUtils {
     private static final Grok IP_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{IP}$");
     private static final int KEYWORD_MAX_LEN = 256;
     private static final int KEYWORD_MAX_SPACES = 5;
+
+    private static final String BEAT_TIMEZONE_FIELD = "beat.timezone";
 
     private FileStructureUtils() {
     }
@@ -305,5 +309,54 @@ public final class FileStructureUtils {
     static boolean isMoreLikelyTextThanKeyword(String str) {
         int length = str.length();
         return length > KEYWORD_MAX_LEN || length - str.replaceAll("\\s", "").length() > KEYWORD_MAX_SPACES;
+    }
+
+    /**
+     * Create an ingest pipeline definition appropriate for the file structure.
+     * @param grokPattern The Grok pattern used for parsing semi-structured text formats.  <code>null</code> for
+     *                    fully structured formats.
+     * @param timestampField The input field containing the timestamp to be parsed into <code>@timestamp</code>.
+     *                       <code>null</code> if there is no timestamp.
+     * @param timestampFormats Timestamp formats to be used for parsing {@code timestampField}.
+     *                         May be <code>null</code> if {@code timestampField} is also <code>null</code>.
+     * @param needClientTimezone Is the timezone of the client supplying data to ingest required to uniquely parse the timestamp?
+     * @return The ingest pipeline definition, or <code>null</code> if none is required.
+     */
+    public static Map<String, Object> makeIngestPipelineDefinition(String grokPattern, String timestampField, List<String> timestampFormats,
+                                                                   boolean needClientTimezone) {
+
+        if (grokPattern == null && timestampField == null) {
+            return null;
+        }
+
+        Map<String, Object> pipeline = new LinkedHashMap<>();
+        pipeline.put(Pipeline.DESCRIPTION_KEY, "Ingest pipeline created by file structure finder");
+
+        List<Map<String, Object>> processors = new ArrayList<>();
+
+        if (grokPattern != null) {
+            Map<String, Object> grokProcessorSettings = new LinkedHashMap<>();
+            grokProcessorSettings.put("field", "message");
+            grokProcessorSettings.put("patterns", Collections.singletonList(grokPattern));
+            processors.add(Collections.singletonMap("grok", grokProcessorSettings));
+        }
+
+        if (timestampField != null) {
+            Map<String, Object> dateProcessorSettings = new LinkedHashMap<>();
+            dateProcessorSettings.put("field", timestampField);
+            if (needClientTimezone) {
+                dateProcessorSettings.put("timezone", "{{ " + BEAT_TIMEZONE_FIELD + " }}");
+            }
+            dateProcessorSettings.put("formats", timestampFormats);
+            processors.add(Collections.singletonMap("date", dateProcessorSettings));
+        }
+
+        // This removes the interim timestamp field used for semi-structured text formats
+        if (grokPattern != null && timestampField != null) {
+            processors.add(Collections.singletonMap("remove", Collections.singletonMap("field", timestampField)));
+        }
+
+        pipeline.put(Pipeline.PROCESSORS_KEY, processors);
+        return pipeline;
     }
 }

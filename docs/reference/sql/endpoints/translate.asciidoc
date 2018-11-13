@@ -43,7 +43,9 @@ Which returns:
     "sort" : [
         {
             "page_count" : {
-                "order" : "desc"
+                "order" : "desc",
+                "missing" : "_first",
+                "unmapped_type" : "short"
             }
         }
     ]

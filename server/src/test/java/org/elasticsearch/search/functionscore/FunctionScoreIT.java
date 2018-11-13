@@ -28,7 +28,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -73,7 +72,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
             scripts.put("1", vars -> 1.0d);
-            scripts.put("get score value", vars -> ((ScoreAccessor) vars.get("_score")).doubleValue());
+            scripts.put("get score value", vars -> ((Number) vars.get("_score")).doubleValue());
             scripts.put("return (doc['num'].value)", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Longs num = (ScriptDocValues.Longs) doc.get("num");

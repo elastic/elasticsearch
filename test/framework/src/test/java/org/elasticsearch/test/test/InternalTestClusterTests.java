@@ -99,7 +99,7 @@ public class InternalTestClusterTests extends ESTestCase {
 
     /**
      * a set of settings that are expected to have different values betweem clusters, even they have been initialized with the same
-     * base settins.
+     * base settings.
      */
     static final Set<String> clusterUniqueSettings = new HashSet<>();
 

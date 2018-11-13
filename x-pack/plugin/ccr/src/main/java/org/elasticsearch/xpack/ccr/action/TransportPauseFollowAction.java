@@ -7,99 +7,86 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.List;
+import java.util.stream.Collectors;
 
-public class TransportPauseFollowAction extends HandledTransportAction<PauseFollowAction.Request, AcknowledgedResponse> {
+public class TransportPauseFollowAction extends TransportMasterNodeAction<PauseFollowAction.Request, AcknowledgedResponse> {
 
-    private final Client client;
     private final PersistentTasksService persistentTasksService;
 
     @Inject
     public TransportPauseFollowAction(
-            final Settings settings,
             final TransportService transportService,
             final ActionFilters actionFilters,
-            final Client client,
+            final ClusterService clusterService,
+            final ThreadPool threadPool,
+            final IndexNameExpressionResolver indexNameExpressionResolver,
             final PersistentTasksService persistentTasksService) {
-        super(settings, PauseFollowAction.NAME, transportService, actionFilters, PauseFollowAction.Request::new);
-        this.client = client;
+        super(PauseFollowAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            PauseFollowAction.Request::new, indexNameExpressionResolver);
         this.persistentTasksService = persistentTasksService;
     }
 
     @Override
-    protected void doExecute(
-            final Task task,
-            final PauseFollowAction.Request request,
-            final ActionListener<AcknowledgedResponse> listener) {
+    protected String executor() {
+        return ThreadPool.Names.SAME;
+    }
 
-        client.admin().cluster().state(new ClusterStateRequest(), ActionListener.wrap(r -> {
-            IndexMetaData followIndexMetadata = r.getState().getMetaData().index(request.getFollowIndex());
-            if (followIndexMetadata == null) {
-                listener.onFailure(new IllegalArgumentException("follow index [" + request.getFollowIndex() + "] does not exist"));
-                return;
-            }
+    @Override
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
+    }
 
-            final int numShards = followIndexMetadata.getNumberOfShards();
-            final AtomicInteger counter = new AtomicInteger(numShards);
-            final AtomicReferenceArray<Object> responses = new AtomicReferenceArray<>(followIndexMetadata.getNumberOfShards());
-            for (int i = 0; i < numShards; i++) {
-                final int shardId = i;
-                String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
-                persistentTasksService.sendRemoveRequest(taskId,
-                        new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
-                            @Override
-                            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
-                                responses.set(shardId, task);
-                                finalizeResponse();
-                            }
+    @Override
+    protected void masterOperation(PauseFollowAction.Request request,
+                                   ClusterState state,
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+        PersistentTasksCustomMetaData persistentTasksMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        if (persistentTasksMetaData == null) {
+            listener.onFailure(new IllegalArgumentException("no shard follow tasks for [" + request.getFollowIndex() + "]"));
+            return;
+        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                responses.set(shardId, e);
-                                finalizeResponse();
-                            }
+        List<String> shardFollowTaskIds = persistentTasksMetaData.tasks().stream()
+            .filter(persistentTask -> ShardFollowTask.NAME.equals(persistentTask.getTaskName()))
+            .filter(persistentTask -> {
+                ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
+                return shardFollowTask.getFollowShardId().getIndexName().equals(request.getFollowIndex());
+            })
+            .map(PersistentTasksCustomMetaData.PersistentTask::getId)
+            .collect(Collectors.toList());
 
-                            void finalizeResponse() {
-                                Exception error = null;
-                                if (counter.decrementAndGet() == 0) {
-                                    for (int j = 0; j < responses.length(); j++) {
-                                        Object response = responses.get(j);
-                                        if (response instanceof Exception) {
-                                            if (error == null) {
-                                                error = (Exception) response;
-                                            } else {
-                                                error.addSuppressed((Throwable) response);
-                                            }
-                                        }
-                                    }
+        if (shardFollowTaskIds.isEmpty()) {
+            listener.onFailure(new IllegalArgumentException("no shard follow tasks for [" + request.getFollowIndex() + "]"));
+            return;
+        }
 
-                                    if (error == null) {
-                                        // include task ids?
-                                        listener.onResponse(new AcknowledgedResponse(true));
-                                    } else {
-                                        // TODO: cancel all started tasks
-                                        listener.onFailure(error);
-                                    }
-                                }
-                            }
-                        });
-            }
-        }, listener::onFailure));
+        int i = 0;
+        final ResponseHandler responseHandler = new ResponseHandler(shardFollowTaskIds.size(), listener);
+        for (String taskId : shardFollowTaskIds) {
+            final int taskSlot = i++;
+            persistentTasksService.sendRemoveRequest(taskId, responseHandler.getActionListener(taskSlot));
+        }
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(PauseFollowAction.Request request, ClusterState state) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowIndex());
     }
 
 }

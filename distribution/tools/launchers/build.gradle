@@ -16,10 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-
-
-import org.elasticsearch.gradle.precommit.ForbiddenApisCliTask
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 
 apply plugin: 'elasticsearch.build'
 
@@ -32,7 +29,7 @@ dependencies {
 
 archivesBaseName = 'elasticsearch-launchers'
 
-tasks.withType(ForbiddenApisCliTask) {
+tasks.withType(CheckForbiddenApis) {
     replaceSignatureFiles 'jdk-signatures'
 }
 

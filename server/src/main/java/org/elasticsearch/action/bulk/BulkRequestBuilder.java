@@ -41,6 +41,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse>
         implements WriteRequestBuilder<BulkRequestBuilder> {
 
+    public BulkRequestBuilder(ElasticsearchClient client, BulkAction action, @Nullable String globalIndex, @Nullable String globalType) {
+        super(client, action, new BulkRequest(globalIndex, globalType));
+    }
+
     public BulkRequestBuilder(ElasticsearchClient client, BulkAction action) {
         super(client, action, new BulkRequest());
     }
@@ -152,5 +156,15 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      */
     public int numberOfActions() {
         return request.numberOfActions();
+    }
+
+    public BulkRequestBuilder pipeline(String globalPipeline) {
+        request.pipeline(globalPipeline);
+        return this;
+    }
+
+    public BulkRequestBuilder routing(String globalRouting) {
+        request.routing(globalRouting);
+        return this;
     }
 }

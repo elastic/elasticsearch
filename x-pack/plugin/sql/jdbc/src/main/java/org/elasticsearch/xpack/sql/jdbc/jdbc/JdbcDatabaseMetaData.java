@@ -202,8 +202,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                 + "CHAR,CHAR_LENGTH,CHARACTER_LENGTH,CONCAT,"
                 + "INSERT,"
                 + "LCASE,LEFT,LENGTH,LOCATE,LTRIM,"
-                // waiting on https://github.com/elastic/elasticsearch/issues/33477
-                //+ "OCTET_LENGTH,"
+                + "OCTET_LENGTH,"
                 + "POSITION,"
                 + "REPEAT,REPLACE,RIGHT,RTRIM,"
                 + "SPACE,SUBSTRING,"

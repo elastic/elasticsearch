@@ -380,7 +380,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             List<Attribute> output = child.output();
             for (NamedExpression ne : projections) {
                 if (ne instanceof UnresolvedStar) {
-                    result.addAll(expandStar((UnresolvedStar) ne, output));
+                    List<NamedExpression> expanded = expandStar((UnresolvedStar) ne, output);
+                    // the field exists, but cannot be expanded (no sub-fields)
+                    if (expanded.isEmpty()) {
+                        result.add(ne);
+                    } else {
+                        result.addAll(expanded);
+                    }
                 } else if (ne instanceof UnresolvedAlias) {
                     UnresolvedAlias ua = (UnresolvedAlias) ne;
                     if (ua.child() instanceof UnresolvedStar) {
@@ -403,6 +409,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 // since this is an unresolved start we don't know whether it's a path or an actual qualifier
                 Attribute q = resolveAgainstList(us.qualifier(), output);
 
+                // the wildcard couldn't be expanded because the field doesn't exist at all
+                // so, add to the list of expanded attributes its qualifier (the field without the wildcard)
+                // the qualifier will be unresolved and later used in the error message presented to the user
+                if (q == null) {
+                    expanded.add(us.qualifier());
+                    return expanded;
+                }
                 // now use the resolved 'qualifier' to match
                 for (Attribute attr : output) {
                     // filter the attributes that match based on their path
@@ -487,7 +500,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (ordinal != null) {
                         changed = true;
                         if (ordinal > 0 && ordinal <= max) {
-                            newOrder.add(new Order(order.location(), orderBy.child().output().get(ordinal - 1), order.direction()));
+                            newOrder.add(new Order(order.location(), orderBy.child().output().get(ordinal - 1), order.direction(),
+                                    order.nullsPosition()));
                         }
                         else {
                             throw new AnalysisException(order, "Invalid %d specified in OrderBy (valid range is [1, %d])", ordinal, max);
@@ -771,9 +785,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         return uf;
                     }
 
-                    String normalizedName = functionRegistry.concreteFunctionName(name);
+                    String functionName = functionRegistry.resolveAlias(name);
 
-                    List<Function> list = getList(seen, normalizedName);
+                    List<Function> list = getList(seen, functionName);
                     // first try to resolve from seen functions
                     if (!list.isEmpty()) {
                         for (Function seenFunction : list) {
@@ -784,11 +798,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
 
                     // not seen before, use the registry
-                    if (!functionRegistry.functionExists(name)) {
-                        return uf.missing(normalizedName, functionRegistry.listFunctions());
+                    if (!functionRegistry.functionExists(functionName)) {
+                        return uf.missing(functionName, functionRegistry.listFunctions());
                     }
                     // TODO: look into Generator for significant terms, etc..
-                    FunctionDefinition def = functionRegistry.resolveFunction(normalizedName);
+                    FunctionDefinition def = functionRegistry.resolveFunction(functionName);
                     Function f = uf.buildResolved(timeZone, def);
 
                     list.add(f);

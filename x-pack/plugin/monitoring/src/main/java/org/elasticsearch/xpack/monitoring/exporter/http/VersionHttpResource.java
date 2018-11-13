@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -12,7 +13,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
@@ -25,7 +25,7 @@ import java.util.Objects;
  */
 public class VersionHttpResource extends HttpResource {
 
-    private static final Logger logger = Loggers.getLogger(VersionHttpResource.class);
+    private static final Logger logger = LogManager.getLogger(VersionHttpResource.class);
 
     /**
      * The minimum supported version of Elasticsearch.

@@ -107,7 +107,9 @@ public class CompositeKeyExtractor implements BucketExtractor {
         Object object = ((Map<?, ?>) m).get(key);
 
         if (timeZone != null) {
-            if (object instanceof Long) {
+            if (object == null) {
+                return object;
+            } else if (object instanceof Long) {
                 object = new DateTime(((Long) object).longValue(), DateTimeZone.forTimeZone(timeZone));
             } else {
                 throw new SqlIllegalArgumentException("Invalid date key returned: {}", object);

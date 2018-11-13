@@ -604,15 +604,26 @@ public final class IndexSettings {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + getUUID() + " but was: " + newUUID);
         }
         this.indexMetaData = indexMetaData;
-        final Settings existingSettings = this.settings;
-        if (existingSettings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE)
-            .equals(newSettings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE))) {
+        final Settings newIndexSettings = Settings.builder().put(nodeSettings).put(newSettings).build();
+        if (same(this.settings, newIndexSettings)) {
             // nothing to update, same settings
             return false;
         }
         scopedSettings.applySettings(newSettings);
-        this.settings = Settings.builder().put(nodeSettings).put(newSettings).build();
+        this.settings = newIndexSettings;
         return true;
+    }
+
+    /**
+     * Compare the specified settings for equality.
+     *
+     * @param left  the left settings
+     * @param right the right settings
+     * @return true if the settings are the same, otherwise false
+     */
+    public static boolean same(final Settings left, final Settings right) {
+        return left.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE)
+                .equals(right.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
     }
 
     /**

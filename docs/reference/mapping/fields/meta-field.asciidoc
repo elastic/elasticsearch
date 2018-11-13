@@ -10,7 +10,7 @@ metadata, such as the class that a document belongs to:
 PUT my_index
 {
   "mappings": {
-    "user": {
+    "_doc": {
       "_meta": { <1>
         "class": "MyApp::User",
         "version": {

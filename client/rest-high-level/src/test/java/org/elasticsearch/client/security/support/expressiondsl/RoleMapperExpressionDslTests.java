@@ -86,7 +86,7 @@ public class RoleMapperExpressionDslTests extends ESTestCase {
                "]"+
              "}";
 
-        assertThat(expected, equalTo(output));
+        assertThat(output, equalTo(expected));
     }
 
     public void testFieldRoleMapperExpressionThrowsExceptionForMissingMetadataPrefix() {

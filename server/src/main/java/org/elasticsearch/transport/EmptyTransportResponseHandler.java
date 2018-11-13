@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 
 public class EmptyTransportResponseHandler implements TransportResponseHandler<TransportResponse.Empty> {
@@ -32,7 +33,7 @@ public class EmptyTransportResponseHandler implements TransportResponseHandler<T
     }
 
     @Override
-    public TransportResponse.Empty newInstance() {
+    public TransportResponse.Empty read(StreamInput in) {
         return TransportResponse.Empty.INSTANCE;
     }
 

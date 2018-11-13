@@ -11,14 +11,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.Objects;
 
@@ -52,26 +53,26 @@ public class CcrClient {
         return listener;
     }
 
-    public void stats(
-            final CcrStatsAction.StatsRequest request,
-            final ActionListener<CcrStatsAction.StatsResponses> listener) {
-        client.execute(CcrStatsAction.INSTANCE, request, listener);
+    public void followStats(
+            final FollowStatsAction.StatsRequest request,
+            final ActionListener<FollowStatsAction.StatsResponses> listener) {
+        client.execute(FollowStatsAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<CcrStatsAction.StatsResponses> stats(final CcrStatsAction.StatsRequest request) {
-        final PlainActionFuture<CcrStatsAction.StatsResponses> listener = PlainActionFuture.newFuture();
-        client.execute(CcrStatsAction.INSTANCE, request, listener);
+    public ActionFuture<FollowStatsAction.StatsResponses> followStats(final FollowStatsAction.StatsRequest request) {
+        final PlainActionFuture<FollowStatsAction.StatsResponses> listener = PlainActionFuture.newFuture();
+        client.execute(FollowStatsAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void autoFollowStats(final AutoFollowStatsAction.Request request,
-                                final ActionListener<AutoFollowStatsAction.Response> listener) {
-        client.execute(AutoFollowStatsAction.INSTANCE, request, listener);
+    public void stats(final CcrStatsAction.Request request,
+                      final ActionListener<CcrStatsAction.Response> listener) {
+        client.execute(CcrStatsAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<AutoFollowStatsAction.Response> autoFollowStats(final AutoFollowStatsAction.Request request) {
-        final PlainActionFuture<AutoFollowStatsAction.Response> listener = PlainActionFuture.newFuture();
-        autoFollowStats(request, listener);
+    public ActionFuture<CcrStatsAction.Response> stats(final CcrStatsAction.Request request) {
+        final PlainActionFuture<CcrStatsAction.Response> listener = PlainActionFuture.newFuture();
+        stats(request, listener);
         return listener;
     }
 
@@ -82,6 +83,16 @@ public class CcrClient {
     public ActionFuture<AcknowledgedResponse> pauseFollow(final PauseFollowAction.Request request) {
         final PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(PauseFollowAction.INSTANCE, request, listener);
+        return listener;
+    }
+
+    public void unfollow(final UnfollowAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
+        client.execute(UnfollowAction.INSTANCE, request, listener);
+    }
+
+    public ActionFuture<AcknowledgedResponse> unfollow(final UnfollowAction.Request request) {
+        final PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+        client.execute(UnfollowAction.INSTANCE, request, listener);
         return listener;
     }
 

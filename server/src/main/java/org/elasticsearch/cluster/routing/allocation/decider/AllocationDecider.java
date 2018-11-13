@@ -19,13 +19,12 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 
 /**
  * {@link AllocationDecider} is an abstract base class that allows to make
@@ -33,15 +32,6 @@ import org.elasticsearch.common.settings.Settings;
  * basis.
  */
 public abstract class AllocationDecider extends AbstractComponent {
-
-    /**
-     * Initializes a new {@link AllocationDecider}
-     * @param settings {@link Settings} used by this {@link AllocationDecider}
-     */
-    protected AllocationDecider(Settings settings) {
-        super(settings);
-    }
-
     /**
      * Returns a {@link Decision} whether the given shard routing can be
      * re-balanced to the given allocation. The default is

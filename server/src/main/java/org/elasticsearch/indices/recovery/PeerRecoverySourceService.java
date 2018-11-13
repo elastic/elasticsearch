@@ -61,9 +61,8 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
 
     @Inject
-    public PeerRecoverySourceService(Settings settings, TransportService transportService, IndicesService indicesService,
+    public PeerRecoverySourceService(TransportService transportService, IndicesService indicesService,
                                      RecoverySettings recoverySettings) {
-        super(settings);
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;

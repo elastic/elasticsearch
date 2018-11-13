@@ -18,61 +18,20 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+public class PutRollupJobResponse extends AcknowledgedResponse {
 
-public class PutRollupJobResponse implements ToXContentObject {
-
-    private final boolean acknowledged;
-
-    public PutRollupJobResponse(final boolean acknowledged) {
-        this.acknowledged = acknowledged;
+    public PutRollupJobResponse(boolean acknowledged) {
+        super(acknowledged);
     }
 
-    public boolean isAcknowledged() {
-        return acknowledged;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final PutRollupJobResponse that = (PutRollupJobResponse) o;
-        return isAcknowledged() == that.isAcknowledged();
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(acknowledged);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        {
-            builder.field("acknowledged", isAcknowledged());
-        }
-        builder.endObject();
-        return builder;
-    }
-
-    private static final ConstructingObjectParser<PutRollupJobResponse, Void> PARSER
-        = new ConstructingObjectParser<>("put_rollup_job_response", true, args -> new PutRollupJobResponse((boolean) args[0]));
-    static {
-        PARSER.declareBoolean(constructorArg(), new ParseField("acknowledged"));
-    }
+    private static final ConstructingObjectParser<PutRollupJobResponse, Void> PARSER = AcknowledgedResponse
+            .generateParser("delete_rollup_job_response", PutRollupJobResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
 
     public static PutRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);

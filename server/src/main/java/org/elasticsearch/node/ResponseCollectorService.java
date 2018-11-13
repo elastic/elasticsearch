@@ -28,7 +28,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.io.IOException;
@@ -49,8 +48,7 @@ public final class ResponseCollectorService extends AbstractComponent implements
 
     private final ConcurrentMap<String, NodeStatistics> nodeIdToStats = ConcurrentCollections.newConcurrentMap();
 
-    public ResponseCollectorService(Settings settings, ClusterService clusterService) {
-        super(settings);
+    public ResponseCollectorService(ClusterService clusterService) {
         clusterService.addListener(this);
     }
 

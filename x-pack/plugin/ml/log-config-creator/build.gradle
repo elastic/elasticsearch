@@ -12,7 +12,7 @@ dependencies {
     compile project(path: xpackModule('ml'))
     compile "org.elasticsearch:elasticsearch:${version}"
     compile "org.elasticsearch:elasticsearch-cli:${version}"
-    compile 'joda-time:joda-time:2.10'
+    compile "joda-time:joda-time:${versions.joda}"
     compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
     compile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
     compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"

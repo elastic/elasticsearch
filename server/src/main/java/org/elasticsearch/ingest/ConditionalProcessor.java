@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
@@ -42,22 +44,52 @@ public class ConditionalProcessor extends AbstractProcessor {
     private final ScriptService scriptService;
 
     private final Processor processor;
+    private final IngestMetric metric;
+    private final LongSupplier relativeTimeProvider;
 
     ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor) {
+        this(tag, script, scriptService, processor, System::nanoTime);
+    }
+
+    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor, LongSupplier relativeTimeProvider) {
         super(tag);
         this.condition = script;
         this.scriptService = scriptService;
         this.processor = processor;
+        this.metric = new IngestMetric();
+        this.relativeTimeProvider = relativeTimeProvider;
     }
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        IngestConditionalScript script =
-            scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
-        if (script.execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()))) {
-            return processor.execute(ingestDocument);
+        if (evaluate(ingestDocument)) {
+            long startTimeInNanos = relativeTimeProvider.getAsLong();
+            try {
+                metric.preIngest();
+                return processor.execute(ingestDocument);
+            } catch (Exception e) {
+                metric.ingestFailed();
+                throw e;
+            } finally {
+                long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
+                metric.postIngest(ingestTimeInMillis);
+            }
         }
         return ingestDocument;
+    }
+
+    boolean evaluate(IngestDocument ingestDocument) {
+        IngestConditionalScript script =
+            scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
+        return script.execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()));
+    }
+
+    Processor getProcessor() {
+        return processor;
+    }
+
+    IngestMetric getMetric() {
+        return metric;
     }
 
     @Override

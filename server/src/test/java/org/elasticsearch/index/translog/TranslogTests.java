@@ -2323,7 +2323,7 @@ public class TranslogTests extends ESTestCase {
             @Override
             void deleteReaderFiles(TranslogReader reader) {
                 if (fail.fail()) {
-                    // simulate going OOM and dieing just at the wrong moment.
+                    // simulate going OOM and dying just at the wrong moment.
                     throw new RuntimeException("simulated");
                 } else {
                     super.deleteReaderFiles(reader);

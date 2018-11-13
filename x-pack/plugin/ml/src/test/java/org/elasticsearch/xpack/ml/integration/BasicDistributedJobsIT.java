@@ -184,7 +184,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
     @TestLogging("org.elasticsearch.xpack.persistent:TRACE,org.elasticsearch.cluster.service:DEBUG,org.elasticsearch.xpack.ml.action:DEBUG")
     public void testDedicatedMlNode() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
-        // start 2 non ml node that will never get a job allocated. (but ml apis are accessable from this node)
+        // start 2 non ml node that will never get a job allocated. (but ml apis are accessible from this node)
         internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), false));
         internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), false));
         // start ml node

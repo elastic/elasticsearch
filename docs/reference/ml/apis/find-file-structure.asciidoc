@@ -74,7 +74,7 @@ chosen.
   structure finder produced its result. The default value is `false`.
 
 `format`::
-  (string) The high level structure of the file. Valid values are `json`, `xml`,
+  (string) The high level structure of the file. Valid values are `ndjson`, `xml`,
   `delimited`, and `semi_structured_text`. If this parameter is not specified,
   the structure finder chooses one.
 
@@ -259,7 +259,7 @@ If the request does not encounter errors, you receive the following result:
   "sample_start" : "{\"name\": \"Leviathan Wakes\", \"author\": \"James S.A. Corey\", \"release_date\": \"2011-06-02\", \"page_count\": 561}\n{\"name\": \"Hyperion\", \"author\": \"Dan Simmons\", \"release_date\": \"1989-05-26\", \"page_count\": 482}\n", <3>
   "charset" : "UTF-8", <4>
   "has_byte_order_marker" : false, <5>
-  "format" : "json", <6>
+  "format" : "ndjson", <6>
   "need_client_timezone" : false, <7>
   "mappings" : { <8>
     "author" : {
@@ -473,14 +473,14 @@ If the request does not encounter errors, you receive the following result:
 
 <1> `num_lines_analyzed` indicates how many lines of the file were analyzed.
 <2> `num_messages_analyzed` indicates how many distinct messages the lines contained.
-     For ND-JSON, this value is the same as `num_lines_analyzed`. For other file
+     For NDJSON, this value is the same as `num_lines_analyzed`. For other file
      formats, messages can span several lines.
 <3> `sample_start` reproduces the first two messages in the file verbatim. This
      may help to diagnose parse errors or accidental uploads of the wrong file.
 <4> `charset` indicates the character encoding used to parse the file.
 <5> For UTF character encodings, `has_byte_order_marker` indicates whether the
     file begins with a byte order marker.
-<6> `format` is one of `json`, `xml`, `delimited` or `semi_structured_text`.
+<6> `format` is one of `ndjson`, `xml`, `delimited` or `semi_structured_text`.
 <7> If a timestamp format is detected that does not include a timezone,
     `need_client_timezone` will be `true`. The server that parses the file must
     therefore be told the correct timezone by the client.
@@ -612,6 +612,20 @@ If the request does not encounter errors, you receive the following result:
     "trip_distance" : {
       "type" : "double"
     }
+  },
+  "ingest_pipeline" : {
+    "description" : "Ingest pipeline created by file structure finder",
+    "processors" : [
+      {
+        "date" : {
+          "field" : "tpep_pickup_datetime",
+          "timezone" : "{{ beat.timezone }}",
+          "formats" : [
+            "YYYY-MM-dd HH:mm:ss"
+          ]
+        }
+      }
+    ]
   },
   "field_stats" : {
     "DOLocationID" : {
@@ -1284,7 +1298,7 @@ If the request does not encounter errors, you receive the following result:
 
 If you try to analyze a lot of data then the analysis will take a long time.
 If you want to limit the amount of processing your {es} cluster performs for
-a request, use the timeout query parameter. The analysis will be aborted and
+a request, use the `timeout` query parameter. The analysis will be aborted and
 an error returned when the timeout expires. For example, you can replace 20000
 lines in the previous example with 200000 and set a 1 second timeout on the
 analysis:
@@ -1365,6 +1379,33 @@ this:
     "message" : {
       "type" : "text"
     }
+  },
+  "ingest_pipeline" : {
+    "description" : "Ingest pipeline created by file structure finder",
+    "processors" : [
+      {
+        "grok" : {
+          "field" : "message",
+          "patterns" : [
+            "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel}.*"
+          ]
+        }
+      },
+      {
+        "date" : {
+          "field" : "timestamp",
+          "timezone" : "{{ beat.timezone }}",
+          "formats" : [
+            "ISO8601"
+          ]
+        }
+      },
+      {
+        "remove" : {
+          "field" : "timestamp"
+        }
+      }
+    ]
   },
   "field_stats" : {
     "loglevel" : {
@@ -1499,7 +1540,34 @@ this:
       "type" : "keyword"
     }
   },
-  "field_stats" : { <1>
+  "ingest_pipeline" : {
+    "description" : "Ingest pipeline created by file structure finder",
+    "processors" : [
+      {
+        "grok" : {
+          "field" : "message",
+          "patterns" : [
+            "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} *\\]\\[%{JAVACLASS:class} *\\] \\[%{HOSTNAME:node}\\] %{JAVALOGMESSAGE:message}"
+          ]
+        }
+      },
+      {
+        "date" : {
+          "field" : "timestamp",
+          "timezone" : "{{ beat.timezone }}",
+          "formats" : [
+            "ISO8601"
+          ]
+        }
+      },
+      {
+        "remove" : {
+          "field" : "timestamp"
+        }
+      }
+    ]
+  },
+  "field_stats" : { <2>
     "class" : {
       "count" : 53,
       "cardinality" : 14,

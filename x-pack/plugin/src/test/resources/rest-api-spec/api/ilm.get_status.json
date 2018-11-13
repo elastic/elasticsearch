@@ -1,0 +1,13 @@
+{
+  "ilm.get_status": {
+    "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_ilm/status",
+      "paths": ["/_ilm/status"],
+      "parts": {},
+      "params": {}
+    },
+    "body": null
+  }
+}

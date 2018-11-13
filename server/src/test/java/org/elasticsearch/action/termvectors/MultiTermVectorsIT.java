@@ -76,7 +76,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         MultiTermVectorsResponse response = mtvBuilder.execute().actionGet();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getFailure().getCause(), instanceOf(IndexNotFoundException.class));
-        assertThat(response.getResponses()[0].getFailure().getCause().getMessage(), equalTo("no such index"));
+        assertThat(response.getResponses()[0].getFailure().getCause().getMessage(), equalTo("no such index [testX]"));
     }
 
     public void testMultiTermVectorsWithVersion() throws Exception {

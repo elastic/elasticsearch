@@ -19,8 +19,6 @@
 
 package org.elasticsearch.script.expression;
 
-import org.apache.lucene.expressions.Expression;
-import org.apache.lucene.expressions.js.JavascriptCompiler;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -33,7 +31,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHits;
@@ -56,7 +53,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketScript;
+import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -123,7 +120,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye"),
                 client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
                 client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
-        ScoreFunctionBuilder<?> score = ScoreFunctionBuilders.scriptFunction(new Script(ScriptType.INLINE, "expression", "1 / _score", Collections.emptyMap()));
+        ScoreFunctionBuilder<?> score = ScoreFunctionBuilders.scriptFunction(
+                new Script(ScriptType.INLINE, "expression", "1 / _score", Collections.emptyMap()));
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("text", "hello"), score).boostMode(CombineFunction.REPLACE));
         req.setSearchType(SearchType.DFS_QUERY_THEN_FETCH); // make sure DF is consistent
@@ -193,7 +191,10 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testMultiValueMethods() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double0", "type=double", "double1", "type=double", "double2", "type=double"));
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc",
+                "double0", "type=double",
+                "double1", "type=double",
+                "double2", "type=double"));
         ensureGreen("test");
 
         Map<String, Object> doc1 = new HashMap<>();
@@ -502,68 +503,6 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 message.contains("ScriptException"), equalTo(true));
         assertThat(message + "should have contained text variable error",
                 message.contains("text variable"), equalTo(true));
-    }
-
-    // series of unit test for using expressions as executable scripts
-    public void testExecutableScripts() throws Exception {
-        assumeTrue("test creates classes directly, cannot run with security manager", System.getSecurityManager() == null);
-        Map<String, Object> vars = new HashMap<>();
-        vars.put("a", 2.5);
-        vars.put("b", 3);
-        vars.put("xyz", -1);
-
-        Expression expr = JavascriptCompiler.compile("a+b+xyz");
-
-        ExpressionExecutableScript ees = new ExpressionExecutableScript(expr, vars);
-        assertEquals((Double) ees.run(), 4.5, 0.001);
-
-        ees.setNextVar("b", -2.5);
-        assertEquals((Double) ees.run(), -1, 0.001);
-
-        ees.setNextVar("a", -2.5);
-        ees.setNextVar("b", -2.5);
-        ees.setNextVar("xyz", -2.5);
-        assertEquals((Double) ees.run(), -7.5, 0.001);
-
-        String message;
-
-        try {
-            vars = new HashMap<>();
-            vars.put("a", 1);
-            ees = new ExpressionExecutableScript(expr, vars);
-            ees.run();
-            fail("An incorrect number of variables were allowed to be used in an expression.");
-        } catch (GeneralScriptException se) {
-            message = se.getMessage();
-            assertThat(message + " should have contained number of variables", message.contains("number of variables"), equalTo(true));
-        }
-
-        try {
-            vars = new HashMap<>();
-            vars.put("a", 1);
-            vars.put("b", 3);
-            vars.put("c", -1);
-            ees = new ExpressionExecutableScript(expr, vars);
-            ees.run();
-            fail("A variable was allowed to be set that does not exist in the expression.");
-        } catch (GeneralScriptException se) {
-            message = se.getMessage();
-            assertThat(message + " should have contained does not exist in", message.contains("does not exist in"), equalTo(true));
-        }
-
-        try {
-            vars = new HashMap<>();
-            vars.put("a", 1);
-            vars.put("b", 3);
-            vars.put("xyz", "hello");
-            ees = new ExpressionExecutableScript(expr, vars);
-            ees.run();
-            fail("A non-number was allowed to be use in the expression.");
-        } catch (GeneralScriptException se) {
-            message = se.getMessage();
-            assertThat(message + " should have contained process numbers", message.contains("process numbers"), equalTo(true));
-        }
-
     }
 
     // test to make sure expressions are not allowed to be used as update scripts

@@ -37,6 +37,7 @@ import static java.util.Collections.emptyMap;
 
 public class Exporters extends AbstractLifecycleComponent implements Iterable<Exporter> {
 
+    private final Settings settings;
     private final Map<String, Exporter.Factory> factories;
     private final AtomicReference<Map<String, Exporter>> exporters;
     private final ClusterService clusterService;
@@ -47,7 +48,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
                      ClusterService clusterService, XPackLicenseState licenseState,
                      ThreadContext threadContext) {
         super(settings);
-
+        this.settings = settings;
         this.factories = factories;
         this.exporters = new AtomicReference<>(emptyMap());
         this.threadContext = Objects.requireNonNull(threadContext);

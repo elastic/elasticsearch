@@ -55,6 +55,8 @@ include::index-modules.asciidoc[]
 
 include::ingest.asciidoc[]
 
+include::ilm/index.asciidoc[]
+
 include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]

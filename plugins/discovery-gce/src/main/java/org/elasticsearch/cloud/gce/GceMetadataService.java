@@ -44,11 +44,14 @@ public class GceMetadataService extends AbstractLifecycleComponent {
     public static final Setting<String> GCE_HOST =
         new Setting<>("cloud.gce.host", "http://metadata.google.internal", Function.identity(), Setting.Property.NodeScope);
 
+    private final Settings settings;
+
     /** Global instance of the HTTP transport. */
     private HttpTransport gceHttpTransport;
 
     public GceMetadataService(Settings settings) {
         super(settings);
+        this.settings = settings;
     }
 
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {

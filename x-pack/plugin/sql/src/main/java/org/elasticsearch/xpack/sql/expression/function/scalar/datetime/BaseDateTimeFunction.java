@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.joda.time.DateTime;
 
+import java.util.Objects;
 import java.util.TimeZone;
 
 abstract class BaseDateTimeFunction extends UnaryScalarFunction {
@@ -40,11 +42,7 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (field().dataType() == DataType.DATE) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-        return new TypeResolution("Function [" + functionName() + "] cannot be applied on a non-date expression (["
-                + Expressions.name(field()) + "] of type [" + field().dataType().esType + "])");
+        return Expressions.typeMustBeDate(field(), functionName(), ParamOrdinal.DEFAULT);
     }
 
     public TimeZone timeZone() {
@@ -59,5 +57,33 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
     @Override
     public boolean foldable() {
         return field().foldable();
+    }
+
+    @Override
+    public Object fold() {
+        DateTime folded = (DateTime) field().fold();
+        if (folded == null) {
+            return null;
+        }
+
+        return doFold(folded.getMillis(), timeZone().getID());
+    }
+
+    protected abstract Object doFold(long millis, String tzId);
+    
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        BaseDateTimeFunction other = (BaseDateTimeFunction) obj;
+        return Objects.equals(other.field(), field())
+            && Objects.equals(other.timeZone(), timeZone());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(field(), timeZone());
     }
 }

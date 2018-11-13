@@ -97,12 +97,6 @@ public class ResourceWatcherService extends AbstractLifecycleComponent {
         mediumMonitor = new ResourceMonitor(interval, Frequency.MEDIUM);
         interval = RELOAD_INTERVAL_HIGH.get(settings);
         highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
-
-        logRemovedSetting("watcher.enabled", "resource.reload.enabled");
-        logRemovedSetting("watcher.interval", "resource.reload.interval");
-        logRemovedSetting("watcher.interval.low", "resource.reload.interval.low");
-        logRemovedSetting("watcher.interval.medium", "resource.reload.interval.medium");
-        logRemovedSetting("watcher.interval.high", "resource.reload.interval.high");
     }
 
     @Override

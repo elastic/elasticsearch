@@ -156,7 +156,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         listener.latch.await();
         assertNotNull(listener.error);
         assertNull(listener.result);
-        assertEquals("no such index", listener.error.getMessage());
+        assertEquals("no such index [index not found]", listener.error.getMessage());
     }
 
     public void testFailAfterIntermediateCommit() throws InterruptedException {

@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,8 +41,7 @@ public class ActiveShardsObserver extends AbstractComponent {
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
 
-    public ActiveShardsObserver(final Settings settings, final ClusterService clusterService, final ThreadPool threadPool) {
-        super(settings);
+    public ActiveShardsObserver(final ClusterService clusterService, final ThreadPool threadPool) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
     }

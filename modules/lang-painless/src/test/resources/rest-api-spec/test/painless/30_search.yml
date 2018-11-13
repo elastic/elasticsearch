@@ -23,8 +23,8 @@
         indices.refresh: {}
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script:
@@ -45,8 +45,8 @@
     - match: { hits.hits.1.fields.sNum1.0: 3.0 }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script:
@@ -70,8 +70,8 @@
     - match: { hits.hits.1.fields.sNum1.0: 3.0 }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script:
@@ -96,8 +96,8 @@
     - match: { hits.hits.2.fields.sNum1.0: 3.0 }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script:
@@ -127,8 +127,8 @@
         indices.refresh: {}
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     function_score:
@@ -149,8 +149,8 @@
     - match: { hits.hits.1._id: "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     function_score:
@@ -171,8 +171,8 @@
     - match: { hits.hits.1._id: "2" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     function_score:
@@ -193,8 +193,8 @@
     - match: { hits.hits.1._id: "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     function_score:
@@ -215,8 +215,8 @@
     - match: { hits.hits.1._id: "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     function_score:
@@ -237,8 +237,8 @@
     - match: { hits.hits.1._id: "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     function_score:
@@ -274,8 +274,8 @@
         indices.refresh: {}
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     function_score:
@@ -325,8 +325,8 @@
 
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     function_score:
@@ -364,8 +364,8 @@
 
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 script_fields:
                     foobar:
@@ -391,8 +391,8 @@
 
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 aggs:
                     value_agg:
@@ -428,8 +428,8 @@
 
     - do:
         catch: bad_request
-        index: test
         search:
+            index: test
             body:
                 aggs:
                     genre:

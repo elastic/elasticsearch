@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBui
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -59,6 +61,9 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String username = getUsername(request);
+        if (username == null) {
+            return restChannel -> { throw new ElasticsearchSecurityException("there is no authenticated user"); };
+        }
         final Tuple<XContentType, BytesReference> content = request.contentOrSourceParam();
         HasPrivilegesRequestBuilder requestBuilder = new SecurityClient(client).prepareHasPrivileges(username, content.v2(), content.v1());
         return channel -> requestBuilder.execute(new HasPrivilegesRestResponseBuilder(username, channel));
@@ -69,7 +74,11 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
         if (username != null) {
             return username;
         }
-        return securityContext.getUser().principal();
+        final User user = securityContext.getUser();
+        if (user == null) {
+            return null;
+        }
+        return user.principal();
     }
 
     static class HasPrivilegesRestResponseBuilder extends RestBuilderListener<HasPrivilegesResponse> {

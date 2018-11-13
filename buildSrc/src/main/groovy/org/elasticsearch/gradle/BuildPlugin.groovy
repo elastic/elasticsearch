@@ -99,10 +99,12 @@ class BuildPlugin implements Plugin<Project> {
         configureSourcesJar(project)
         configurePomGeneration(project)
 
+        applyCommonTestConfig(project)
         configureTest(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
     }
+
 
 
     /** Performs checks on the build environment and prints information about the build environment. */
@@ -119,7 +121,7 @@ class BuildPlugin implements Plugin<Project> {
             File gradleJavaHome = Jvm.current().javaHome
 
             final Map<Integer, String> javaVersions = [:]
-            for (int version = 7; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
+            for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
                 if(System.getenv(getJavaHomeEnvVarName(version.toString())) != null) {
                     javaVersions.put(version, findJavaHome(version.toString()));
                 }
@@ -694,18 +696,12 @@ class BuildPlugin implements Plugin<Project> {
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
             // fixup the jar manifest
             jarTask.doFirst {
-                final Version versionWithoutSnapshot = new Version(
-                        VersionProperties.elasticsearch.major,
-                        VersionProperties.elasticsearch.minor,
-                        VersionProperties.elasticsearch.revision,
-                        VersionProperties.elasticsearch.suffix,
-                        false)
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 jarTask.manifest.attributes(
-                        'X-Compile-Elasticsearch-Version': versionWithoutSnapshot,
+                        'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
-                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.elasticsearch.isSnapshot(),
+                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
                         'Build-Java-Version': project.compilerJavaVersion)
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
@@ -776,9 +772,8 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    /** Returns a closure of common configuration shared by unit and integration tests. */
-    static Closure commonTestConfig(Project project) {
-        return {
+    static void applyCommonTestConfig(Project project) {
+        project.tasks.withType(RandomizedTestingTask) {
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', 'auto')
             ifNoTests System.getProperty('tests.ifNoTests', 'fail')
@@ -873,6 +868,8 @@ class BuildPlugin implements Plugin<Project> {
 
             exclude '**/*$*.class'
 
+            dependsOn(project.tasks.testClasses)
+
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
                 // Test against a shadow jar if we made one
                 classpath -= project.tasks.compileJava.outputs.files
@@ -884,23 +881,9 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Configures the test task */
     static Task configureTest(Project project) {
-        RandomizedTestingTask test = project.tasks.getByName('test')
-        test.configure(commonTestConfig(project))
-        test.configure {
+        project.tasks.getByName('test') {
             include '**/*Tests.class'
         }
-
-        // Add a method to create additional unit tests for a project, which will share the same
-        // randomized testing setup, but by default run no tests.
-        project.extensions.add('additionalTest', { String name, Closure config ->
-            RandomizedTestingTask additionalTest = project.tasks.create(name, RandomizedTestingTask.class)
-            additionalTest.classpath = test.classpath
-            additionalTest.testClassesDirs = test.testClassesDirs
-            additionalTest.configure(commonTestConfig(project))
-            additionalTest.configure(config)
-            additionalTest.dependsOn(project.tasks.testClasses)
-            project.check.dependsOn(additionalTest)
-        });
     }
 
     private static configurePrecommit(Project project) {

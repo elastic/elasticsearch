@@ -20,13 +20,15 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
 
-public class MigrationRequestConverters {
+final class MigrationRequestConverters {
+
+    private MigrationRequestConverters() {}
 
     static Request getMigrationAssistance(IndexUpgradeInfoRequest indexUpgradeInfoRequest) {
         RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/migration/assistance")
+            .addPathPartAsIs("_xpack", "migration", "assistance")
             .addCommaSeparatedPathParts(indexUpgradeInfoRequest.indices());
         String endpoint = endpointBuilder.build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);

@@ -26,6 +26,7 @@ import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -38,6 +39,8 @@ import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
+import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
+import org.elasticsearch.client.ml.GetDatafeedStatsResponse;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetInfluencersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -52,16 +55,21 @@ import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PreviewDatafeedRequest;
+import org.elasticsearch.client.ml.PreviewDatafeedResponse;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
+import org.elasticsearch.client.ml.PutFilterRequest;
+import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
+import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 
@@ -181,7 +189,7 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Gets one or more Machine Learning job configuration info, asynchronously.
+     * Gets usage statistics for one or more Machine Learning jobs, asynchronously.
      * <p>
      * For additional info
      * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-stats.html">Get job stats docs</a>
@@ -207,14 +215,15 @@ public final class MachineLearningClient {
      *
      * @param request The request to delete the job
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return action acknowledgement
+     * @return The action response which contains the acknowledgement or the task id depending on whether the action was set to wait for
+     * completion
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public AcknowledgedResponse deleteJob(DeleteJobRequest request, RequestOptions options) throws IOException {
+    public DeleteJobResponse deleteJob(DeleteJobRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
             MLRequestConverters::deleteJob,
             options,
-            AcknowledgedResponse::fromXContent,
+            DeleteJobResponse::fromXContent,
             Collections.emptySet());
     }
 
@@ -228,11 +237,11 @@ public final class MachineLearningClient {
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
-    public void deleteJobAsync(DeleteJobRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+    public void deleteJobAsync(DeleteJobRequest request, RequestOptions options, ActionListener<DeleteJobResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::deleteJob,
             options,
-            AcknowledgedResponse::fromXContent,
+            DeleteJobResponse::fromXContent,
             listener,
             Collections.emptySet());
     }
@@ -489,6 +498,46 @@ public final class MachineLearningClient {
     }
 
     /**
+     * Updates a Machine Learning Datafeed
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-datafeed.html">
+     *     ML Update datafeed documentation</a>
+     *
+     * @param request The UpdateDatafeedRequest containing the {@link org.elasticsearch.client.ml.datafeed.DatafeedUpdate} settings
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return PutDatafeedResponse with enclosed, updated {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} object
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutDatafeedResponse updateDatafeed(UpdateDatafeedRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::updateDatafeed,
+            options,
+            PutDatafeedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Updates a Machine Learning Datafeed asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-datafeed.html">
+     *     ML Update datafeed documentation</a>
+     *
+     * @param request The request containing the {@link org.elasticsearch.client.ml.datafeed.DatafeedUpdate} settings
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void updateDatafeedAsync(UpdateDatafeedRequest request, RequestOptions options, ActionListener<PutDatafeedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::updateDatafeed,
+            options,
+            PutDatafeedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
      * Gets one or more Machine Learning datafeed configuration info.
      *
      * <p>
@@ -645,6 +694,90 @@ public final class MachineLearningClient {
             MLRequestConverters::stopDatafeed,
             options,
             StopDatafeedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets statistics for one or more Machine Learning datafeeds
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed-stats.html">Get datafeed stats docs</a>
+     *
+     * @param request {@link GetDatafeedStatsRequest} Request containing a list of datafeedId(s) and additional options
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link GetDatafeedStatsResponse} response object containing
+     * the {@link org.elasticsearch.client.ml.datafeed.DatafeedStats} objects and the number of datafeeds found
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetDatafeedStatsResponse getDatafeedStats(GetDatafeedStatsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getDatafeedStats,
+            options,
+            GetDatafeedStatsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Previews the given Machine Learning Datafeed
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-preview-datafeed.html">
+     *     ML Preview Datafeed documentation</a>
+     *
+     * @param request The request to preview the datafeed
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link PreviewDatafeedResponse} object containing a {@link org.elasticsearch.common.bytes.BytesReference} of the data in
+     * JSON format
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PreviewDatafeedResponse previewDatafeed(PreviewDatafeedRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::previewDatafeed,
+            options,
+            PreviewDatafeedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets statistics for one or more Machine Learning datafeeds, asynchronously.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed-stats.html">Get datafeed stats docs</a>
+     *
+     * @param request  {@link GetDatafeedStatsRequest} Request containing a list of datafeedId(s) and additional options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified with {@link GetDatafeedStatsResponse} upon request completion
+     */
+    public void getDatafeedStatsAsync(GetDatafeedStatsRequest request,
+                                      RequestOptions options,
+                                      ActionListener<GetDatafeedStatsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getDatafeedStats,
+            options,
+            GetDatafeedStatsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Previews the given Machine Learning Datafeed asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-preview-datafeed.html">
+     *         ML Preview Datafeed documentation</a>
+     *
+     * @param request The request to preview the datafeed
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void previewDatafeedAsync(PreviewDatafeedRequest request,
+                                     RequestOptions options,
+                                     ActionListener<PreviewDatafeedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::previewDatafeed,
+            options,
+            PreviewDatafeedResponse::fromXContent,
             listener,
             Collections.emptySet());
     }
@@ -1035,4 +1168,43 @@ public final class MachineLearningClient {
                 listener,
                 Collections.emptySet());
     }
+
+    /**
+     * Creates a new Machine Learning Filter
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-filter.html">ML PUT Filter documentation</a>
+     *
+     * @param request The PutFilterRequest containing the {@link org.elasticsearch.client.ml.job.config.MlFilter} settings
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return PutFilterResponse with enclosed {@link org.elasticsearch.client.ml.job.config.MlFilter} object
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutFilterResponse putFilter(PutFilterRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::putFilter,
+            options,
+            PutFilterResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Creates a new Machine Learning Filter asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-filter.html">ML PUT Filter documentation</a>
+     *
+     * @param request  The request containing the {@link org.elasticsearch.client.ml.job.config.MlFilter} settings
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void putFilterAsync(PutFilterRequest request, RequestOptions options, ActionListener<PutFilterResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::putFilter,
+            options,
+            PutFilterResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
 }

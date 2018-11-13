@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -128,7 +129,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
                         Level.TRACE,
                         "*failed to execute cluster state applier in [2s]*"));
 
-        Logger clusterLogger = Loggers.getLogger("org.elasticsearch.cluster.service");
+        Logger clusterLogger = LogManager.getLogger("org.elasticsearch.cluster.service");
         Loggers.addAppender(clusterLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(3);
@@ -208,7 +209,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
                         Level.WARN,
                         "*cluster state applier task [test3] took [34s] above the warn threshold of *"));
 
-        Logger clusterLogger = Loggers.getLogger("org.elasticsearch.cluster.service");
+        Logger clusterLogger = LogManager.getLogger("org.elasticsearch.cluster.service");
         Loggers.addAppender(clusterLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(4);
@@ -412,7 +413,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         public volatile Long currentTimeOverride = null;
 
         TimedClusterApplierService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-            super(settings, clusterSettings, threadPool);
+            super("test_node", settings, clusterSettings, threadPool);
         }
 
         @Override

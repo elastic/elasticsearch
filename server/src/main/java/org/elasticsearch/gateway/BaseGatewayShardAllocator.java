@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,11 +41,6 @@ import java.util.List;
  * the logic to determine to which nodes (if any) those shards are allocated.
  */
 public abstract class BaseGatewayShardAllocator extends AbstractComponent {
-
-    public BaseGatewayShardAllocator(Settings settings) {
-        super(settings);
-    }
-
     /**
      * Allocate unassigned shards to nodes (if any) where valid copies of the shard already exist.
      * It is up to the individual implementations of {@link #makeAllocationDecision(ShardRouting, RoutingAllocation, Logger)}

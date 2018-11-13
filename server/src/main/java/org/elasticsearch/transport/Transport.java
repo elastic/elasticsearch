@@ -54,7 +54,7 @@ public interface Transport extends LifecycleComponent {
      * Returns the registered request handler registry for the given action or <code>null</code> if it's not registered
      * @param action the action to look up
      */
-    RequestHandlerRegistry getRequestHandler(String action);
+    RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action);
 
     void addMessageListener(TransportMessageListener listener);
 
@@ -150,7 +150,7 @@ public interface Transport extends LifecycleComponent {
     }
 
     /**
-     * This class represents a response context that encapsulates the actual response handler, the action and the conneciton it was
+     * This class represents a response context that encapsulates the actual response handler, the action and the connection it was
      * executed on.
      */
     final class ResponseContext<T extends TransportResponse> {
@@ -184,7 +184,7 @@ public interface Transport extends LifecycleComponent {
      * This class is a registry that allows
      */
     final class ResponseHandlers {
-        private final ConcurrentMapLong<ResponseContext> handlers = ConcurrentCollections
+        private final ConcurrentMapLong<ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections
             .newConcurrentMapLongWithAggressiveConcurrency();
         private final AtomicLong requestIdGenerator = new AtomicLong();
 
@@ -208,7 +208,7 @@ public interface Transport extends LifecycleComponent {
          * @return the new request ID
          * @see Connection#sendRequest(long, String, TransportRequest, TransportRequestOptions)
          */
-        public long add(ResponseContext holder) {
+        public long add(ResponseContext<? extends TransportResponse> holder) {
             long requestId = newRequestId();
             ResponseContext existing = handlers.put(requestId, holder);
             assert existing == null : "request ID already in use: " + requestId;
@@ -226,10 +226,10 @@ public interface Transport extends LifecycleComponent {
         /**
          * Removes and returns all {@link ResponseContext} instances that match the predicate
          */
-        public List<ResponseContext> prune(Predicate<ResponseContext> predicate) {
-            final List<ResponseContext> holders = new ArrayList<>();
-            for (Map.Entry<Long, ResponseContext> entry : handlers.entrySet()) {
-                ResponseContext holder = entry.getValue();
+        public List<ResponseContext<? extends TransportResponse>> prune(Predicate<ResponseContext> predicate) {
+            final List<ResponseContext<? extends TransportResponse>> holders = new ArrayList<>();
+            for (Map.Entry<Long, ResponseContext<? extends TransportResponse>> entry : handlers.entrySet()) {
+                ResponseContext<? extends TransportResponse> holder = entry.getValue();
                 if (predicate.test(holder)) {
                     ResponseContext remove = handlers.remove(entry.getKey());
                     if (remove != null) {
@@ -245,8 +245,9 @@ public interface Transport extends LifecycleComponent {
          * sent request (before any processing or deserialization was done). Returns the appropriate response handler or null if not
          * found.
          */
-        public TransportResponseHandler onResponseReceived(final long requestId, TransportMessageListener listener) {
-            ResponseContext context = handlers.remove(requestId);
+        public TransportResponseHandler<? extends TransportResponse> onResponseReceived(final long requestId,
+                                                                                        final TransportMessageListener listener) {
+            ResponseContext<? extends TransportResponse> context = handlers.remove(requestId);
             listener.onResponseReceived(requestId, context);
             if (context == null) {
                 return null;

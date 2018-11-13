@@ -6,18 +6,18 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryNumericProcessor;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.gen.processor.FunctionalBinaryProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.predicate.PredicateBiFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 
 import java.io.IOException;
 import java.util.function.BiFunction;
 
-public class BinaryArithmeticProcessor extends BinaryNumericProcessor<BinaryArithmeticOperation> {
+public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Number, Number, Number, BinaryArithmeticOperation> {
     
-    public enum BinaryArithmeticOperation implements BiFunction<Number, Number, Number> {
-
+    public enum BinaryArithmeticOperation implements PredicateBiFunction<Number, Number, Number> {
         ADD(Arithmetics::add, "+"),
         SUB(Arithmetics::sub, "-"),
         MUL(Arithmetics::mul, "*"),
@@ -32,12 +32,13 @@ public class BinaryArithmeticProcessor extends BinaryNumericProcessor<BinaryArit
             this.symbol = symbol;
         }
 
+        @Override
         public String symbol() {
             return symbol;
         }
 
         @Override
-        public final Number apply(Number left, Number right) {
+        public final Number doApply(Number left, Number right) {
             return process.apply(left, right);
         }
 
@@ -58,12 +59,14 @@ public class BinaryArithmeticProcessor extends BinaryNumericProcessor<BinaryArit
     }
 
     @Override
-    protected void doWrite(StreamOutput out) throws IOException {
-        out.writeEnum(operation());
+    public String getWriteableName() {
+        return NAME;
     }
 
     @Override
-    public String getWriteableName() {
-        return NAME;
+    protected void checkParameter(Object param) {
+        if (!(param instanceof Number)) {
+            throw new SqlIllegalArgumentException("A number is required; received {}", param);
+        }
     }
 }

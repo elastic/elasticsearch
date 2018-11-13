@@ -34,6 +34,7 @@ import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
+import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
@@ -41,8 +42,10 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
+import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequestTests;
@@ -57,6 +60,8 @@ import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.JobUpdateTests;
+import org.elasticsearch.client.ml.job.config.MlFilter;
+import org.elasticsearch.client.ml.job.config.MlFilterTests;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -162,11 +167,18 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.deleteJob(deleteJobRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/anomaly_detectors/" + jobId, request.getEndpoint());
-        assertEquals(Boolean.toString(false), request.getParameters().get("force"));
+        assertNull(request.getParameters().get("force"));
+        assertNull(request.getParameters().get("wait_for_completion"));
 
+        deleteJobRequest = new DeleteJobRequest(jobId);
         deleteJobRequest.setForce(true);
         request = MLRequestConverters.deleteJob(deleteJobRequest);
         assertEquals(Boolean.toString(true), request.getParameters().get("force"));
+
+        deleteJobRequest = new DeleteJobRequest(jobId);
+        deleteJobRequest.setWaitForCompletion(false);
+        request = MLRequestConverters.deleteJob(deleteJobRequest);
+        assertEquals(Boolean.toString(false), request.getParameters().get("wait_for_completion"));
     }
 
     public void testFlushJob() throws Exception {
@@ -257,7 +269,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.deleteDatafeed(deleteDatafeedRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/datafeeds/" + datafeedId, request.getEndpoint());
-        assertEquals(Boolean.toString(false), request.getParameters().get("force"));
+        assertFalse(request.getParameters().containsKey("force"));
 
         deleteDatafeedRequest.setForce(true);
         request = MLRequestConverters.deleteDatafeed(deleteDatafeedRequest);
@@ -291,6 +303,30 @@ public class MLRequestConvertersTests extends ESTestCase {
             StopDatafeedRequest parsedDatafeedRequest = StopDatafeedRequest.PARSER.apply(parser, null);
             assertThat(parsedDatafeedRequest, equalTo(datafeedRequest));
         }
+    }
+
+    public void testGetDatafeedStats() {
+        GetDatafeedStatsRequest getDatafeedStatsRequestRequest = new GetDatafeedStatsRequest();
+
+        Request request = MLRequestConverters.getDatafeedStats(getDatafeedStatsRequestRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/datafeeds/_stats", request.getEndpoint());
+        assertFalse(request.getParameters().containsKey("allow_no_datafeeds"));
+
+        getDatafeedStatsRequestRequest = new GetDatafeedStatsRequest("datafeed1", "datafeeds*");
+        getDatafeedStatsRequestRequest.setAllowNoDatafeeds(true);
+        request = MLRequestConverters.getDatafeedStats(getDatafeedStatsRequestRequest);
+
+        assertEquals("/_xpack/ml/datafeeds/datafeed1,datafeeds*/_stats", request.getEndpoint());
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_datafeeds"));
+    }
+
+    public void testPreviewDatafeed() {
+        PreviewDatafeedRequest datafeedRequest = new PreviewDatafeedRequest("datafeed_1");
+        Request request = MLRequestConverters.previewDatafeed(datafeedRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/datafeeds/" + datafeedRequest.getDatafeedId() + "/_preview", request.getEndpoint());
     }
 
     public void testDeleteForecast() {
@@ -476,6 +512,20 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.deleteCalendar(deleteCalendarRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/calendars/" + deleteCalendarRequest.getCalendarId(), request.getEndpoint());
+    }
+
+    public void testPutFilter() throws IOException {
+        MlFilter filter = MlFilterTests.createRandom("foo");
+        PutFilterRequest putFilterRequest = new PutFilterRequest(filter);
+
+        Request request = MLRequestConverters.putFilter(putFilterRequest);
+
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/filters/foo"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            MlFilter parsedFilter = MlFilter.PARSER.apply(parser, null).build();
+            assertThat(parsedFilter, equalTo(filter));
+        }
     }
 
     private static Job createValidJob(String jobId) {

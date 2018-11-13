@@ -6,18 +6,20 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.sql.expression.gen.processor.FunctionalBinaryProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.predicate.PredicateBiFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 
 import java.io.IOException;
 import java.util.function.BiFunction;
 
-public class BinaryComparisonProcessor extends BinaryOperatorProcessor<BinaryComparisonOperation> {
+public class BinaryComparisonProcessor extends FunctionalBinaryProcessor<Object, Object, Boolean, BinaryComparisonOperation> {
     
-    public enum BinaryComparisonOperation implements BiFunction<Object, Object, Boolean> {
+    public enum BinaryComparisonOperation implements PredicateBiFunction<Object, Object, Boolean> {
 
         EQ(Comparisons::eq, "=="),
+        NEQ(Comparisons::neq, "!="),
         GT(Comparisons::gt, ">"),
         GTE(Comparisons::gte, ">="),
         LT(Comparisons::lt, "<"),
@@ -31,12 +33,13 @@ public class BinaryComparisonProcessor extends BinaryOperatorProcessor<BinaryCom
             this.symbol = symbol;
         }
 
+        @Override
         public String symbol() {
             return symbol;
         }
 
         @Override
-        public final Boolean apply(Object left, Object right) {
+        public final Boolean doApply(Object left, Object right) {
             return process.apply(left, right);
         }
 
@@ -54,11 +57,6 @@ public class BinaryComparisonProcessor extends BinaryOperatorProcessor<BinaryCom
 
     public BinaryComparisonProcessor(StreamInput in) throws IOException {
         super(in, i -> i.readEnum(BinaryComparisonOperation.class));
-    }
-
-    @Override
-    protected void doWrite(StreamOutput out) throws IOException {
-        out.writeEnum(operation());
     }
 
     @Override

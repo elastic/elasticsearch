@@ -427,6 +427,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitCastTemplate(SqlBaseParser.CastTemplateContext ctx);
   /**
+   * Visit a parse tree produced by {@link SqlBaseParser#convertTemplate}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitConvertTemplate(SqlBaseParser.ConvertTemplateContext ctx);
+  /**
    * Visit a parse tree produced by {@link SqlBaseParser#extractExpression}.
    * @param ctx the parse tree
    * @return the visitor result

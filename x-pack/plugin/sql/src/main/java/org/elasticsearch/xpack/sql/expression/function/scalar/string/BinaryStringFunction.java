@@ -10,13 +10,13 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
+import static org.elasticsearch.xpack.sql.expression.Expressions.typeMustBeString;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
@@ -42,14 +42,15 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        if (!left().dataType().isString()) {
-            return new TypeResolution("'%s' requires first parameter to be a string type, received %s", functionName(), left().dataType());
+        TypeResolution resolution = typeMustBeString(left(), functionName(), ParamOrdinal.FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
         }
-                
-        return resolveSecondParameterInputType(right().dataType());
+
+        return resolveSecondParameterInputType(right());
     }
 
-    protected abstract TypeResolution resolveSecondParameterInputType(DataType inputType);
+    protected abstract TypeResolution resolveSecondParameterInputType(Expression e);
 
     @Override
     public Object fold() {
@@ -59,17 +60,10 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
     }
 
     @Override
-    public ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2)
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s)"),
-                operation().toString().toLowerCase(Locale.ROOT),
-                leftScript.template(),
-                rightScript.template()),
-                paramsBuilder()
-                    .script(leftScript.params()).script(rightScript.params())
-                    .build(), dataType());
+    protected String scriptMethodName() {
+        return operation().toString().toLowerCase(Locale.ROOT);
     }
-    
+
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),

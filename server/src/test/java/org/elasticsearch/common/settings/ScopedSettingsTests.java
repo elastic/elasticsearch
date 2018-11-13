@@ -371,9 +371,8 @@ public class ScopedSettingsTests extends ESTestCase {
             listResults.clear();
             listResults.putAll(map);
         };
-        boolean omitDefaults = randomBoolean();
-        service.addAffixMapUpdateConsumer(listSetting, listConsumer, (s, k) -> {}, omitDefaults);
-        service.addAffixMapUpdateConsumer(intSetting, intConsumer, (s, k) -> {}, omitDefaults);
+        service.addAffixMapUpdateConsumer(listSetting, listConsumer, (s, k) -> {});
+        service.addAffixMapUpdateConsumer(intSetting, intConsumer, (s, k) -> {});
         assertEquals(0, listResults.size());
         assertEquals(0, intResults.size());
         service.applySettings(Settings.builder()
@@ -403,7 +402,6 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(2, listResults.size());
         assertEquals(2, intResults.size());
 
-
         listResults.clear();
         intResults.clear();
 
@@ -416,17 +414,9 @@ public class ScopedSettingsTests extends ESTestCase {
         assertNull("test wasn't changed", intResults.get("test"));
         assertEquals(8, intResults.get("test_1").intValue());
         assertNull("test_list wasn't changed", listResults.get("test_list"));
-        if (omitDefaults) {
-            assertNull(listResults.get("test_list_1"));
-            assertFalse(listResults.containsKey("test_list_1"));
-            assertEquals(0, listResults.size());
-            assertEquals(1, intResults.size());
-        } else {
-            assertEquals(Arrays.asList(1), listResults.get("test_list_1")); // reset to default
-            assertEquals(1, listResults.size());
-            assertEquals(1, intResults.size());
-        }
-
+        assertEquals(Arrays.asList(1), listResults.get("test_list_1")); // reset to default
+        assertEquals(1, listResults.size());
+        assertEquals(1, intResults.size());
     }
 
     public void testAffixMapConsumerNotCalledWithNull() {
@@ -442,7 +432,7 @@ public class ScopedSettingsTests extends ESTestCase {
             affixResults.clear();
             affixResults.putAll(map);
         };
-        service.addAffixMapUpdateConsumer(prefixSetting, consumer, (s, k) -> {}, randomBoolean());
+        service.addAffixMapUpdateConsumer(prefixSetting, consumer, (s, k) -> {});
         assertEquals(0, affixResults.size());
         service.applySettings(Settings.builder()
                 .put("eggplant._name", 2)

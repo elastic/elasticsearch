@@ -76,14 +76,14 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         Client client = client();
         Exception e = expectThrows(IndexNotFoundException.class, () ->
             client.admin().indices().prepareClose("test1").execute().actionGet());
-        assertThat(e.getMessage(), is("no such index"));
+        assertThat(e.getMessage(), is("no such index [test1]"));
     }
 
     public void testSimpleOpenMissingIndex() {
         Client client = client();
         Exception e = expectThrows(IndexNotFoundException.class, () ->
             client.admin().indices().prepareOpen("test1").execute().actionGet());
-        assertThat(e.getMessage(), is("no such index"));
+        assertThat(e.getMessage(), is("no such index [test1]"));
     }
 
     public void testCloseOneMissingIndex() {
@@ -93,7 +93,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         Exception e = expectThrows(IndexNotFoundException.class, () ->
             client.admin().indices().prepareClose("test1", "test2").execute().actionGet());
-        assertThat(e.getMessage(), is("no such index"));
+        assertThat(e.getMessage(), is("no such index [test2]"));
     }
 
     public void testCloseOneMissingIndexIgnoreMissing() {
@@ -114,7 +114,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         Exception e = expectThrows(IndexNotFoundException.class, () ->
             client.admin().indices().prepareOpen("test1", "test2").execute().actionGet());
-        assertThat(e.getMessage(), is("no such index"));
+        assertThat(e.getMessage(), is("no such index [test2]"));
     }
 
     public void testOpenOneMissingIndexIgnoreMissing() {

@@ -1,5 +1,7 @@
 ---
 "Verify native store security actions":
+  - skip:
+      features: headers
   # create native user and role
   - do:
      xpack.security.put_user:

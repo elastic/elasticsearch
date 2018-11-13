@@ -1269,7 +1269,7 @@ public class DateFormatters {
         return forPattern(input, Locale.ROOT);
     }
 
-    public static DateFormatter forPattern(String input, Locale locale) {
+    private static DateFormatter forPattern(String input, Locale locale) {
         if (Strings.hasLength(input)) {
             input = input.trim();
         }

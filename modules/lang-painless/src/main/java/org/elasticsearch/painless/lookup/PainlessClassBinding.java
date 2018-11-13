@@ -60,7 +60,6 @@ public class PainlessClassBinding {
 
     @Override
     public int hashCode() {
-
         return Objects.hash(javaConstructor, javaMethod, returnType, typeParameters);
     }
 }

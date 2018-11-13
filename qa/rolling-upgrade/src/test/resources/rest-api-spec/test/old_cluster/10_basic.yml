@@ -1,5 +1,5 @@
 ---
-"Create things in the cluster state that we'll validate are there after the ugprade":
+"Create things in the cluster state that we'll validate are there after the upgrade":
   - do:
       snapshot.create_repository:
         repository: my_repo

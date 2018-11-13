@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.audit.index;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
@@ -113,7 +113,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 /**
  * Audit trail implementation that writes events into an index.
  */
-public class IndexAuditTrail extends AbstractComponent implements AuditTrail, ClusterStateListener {
+public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
 
     public static final String NAME = "index";
     public static final String DOC_TYPE = "doc";
@@ -163,8 +163,10 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private static final Setting<TimeValue> FLUSH_TIMEOUT_SETTING =
             Setting.timeSetting(setting("audit.index.flush_interval"), DEFAULT_FLUSH_INTERVAL,
                     TimeValue.timeValueMillis(1L), Property.NodeScope);
+    private static final Logger logger = LogManager.getLogger(IndexAuditTrail.class);
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
+    private final Settings settings;
     private final String nodeName;
     private final Client client;
     private final QueueConsumer queueConsumer;
@@ -185,7 +187,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     public IndexAuditTrail(Settings settings, Client client, ThreadPool threadPool, ClusterService clusterService) {
-        super(settings);
+        this.settings = settings;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);

@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
@@ -48,16 +47,17 @@ public class GatewayAllocator extends AbstractComponent {
     private final PrimaryShardAllocator primaryShardAllocator;
     private final ReplicaShardAllocator replicaShardAllocator;
 
-    private final ConcurrentMap<ShardId, AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>> asyncFetchStarted = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<ShardId, AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>> asyncFetchStore = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<ShardId, AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>>
+        asyncFetchStarted = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<ShardId, AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>>
+        asyncFetchStore = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public GatewayAllocator(Settings settings, ClusterService clusterService, RoutingService routingService,
+    public GatewayAllocator(ClusterService clusterService, RoutingService routingService,
                             TransportNodesListGatewayStartedShards startedAction, TransportNodesListShardStoreMetaData storeAction) {
-        super(settings);
         this.routingService = routingService;
-        this.primaryShardAllocator = new InternalPrimaryShardAllocator(settings, startedAction);
-        this.replicaShardAllocator = new InternalReplicaShardAllocator(settings, storeAction);
+        this.primaryShardAllocator = new InternalPrimaryShardAllocator(startedAction);
+        this.replicaShardAllocator = new InternalReplicaShardAllocator(storeAction);
         clusterService.addStateApplier(event -> {
             boolean cleanCache = false;
             DiscoveryNode localNode = event.state().nodes().getLocalNode();
@@ -78,8 +78,7 @@ public class GatewayAllocator extends AbstractComponent {
     }
 
     // for tests
-    protected GatewayAllocator(Settings settings) {
-        super(settings);
+    protected GatewayAllocator() {
         this.routingService = null;
         this.primaryShardAllocator = null;
         this.replicaShardAllocator = null;
@@ -155,15 +154,16 @@ public class GatewayAllocator extends AbstractComponent {
 
         private final TransportNodesListGatewayStartedShards startedAction;
 
-        InternalPrimaryShardAllocator(Settings settings, TransportNodesListGatewayStartedShards startedAction) {
-            super(settings);
+        InternalPrimaryShardAllocator(TransportNodesListGatewayStartedShards startedAction) {
             this.startedAction = startedAction;
         }
 
         @Override
-        protected AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
+        protected AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>
+                                                                        fetchData(ShardRouting shard, RoutingAllocation allocation) {
             AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetch =
-                asyncFetchStarted.computeIfAbsent(shard.shardId(), shardId -> new InternalAsyncFetch<>(logger, "shard_started", shardId, startedAction));
+                asyncFetchStarted.computeIfAbsent(shard.shardId(),
+                    shardId -> new InternalAsyncFetch<>(logger, "shard_started", shardId, startedAction));
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
 
@@ -178,15 +178,16 @@ public class GatewayAllocator extends AbstractComponent {
 
         private final TransportNodesListShardStoreMetaData storeAction;
 
-        InternalReplicaShardAllocator(Settings settings, TransportNodesListShardStoreMetaData storeAction) {
-            super(settings);
+        InternalReplicaShardAllocator(TransportNodesListShardStoreMetaData storeAction) {
             this.storeAction = storeAction;
         }
 
         @Override
-        protected AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation) {
+        protected AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>
+                                                                        fetchData(ShardRouting shard, RoutingAllocation allocation) {
             AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch =
-                asyncFetchStore.computeIfAbsent(shard.shardId(), shardId -> new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(), storeAction));
+                asyncFetchStore.computeIfAbsent(shard.shardId(),
+                    shardId -> new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(), storeAction));
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
             if (shardStores.hasData()) {

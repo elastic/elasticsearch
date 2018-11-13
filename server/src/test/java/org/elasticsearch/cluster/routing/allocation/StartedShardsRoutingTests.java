@@ -62,8 +62,10 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
                 .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
                 .metaData(MetaData.builder().put(indexMetaData, false));
 
-        final ShardRouting initShard = TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.INITIALIZING);
-        final ShardRouting relocatingShard = TestShardRouting.newShardRouting(new ShardId(index, 1), "node1", "node2", true, ShardRoutingState.RELOCATING, allocationId);
+        final ShardRouting initShard = TestShardRouting.newShardRouting(new ShardId(index, 0), "node1",
+            true, ShardRoutingState.INITIALIZING);
+        final ShardRouting relocatingShard = TestShardRouting.newShardRouting(new ShardId(index, 1), "node1",
+            "node2", true, ShardRoutingState.RELOCATING, allocationId);
         stateBuilder.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index)
                 .addIndexShard(new IndexShardRoutingTable.Builder(initShard.shardId()).addShard(initShard).build())
                 .addIndexShard(new IndexShardRoutingTable.Builder(relocatingShard.shardId()).addShard(relocatingShard).build())).build());
@@ -73,7 +75,8 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
         logger.info("--> test starting of shard");
 
         ClusterState newState = allocation.applyStartedShards(state, Arrays.asList(initShard));
-        assertThat("failed to start " + initShard + "\ncurrent routing table:" + newState.routingTable(), newState, not(equalTo(state)));
+        assertThat("failed to start " + initShard + "\ncurrent routing table:" +
+            newState.routingTable(), newState, not(equalTo(state)));
         assertTrue(initShard + "isn't started \ncurrent routing table:" + newState.routingTable(),
                 newState.routingTable().index("test").shard(initShard.id()).allShardsStarted());
         state = newState;
@@ -107,11 +110,12 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
             .build();
         final Index index = indexMetaData.getIndex();
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).add(newNode("node4")))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))
+                .add(newNode("node3")).add(newNode("node4")))
             .metaData(MetaData.builder().put(indexMetaData, false));
 
-        final ShardRouting relocatingPrimary = TestShardRouting.newShardRouting(
-            new ShardId(index, 0), "node1", "node2", true, ShardRoutingState.RELOCATING, primaryId);
+        final ShardRouting relocatingPrimary = TestShardRouting.newShardRouting(new ShardId(index, 0), "node1",
+            "node2", true, ShardRoutingState.RELOCATING, primaryId);
         final ShardRouting replica = TestShardRouting.newShardRouting(
             new ShardId(index, 0), "node3", relocatingReplica ? "node4" : null, false,
             relocatingReplica ? ShardRoutingState.RELOCATING : ShardRoutingState.INITIALIZING, replicaId);

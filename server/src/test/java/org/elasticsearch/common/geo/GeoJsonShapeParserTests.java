@@ -175,7 +175,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         Rectangle expected = SPATIAL_CONTEXT.makeRectangle(-50, 50, -30, 30);
         assertGeometryEquals(expected, multilinesGeoJson);
 
-        // test #2: envelope with agnostic coordinate order (TopRight, BottomLeft)
+        // test #2: envelope that spans dateline
         multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
                 .startArray("coordinates")
                 .startArray().value(50).value(30).endArray()
@@ -183,7 +183,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                 .endArray()
                 .endObject();
 
-        expected = SPATIAL_CONTEXT.makeRectangle(-50, 50, -30, 30);
+        expected = SPATIAL_CONTEXT.makeRectangle(50, -50, -30, 30);
         assertGeometryEquals(expected, multilinesGeoJson);
 
         // test #3: "envelope" (actually a triangle) with invalid number of coordinates (TopRight, BottomLeft, BottomRight)

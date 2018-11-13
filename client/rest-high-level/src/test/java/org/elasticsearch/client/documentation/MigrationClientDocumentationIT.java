@@ -24,9 +24,9 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoResponse;
-import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
+import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.client.migration.IndexUpgradeInfoResponse;
+import org.elasticsearch.client.migration.UpgradeActionRequired;
 
 import java.io.IOException;
 import java.util.Map;

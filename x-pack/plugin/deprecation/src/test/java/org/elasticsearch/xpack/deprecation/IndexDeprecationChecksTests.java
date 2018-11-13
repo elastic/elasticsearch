@@ -22,7 +22,7 @@ import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTIN
 public class IndexDeprecationChecksTests extends ESTestCase {
     public void testDelimitedPayloadFilterCheck() throws IOException {
         Settings settings = settings(
-                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1)))
+                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
                 .put("index.analysis.filter.my_delimited_payload_filter.type", "delimited_payload_filter")
                 .put("index.analysis.filter.my_delimited_payload_filter.delimiter", "^")
                 .put("index.analysis.filter.my_delimited_payload_filter.encoding", "identity").build();

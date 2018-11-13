@@ -133,7 +133,7 @@ public class ScriptTransformTests extends ESTestCase {
 
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
+        ExecutableScriptTransform transform = new ScriptTransformFactory(service).parseExecutable("_id", parser);
         Script script = new Script(type, type == ScriptType.STORED ? null : "_lang", "_script", singletonMap("key", "value"));
         assertThat(transform.transform().getScript(), equalTo(script));
     }
@@ -144,7 +144,7 @@ public class ScriptTransformTests extends ESTestCase {
 
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
+        ExecutableScriptTransform transform = new ScriptTransformFactory(service).parseExecutable("_id", parser);
         assertEquals(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "_script", emptyMap()), transform.transform().getScript());
     }
 
@@ -155,7 +155,7 @@ public class ScriptTransformTests extends ESTestCase {
                 Collections.emptyList(), "whatever", "whatever");
         when(scriptService.compile(anyObject(), eq(WatcherTransformScript.CONTEXT))).thenThrow(scriptException);
 
-        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), scriptService);
+        ScriptTransformFactory transformFactory = new ScriptTransformFactory(scriptService);
 
         XContentBuilder builder = jsonBuilder().startObject()
                 .field(scriptTypeField(randomFrom(ScriptType.values())), "whatever")
@@ -170,7 +170,7 @@ public class ScriptTransformTests extends ESTestCase {
     }
 
     public void testScriptConditionParserBadLang() throws Exception {
-        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), createScriptService());
+        ScriptTransformFactory transformFactory = new ScriptTransformFactory(createScriptService());
         String script = "return true";
         XContentBuilder builder = jsonBuilder().startObject()
                 .field(scriptTypeField(ScriptType.INLINE), script)

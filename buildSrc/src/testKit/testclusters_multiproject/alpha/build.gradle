@@ -1,0 +1,18 @@
+plugins {
+    id 'elasticsearch.testclusters'
+}
+testClusters {
+    myTestCluster
+}
+task user1 {
+    useCluster testClusters.myTestCluster
+    doFirst {
+        println "$path"
+    }
+}
+task user2 {
+    useCluster testClusters.myTestCluster
+    doFirst {
+        println "$path"
+    }
+}

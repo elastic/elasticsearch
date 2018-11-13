@@ -862,6 +862,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                                 .startObject()
                                     .field("field2", "value2")
                                 .endObject()
+                                .startObject()
+                                    .array("field2", "value2", "value3")
+                                .endObject()
                             .endArray()
                         .endObject())
                 .get();
@@ -889,6 +892,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(0).getSourceAsString(),
                 equalTo("{\"field2\":\"value2\"}"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(1).getNestedIdentity().getOffset(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(1).getSourceAsString(),
+            equalTo("{\"field2\":[\"value2\",\"value3\"]}"));
     }
 
     public void testSuggesters() throws Exception {

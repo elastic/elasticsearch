@@ -94,6 +94,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 indexMetadataBuilder.settings(Settings.builder().put(index.getSettings())
                     .put(SOURCE_ONLY.getKey(), true)
                     .put("index.blocks.write", true)); // read-only!
+                indexMetadataBuilder.settingsVersion(1 + indexMetadataBuilder.settingsVersion());
                 builder.put(indexMetadataBuilder);
             }
             super.initializeSnapshot(snapshotId, indices, builder.build());

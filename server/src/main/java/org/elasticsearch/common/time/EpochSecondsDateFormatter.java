@@ -26,6 +26,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -46,10 +47,17 @@ public class EpochSecondsDateFormatter implements DateFormatter {
                     // this is BWC compatible to joda time, nothing after the dot is allowed
                     return Instant.ofEpochSecond(seconds, 0).atZone(ZoneOffset.UTC);
                 }
+                // scientific notation it is!
+                if (inputs[1].contains("e")) {
+                    return Instant.ofEpochSecond(Double.valueOf(input).longValue()).atZone(ZoneOffset.UTC);
+                }
                 if (inputs[1].length() > 9) {
                     throw new DateTimeParseException("too much granularity after dot [" + input + "]", input, 0);
                 }
                 Long nanos = new BigDecimal(inputs[1]).movePointRight(9 - inputs[1].length()).longValueExact();
+                if (seconds < 0) {
+                    nanos = nanos * -1;
+                }
                 return Instant.ofEpochSecond(seconds, nanos).atZone(ZoneOffset.UTC);
             } else {
                 return Instant.ofEpochSecond(Long.valueOf(input)).atZone(ZoneOffset.UTC);
@@ -57,11 +65,6 @@ public class EpochSecondsDateFormatter implements DateFormatter {
         } catch (NumberFormatException e) {
             throw new DateTimeParseException("invalid number [" + input + "]", input, 0, e);
         }
-    }
-
-    @Override
-    public DateFormatter withZone(ZoneId zoneId) {
-        return this;
     }
 
     @Override
@@ -75,7 +78,33 @@ public class EpochSecondsDateFormatter implements DateFormatter {
 
     @Override
     public String pattern() {
-        return "epoch_seconds";
+        return "epoch_second";
+    }
+
+    @Override
+    public Locale getLocale() {
+        return Locale.ROOT;
+    }
+
+    @Override
+    public ZoneId getZone() {
+        return ZoneOffset.UTC;
+    }
+
+    @Override
+    public DateFormatter withZone(ZoneId zoneId) {
+        if (zoneId.equals(ZoneOffset.UTC) == false) {
+            throw new IllegalArgumentException(pattern() + " date formatter can only be in zone offset UTC");
+        }
+        return this;
+    }
+
+    @Override
+    public DateFormatter withLocale(Locale locale) {
+        if (Locale.ROOT.equals(locale) == false) {
+            throw new IllegalArgumentException(pattern() + " date formatter can only be in locale ROOT");
+        }
+        return this;
     }
 
     @Override

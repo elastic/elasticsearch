@@ -125,10 +125,10 @@ public final class WatcherTestUtils {
                 .buildMock();
     }
 
-    public static WatchExecutionContext createWatchExecutionContext(Logger logger) throws Exception {
+    public static WatchExecutionContext createWatchExecutionContext() throws Exception {
         Watch watch = new Watch("test-watch",
                 new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
-                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
+                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple())),
                 InternalAlwaysCondition.INSTANCE,
                 null,
                 null,
@@ -175,7 +175,7 @@ public final class WatcherTestUtils {
         return new Watch(
                 watchName,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
-                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(Collections.singletonMap("bar", "foo"))), logger),
+                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(Collections.singletonMap("bar", "foo")))),
                 InternalAlwaysCondition.INSTANCE,
                 new ExecutableSearchTransform(searchTransform, logger, client, searchTemplateService, TimeValue.timeValueMinutes(1)),
                 new TimeValue(0),

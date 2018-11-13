@@ -19,8 +19,11 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.ldap.LdapUserSearchSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
@@ -34,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -70,34 +74,29 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
         final boolean useSecureBindPassword = randomBoolean();
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings.Builder realmSettings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(new String[]{OpenLdapTests.OPEN_LDAP_DNS_URL}, Strings.EMPTY_ARRAY, groupSearchBase,
-                        LdapSearchScope.ONE_LEVEL))
-                .put("user_search.base_dn", userSearchBase)
-                .put("group_search.user_attribute", "uid")
-                .put("bind_dn", "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
-                .put("user_search.pool.enabled", randomBoolean())
-                .put("ssl.verification_mode", "full");
+                .put(LdapTestCase.buildLdapSettings(realmId, new String[]{OpenLdapTests.OPEN_LDAP_DNS_URL}, Strings.EMPTY_ARRAY,
+                        groupSearchBase, LdapSearchScope.ONE_LEVEL, null, false))
+                .put(getFullSettingKey(realmId.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
+                .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid")
+                .put(getFullSettingKey(realmId, PoolingSessionFactorySettings.BIND_DN),
+                        "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                .put(getFullSettingKey(realmId.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean())
+                .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), "full");
         if (useSecureBindPassword) {
             final MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setString("secure_bind_password", OpenLdapTests.PASSWORD);
+            secureSettings.setString(getFullSettingKey(realmId, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD),
+                OpenLdapTests.PASSWORD);
             realmSettings.setSecureSettings(secureSettings);
         } else {
-            realmSettings.put("bind_password", OpenLdapTests.PASSWORD);
+            realmSettings.put(getFullSettingKey(realmId, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), OpenLdapTests.PASSWORD);
         }
-        RealmConfig config = new RealmConfig("oldap-test", realmSettings.build(), globalSettings,
+        final Settings settings = realmSettings.put(globalSettings).build();
+        RealmConfig config = new RealmConfig(realmId, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
-        Settings.Builder builder = Settings.builder()
-                .put(globalSettings, false);
-        builder.put(Settings.builder().put(config.settings(), false).normalizePrefix("xpack.security.authc.realms.oldap-test.").build());
-        final MockSecureSettings secureSettings = new MockSecureSettings();
-        if (useSecureBindPassword) {
-            secureSettings.setString("xpack.security.authc.realms.oldap-test.secure_bind_password", OpenLdapTests.PASSWORD);
-        }
-        builder.setSecureSettings(secureSettings);
-        Settings settings = builder.build();
-        SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
 
+        SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
 
         String[] users = new String[]{"cap", "hawkeye", "hulk", "ironman", "thor"};
         try (LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService, threadPool)) {
@@ -119,14 +118,10 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
         }
 
         if (useSecureBindPassword == false) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[]{PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD});
+            assertSettingDeprecationsAndWarnings(new Setting<?>[]{
+                config.getConcreteSetting(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD)
+            });
         }
-    }
-
-    private MockSecureSettings newSecureSettings(String key, String value) {
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(key, value);
-        return secureSettings;
     }
 
     private LdapSession session(SessionFactory factory, String username, SecureString password) {

@@ -47,7 +47,7 @@ final class RemoteClusterAwareClient extends AbstractClient {
         remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(res -> {
             Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
             service.sendRequest(connection, action.name(), request, TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener, action::newResponse));
+                new ActionListenerResponseHandler<>(listener, action.getResponseReader()));
         },
         listener::onFailure));
     }

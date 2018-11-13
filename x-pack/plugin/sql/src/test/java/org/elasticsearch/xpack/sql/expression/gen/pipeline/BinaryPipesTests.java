@@ -24,8 +24,8 @@ public class BinaryPipesTests extends ESTestCase {
         Pipe unsupported = new DummyPipe(false);
 
         assertFalse(new DummyBinaryPipe(unsupported, unsupported).supportedByAggsOnlyQuery());
-        assertFalse(new DummyBinaryPipe(unsupported, supported).supportedByAggsOnlyQuery());
-        assertFalse(new DummyBinaryPipe(supported, unsupported).supportedByAggsOnlyQuery());
+        assertTrue(new DummyBinaryPipe(unsupported, supported).supportedByAggsOnlyQuery());
+        assertTrue(new DummyBinaryPipe(supported, unsupported).supportedByAggsOnlyQuery());
         assertTrue(new DummyBinaryPipe(supported, supported).supportedByAggsOnlyQuery());
     }
 

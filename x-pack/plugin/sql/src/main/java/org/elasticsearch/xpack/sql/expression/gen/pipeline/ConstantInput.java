@@ -30,7 +30,7 @@ public class ConstantInput extends LeafInput<Object> {
 
     @Override
     public final boolean supportedByAggsOnlyQuery() {
-        return true;
+        return false;
     }
 
     @Override

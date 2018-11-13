@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -31,7 +30,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * This test ensures, that the plugin template upgrader can add and remove
  * templates when started within security, as this requires certain
- * system priviliges
+ * system privileges
  */
 @ClusterScope(maxNumDataNodes = 1, scope = Scope.SUITE, numClientNodes = 0)
 public class TemplateUpgraderTests extends SecurityIntegTestCase {
@@ -55,7 +54,7 @@ public class TemplateUpgraderTests extends SecurityIntegTestCase {
         assertAcked(putIndexTemplateResponse);
         assertTemplates("removed-template", "added-template");
 
-        TemplateUpgradeService templateUpgradeService = new TemplateUpgradeService(Settings.EMPTY, client, clusterService, threadPool,
+        TemplateUpgradeService templateUpgradeService = new TemplateUpgradeService(client, clusterService, threadPool,
                 Collections.singleton(indexTemplateMetaDataUpgraders));
 
         // ensure the cluster listener gets triggered

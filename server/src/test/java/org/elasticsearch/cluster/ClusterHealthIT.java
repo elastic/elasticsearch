@@ -36,7 +36,8 @@ public class ClusterHealthIT extends ESIntegTestCase {
 
         for (String node : internalCluster().getNodeNames()) {
             // a very high time out, which should never fire due to the local flag
-            ClusterHealthResponse health = client(node).admin().cluster().prepareHealth().setLocal(true).setWaitForEvents(Priority.LANGUID).setTimeout("30s").get("10s");
+            ClusterHealthResponse health = client(node).admin().cluster().prepareHealth().setLocal(true)
+                .setWaitForEvents(Priority.LANGUID).setTimeout("30s").get("10s");
             assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
             assertThat(health.isTimedOut(), equalTo(false));
         }
@@ -44,7 +45,8 @@ public class ClusterHealthIT extends ESIntegTestCase {
 
     public void testHealth() {
         logger.info("--> running cluster health on an index that does not exists");
-        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth("test1").setWaitForYellowStatus().setTimeout("1s").execute().actionGet();
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth("test1")
+            .setWaitForYellowStatus().setTimeout("1s").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(true));
         assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
         assertThat(healthResponse.getIndices().isEmpty(), equalTo(true));
@@ -59,13 +61,15 @@ public class ClusterHealthIT extends ESIntegTestCase {
         createIndex("test1");
 
         logger.info("--> running cluster health on an index that does exists");
-        healthResponse = client().admin().cluster().prepareHealth("test1").setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
+        healthResponse = client().admin().cluster().prepareHealth("test1")
+            .setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(healthResponse.getIndices().get("test1").getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("--> running cluster health on an index that does exists and an index that doesn't exists");
-        healthResponse = client().admin().cluster().prepareHealth("test1", "test2").setWaitForYellowStatus().setTimeout("1s").execute().actionGet();
+        healthResponse = client().admin().cluster().prepareHealth("test1", "test2")
+            .setWaitForYellowStatus().setTimeout("1s").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(true));
         assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
         assertThat(healthResponse.getIndices().get("test1").getStatus(), equalTo(ClusterHealthStatus.GREEN));

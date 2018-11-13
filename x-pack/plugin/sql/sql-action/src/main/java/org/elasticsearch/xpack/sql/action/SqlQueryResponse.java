@@ -167,7 +167,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
      * Serializes the provided value in SQL-compatible way based on the client mode
      */
     public static XContentBuilder value(XContentBuilder builder, Mode mode, Object value) throws IOException {
-        if (mode == Mode.JDBC && value instanceof ReadableDateTime) {
+        if (Mode.isDriver(mode) && value instanceof ReadableDateTime) {
             // JDBC cannot parse dates in string format
             builder.value(((ReadableDateTime) value).getMillis());
         } else {

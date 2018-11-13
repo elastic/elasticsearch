@@ -189,35 +189,6 @@ public class XContentParserTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("deprecation") // #isBooleanValueLenient() and #booleanValueLenient() are the test subjects
-    public void testReadLenientBooleans() throws IOException {
-        // allow String, boolean and int representations of lenient booleans
-        String falsy = randomFrom("\"off\"", "\"no\"", "\"0\"", "0", "\"false\"", "false");
-        String truthy = randomFrom("\"on\"", "\"yes\"", "\"1\"", "1", "\"true\"", "true");
-
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"foo\": " + falsy + ", \"bar\": " + truthy + "}")) {
-            XContentParser.Token token = parser.nextToken();
-            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
-            token = parser.nextToken();
-            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
-            assertThat(parser.currentName(), equalTo("foo"));
-            token = parser.nextToken();
-            assertThat(token, isIn(
-                Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_BOOLEAN)));
-            assertTrue(parser.isBooleanValueLenient());
-            assertFalse(parser.booleanValueLenient());
-
-            token = parser.nextToken();
-            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
-            assertThat(parser.currentName(), equalTo("bar"));
-            token = parser.nextToken();
-            assertThat(token, isIn(
-                Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_BOOLEAN)));
-            assertTrue(parser.isBooleanValueLenient());
-            assertTrue(parser.booleanValueLenient());
-        }
-    }
-
     public void testReadBooleansFailsForLenientBooleans() throws IOException {
         String falsy = randomFrom("\"off\"", "\"no\"", "\"0\"", "0");
         String truthy = randomFrom("\"on\"", "\"yes\"", "\"1\"", "1");

@@ -202,7 +202,7 @@ public class RollupJobTaskTests extends ESTestCase {
                 } else if (c == 1) {
                     assertThat(((RollupJobStatus) taskState).getIndexerState(), equalTo(IndexerState.STOPPED));
                 } else {
-                    fail("Should not have updated persistent statuse > 2 times");
+                    fail("Should not have updated persistent statuses > 2 times");
                 }
                 listener.onResponse(new PersistentTasksCustomMetaData.PersistentTask<>("foo", RollupField.TASK_NAME, job, 1,
                     new PersistentTasksCustomMetaData.Assignment("foo", "foo")));
@@ -688,7 +688,7 @@ public class RollupJobTaskTests extends ESTestCase {
                 } else if (c == 2) {
                     assertThat(((RollupJobStatus) taskState).getIndexerState(), equalTo(IndexerState.STOPPED));
                 } else {
-                    fail("Should not have updated persistent statuse > 3 times");
+                    fail("Should not have updated persistent statuses > 3 times");
                 }
                 listener.onResponse(new PersistentTasksCustomMetaData.PersistentTask<>("foo", RollupField.TASK_NAME, job, 1,
                     new PersistentTasksCustomMetaData.Assignment("foo", "foo")));

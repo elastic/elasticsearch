@@ -17,17 +17,17 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
-import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
-import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -36,15 +36,20 @@ import java.util.concurrent.CountDownLatch;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CcrLicenseIT extends ESSingleNodeTestCase {
+public class CcrLicenseIT extends CcrSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singletonList(NonCompliantLicenseLocalStateCcr.class);
     }
 
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.EMPTY;
+    }
+
     public void testThatFollowingIndexIsUnavailableWithNonCompliantLicense() throws InterruptedException {
-        final ResumeFollowAction.Request followRequest = getFollowRequest();
+        final ResumeFollowAction.Request followRequest = getResumeFollowRequest();
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(
                 ResumeFollowAction.INSTANCE,
@@ -66,8 +71,7 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
     }
 
     public void testThatCreateAndFollowingIndexIsUnavailableWithNonCompliantLicense() throws InterruptedException {
-        final ResumeFollowAction.Request followRequest = getFollowRequest();
-        final PutFollowAction.Request createAndFollowRequest = new PutFollowAction.Request(followRequest);
+        final PutFollowAction.Request createAndFollowRequest = getPutFollowRequest();
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(
                 PutFollowAction.INSTANCE,
@@ -88,21 +92,24 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
         latch.await();
     }
 
-    public void testThatCcrStatsAreUnavailableWithNonCompliantLicense() throws InterruptedException {
+    public void testThatFollowStatsAreUnavailableWithNonCompliantLicense() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
-        client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.StatsRequest(), new ActionListener<CcrStatsAction.StatsResponses>() {
-            @Override
-            public void onResponse(final CcrStatsAction.StatsResponses statsResponses) {
-                latch.countDown();
-                fail();
-            }
+        client().execute(
+                FollowStatsAction.INSTANCE,
+                new FollowStatsAction.StatsRequest(),
+                new ActionListener<FollowStatsAction.StatsResponses>() {
+                    @Override
+                    public void onResponse(final FollowStatsAction.StatsResponses statsResponses) {
+                        latch.countDown();
+                        fail();
+                    }
 
-            @Override
-            public void onFailure(final Exception e) {
-                assertNonCompliantLicense(e);
-                latch.countDown();
-            }
-        });
+                    @Override
+                    public void onFailure(final Exception e) {
+                        assertNonCompliantLicense(e);
+                        latch.countDown();
+                    }
+                });
 
         latch.await();
     }
@@ -110,7 +117,8 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
     public void testThatPutAutoFollowPatternsIsUnavailableWithNonCompliantLicense() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
         final PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("leader");
+        request.setName("name");
+        request.setRemoteCluster("leader");
         request.setLeaderIndexPatterns(Collections.singletonList("*"));
         client().execute(
                 PutAutoFollowPatternAction.INSTANCE,
@@ -139,8 +147,8 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                AutoFollowPattern autoFollowPattern =
-                    new AutoFollowPattern(Collections.singletonList("logs-*"), null, null, null, null, null, null, null, null);
+                AutoFollowPattern autoFollowPattern = new AutoFollowPattern("test_alias", Collections.singletonList("logs-*"),
+                    null, null, null, null, null, null, null, null, null, null, null);
                 AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
                     Collections.singletonMap("test_alias", autoFollowPattern),
                     Collections.emptyMap(),
@@ -189,15 +197,6 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
     private void assertNonCompliantLicense(final Exception e) {
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [ccr]"));
-    }
-
-    private ResumeFollowAction.Request getFollowRequest() {
-        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.setLeaderIndex("leader");
-        request.setFollowerIndex("follower");
-        request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
-        request.setPollTimeout(TimeValue.timeValueMillis(10));
-        return request;
     }
 
 }

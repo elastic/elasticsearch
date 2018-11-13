@@ -19,7 +19,7 @@ Amsterdam      |point (4.850311987102032 52.347556999884546)
 
 selectWKTToSQL
 // tag::wkttosql
-SELECT ST_AsWKT(ST_WKTToSQL('POINT (10 20)')) location;
+SELECT CAST(ST_WKTToSQL('POINT (10 20)') AS STRING) location;
 
    location:s
 point (10.0 20.0)

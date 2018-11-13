@@ -46,12 +46,12 @@ The following is a list of the events that can be generated:
 === Audit event attributes
 
 A new <<audit-log-output, `logfile` audit output>> format has been added in the
-6.5.0 version. This format also brough in a few changes for the audit event attributes.
+6.5.0 version. This format also brings in a few changes for audit event attributes.
 
 The new format is output to the `<clustername>_audit.log` file.
 The audit entries are formatted as flat (that is, no nested objects) JSON documents,
-one per line. Hence, the attribute names are the JSON keys and they follow a dotted
-name syntax. Any attribute that lacks a value (`null`) will not be present.
+one per line. Hence, the attribute names are JSON keys and they follow a dotted
+name syntax. Any attribute that lacks a value (`null`) will not be output.
 
 The following list shows attributes that are common to all audit events.
 Their names and values are analogous to those in the deprecated `logfile` or
@@ -60,10 +60,10 @@ independetly during the 6.x releases, so it is advisable to follow the attribute
 descriptions for the format that you are using.
 
 `@timestamp`      ::    The time, in ISO9601 format, when the event occurred.
-`node.name`       ::    The name of the node. This name can be changed
+`node.name`       ::    The name of the node. This can be changed
                         from the `elasticsearch.yml` config file.
-`node.id`         ::    The automatically assigned node's id. This is persistent
-                        across full cluster restarts.
+`node.id`         ::    The node id. This is automatically generated and is
+                        persistent across full cluster restarts.
 `host.ip`         ::    The bound IP address of the node, with which the node
                         can be communicated with.
 `host.name`       ::    The unresolved node's hostname.
@@ -88,7 +88,7 @@ descriptions for the format that you are using.
                         `authentication_failed`, `authentication_success`,
                         `realm_authentication_failed`, `access_denied`, `access_granted`,
                         `connection_denied`, `connection_granted`, `tampered_request`,
-                        `run_as_denied`, `run_as_granted`.
+                        `run_as_denied` or `run_as_granted`.
 `opaque_id`       ::    The value of the `X-Opaque-Id` HTTP header (if present) of
                         the request associated with this event. This header can
                         be used freely by the client to mark API calls, as it has
@@ -96,7 +96,11 @@ descriptions for the format that you are using.
 
 ==== Audit event attributes of the REST event type
 
-If the `event.type` is equal to `rest`, the following attributes are also present:
+The events with `event.type` equal to `rest` have one of the following `event.action`
+attribute values: `authentication_success`, `anonymous_access_denied`, `authentication_failed`,
+`realm_authentication_failed`, `tampered_request` or `run_as_denied`.
+These event types also have the following extra attributes (in addition to the common
+ones):
 
 `url.path`        ::    The path part of the URL (between the port and the query
                         string) of the REST request associated with this event.
@@ -107,44 +111,14 @@ If the `event.type` is equal to `rest`, the following attributes are also presen
                         event, if enabled. This contains the query body. The body
                         is escaped according to the JSON RFC 4627.
 
-The events with `event.type` equal to `rest` have one of the following `event.action`:
-`authentication_success`, `anonymous_access_denied`, `authentication_failed`,
-`realm_authentication_failed`, `tampered_request`, `run_as_denied`. Some of these
-have yet more attributes:
-
-* `authentication_success`:
-
-  `realm`               ::   The name of the realm that had successfully
-                             authenticated the user.
-  `user.name`           ::   The _effective_ username. Usually this is the _authenticated_
-                             username, but if using the <<run-as-privilege, run as authorization functionality>>
-                             this denotes the _impersonated_ username.
-  `user.run_by.name`    ::   This attribute is present only if the request is
-                             using the <<run-as-privilege, run as authorization functionality>>
-                             and denotes the _authenticated_ (_impersonator_) username.
-
-* `authentication_failed`:
-
-  `user.name`          ::    The name of the user that failed authentication. Could
-                             be missing  if the request authentication token is invalid.
-
-* `realm_authentication_failed`:
-
-  `user.name`          ::    The name of the user that failed authentication.
-  `realm`              ::    The name of the realm that rejected this authentication.
-
-* `run_as_denied` or `run_as_granted`:
-
-  `user.roles`         ::    The user's role names array.
-  `user.name`          ::    The _authenticated_ username which is being granted/denied
-                             the _impersonation_.
-  `user.realm`         ::    The realm name that the _authenticated_ username belongs to.
-  `user.run_as.name`   ::    The username as which the _impersonation_ is granted/denied.
-  `user.run_as.realm`  ::    The realm name of the _impersonated_ username.
-
 ==== Audit event attributes of the transport event type
 
-If the `event.type` is equal to `transport`, the following attributes are also present:
+The events with `event.type` equal to `transport` have one of the following `event.action`
+attribute values: `authentication_success`, `anonymous_access_denied`, `authentication_failed`,
+`realm_authentication_failed`, `access_granted`, `access_denied`, `run_as_granted`,
+`run_as_denied` or `tampered_request`.
+These event types also have the following extra attributes (in addition to the common
+ones):
 
 `action`              ::    The name of the transport action that was executed.
                             This is alike the URL for a REST request.
@@ -152,46 +126,70 @@ If the `event.type` is equal to `transport`, the following attributes are also p
                             with this event pertains to (when applicable).
 `request.name`        ::    The name of the request handler that was executed.
 
-The events with `event.type` equal to `transport` have one of the following `event.action`:
-`authentication_success`, `anonymous_access_denied`, `authentication_failed`,
-`realm_authentication_failed`, `access_granted`, `access_denied`, `run_as_granted`,
-`run_as_denied`, `tampered_request`. Some of these have yet more attributes:
+==== Audit event attributes of the ip_filter event type
+
+The events with `event.type` equal to `ip_filter` have one of the following `event.action`
+attribute values: `connection_granted` or `connection_denied`.
+These event types also have the following extra attributes (in addition to the common
+ones):
+
+`transport_profile`   ::    The transport profile the request targeted.
+`rule`                ::    The <<ip-filtering, IP filtering>> rule that denied
+                            the request.
+
+==== Extra audit event attributes for specific events
+
+There are a few events that have yet some more attributes in addition to those
+that have been previously described:
 
 * `authentication_success`:
-
-  `realm`               ::   The name of the realm that had successfully
-                             authenticated the user.
-  `user.name`           ::   The _effective_ username. Usually this is the _authenticated_
-                             username, but if using the <<run-as-privilege, run as authorization functionality>>
-                             this instead denotes the _impersonated_ username.
-  `user.run_by.name`    ::   This attribute is present only if the request is
-                             using the <<run-as-privilege, run as authorization functionality>>
-                             and denotes the _authenticated_ (_impersonator_) username.
+  `realm`              ::   The name of the realm that had successfully
+                            authenticated the user.
+  `user.name`          ::   The name of the _effective_ user. This is usually the
+                            same as the _authenticated_ user, but if using the
+                            <<run-as-privilege, run as authorization functionality>>
+                            this instead denotes the name of the  _impersonated_ user.
+  `user.run_by.name`   ::   This attribute is present only if the request is
+                            using the <<run-as-privilege, run as authorization functionality>>
+                            and denotes the name of the  _authenticated_ user, aka
+                            the _impersonator_.
 
 * `authentication_failed`:
-
-  `user.name`           ::    The name of the user that failed authentication. Could
-                              be missing  if the request authentication token is invalid.
+  `user.name`          ::    The name of the user that failed authentication. Could
+                             be missing if the request authentication token is
+                             invalid or unparsable.
 
 * `realm_authentication_failed`:
-
   `user.name`          ::    The name of the user that failed authentication.
   `realm`              ::    The name of the realm that rejected this authentication.
+                             **This event is generated for each consulted realm
+                             in the chain.**
 
-* `access_granted` and `access_denied`:
-  `user.roles`         ::    The user's role names array.
-  `user.name`          ::    The _effective_ username that is being authorized/
-                             unauthorized. Usually this is the _authenticated_
-                             username, but if using the <<run-as-privilege, run as authorization functionality>>
-                             this instead denotes the _impersonated_ username.
-  `user.realm`         ::    The realm name that the _effective_ username belongs to.
+* `run_as_denied` and `run_as_granted`:
+  `user.roles`         ::    The role names of the user as an array.
+  `user.name`          ::    The name of the _authenticated_ user which is being
+                             granted/denied the _impersonation_ action.
+  `user.realm`         ::    The realm name that the _authenticated_ user belongs to.
+  `user.run_as.name`   ::    The name of the user as which the _impersonation_
+                             action is granted/denied.
+  `user.run_as.realm`  ::    The realm name of that the _impersonated_ user belongs to.
+
+* `access_granted` or `access_denied`:
+  `user.roles`         ::    The role names of the user as an array.
+  `user.name`          ::    The name of the _effective_ user that is being
+                             authorized/unauthorized. This is usually the _authenticated_
+                             user, but if using the <<run-as-privilege, run as authorization functionality>>
+                             this instead denotes the name of the  _impersonated_ user.
+  `user.realm`         ::    The realm name that the _effective_ user belongs to.
   `user.run_by.name`   ::    This attribute is present only if the request is
                              using the <<run-as-privilege, run as authorization functionality>>
-                             and denoted the _authenticated_ (_impersonator_) username.
+                             and denoted the name of the _authenticated_ user, aka
+                             the _impersonator_.
   `user.run_by.realm`  ::    This attribute is present only if the request is
                              using the <<run-as-privilege, run as authorization functionality>>
-                             and denotes the realm that the _authenticated_
-                             (_impersonator_) username belongs to.
+                             and denotes the name of the realm that the _authenticated_
+                             (_impersonator_) user belongs to.
+
 
 [float]
 [[audit-event-attributes-deprecated-formats]]

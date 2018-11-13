@@ -24,11 +24,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -242,25 +242,17 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 
     class DelayedPrepareBulkRequest {
         private final ThreadPool threadPool;
-        private final AbstractRunnable command;
+        private final Runnable command;
         private final float requestsPerSecond;
         private final ScheduledFuture<?> future;
 
-        DelayedPrepareBulkRequest(ThreadPool threadPool, float requestsPerSecond, TimeValue delay, AbstractRunnable command) {
+        DelayedPrepareBulkRequest(ThreadPool threadPool, float requestsPerSecond, TimeValue delay, Runnable command) {
             this.threadPool = threadPool;
             this.requestsPerSecond = requestsPerSecond;
             this.command = command;
-            this.future = threadPool.schedule(delay, ThreadPool.Names.GENERIC, new AbstractRunnable() {
-                @Override
-                protected void doRun() throws Exception {
-                    throttledNanos.addAndGet(delay.nanos());
-                    command.run();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    command.onFailure(e);
-                }
+            this.future = threadPool.schedule(delay, ThreadPool.Names.GENERIC, () -> {
+                throttledNanos.addAndGet(delay.nanos());
+                command.run();
             });
         }
 
@@ -300,31 +292,6 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
                 return timeValueNanos(0);
             }
             return timeValueNanos(round(remainingDelay * requestsPerSecond / newRequestsPerSecond));
-        }
-    }
-
-    /**
-     * Runnable that can only be run one time. This is paranoia to prevent furiously rethrottling from running the command multiple times.
-     * Without it the command would be run multiple times.
-     */
-    private static class RunOnce extends AbstractRunnable {
-        private final AtomicBoolean hasRun = new AtomicBoolean(false);
-        private final AbstractRunnable delegate;
-
-        RunOnce(AbstractRunnable delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        protected void doRun() throws Exception {
-            if (hasRun.compareAndSet(false, true)) {
-                delegate.run();
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            delegate.onFailure(e);
         }
     }
 }

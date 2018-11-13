@@ -1,33 +1,35 @@
 [role="xpack"]
 [testenv="platinum"]
-[[ccr-gs]]
-== Getting Started with Cross-Cluster Replication
+[[ccr-getting-started]]
+== Getting Started with {ccr}
 
 beta[]
 
 This getting-started guide for {ccr} shows you how to:
 
-* <<ccr-gs-remote-cluster,Connect a local cluster to a remote cluster>>
-* <<ccr-gs-leader-index,Create a leader index>> in a remote cluster
-* <<ccr-gs-follower-index,Create a follower index>> that replicates a leader
-  index
-* <<ccr-gs-auto-follow,Automatically create follower indices>>
+* <<ccr-getting-started-remote-cluster,Connect a local cluster to a remote
+  cluster>>
+* <<ccr-getting-started-leader-index,Create a leader index>> in a remote cluster
+* <<ccr-getting-started-follower-index,Create a follower index>> that replicates
+  a leader index
+* <<ccr-getting-started-auto-follow,Automatically create follower indices>>
 
 [float]
-[[ccr-gs-before-you-begin]]
+[[ccr-getting-started-before-you-begin]]
 === Before you begin
 . {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[Install {es}]
   on your local and remote clusters.
 
-. Obtain a license that includes the {ccr} features. See https://www.elastic.co/subscriptions 
-  and <<license-management>>.
+. Obtain a license that includes the {ccr} features. See
+  https://www.elastic.co/subscriptions[subscriptions] and
+  <<license-management>>.
 
 . If the Elastic {security-features} are enabled in your local and remote 
-clusters, you need a user that has appropriate authority to perform the steps in 
-this tutorial.
+  clusters, you need a user that has appropriate authority to perform the steps
+  in this tutorial.
 +
 --
-[[ccr-gs-security]]
+[[ccr-getting-started-security]]
 The {ccr} features use cluster privileges and built-in roles to make it easier
 to control which users have authority to manage {ccr}.
 
@@ -40,11 +42,10 @@ If you are performing these steps in a production environment, take extra care
 because the `elastic` user has the `superuser` role and you could inadvertently
 make significant changes. 
 
-Alternatively, you can assign the appropriate privileges
-to a user ID of your choice. On the remote cluster that contains the leader index, 
-a user will need the
-`read_ccr` cluster privilege and `monitor` and `read` privileges on the leader
-index.
+Alternatively, you can assign the appropriate privileges to a user ID of your
+choice. On the remote cluster that contains the leader index, a user will need
+the `read_ccr` cluster privilege and `monitor` and `read` privileges on the
+leader index.
 
 [source,yml]
 --------------------------------------------------
@@ -58,8 +59,8 @@ ccr_user:
         - read
 --------------------------------------------------
 
-On the local cluster that contains the follower index, the same user will need the
-`manage_ccr` cluster privilege and `monitor`, `read`, `write` and
+On the local cluster that contains the follower index, the same user will need
+the `manage_ccr` cluster privilege and `monitor`, `read`, `write` and
 `manage_follow_index` privileges on the follower index.
 
 [source,yml]
@@ -75,16 +76,21 @@ ccr_user:
         - write
         - manage_follow_index
 --------------------------------------------------
+
+If you are managing
+<<ccr-getting-started-remote-cluster,connecting to the remote cluster>> via the
+cluster update settings API, you will also need a user with the `all` cluster
+privilege.
 --
 
 [float]
-[[ccr-gs-remote-cluster]]
+[[ccr-getting-started-remote-cluster]]
 === Connecting to a remote cluster
 
 The {ccr} features require that you 
-{ref}/modules-remote-clusters.html[connect your local cluster to a remote cluster].
-In this tutorial, we will connect our local cluster
-to a remote cluster with the cluster alias `leader`.
+{ref}/modules-remote-clusters.html[connect your local cluster to a remote
+cluster]. In this tutorial, we will connect our local cluster to a remote
+cluster with the cluster alias `leader`.
 
 [source,js]
 --------------------------------------------------
@@ -147,7 +153,7 @@ remote cluster.
     connected to.
 
 [float]
-[[ccr-gs-leader-index]]
+[[ccr-getting-started-leader-index]]
 === Creating a leader index
 
 Leader indices require special index settings to ensure that the operations that
@@ -210,13 +216,14 @@ PUT /server-metrics
 <2> Sets that up to 1024 soft deletes will be retained.
 
 [float]
-[[ccr-gs-follower-index]]
+[[ccr-getting-started-follower-index]]
 === Creating a follower index
 
-Follower indices are created with the {ref}/ccr-put-follow.html[create follower API].
-When you create a follower index, you must reference the
-<<ccr-gs-remote-cluster,remote cluster>> and the 
-<<ccr-gs-leader-index,leader index>> that you created in the remote cluster.
+Follower indices are created with the {ref}/ccr-put-follow.html[create follower
+API]. When you create a follower index, you must reference the
+<<ccr-getting-started-remote-cluster,remote cluster>> and the
+<<ccr-getting-started-leader-index,leader index>> that you created in the remote
+cluster.
 
 [source,js]
 --------------------------------------------------
@@ -264,16 +271,17 @@ POST /server-metrics-copy/_ccr/unfollow
 //////////////////////////
 
 [float]
-[[ccr-gs-auto-follow]]
+[[ccr-getting-started-auto-follow]]
 === Automatically create follower indices
 
 The auto-follow feature in {ccr} helps for time series use cases where you want 
 to follow new indices that are periodically created in the remote cluster
 (such as daily Beats indices). Auto-following is configured using the
 {ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API]. With an
-auto-follow pattern, you reference the <<ccr-gs-remote-cluster,remote cluster>>
-that you connected your local cluster to. You must also specify a collection of 
-patterns that match the indices you want to automatically follow. 
+auto-follow pattern, you reference the
+<<ccr-getting-started-remote-cluster,remote cluster>> that you connected your
+local cluster to. You must also specify a collection of  patterns that match the
+indices you want to automatically follow.
 
 For example:
 

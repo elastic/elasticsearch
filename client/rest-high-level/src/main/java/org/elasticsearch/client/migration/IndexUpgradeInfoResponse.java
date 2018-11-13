@@ -28,6 +28,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Response object that contains information about indices to be upgraded
+ */
 public class IndexUpgradeInfoResponse {
 
     private static final ParseField INDICES = new ParseField("indices");

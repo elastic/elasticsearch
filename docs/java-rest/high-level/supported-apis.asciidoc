@@ -220,12 +220,16 @@ The Java High Level REST Client supports the following Licensing APIs:
 * <<java-rest-high-delete-license>>
 * <<java-rest-high-start-trial>>
 * <<java-rest-high-start-basic>>
+* <<java-rest-high-get-trial-status>>
+* <<java-rest-high-get-basic-status>>
 
 include::licensing/put-license.asciidoc[]
 include::licensing/get-license.asciidoc[]
 include::licensing/delete-license.asciidoc[]
 include::licensing/start-trial.asciidoc[]
 include::licensing/start-basic.asciidoc[]
+include::licensing/get-trial-status.asciidoc[]
+include::licensing/get-basic-status.asciidoc[]
 
 == Machine Learning APIs
 :upid: {mainid}-x-pack-ml
@@ -296,8 +300,10 @@ include::ml/put-filter.asciidoc[]
 The Java High Level REST Client supports the following Migration APIs:
 
 * <<java-rest-high-migration-get-assistance>>
+* <<java-rest-high-migration-upgrade>>
 
 include::migration/get-assistance.asciidoc[]
+include::migration/upgrade.asciidoc[]
 
 == Rollup APIs
 
@@ -371,6 +377,7 @@ The Java High Level REST Client supports the following Watcher APIs:
 * <<java-rest-high-watcher-deactivate-watch>>
 * <<{upid}-ack-watch>>
 * <<{upid}-activate-watch>>
+* <<{upid}-watcher-stats>>
 
 include::watcher/start-watch-service.asciidoc[]
 include::watcher/stop-watch-service.asciidoc[]
@@ -379,6 +386,7 @@ include::watcher/delete-watch.asciidoc[]
 include::watcher/ack-watch.asciidoc[]
 include::watcher/deactivate-watch.asciidoc[]
 include::watcher/activate-watch.asciidoc[]
+include::watcher/watcher-stats.asciidoc[]
 
 == Graph APIs
 
@@ -407,6 +415,8 @@ don't leak into the rest of the documentation.
 
 The Java High Level REST Client supports the following CCR APIs:
 
+* <<{upid}-ccr-put-follow>>
 * <<{upid}-ccr-pause-follow>>
 
+include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]

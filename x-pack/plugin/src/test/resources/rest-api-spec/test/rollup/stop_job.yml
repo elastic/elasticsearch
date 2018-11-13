@@ -87,8 +87,8 @@ setup:
 ---
 "Test wait_for_completion default timeout":
   - skip:
-      version: " - 6.5.0"
-      reason: wait_for_stopped option was added in 6.5
+      version: " - 6.6.0"
+      reason: wait_for_completion option was added in 6.6
 
   - do:
       headers:
@@ -108,8 +108,8 @@ setup:
 ---
 "Test wait_for_completion with custom timeout":
   - skip:
-      version: " - 6.5.0"
-      reason: wait_for_stopped option was added in 6.5
+      version: " - 6.6.0"
+      reason: wait_for_completion option was added in 6.6
 
   - do:
       headers:

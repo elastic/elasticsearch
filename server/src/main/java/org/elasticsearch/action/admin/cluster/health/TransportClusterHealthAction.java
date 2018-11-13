@@ -184,7 +184,7 @@ public class TransportClusterHealthAction
             }
 
             @Override
-            public void onTimeout(TimeValue timeout) {
+            public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
                 final ClusterHealthResponse response = getResponse(request, observer.setAndGetObservedState(), concreteWaitFor, true);
                 listener.onResponse(response);
             }

@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -40,6 +41,13 @@ public class ClusterStateRequestTests extends ESTestCase {
             ClusterStateRequest clusterStateRequest = new ClusterStateRequest().routingTable(randomBoolean()).metaData(randomBoolean())
                     .nodes(randomBoolean()).blocks(randomBoolean()).indices("testindex", "testindex2").indicesOptions(indicesOptions);
 
+            if (randomBoolean()) {
+                clusterStateRequest.waitForMetaDataVersion(randomNonNegativeLong());
+            }
+            if (randomBoolean()) {
+                clusterStateRequest.waitForTimeout(new TimeValue(randomNonNegativeLong()));
+            }
+
             Version testVersion = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
             BytesStreamOutput output = new BytesStreamOutput();
             output.setVersion(testVersion);
@@ -55,6 +63,8 @@ public class ClusterStateRequestTests extends ESTestCase {
             assertThat(deserializedCSRequest.blocks(), equalTo(clusterStateRequest.blocks()));
             assertThat(deserializedCSRequest.indices(), equalTo(clusterStateRequest.indices()));
             assertOptionsMatch(deserializedCSRequest.indicesOptions(), clusterStateRequest.indicesOptions());
+            assertThat(deserializedCSRequest.waitForMetaDataVersion(), equalTo(clusterStateRequest.waitForMetaDataVersion()));
+            assertThat(deserializedCSRequest.waitForTimeout(), equalTo(clusterStateRequest.waitForTimeout()));
         }
     }
 

@@ -710,7 +710,7 @@ public class Node implements Closeable {
                     }
 
                     @Override
-                    public void onTimeout(TimeValue timeout) {
+                    public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
                         logger.warn("timed out while waiting for initial discovery state - timeout: {}",
                             initialStateTimeout);
                         latch.countDown();

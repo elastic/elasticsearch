@@ -182,7 +182,7 @@ public class PersistentTasksService extends AbstractComponent {
                 }
 
                 @Override
-                public void onTimeout(TimeValue timeout) {
+                public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
                     listener.onTimeout(timeout);
                 }
             }, clusterStatePredicate);
@@ -218,7 +218,7 @@ public class PersistentTasksService extends AbstractComponent {
                 }
 
                 @Override
-                public void onTimeout(TimeValue timeout) {
+                public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
                     listener.onFailure(new IllegalStateException("Timed out when waiting for persistent tasks after " + timeout));
                 }
             }, clusterStatePredicate, timeout);

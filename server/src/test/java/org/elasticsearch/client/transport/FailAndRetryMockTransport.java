@@ -99,7 +99,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                     } else if (ClusterStateAction.NAME.equals(action)) {
                         TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
                         ClusterState clusterState = getMockClusterState(node);
-                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L));
+                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L, false));
                     } else if (TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
                         TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
                         Version version = node.getVersion();

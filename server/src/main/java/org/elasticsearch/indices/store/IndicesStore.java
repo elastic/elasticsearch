@@ -333,7 +333,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                         }
 
                         @Override
-                        public void onTimeout(TimeValue timeout) {
+                        public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
                             sendResult(shardActive(getShard(request)));
                         }
 

@@ -242,7 +242,7 @@ public abstract class TransportInstanceSingleOperationAction<
                 }
 
                 @Override
-                public void onTimeout(TimeValue timeout) {
+                public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
                     // just to be on the safe side, see if we can start it now?
                     doStart(observer.setAndGetObservedState());
                 }

@@ -490,7 +490,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                         }
 
                         @Override
-                        public void onTimeout(TimeValue timeout) {
+                        public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
                             // note that we do not use a timeout (see comment above)
                             onFailure(new ElasticsearchTimeoutException("timed out waiting for mapping updates (timeout [" + timeout +
                                     "])"));
@@ -525,7 +525,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 }
 
                 @Override
-                public void onTimeout(TimeValue timeout) {
+                public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
                     future.onFailure(new IllegalStateException("cluster state never updated to version " + clusterStateVersion));
                 }
             }, newState -> newState.getVersion() >= clusterStateVersion);

@@ -229,7 +229,7 @@ public class ShardStateAction extends AbstractComponent {
             }
 
             @Override
-            public void onTimeout(TimeValue timeout) {
+            public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
                 // we wait indefinitely for a new master
                 assert false;
             }

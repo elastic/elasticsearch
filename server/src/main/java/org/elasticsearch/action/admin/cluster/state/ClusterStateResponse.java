@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * The response for getting the cluster state.
@@ -40,14 +41,16 @@ public class ClusterStateResponse extends ActionResponse {
     // the total compressed size of the full cluster state, not just
     // the parts included in this response
     private ByteSizeValue totalCompressedSize;
+    private boolean timedOut = false;
 
     public ClusterStateResponse() {
     }
 
-    public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, long sizeInBytes) {
+    public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, long sizeInBytes, boolean timedOut) {
         this.clusterName = clusterName;
         this.clusterState = clusterState;
         this.totalCompressedSize = new ByteSizeValue(sizeInBytes);
+        this.timedOut = timedOut;
     }
 
     /**
@@ -75,6 +78,14 @@ public class ClusterStateResponse extends ActionResponse {
         return totalCompressedSize;
     }
 
+    /**
+     * Returns whether waiting for a cluster state wait a metadata version equal or higher than the specified
+     * metadata version timed out.
+     */
+    public boolean isTimedOut() {
+        return timedOut;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -88,6 +99,9 @@ public class ClusterStateResponse extends ActionResponse {
             // its a temporary situation until all nodes in the cluster have been upgraded,
             // at which point the correct cluster state size will always be reported
             totalCompressedSize = new ByteSizeValue(0L);
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            timedOut = in.readBoolean();
         }
     }
 
@@ -103,5 +117,25 @@ public class ClusterStateResponse extends ActionResponse {
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             totalCompressedSize.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+            out.writeBoolean(timedOut);
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ClusterStateResponse response = (ClusterStateResponse) o;
+        return timedOut == response.timedOut &&
+            Objects.equals(clusterName, response.clusterName) &&
+            // Best effort. Left of cluster state, because it doesn't implement equals() and hashcode()
+            Objects.equals(totalCompressedSize, response.totalCompressedSize);
+    }
+
+    @Override
+    public int hashCode() {
+        // Best effort for testing. Left of cluster state, because it doesn't implement equals() and hashcode()
+        return Objects.hash(clusterName, totalCompressedSize, timedOut);
     }
 }

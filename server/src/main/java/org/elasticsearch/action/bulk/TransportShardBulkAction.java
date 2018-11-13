@@ -131,7 +131,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 }
 
                 @Override
-                public void onTimeout(TimeValue timeout) {
+                public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
                     waitingFuture.onFailure(
                         new MapperException("timed out while waiting for a dynamic mapping update"));
                 }

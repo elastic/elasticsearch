@@ -88,7 +88,7 @@ public class ActiveShardsObserver extends AbstractComponent {
                 }
 
                 @Override
-                public void onTimeout(TimeValue timeout) {
+                public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
                     onResult.accept(false);
                 }
             };

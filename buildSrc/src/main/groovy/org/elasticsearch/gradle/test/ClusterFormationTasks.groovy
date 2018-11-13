@@ -719,7 +719,7 @@ class ClusterFormationTasks {
                 unicastHosts.addAll(node.config.otherUnicastHostAddresses.call())
                 String unicastHost = node.config.unicastTransportUri(node, null, project.ant)
                 if (unicastHost != null) {
-                    unicastHosts.addAll(Arrays.asList(unicastHost.split(",")))
+                    unicastHosts.add(unicastHost)
                 }
             }
             String unicastHostsTxt = String.join("\n", unicastHosts)

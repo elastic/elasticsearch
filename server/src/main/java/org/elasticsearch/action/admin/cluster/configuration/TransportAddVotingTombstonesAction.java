@@ -44,7 +44,6 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -80,7 +79,7 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
     protected void masterOperation(AddVotingTombstonesRequest request, ClusterState state,
                                    ActionListener<AddVotingTombstonesResponse> listener) throws Exception {
 
-        request.resolveNodes(state); // throws IllegalArgumentException if no nodes matched
+        resolveNodesAndCheckMaximum(request, state); // throws IllegalArgumentException if no nodes matched or maximum exceeded
 
         clusterService.submitStateUpdateTask("add-voting-tombstones", new ClusterStateUpdateTask(Priority.URGENT) {
 
@@ -89,22 +88,12 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
             @Override
             public ClusterState execute(ClusterState currentState) {
                 assert resolvedNodes == null : resolvedNodes;
-                resolvedNodes = request.resolveNodes(currentState);
-
-                final int oldTombstoneCount = currentState.getVotingTombstones().size();
-                final int newTombstoneCount = resolvedNodes.size();
-                final int maxTombstoneCount = MAXIMUM_VOTING_TOMBSTONES_SETTING.get(currentState.metaData().settings());
-                if (oldTombstoneCount + newTombstoneCount > maxTombstoneCount) {
-                    throw new IllegalArgumentException("add voting tombstones request for " + Arrays.asList(request.getNodeDescriptions())
-                        + " would add [" + newTombstoneCount + "] voting tombstones to the existing [" + oldTombstoneCount
-                        + "] which would exceed the maximum of [" + maxTombstoneCount + "] set by ["
-                        + MAXIMUM_VOTING_TOMBSTONES_SETTING.getKey() + "]");
-                }
+                resolvedNodes = resolveNodesAndCheckMaximum(request, currentState);
 
                 final Builder builder = ClusterState.builder(currentState);
                 resolvedNodes.forEach(builder::addVotingTombstone);
                 final ClusterState newState = builder.build();
-                assert newState.getVotingTombstones().size() <= maxTombstoneCount;
+                assert newState.getVotingTombstones().size() <= MAXIMUM_VOTING_TOMBSTONES_SETTING.get(currentState.metaData().settings());
                 return newState;
             }
 
@@ -152,6 +141,11 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
                 }
             }
         });
+    }
+
+    private static Set<DiscoveryNode> resolveNodesAndCheckMaximum(AddVotingTombstonesRequest request, ClusterState state) {
+        return request.resolveNodesAndCheckMaximum(state,
+            MAXIMUM_VOTING_TOMBSTONES_SETTING.get(state.metaData().settings()), MAXIMUM_VOTING_TOMBSTONES_SETTING.getKey());
     }
 
     @Override

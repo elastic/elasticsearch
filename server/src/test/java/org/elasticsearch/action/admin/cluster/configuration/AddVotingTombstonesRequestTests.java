@@ -72,6 +72,34 @@ public class AddVotingTombstonesRequestTests extends ESTestCase {
             equalTo("add voting tombstones request for [not-a-node] matched no master-eligible nodes"));
     }
 
+    public void testResolveAndCheckMaximum() {
+        final DiscoveryNode localNode
+            = new DiscoveryNode("local", "local", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
+        final DiscoveryNode otherNode1
+            = new DiscoveryNode("other1", "other1", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
+        final DiscoveryNode otherNode2
+            = new DiscoveryNode("other2", "other2", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
+
+        final ClusterState.Builder builder = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder()
+            .add(localNode).add(otherNode1).add(otherNode2).localNodeId(localNode.getId()));
+        builder.addVotingTombstone(otherNode1);
+        final ClusterState clusterState = builder.build();
+
+        assertThat(makeRequest().resolveNodesAndCheckMaximum(clusterState, 3, "setting.name"),
+            containsInAnyOrder(localNode, otherNode2));
+        assertThat(makeRequest("_local").resolveNodesAndCheckMaximum(clusterState, 2, "setting.name"),
+            contains(localNode));
+
+        assertThat(expectThrows(IllegalArgumentException.class,
+            () -> makeRequest().resolveNodesAndCheckMaximum(clusterState, 2, "setting.name")).getMessage(),
+            equalTo("add voting tombstones request for [] would add [2] voting tombstones to the existing [1] which would exceed the " +
+                "maximum of [2] set by [setting.name]"));
+        assertThat(expectThrows(IllegalArgumentException.class,
+            () -> makeRequest("_local").resolveNodesAndCheckMaximum(clusterState, 1, "setting.name")).getMessage(),
+            equalTo("add voting tombstones request for [_local] would add [1] voting tombstones to the existing [1] which would exceed " +
+                "the maximum of [1] set by [setting.name]"));
+    }
+
     private static AddVotingTombstonesRequest makeRequest(String... descriptions) {
         return new AddVotingTombstonesRequest(descriptions);
     }

@@ -70,8 +70,8 @@ public class AddVotingTombstonesRequest extends MasterNodeRequest<AddVotingTombs
     }
 
     Set<DiscoveryNode> resolveNodes(ClusterState currentState) {
-        DiscoveryNodes allNodes = currentState.nodes();
-        Set<DiscoveryNode> resolvedNodes = Arrays.stream(allNodes.resolveNodes(nodeDescriptions))
+        final DiscoveryNodes allNodes = currentState.nodes();
+        final Set<DiscoveryNode> resolvedNodes = Arrays.stream(allNodes.resolveNodes(nodeDescriptions))
             .map(allNodes::get).filter(DiscoveryNode::isMasterNode).collect(Collectors.toSet());
 
         if (resolvedNodes.isEmpty()) {
@@ -80,6 +80,20 @@ public class AddVotingTombstonesRequest extends MasterNodeRequest<AddVotingTombs
         }
 
         resolvedNodes.removeIf(n -> currentState.getVotingTombstones().contains(n));
+        return resolvedNodes;
+    }
+
+    Set<DiscoveryNode> resolveNodesAndCheckMaximum(ClusterState currentState, int maxTombstoneCount, String maximumSettingKey) {
+        final Set<DiscoveryNode> resolvedNodes = resolveNodes(currentState);
+
+        final int oldTombstoneCount = currentState.getVotingTombstones().size();
+        final int newTombstoneCount = resolvedNodes.size();
+        if (oldTombstoneCount + newTombstoneCount > maxTombstoneCount) {
+            throw new IllegalArgumentException("add voting tombstones request for " + Arrays.asList(nodeDescriptions)
+                + " would add [" + newTombstoneCount + "] voting tombstones to the existing [" + oldTombstoneCount
+                + "] which would exceed the maximum of [" + maxTombstoneCount + "] set by ["
+                + maximumSettingKey + "]");
+        }
         return resolvedNodes;
     }
 

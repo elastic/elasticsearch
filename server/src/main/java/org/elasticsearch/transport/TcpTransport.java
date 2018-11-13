@@ -200,7 +200,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
     private final TransportLogger transportLogger;
     private final TcpTransportHandshaker handshaker;
-    private final TcpTransportKeepAlive keepAlive;
+    private final TransportKeepAlive keepAlive;
     private final String nodeName;
 
     public TcpTransport(String transportName, Settings settings,  Version version, ThreadPool threadPool, BigArrays bigArrays,
@@ -224,7 +224,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 TransportStatus.setHandshake((byte) 0)),
             (v, features, channel, response, requestId) -> sendResponse(v, features, channel, response, requestId,
                 TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY, TransportStatus.setHandshake((byte) 0)));
-        this.keepAlive = new TcpTransportKeepAlive(threadPool, this::internalSendMessage);
+        this.keepAlive = new TransportKeepAlive(threadPool, this::internalSendMessage);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
 
         final Settings defaultFeatures = DEFAULT_FEATURES_SETTING.get(settings);
@@ -832,7 +832,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * sends a message to the given channel, using the given callbacks.
      */
     private void internalSendMessage(TcpChannel channel, BytesReference message, ActionListener<Void> listener) {
-        channel.getStats().markWrite();
+        channel.getChannelStats().markRelativeWriteTime(threadPool.relativeTimeInMillis());
         transportLogger.logOutboundMessage(channel, message);
         try {
             channel.sendMessage(message, new SendListener(channel, message.length(), listener));
@@ -987,7 +987,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public void inboundMessage(TcpChannel channel, BytesReference message) {
         try {
-            channel.getStats().markRead();
+            channel.getChannelStats().markRelativeReadTime(threadPool.relativeTimeInMillis());
             transportLogger.logInboundMessage(channel, message);
             // Message length of 0 is a ping
             if (message.length() != 0) {
@@ -1087,7 +1087,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             messageLength = input.readInt();
         }
 
-        if (messageLength == TcpTransportKeepAlive.PING_DATA_SIZE) {
+        if (messageLength == TransportKeepAlive.PING_DATA_SIZE) {
             // This is a ping
             return 0;
         }
@@ -1393,7 +1393,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         handshaker.sendHandshake(responseHandlers.newRequestId(), node, channel, profile.getHandshakeTimeout(), listener);
     }
 
-    final TcpTransportKeepAlive getKeepAlive() {
+    final TransportKeepAlive getKeepAlive() {
         return keepAlive;
     }
 

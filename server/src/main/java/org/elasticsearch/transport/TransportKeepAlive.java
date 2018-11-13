@@ -39,11 +39,16 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class TcpTransportKeepAlive implements Closeable {
+/**
+ * Implements the scheduling and sending of keep alive pings. Client channels send keep alive pings to the
+ * server and server channels respond. Pings are only sent at the scheduled time if the channel did not send
+ * and receive a message since the last ping.
+ */
+final class TransportKeepAlive implements Closeable {
 
     static final int PING_DATA_SIZE = -1;
 
-    private final Logger logger = LogManager.getLogger(TcpTransportKeepAlive.class);
+    private final Logger logger = LogManager.getLogger(TransportKeepAlive.class);
     private final CounterMetric successfulPings = new CounterMetric();
     private final CounterMetric failedPings = new CounterMetric();
     private final ConcurrentMap<TimeValue, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
@@ -52,7 +57,7 @@ public class TcpTransportKeepAlive implements Closeable {
     private final PingSender pingSender;
     private final BytesReference pingMessage;
 
-    TcpTransportKeepAlive(ThreadPool threadPool, PingSender pingSender) {
+    TransportKeepAlive(ThreadPool threadPool, PingSender pingSender) {
         this.threadPool = threadPool;
         this.pingSender = pingSender;
 
@@ -86,8 +91,17 @@ public class TcpTransportKeepAlive implements Closeable {
         }
     }
 
+    /**
+     * Called when a keep alive ping is received. If the channel that received the keep alive ping is a
+     * server channel, a ping is sent back. If the channel that received the keep alive is a client channel,
+     * this method does nothing as the client initiated the ping in the first place.
+     *
+     * @param channel that received the keep alive ping
+     */
     void receiveKeepAlive(TcpChannel channel) {
-        if (channel.isClient() == false) {
+        // The client-side initiates pings and the server-side responds. So if this is a client channel, this
+        // method is a no-op.
+        if (channel.isServerChannel()) {
             sendPing(channel);
         }
     }
@@ -133,11 +147,12 @@ public class TcpTransportKeepAlive implements Closeable {
         private final Set<TcpChannel> channels = ConcurrentCollections.newConcurrentSet();
 
         private final AtomicBoolean isStarted = new AtomicBoolean(false);
-        private volatile long lastPingTime;
+        private volatile long lastPingRelativeMillis;
+
         private ScheduledPing(TimeValue pingInterval) {
             super(lifecycle, logger);
             this.pingInterval = pingInterval;
-            this.lastPingTime = System.nanoTime();
+            this.lastPingRelativeMillis = threadPool.relativeTimeInMillis();
         }
 
         void ensureStarted() {
@@ -164,7 +179,7 @@ public class TcpTransportKeepAlive implements Closeable {
                     sendPing(channel);
                 }
             }
-            this.lastPingTime = System.nanoTime();
+            this.lastPingRelativeMillis = threadPool.relativeTimeInMillis();
         }
 
         @Override
@@ -182,21 +197,18 @@ public class TcpTransportKeepAlive implements Closeable {
 
         @Override
         public void onFailure(Exception e) {
-            if (lifecycle.stoppedOrClosed()) {
-                logger.trace("failed to send ping transport message", e);
-            } else {
-                logger.warn("failed to send ping transport message", e);
-            }
+            logger.warn("failed to send ping transport message", e);
         }
 
         private boolean needsKeepAlivePing(TcpChannel channel) {
-            TcpChannel.Stats stats = channel.getStats();
-            long writeDelta = stats.lastWriteTime() - lastPingTime;
-            long readDelta = stats.lastReadTime() - lastPingTime;
+            TcpChannel.ChannelStats stats = channel.getChannelStats();
+            long writeDelta = stats.lastRelativeWriteTime() - lastPingRelativeMillis;
+            long readDelta = stats.lastRelativeReadTime() - lastPingRelativeMillis;
             return writeDelta <= 0 || readDelta <= 0;
         }
     }
 
+    @FunctionalInterface
     interface PingSender {
 
         void send(TcpChannel channel, BytesReference message, ActionListener<Void> listener);

@@ -158,7 +158,7 @@ public class NioTransport extends TcpTransport {
 
         @Override
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) {
-            NioTcpChannel nioChannel = new NioTcpChannel(isClient, profileName, channel);
+            NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);

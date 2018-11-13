@@ -184,7 +184,7 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public MockSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
-            MockSocketChannel nioChannel = new MockSocketChannel(isClient, profileName, channel);
+            MockSocketChannel nioChannel = new MockSocketChannel(isClient == false, profileName, channel);
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
@@ -253,13 +253,13 @@ public class MockNioTransport extends TcpTransport {
 
     private static class MockSocketChannel extends NioSocketChannel implements TcpChannel {
 
-        private final boolean isClient;
+        private final boolean isServer;
         private final String profile;
-        private final Stats stats = new Stats();
+        private final ChannelStats stats = new ChannelStats();
 
-        private MockSocketChannel(boolean isClient, String profile, SocketChannel socketChannel) {
+        private MockSocketChannel(boolean isServer, String profile, SocketChannel socketChannel) {
             super(socketChannel);
-            this.isClient = isClient;
+            this.isServer = isServer;
             this.profile = profile;
         }
 
@@ -274,8 +274,8 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public boolean isClient() {
-            return isClient;
+        public boolean isServerChannel() {
+            return isServer;
         }
 
         @Override
@@ -289,7 +289,7 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public Stats getStats() {
+        public ChannelStats getChannelStats() {
             return stats;
         }
 

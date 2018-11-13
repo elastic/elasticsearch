@@ -30,13 +30,13 @@ import java.nio.channels.SocketChannel;
 
 public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
 
-    private final boolean isClient;
+    private final boolean isServer;
     private final String profile;
-    private final Stats stats = new Stats();
+    private final ChannelStats stats = new ChannelStats();
 
-    public NioTcpChannel(boolean isClient, String profile, SocketChannel socketChannel) {
+    public NioTcpChannel(boolean isServer, String profile, SocketChannel socketChannel) {
         super(socketChannel);
-        this.isClient = isClient;
+        this.isServer = isServer;
         this.profile = profile;
     }
 
@@ -52,8 +52,8 @@ public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
     }
 
     @Override
-    public boolean isClient() {
-        return isClient;
+    public boolean isServerChannel() {
+        return isServer;
     }
 
     @Override
@@ -72,7 +72,7 @@ public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
     }
 
     @Override
-    public Stats getStats() {
+    public ChannelStats getChannelStats() {
         return stats;
     }
 

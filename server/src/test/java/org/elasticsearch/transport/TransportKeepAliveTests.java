@@ -32,7 +32,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -41,20 +40,20 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class TcpTransportKeepAliveTests extends ESTestCase {
+public class TransportKeepAliveTests extends ESTestCase {
 
     private final ConnectionProfile defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
     private BytesReference expectedPingMessage;
-    private TcpTransportKeepAlive.PingSender pingSender;
-    private TcpTransportKeepAlive keepAlive;
+    private TransportKeepAlive.PingSender pingSender;
+    private TransportKeepAlive keepAlive;
     private CapturingThreadPool threadPool;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        pingSender = mock(TcpTransportKeepAlive.PingSender.class);
+        pingSender = mock(TransportKeepAlive.PingSender.class);
         threadPool = new CapturingThreadPool();
-        keepAlive = new TcpTransportKeepAlive(threadPool, pingSender);
+        keepAlive = new TransportKeepAlive(threadPool, pingSender);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeByte((byte) 'E');
@@ -154,7 +153,7 @@ public class TcpTransportKeepAliveTests extends ESTestCase {
     }
 
     public void testKeepAliveResponseIfServer() {
-        TcpChannel channel = new FakeTcpChannel(false);
+        TcpChannel channel = new FakeTcpChannel(true);
 
         keepAlive.receiveKeepAlive(channel);
 
@@ -162,7 +161,7 @@ public class TcpTransportKeepAliveTests extends ESTestCase {
     }
 
     public void testNoKeepAliveResponseIfClient() {
-        TcpChannel channel = new FakeTcpChannel(true);
+        TcpChannel channel = new FakeTcpChannel(false);
 
         keepAlive.receiveKeepAlive(channel);
 
@@ -170,9 +169,9 @@ public class TcpTransportKeepAliveTests extends ESTestCase {
     }
 
     public void testOnlySendPingIfWeHaveNotWrittenAndReadSinceLastPing() {
-        TimeValue pingInterval1 = TimeValue.timeValueSeconds(15);
+        TimeValue pingInterval = TimeValue.timeValueSeconds(15);
         ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile)
-            .setPingInterval(pingInterval1)
+            .setPingInterval(pingInterval)
             .build();
 
         TcpChannel channel1 = new FakeTcpChannel();
@@ -182,17 +181,9 @@ public class TcpTransportKeepAliveTests extends ESTestCase {
         Tuple<TimeValue, Runnable> taskTuple = threadPool.scheduledTasks.poll();
         taskTuple.v2().run();
 
-        boolean increased = false;
-        long lastReadTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
-        long lastWriteTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
-        while (increased == false) {
-            TcpChannel.Stats stats = channel1.getStats();
-            stats.markRead();
-            stats.markWrite();
-            increased = stats.lastReadTime() - lastReadTime > 0 && stats.lastWriteTime() - lastWriteTime > 0;
-            lastReadTime = stats.lastReadTime();
-            lastWriteTime = stats.lastWriteTime();
-        }
+        TcpChannel.ChannelStats stats = channel1.getChannelStats();
+        stats.markRelativeReadTime(threadPool.relativeTimeInMillis() + (pingInterval.millis() / 2));
+        stats.markRelativeWriteTime(threadPool.relativeTimeInMillis() + (pingInterval.millis() / 2));
 
         taskTuple = threadPool.scheduledTasks.poll();
         taskTuple.v2().run();
@@ -202,9 +193,9 @@ public class TcpTransportKeepAliveTests extends ESTestCase {
     }
 
     public void testNeedBothReadAndWriteToPreventPing() {
-        TimeValue pingInterval1 = TimeValue.timeValueSeconds(15);
+        TimeValue pingInterval = TimeValue.timeValueSeconds(15);
         ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile)
-            .setPingInterval(pingInterval1)
+            .setPingInterval(pingInterval)
             .build();
 
         TcpChannel channel1 = new FakeTcpChannel();
@@ -216,20 +207,11 @@ public class TcpTransportKeepAliveTests extends ESTestCase {
 
         boolean doRead = randomBoolean();
 
-        boolean increased = false;
-        long lastReadTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
-        long lastWriteTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
-        while (increased == false) {
-            TcpChannel.Stats stats = channel1.getStats();
-            if (doRead) {
-                stats.markRead();
-                increased = stats.lastReadTime() - lastReadTime > 0;
-                lastReadTime = stats.lastReadTime();
-            } else {
-                stats.markWrite();
-                increased = stats.lastWriteTime() - lastWriteTime > 0;
-                lastWriteTime = stats.lastWriteTime();
-            }
+        TcpChannel.ChannelStats stats = channel1.getChannelStats();
+        if (doRead) {
+            stats.markRelativeReadTime(threadPool.relativeTimeInMillis() + (pingInterval.millis() / 2));
+        } else {
+            stats.markRelativeWriteTime(threadPool.relativeTimeInMillis() + (pingInterval.millis() / 2));
         }
 
         taskTuple = threadPool.scheduledTasks.poll();

@@ -212,7 +212,7 @@ public class TcpTransportTests extends ESTestCase {
                     int numConnections = connectionProfile.getNumConnections();
                     ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);
                     for (int i = 0; i < numConnections; ++i) {
-                        fakeChannels.add(new FakeTcpChannel(true, messageCaptor));
+                        fakeChannels.add(new FakeTcpChannel(false, messageCaptor));
                     }
                     return new NodeChannels(node, fakeChannels, connectionProfile, Version.CURRENT);
                 }

@@ -40,15 +40,15 @@ import java.net.InetSocketAddress;
 public class Netty4TcpChannel implements TcpChannel {
 
     private final Channel channel;
-    private final boolean isClient;
+    private final boolean isServer;
     private final String profile;
     private final CompletableContext<Void> connectContext;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
-    private final Stats stats = new Stats();
+    private final ChannelStats stats = new ChannelStats();
 
-    Netty4TcpChannel(Channel channel, boolean isClient, String profile, @Nullable ChannelFuture connectFuture) {
+    Netty4TcpChannel(Channel channel, boolean isServer, String profile, @Nullable ChannelFuture connectFuture) {
         this.channel = channel;
-        this.isClient = isClient;
+        this.isServer = isServer;
         this.profile = profile;
         this.connectContext = new CompletableContext<>();
         this.channel.closeFuture().addListener(f -> {
@@ -86,8 +86,8 @@ public class Netty4TcpChannel implements TcpChannel {
     }
 
     @Override
-    public boolean isClient() {
-        return isClient;
+    public boolean isServerChannel() {
+        return isServer;
     }
 
     @Override
@@ -106,7 +106,7 @@ public class Netty4TcpChannel implements TcpChannel {
     }
 
     @Override
-    public Stats getStats() {
+    public ChannelStats getChannelStats() {
         return stats;
     }
 

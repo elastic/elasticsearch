@@ -27,34 +27,34 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class FakeTcpChannel implements TcpChannel {
 
-    private final boolean isClient;
+    private final boolean isServer;
     private final String profile;
     private final AtomicReference<BytesReference> messageCaptor;
-    private final Stats stats = new Stats();
+    private final ChannelStats stats = new ChannelStats();
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
     public FakeTcpChannel() {
-        this(true, "profile", new AtomicReference<>());
+        this(false, "profile", new AtomicReference<>());
     }
 
-    public FakeTcpChannel(boolean isClient) {
-        this(isClient, "profile", new AtomicReference<>());
+    public FakeTcpChannel(boolean isServer) {
+        this(isServer, "profile", new AtomicReference<>());
     }
 
-    public FakeTcpChannel(boolean isClient, AtomicReference<BytesReference> messageCaptor) {
-        this(isClient, "profile", messageCaptor);
+    public FakeTcpChannel(boolean isServer, AtomicReference<BytesReference> messageCaptor) {
+        this(isServer, "profile", messageCaptor);
     }
 
 
-    public FakeTcpChannel(boolean isClient, String profile, AtomicReference<BytesReference> messageCaptor) {
-        this.isClient = isClient;
+    public FakeTcpChannel(boolean isServer, String profile, AtomicReference<BytesReference> messageCaptor) {
+        this.isServer = isServer;
         this.profile = profile;
         this.messageCaptor = messageCaptor;
     }
 
     @Override
-    public boolean isClient() {
-        return isClient;
+    public boolean isServerChannel() {
+        return isServer;
     }
 
     @Override
@@ -103,7 +103,7 @@ public class FakeTcpChannel implements TcpChannel {
     }
 
     @Override
-    public Stats getStats() {
+    public ChannelStats getChannelStats() {
         return stats;
     }
 }

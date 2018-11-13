@@ -229,7 +229,7 @@ public class Netty4Transport extends TcpTransport {
         }
         addClosedExceptionLogger(channel);
 
-        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, true, "default", connectFuture);
+        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, false, "default", connectFuture);
         channel.attr(CHANNEL_KEY).set(nettyChannel);
 
         return nettyChannel;
@@ -286,7 +286,7 @@ public class Netty4Transport extends TcpTransport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             addClosedExceptionLogger(ch);
-            Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, false, name, ch.newSucceededFuture());
+            Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());

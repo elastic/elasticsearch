@@ -22,9 +22,11 @@ package org.elasticsearch.transport;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.CloseableChannel;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -35,9 +37,9 @@ import java.net.InetSocketAddress;
 public interface TcpChannel extends CloseableChannel {
 
     /**
-     * Indicates if the channel is a client channel.
+     * Indicates if the channel is an inbound server channel.
      */
-    boolean isClient();
+    boolean isServerChannel();
 
     /**
      * This returns the profile for this channel.
@@ -88,32 +90,35 @@ public interface TcpChannel extends CloseableChannel {
     /**
      * Returns stats about this channel
      */
-    Stats getStats();
+    ChannelStats getChannelStats();
 
-    class Stats {
+    class ChannelStats {
 
-        private long lastReadTime;
-        private long lastWriteTime;
+        private volatile long lastReadTime;
+        private volatile long lastWriteTime;
 
-        public Stats() {
-            long currentTime = System.nanoTime();
-            lastReadTime = currentTime;
-            lastWriteTime = currentTime;
+        public ChannelStats() {
+            // We set the initial value to a day in the past to ensure that the next read or write time is
+            // greater than the initial time. This is important because we mark reads and writes with our
+            // ThreadPool.relativeTimeInMillis() which is incremented every 200ms.
+            long oneDayAgo = TimeValue.nsecToMSec(System.nanoTime() - TimeUnit.HOURS.toNanos(24));
+            lastReadTime = oneDayAgo;
+            lastWriteTime = oneDayAgo;
         }
 
-        void markRead() {
-            lastReadTime = System.nanoTime();
+        void markRelativeReadTime(long readTime) {
+            lastReadTime = readTime;
         }
 
-        void markWrite() {
-            lastWriteTime = System.nanoTime();
+        void markRelativeWriteTime(long writeTime) {
+            lastWriteTime = writeTime;
         }
 
-        long lastReadTime() {
+        long lastRelativeReadTime() {
             return lastReadTime;
         }
 
-        long lastWriteTime() {
+        long lastRelativeWriteTime() {
             return lastWriteTime;
         }
     }

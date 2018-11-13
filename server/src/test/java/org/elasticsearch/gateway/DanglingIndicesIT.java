@@ -29,9 +29,8 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.nio.file.Path;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.startsWith;
-
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DanglingIndicesIT extends ESIntegTestCase {
@@ -70,16 +69,17 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         // start node that could have dangling index
         node1 = cluster.startNode();
+        final boolean masterNode = randomBoolean();
         try {
-            node2 = randomBoolean() ? cluster.startMasterOnlyNode() : cluster.startCoordinatingOnlyNode(Settings.EMPTY);
+            node2 = masterNode ? cluster.startMasterOnlyNode() : cluster.startCoordinatingOnlyNode(Settings.EMPTY);
             assertThat("Node 2 has to fail as it contains shard data",
                 allocateOnNode2, equalTo(false));
             assertThat("index exists but has to be red",
                 client().admin().cluster().health(Requests.clusterHealthRequest(indexName)).get().getStatus(),
                 equalTo(ClusterHealthStatus.RED));
         } catch (IllegalStateException e) {
-            assertThat(allocateOnNode2, equalTo(true));
-            assertThat(e.getMessage(), startsWith("Non data node cannot have dangling indices"));
+            assertThat(allocateOnNode2 || masterNode == false, equalTo(true));
+            assertThat(e.getMessage(), containsString(" node cannot have shard data "));
         }
     }
 

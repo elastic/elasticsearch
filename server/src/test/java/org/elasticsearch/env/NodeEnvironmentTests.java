@@ -41,6 +41,8 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -54,6 +56,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -476,16 +479,24 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testNonDataNodeFailsInPresenceOfDanglingIndices() throws IOException {
-        final Settings settings = buildEnvSettings(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
+        final boolean masterNode = randomBoolean();
+
+        final Settings settings = buildEnvSettings(Settings.builder()
+            .put(Node.NODE_DATA_SETTING.getKey(), false)
+            .put(Node.NODE_MASTER_SETTING.getKey(), masterNode)
+            .build());
         final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
         final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(dataPaths.get(0)), 0);
         final Path indicesPath = nodePath.resolve(NodeEnvironment.INDICES_FOLDER);
         final Path indexPath = indicesPath.resolve(UUIDs.randomBase64UUID());
         Files.createDirectories(indexPath);
 
-        if (randomBoolean()) {
+        final boolean stateFolder = randomBoolean();
+        Path statePath = null;
+        if (stateFolder) {
             // _state is ok to keep on non-data node
-            Files.createDirectories(indexPath.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+            statePath = indexPath.resolve(MetaDataStateFormat.STATE_DIR_NAME);
+            Files.createDirectories(statePath);
         }
 
         final boolean allocateShard = randomBoolean();
@@ -502,11 +513,24 @@ public class NodeEnvironmentTests extends ESTestCase {
             }
             assertThat(allocateShard, equalTo(false));
         } catch (IllegalStateException e) {
-            assertThat(allocateShard, equalTo(true));
-            assertThat(shardPath, notNullValue());
-            assertThat(e.getMessage(),
-                equalTo("Non data node cannot have dangling indices, data shards found: ["
-                    + shardPath.toAbsolutePath() + "]"));
+            if (masterNode) {
+                assertThat(allocateShard, equalTo(true));
+                assertThat(shardPath, notNullValue());
+                assertThat(e.getMessage(),
+                    equalTo("Master node cannot have shard data folders, found: ["
+                        + shardPath.toAbsolutePath() + "]"));
+            } else {
+                assertThat(allocateShard || stateFolder, equalTo(true));
+
+                final List<Path> paths = new ArrayList<>(Arrays.asList(statePath, shardPath));
+                paths.remove(null);
+                paths.sort(Comparator.comparing(p -> p.toAbsolutePath().toString()));
+
+                assertThat(paths.size(), greaterThanOrEqualTo(1));
+                assertThat(e.getMessage(),
+                    equalTo("Coordinator node cannot have shard data and metadata folders, found: "
+                        + paths));
+            }
         }
     }
 

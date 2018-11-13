@@ -20,6 +20,7 @@
 package org.elasticsearch.env;
 
 import java.io.UncheckedIOException;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -294,7 +295,7 @@ public final class NodeEnvironment  implements Closeable {
             this.locks = nodeLock.locks;
             this.nodePaths = nodeLock.nodePaths;
             this.nodeLockId = nodeLock.nodeId;
-            checkDanglingIndices(settings);
+            checkOnlyDataNodeHasShardData(settings);
             this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);
 
             if (logger.isDebugEnabled()) {
@@ -314,19 +315,21 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 
-    private void checkDanglingIndices(Settings settings) throws IOException {
+    private void checkOnlyDataNodeHasShardData(Settings settings) throws IOException {
         if (DiscoveryNode.isDataNode(settings) == false) {
-            final List<Path> danglingShards = new ArrayList<>();
+            final boolean masterNode = DiscoveryNode.isMasterNode(settings);
+            final List<Path> nonExpectedPaths = new ArrayList<>();
             for (final NodePath nodePath : nodePaths) {
                 // path to shard is: <node-id>/indices/<index-uuid>/<shard-id>
                 if (Files.exists(nodePath.indicesPath) && Files.isDirectory(nodePath.indicesPath)) {
                     try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
                         for (final Path index : stream) {
                             try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(index)) {
-                                for (Path path: indexStream) {
-                                    // it's ok for non data node to have _state folder
-                                    if (MetaDataStateFormat.STATE_DIR_NAME.equals(path.getFileName().toString()) == false) {
-                                        danglingShards.add(path.toAbsolutePath());
+                                for (final Path path: indexStream) {
+                                    final String fileName = path.getFileName().toString();
+                                    if (Files.isDirectory(path) && fileName.chars().allMatch(Character::isDigit)
+                                        || masterNode == false && MetaDataStateFormat.STATE_DIR_NAME.equals(fileName)) {
+                                        nonExpectedPaths.add(path.toAbsolutePath());
                                     }
                                 }
                             }
@@ -334,9 +337,11 @@ public final class NodeEnvironment  implements Closeable {
                     }
                 }
             }
-            if (danglingShards.isEmpty() == false) {
-                throw new IllegalStateException("Non data node cannot have dangling indices,"
-                    + " data shards found: " + danglingShards);
+            if (nonExpectedPaths.isEmpty() == false) {
+                nonExpectedPaths.sort(Comparator.comparing(p -> p.toAbsolutePath().toString()));
+                throw new IllegalStateException((masterNode ? "Master" : "Coordinator")
+                    + " node cannot have shard data" + (masterNode == false ? " and metadata" : "")
+                    + " folders, found: " + nonExpectedPaths);
             }
         }
     }

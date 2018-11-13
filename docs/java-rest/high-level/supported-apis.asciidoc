@@ -220,12 +220,16 @@ The Java High Level REST Client supports the following Licensing APIs:
 * <<java-rest-high-delete-license>>
 * <<java-rest-high-start-trial>>
 * <<java-rest-high-start-basic>>
+* <<java-rest-high-get-trial-status>>
+* <<java-rest-high-get-basic-status>>
 
 include::licensing/put-license.asciidoc[]
 include::licensing/get-license.asciidoc[]
 include::licensing/delete-license.asciidoc[]
 include::licensing/start-trial.asciidoc[]
 include::licensing/start-basic.asciidoc[]
+include::licensing/get-trial-status.asciidoc[]
+include::licensing/get-basic-status.asciidoc[]
 
 == Machine Learning APIs
 :upid: {mainid}-x-pack-ml

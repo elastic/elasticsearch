@@ -69,8 +69,8 @@ public class MetaStateService {
      * @throws IOException if some IOException when loading files occurs or there is no metadata referenced by manifest file.
      */
     Tuple<Manifest, MetaData> loadFullState() throws IOException {
-        final Manifest manifest = loadManifestOrEmpty();
-        if (manifest.isEmpty()) {
+        final Manifest manifest = MANIFEST_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
+        if (manifest == null) {
             return loadFullStateBWC();
         }
 

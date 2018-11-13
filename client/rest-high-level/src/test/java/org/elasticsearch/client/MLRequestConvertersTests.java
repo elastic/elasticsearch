@@ -535,7 +535,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         String id = randomAlphaOfLength(10);
         GetFiltersRequest getFiltersRequest = new GetFiltersRequest();
 
-        getFiltersRequest.setId(id);
+        getFiltersRequest.setFilterId(id);
 
         Request request = MLRequestConverters.getFilter(getFiltersRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());

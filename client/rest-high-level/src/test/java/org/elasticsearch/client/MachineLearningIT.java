@@ -903,7 +903,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         {
             GetFiltersRequest getFiltersRequest = new GetFiltersRequest();
-            getFiltersRequest.setId(filterId1);
+            getFiltersRequest.setFilterId(filterId1);
 
             GetFiltersResponse getFiltersResponse = execute(getFiltersRequest,
                 machineLearningClient::getFilter,

@@ -219,8 +219,13 @@ public class GatewayMetaState implements ClusterStateApplier {
             assert finished == false : FINISHED_MSG;
             try {
                 Index index = metaData.getIndex();
-                long previousGeneration = previousManifest.getIndexGenerations().getOrDefault(index, -1L);
-                rollbackCleanupActions.add(() -> metaStateService.cleanupIndex(index, previousGeneration));
+                Long previousGeneration = previousManifest.getIndexGenerations().get(index);
+                if (previousGeneration != null) {
+                    // we prefer not to clean-up index metadata in case of rollback,
+                    // if it's not referenced by previous manifest file
+                    // not to break dandling indices functionality
+                    rollbackCleanupActions.add(() -> metaStateService.cleanupIndex(index, previousGeneration));
+                }
                 long generation = metaStateService.writeIndex(reason, metaData);
                 commitCleanupActions.add(() -> metaStateService.cleanupIndex(index, generation));
                 return generation;

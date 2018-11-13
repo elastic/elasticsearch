@@ -404,6 +404,8 @@ don't leak into the rest of the documentation.
 
 The Java High Level REST Client supports the following CCR APIs:
 
+* <<{upid}-ccr-put-follow>>
 * <<{upid}-ccr-pause-follow>>
 
+include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]

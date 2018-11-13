@@ -64,7 +64,7 @@ import java.util.function.Function;
 
 public class PublicationTransportHandler {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(PublicationTransportHandler.class);
 
     public static final String PUBLISH_STATE_ACTION_NAME = "internal:cluster/coordination/publish_state";
     public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";

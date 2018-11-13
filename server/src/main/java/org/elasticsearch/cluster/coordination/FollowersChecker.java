@@ -65,7 +65,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
  */
 public class FollowersChecker {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(FollowersChecker.class);
 
     public static final String FOLLOWER_CHECK_ACTION_NAME = "internal:coordination/fault_detection/follower_check";
 

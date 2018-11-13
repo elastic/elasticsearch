@@ -59,7 +59,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class LeaderChecker {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(LeaderChecker.class);
 
     public static final String LEADER_CHECK_ACTION_NAME = "internal:coordination/fault_detection/leader_check";
 

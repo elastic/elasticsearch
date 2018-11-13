@@ -60,7 +60,7 @@ import java.util.function.LongSupplier;
 
 public class JoinHelper {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(JoinHelper.class);
 
     public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
     public static final String START_JOIN_ACTION_NAME = "internal:cluster/coordination/start_join";

@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class ElectionSchedulerFactory {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(ElectionSchedulerFactory.class);
 
     private static final String ELECTION_INITIAL_TIMEOUT_SETTING_KEY = "cluster.election.initial_timeout";
     private static final String ELECTION_BACK_OFF_TIME_SETTING_KEY = "cluster.election.back_off_time";

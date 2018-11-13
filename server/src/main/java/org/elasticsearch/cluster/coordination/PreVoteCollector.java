@@ -44,7 +44,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 
 public class PreVoteCollector {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(PreVoteCollector.class);
 
     public static final String REQUEST_PRE_VOTE_ACTION_NAME = "internal:cluster/request_pre_vote";
 

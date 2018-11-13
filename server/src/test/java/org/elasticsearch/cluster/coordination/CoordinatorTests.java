@@ -1297,7 +1297,8 @@ public class CoordinatorTests extends ESTestCase {
         }
 
         class ClusterNode {
-            private final Logger logger = LogManager.getLogger(getClass());
+            private final Logger logger = LogManager.getLogger(ClusterNode.class);
+
             private final int nodeIndex;
             private Coordinator coordinator;
             private DiscoveryNode localNode;

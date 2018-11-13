@@ -37,7 +37,7 @@ import java.util.Optional;
  */
 public class CoordinationState {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(CoordinationState.class);
 
     private final DiscoveryNode localNode;
 

@@ -44,7 +44,7 @@ import static java.util.Collections.emptySet;
 
 public class HandshakingTransportAddressConnector implements TransportAddressConnector {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
 
     // connection timeout for probes
     public static final Setting<TimeValue> PROBE_CONNECT_TIMEOUT_SETTING =

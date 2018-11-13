@@ -40,7 +40,7 @@ import java.util.stream.Stream;
  */
 public class Reconfigurator {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(Reconfigurator.class);
 
     /**
      * The cluster usually requires a vote from at least half of the master nodes in order to commit a cluster state update, and to achieve

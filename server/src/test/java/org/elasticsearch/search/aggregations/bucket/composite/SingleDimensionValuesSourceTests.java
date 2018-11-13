@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
@@ -178,6 +179,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                 assertNotNull(source.createSortedDocsProducerOrNull(reader, LongPoint.newRangeQuery("number", 0, 1)));
                 assertNotNull(source.createSortedDocsProducerOrNull(reader, new IndexOrDocValuesQuery(
                     LongPoint.newRangeQuery("number", 0, 1), new MatchAllDocsQuery())));
+                assertNotNull(source.createSortedDocsProducerOrNull(reader, new BoostQuery(new IndexOrDocValuesQuery(
+                    LongPoint.newRangeQuery("number", 0, 1), new MatchAllDocsQuery()), 2.0f)));
                 assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
 
                 LongValuesSource sourceWithMissing = new LongValuesSource(

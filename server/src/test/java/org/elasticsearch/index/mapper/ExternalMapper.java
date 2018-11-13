@@ -92,8 +92,8 @@ public class ExternalMapper extends FieldMapper {
 
             setupFieldType(context);
 
-            return new ExternalMapper(name, fieldType, generatedValue, mapperName, binMapper, boolMapper, pointMapper, shapeMapper, stringMapper,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return new ExternalMapper(name, fieldType, generatedValue, mapperName, binMapper, boolMapper, pointMapper,
+                shapeMapper, stringMapper, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -156,7 +156,8 @@ public class ExternalMapper extends FieldMapper {
     public ExternalMapper(String simpleName, MappedFieldType fieldType,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
-                          GeoShapeFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                          GeoShapeFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings,
+                          MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, new ExternalFieldType(), indexSettings, multiFields, copyTo);
         this.generatedValue = generatedValue;
         this.mapperName = mapperName;

@@ -24,6 +24,8 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.List;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -38,6 +40,8 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     public void testCheckPermissionsWhenAnExecutableFileExists() throws Exception {
+        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+
         Project project = createProject();
 
         FilePermissionsTask filePermissionsTask = createTask(project);
@@ -58,6 +62,8 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
 
 
     public void testCheckPermissionsWhenNoFileExists() throws Exception {
+        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+
         Project project = createProject();
 
         FilePermissionsTask filePermissionsTask = createTask(project);
@@ -70,6 +76,8 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
     }
 
     public void testCheckPermissionsWhenNoExecutableFileExists() throws Exception {
+        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+
         Project project = createProject();
 
         FilePermissionsTask filePermissionsTask = createTask(project);

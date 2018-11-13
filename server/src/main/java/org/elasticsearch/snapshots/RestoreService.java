@@ -151,10 +151,9 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
     private final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor;
 
     @Inject
-    public RestoreService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService,
+    public RestoreService(ClusterService clusterService, RepositoriesService repositoriesService,
                           AllocationService allocationService, MetaDataCreateIndexService createIndexService,
                           MetaDataIndexUpgradeService metaDataIndexUpgradeService, ClusterSettings clusterSettings) {
-        super(settings);
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
         this.allocationService = allocationService;

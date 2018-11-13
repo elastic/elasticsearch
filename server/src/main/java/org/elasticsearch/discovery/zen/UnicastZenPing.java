@@ -124,7 +124,6 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
                           UnicastHostsProvider unicastHostsProvider, PingContextProvider contextProvider) {
-        super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);

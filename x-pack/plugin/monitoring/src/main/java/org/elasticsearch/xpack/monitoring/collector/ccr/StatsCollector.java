@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.ccr.action.StatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
@@ -36,6 +36,7 @@ public final class StatsCollector extends Collector {
 
     public static final Setting<TimeValue> CCR_STATS_TIMEOUT = collectionTimeoutSetting("ccr.stats.timeout");
 
+    private final Settings settings;
     private final ThreadContext threadContext;
     private final CcrClient ccrClient;
 
@@ -48,12 +49,13 @@ public final class StatsCollector extends Collector {
     }
 
     StatsCollector(
-        final Settings settings,
-        final ClusterService clusterService,
-        final XPackLicenseState licenseState,
-        final CcrClient ccrClient,
-        final ThreadContext threadContext) {
-        super(settings, TYPE, clusterService, CCR_STATS_TIMEOUT, licenseState);
+            final Settings settings,
+            final ClusterService clusterService,
+            final XPackLicenseState licenseState,
+            final CcrClient ccrClient,
+            final ThreadContext threadContext) {
+        super(TYPE, clusterService, CCR_STATS_TIMEOUT, licenseState);
+        this.settings = settings;
         this.ccrClient = ccrClient;
         this.threadContext = threadContext;
     }
@@ -77,8 +79,8 @@ public final class StatsCollector extends Collector {
             final long timestamp = timestamp();
             final String clusterUuid = clusterUuid(clusterState);
 
-            final StatsAction.Request request = new StatsAction.Request();
-            final StatsAction.Response response = ccrClient.stats(request).actionGet(getCollectionTimeout());
+            final CcrStatsAction.Request request = new CcrStatsAction.Request();
+            final CcrStatsAction.Response response = ccrClient.stats(request).actionGet(getCollectionTimeout());
 
             final AutoFollowStatsMonitoringDoc autoFollowStatsDoc =
                 new AutoFollowStatsMonitoringDoc(clusterUuid, timestamp, interval, node, response.getAutoFollowStats());

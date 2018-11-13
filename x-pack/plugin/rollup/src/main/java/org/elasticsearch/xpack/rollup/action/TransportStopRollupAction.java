@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -30,9 +29,8 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
 
 
     @Inject
-    public TransportStopRollupAction(Settings settings, TransportService transportService,
-                           ActionFilters actionFilters, ClusterService clusterService) {
-        super(settings, StopRollupJobAction.NAME, clusterService, transportService, actionFilters,
+    public TransportStopRollupAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+        super(StopRollupJobAction.NAME, clusterService, transportService, actionFilters,
             StopRollupJobAction.Request::new, StopRollupJobAction.Response::new, ThreadPool.Names.SAME);
     }
 

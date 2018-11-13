@@ -19,7 +19,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.action.StatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
@@ -254,14 +254,13 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     private void deleteAutoFollowPatternSetting() {
-        DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request();
-        request.setName("my-pattern");
+        DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request("my-pattern");
         assertTrue(followerClient().execute(DeleteAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 
     private AutoFollowStats getAutoFollowStats() {
-        StatsAction.Request request = new StatsAction.Request();
-        return followerClient().execute(StatsAction.INSTANCE, request).actionGet().getAutoFollowStats();
+        CcrStatsAction.Request request = new CcrStatsAction.Request();
+        return followerClient().execute(CcrStatsAction.INSTANCE, request).actionGet().getAutoFollowStats();
     }
 
     private void createLeaderIndex(String index, Settings settings) {

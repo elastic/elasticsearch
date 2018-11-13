@@ -72,7 +72,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         }).when(indicesAdminClient).putTemplate(any(PutIndexTemplateRequest.class), any(ActionListener.class));
 
         ClusterService clusterService = mock(ClusterService.class);
-        registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client);
+        registry = new WatcherIndexTemplateRegistry(clusterService, threadPool, client);
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() {

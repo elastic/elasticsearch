@@ -85,8 +85,6 @@ public class RecoverySettings extends AbstractComponent {
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
-
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
         // doesn't have to be fast as nodes are reconnected every 10s by default (see InternalClusterService.ReconnectToNodes)
         // and we want to give the master time to remove a faulty node

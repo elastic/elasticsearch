@@ -260,7 +260,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
                 .put("index.analysis.analyzer.my_standard.filter", "standard")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_7_0_0_alpha1)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_7_0_0)
                 .build();
             IndexAnalyzers analyzers = getIndexAnalyzers(settings);
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () ->

@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -30,11 +29,9 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
         IsolateDatafeedAction.Request, IsolateDatafeedAction.Response, IsolateDatafeedAction.Response> {
 
     @Inject
-    public TransportIsolateDatafeedAction(Settings settings, TransportService transportService,
-                                          ActionFilters actionFilters, ClusterService clusterService) {
-        super(settings, IsolateDatafeedAction.NAME, clusterService, transportService, actionFilters,
-            IsolateDatafeedAction.Request::new, IsolateDatafeedAction.Response::new,
-                MachineLearning.UTILITY_THREAD_POOL_NAME);
+    public TransportIsolateDatafeedAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+        super(IsolateDatafeedAction.NAME, clusterService, transportService, actionFilters, IsolateDatafeedAction.Request::new,
+            IsolateDatafeedAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
     }
 
     @Override

@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.StatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -139,8 +139,8 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         when(statsResponse.getStatsResponses()).thenReturn(statuses);
 
         @SuppressWarnings("unchecked")
-        final ActionFuture<StatsAction.Response> future = (ActionFuture<StatsAction.Response>) mock(ActionFuture.class);
-        final StatsAction.Response response = new StatsAction.Response(autoFollowStats, statsResponse);
+        final ActionFuture<CcrStatsAction.Response> future = (ActionFuture<CcrStatsAction.Response>) mock(ActionFuture.class);
+        final CcrStatsAction.Response response = new CcrStatsAction.Response(autoFollowStats, statsResponse);
 
         when(client.stats(any())).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(response);

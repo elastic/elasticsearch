@@ -93,6 +93,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
         }
     }
 
+    private final Settings settings;
     private final AzureComputeService azureComputeService;
     private TransportService transportService;
     private NetworkService networkService;
@@ -107,7 +108,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
 
     public AzureUnicastHostsProvider(Settings settings, AzureComputeService azureComputeService,
                                      TransportService transportService, NetworkService networkService) {
-        super(settings);
+        this.settings = settings;
         this.azureComputeService = azureComputeService;
         this.transportService = transportService;
         this.networkService = networkService;

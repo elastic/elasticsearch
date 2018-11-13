@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -37,7 +37,7 @@ import java.util.function.BiConsumer;
  */
 class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
 
-    private static final Logger LOGGER = Loggers.getLogger(JsonDataToProcessWriter.class);
+    private static final Logger LOGGER = LogManager.getLogger(JsonDataToProcessWriter.class);
     private NamedXContentRegistry xContentRegistry;
 
     JsonDataToProcessWriter(boolean includeControlField, boolean includeTokensField, AutodetectProcess autodetectProcess,

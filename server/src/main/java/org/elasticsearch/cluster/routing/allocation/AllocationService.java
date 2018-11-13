@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 
 import java.util.ArrayList;
@@ -69,16 +68,15 @@ public class AllocationService extends AbstractComponent {
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
 
-    public AllocationService(Settings settings, AllocationDeciders allocationDeciders,
+    public AllocationService(AllocationDeciders allocationDeciders,
                              GatewayAllocator gatewayAllocator,
                              ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
-        this(settings, allocationDeciders, shardsAllocator, clusterInfoService);
+        this(allocationDeciders, shardsAllocator, clusterInfoService);
         setGatewayAllocator(gatewayAllocator);
     }
 
-    public AllocationService(Settings settings, AllocationDeciders allocationDeciders,
+    public AllocationService(AllocationDeciders allocationDeciders,
                              ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
-        super(settings);
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;

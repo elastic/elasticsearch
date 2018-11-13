@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -14,6 +15,9 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -22,9 +26,11 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,11 +41,19 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -50,6 +64,7 @@ import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
+import org.elasticsearch.xpack.ccr.index.engine.FollowingEngine;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
@@ -67,11 +82,15 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
@@ -80,6 +99,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public abstract class CcrIntegTestCase extends ESTestCase {
@@ -89,6 +109,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     @Before
     public final void startClusters() throws Exception {
         if (clusterGroup != null && reuseClusters()) {
+            clusterGroup.leaderCluster.ensureAtMostNumDataNodes(numberOfNodesPerCluster());
+            clusterGroup.followerCluster.ensureAtMostNumDataNodes(numberOfNodesPerCluster());
             return;
         }
 
@@ -222,10 +244,12 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     protected final ClusterHealthStatus ensureLeaderGreen(String... indices) {
+        logger.info("ensure green leader indices {}", Arrays.toString(indices));
         return ensureColor(clusterGroup.leaderCluster, ClusterHealthStatus.GREEN, TimeValue.timeValueSeconds(30), false, indices);
     }
 
     protected final ClusterHealthStatus ensureFollowerGreen(String... indices) {
+        logger.info("ensure green follower indices {}", Arrays.toString(indices));
         return ensureColor(clusterGroup.followerCluster, ClusterHealthStatus.GREEN, TimeValue.timeValueSeconds(30), false, indices);
     }
 
@@ -371,6 +395,138 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
         request.setReadPollTimeout(TimeValue.timeValueMillis(10));
         return request;
+    }
+
+    /**
+     * This asserts the index is fully replicated from the leader index to the follower index. It first verifies that the seq_no_stats
+     * on the follower equal the leader's; then verifies the existing pairs of (docId, seqNo) on the follower also equal the leader.
+     */
+    protected void assertIndexFullyReplicatedToFollower(String leaderIndex, String followerIndex) throws Exception {
+        logger.info("--> asserting seq_no_stats between {} and {}", leaderIndex, followerIndex);
+        assertBusy(() -> {
+            Map<Integer, SeqNoStats> leaderStats = new HashMap<>();
+            for (ShardStats shardStat : leaderClient().admin().indices().prepareStats(leaderIndex).clear().get().getShards()) {
+                if (shardStat.getSeqNoStats() == null) {
+                    throw new AssertionError("leader seq_no_stats is not available [" + Strings.toString(shardStat) + "]");
+                }
+                leaderStats.put(shardStat.getShardRouting().shardId().id(), shardStat.getSeqNoStats());
+            }
+            Map<Integer, SeqNoStats> followerStats = new HashMap<>();
+            for (ShardStats shardStat : followerClient().admin().indices().prepareStats(followerIndex).clear().get().getShards()) {
+                if (shardStat.getSeqNoStats() == null) {
+                    throw new AssertionError("follower seq_no_stats is not available [" + Strings.toString(shardStat) + "]");
+                }
+                followerStats.put(shardStat.getShardRouting().shardId().id(), shardStat.getSeqNoStats());
+            }
+            assertThat(leaderStats, equalTo(followerStats));
+        }, 60, TimeUnit.SECONDS);
+        logger.info("--> asserting <<docId,seqNo>> between {} and {}", leaderIndex, followerIndex);
+        assertBusy(() -> {
+            assertThat(getDocIdAndSeqNos(clusterGroup.leaderCluster, leaderIndex),
+                equalTo(getDocIdAndSeqNos(clusterGroup.followerCluster, followerIndex)));
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    private Map<Integer, List<DocIdSeqNoAndTerm>> getDocIdAndSeqNos(InternalTestCluster cluster, String index) throws IOException {
+        final ClusterState state = cluster.client().admin().cluster().prepareState().get().getState();
+        List<ShardRouting> shardRoutings = state.routingTable().allShards(index);
+        Randomness.shuffle(shardRoutings);
+        final Map<Integer, List<DocIdSeqNoAndTerm>> docs = new HashMap<>();
+        for (ShardRouting shardRouting : shardRoutings) {
+            if (shardRouting == null || shardRouting.assignedToNode() == false || docs.containsKey(shardRouting.shardId().id())) {
+                continue;
+            }
+            IndexShard indexShard = cluster.getInstance(IndicesService.class, state.nodes().get(shardRouting.currentNodeId()).getName())
+                .indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
+            docs.put(shardRouting.shardId().id(), IndexShardTestCase.getDocIdAndSeqNos(indexShard).stream()
+                .map(d -> new DocIdSeqNoAndTerm(d.getId(), d.getSeqNo(), 1L))  // normalize primary term as the follower use its own term
+                .collect(Collectors.toList()));
+        }
+        return docs;
+    }
+
+    protected void atLeastDocsIndexed(Client client, String index, long numDocsReplicated) throws InterruptedException {
+        logger.info("waiting for at least [{}] documents to be indexed into index [{}]", numDocsReplicated, index);
+        awaitBusy(() -> {
+            refresh(client, index);
+            SearchRequest request = new SearchRequest(index);
+            request.source(new SearchSourceBuilder().size(0));
+            SearchResponse response = client.search(request).actionGet();
+            return response.getHits().getTotalHits() >= numDocsReplicated;
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    protected void awaitGlobalCheckpointAtLeast(Client client, ShardId shardId, long minimumGlobalCheckpoint) throws Exception {
+        logger.info("waiting for the global checkpoint on [{}] at least [{}]", shardId, minimumGlobalCheckpoint);
+        assertBusy(() -> {
+            ShardStats stats = client.admin().indices().prepareStats(shardId.getIndexName()).clear().get()
+                .asMap().entrySet().stream().filter(e -> e.getKey().shardId().equals(shardId))
+                .map(Map.Entry::getValue).findFirst().orElse(null);
+            if (stats == null || stats.getSeqNoStats() == null) {
+                throw new AssertionError("seq_no_stats for shard [" + shardId + "] is not found"); // causes assertBusy to retry
+            }
+            assertThat(Strings.toString(stats.getSeqNoStats()),
+                stats.getSeqNoStats().getGlobalCheckpoint(), greaterThanOrEqualTo(minimumGlobalCheckpoint));
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    protected void assertMaxSeqNoOfUpdatesIsTransferred(Index leaderIndex, Index followerIndex, int numberOfShards) throws Exception {
+        assertBusy(() -> {
+            long[] msuOnLeader = new long[numberOfShards];
+            for (int i = 0; i < msuOnLeader.length; i++) {
+                msuOnLeader[i] = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            }
+            Set<String> leaderNodes = getLeaderCluster().nodesInclude(leaderIndex.getName());
+            for (String leaderNode : leaderNodes) {
+                IndicesService indicesService = getLeaderCluster().getInstance(IndicesService.class, leaderNode);
+                for (int i = 0; i < numberOfShards; i++) {
+                    IndexShard shard = indicesService.getShardOrNull(new ShardId(leaderIndex, i));
+                    if (shard != null) {
+                        try {
+                            msuOnLeader[i] = SequenceNumbers.max(msuOnLeader[i], shard.getMaxSeqNoOfUpdatesOrDeletes());
+                        } catch (AlreadyClosedException ignored) {
+                            return;
+                        }
+                    }
+                }
+            }
+
+            Set<String> followerNodes = getFollowerCluster().nodesInclude(followerIndex.getName());
+            for (String followerNode : followerNodes) {
+                IndicesService indicesService = getFollowerCluster().getInstance(IndicesService.class, followerNode);
+                for (int i = 0; i < numberOfShards; i++) {
+                    IndexShard shard = indicesService.getShardOrNull(new ShardId(leaderIndex, i));
+                    if (shard != null) {
+                        try {
+                            assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(msuOnLeader[i]));
+                        } catch (AlreadyClosedException ignored) {
+
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    protected void assertTotalNumberOfOptimizedIndexing(Index followerIndex, int numberOfShards, long expectedTotal) throws Exception {
+        assertBusy(() -> {
+            long[] numOfOptimizedOps = new long[numberOfShards];
+            for (int shardId = 0; shardId < numberOfShards; shardId++) {
+                for (String node : getFollowerCluster().nodesInclude(followerIndex.getName())) {
+                    IndicesService indicesService = getFollowerCluster().getInstance(IndicesService.class, node);
+                    IndexShard shard = indicesService.getShardOrNull(new ShardId(followerIndex, shardId));
+                    if (shard != null && shard.routingEntry().primary()) {
+                        try {
+                            FollowingEngine engine = ((FollowingEngine) IndexShardTestCase.getEngine(shard));
+                            numOfOptimizedOps[shardId] = engine.getNumberOfOptimizedIndexing();
+                        } catch (AlreadyClosedException e) {
+                            throw new AssertionError(e); // causes assertBusy to retry
+                        }
+                    }
+                }
+            }
+            assertThat(Arrays.stream(numOfOptimizedOps).sum(), equalTo(expectedTotal));
+        });
     }
 
     static void removeCCRRelatedMetadataFromClusterState(ClusterService clusterService) throws Exception {

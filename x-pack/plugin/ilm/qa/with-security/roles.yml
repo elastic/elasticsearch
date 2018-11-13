@@ -1,0 +1,11 @@
+ilm:
+  cluster:
+    - monitor
+    - manage
+  indices:
+    - names: [ 'ilm-*' ]
+      privileges:
+        - monitor
+        - manage
+        - read
+        - write

@@ -22,6 +22,10 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
 import org.elasticsearch.client.rollup.DeleteRollupJobResponse;
+import org.elasticsearch.client.rollup.GetRollupIndexCapsRequest;
+import org.elasticsearch.client.rollup.GetRollupIndexCapsResponse;
+import org.elasticsearch.client.rollup.GetRollupJobRequest;
+import org.elasticsearch.client.rollup.GetRollupJobResponse;
 import org.elasticsearch.client.rollup.GetRollupCapsRequest;
 import org.elasticsearch.client.rollup.GetRollupCapsResponse;
 import org.elasticsearch.client.rollup.GetRollupJobRequest;
@@ -252,6 +256,42 @@ public class RollupClient {
             RollupRequestConverters::getRollupCaps,
             options,
             GetRollupCapsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Get the Rollup Index Capabilities of a rollup index or pattern
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-get-rollup-index-caps.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetRollupIndexCapsResponse getRollupIndexCapabilities(GetRollupIndexCapsRequest request,
+                                                                 RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            RollupRequestConverters::getRollupIndexCaps,
+            options,
+            GetRollupIndexCapsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Asynchronously Get the Rollup Index Capabilities of a rollup index or pattern
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-get-rollup-index-caps.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getRollupIndexCapabilitiesAsync(GetRollupIndexCapsRequest request, RequestOptions options,
+                                           ActionListener<GetRollupIndexCapsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            RollupRequestConverters::getRollupIndexCaps,
+            options,
+            GetRollupIndexCapsResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

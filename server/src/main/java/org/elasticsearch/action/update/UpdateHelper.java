@@ -31,7 +31,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -60,8 +59,7 @@ public class UpdateHelper extends AbstractComponent {
 
     private final ScriptService scriptService;
 
-    public UpdateHelper(Settings settings, ScriptService scriptService) {
-        super(settings);
+    public UpdateHelper(ScriptService scriptService) {
         this.scriptService = scriptService;
     }
 

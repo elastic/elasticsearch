@@ -75,9 +75,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
     private final ThreadPool threadPool;
 
     @Inject
-    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService,
+    public MetaDataUpdateSettingsService(ClusterService clusterService, AllocationService allocationService,
                                          IndexScopedSettings indexScopedSettings, IndicesService indicesService, ThreadPool threadPool) {
-        super(settings);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.allocationService = allocationService;

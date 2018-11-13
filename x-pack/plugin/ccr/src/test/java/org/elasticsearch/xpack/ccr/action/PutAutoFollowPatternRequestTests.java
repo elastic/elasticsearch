@@ -6,11 +6,12 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContentTestCase<PutAutoFollowPatternAction.Request> {
+public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCase<PutAutoFollowPatternAction.Request> {
 
     @Override
     protected boolean supportsUnknownFields() {
@@ -34,8 +35,8 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
     }
 
     @Override
-    protected PutAutoFollowPatternAction.Request createBlankInstance() {
-        return new PutAutoFollowPatternAction.Request();
+    protected Writeable.Reader<PutAutoFollowPatternAction.Request> instanceReader() {
+        return PutAutoFollowPatternAction.Request::new;
     }
 
     @Override
@@ -119,6 +120,67 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be less than [5m] but was [10m]"));
 
         request.setMaxRetryDelay(TimeValue.timeValueMinutes(1));
+        validationException = request.validate();
+        assertThat(validationException, nullValue());
+    }
+
+    public void testValidateName() {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+
+        request.setName("name");
+        ActionRequestValidationException validationException = request.validate();
+        assertThat(validationException, nullValue());
+    }
+
+    public void testValidateNameComma() {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+
+        request.setName("name1,name2");
+        ActionRequestValidationException validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("name must not contain a ','"));
+    }
+
+    public void testValidateNameLeadingUnderscore() {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+
+        request.setName("_name");
+        ActionRequestValidationException validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("name must not start with '_'"));
+    }
+
+    public void testValidateNameUnderscores() {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+
+        request.setName("n_a_m_e_");
+        ActionRequestValidationException validationException = request.validate();
+        assertThat(validationException, nullValue());
+    }
+
+    public void testValidateNameTooLong() {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+
+        StringBuilder stringBuilder = new StringBuilder();
+        for (int i = 0; i < 256; i++) {
+            stringBuilder.append('x');
+        }
+        request.setName(stringBuilder.toString());
+        ActionRequestValidationException validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("name is too long (256 > 255)"));
+
+        request.setName("name");
         validationException = request.validate();
         assertThat(validationException, nullValue());
     }

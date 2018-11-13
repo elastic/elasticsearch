@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
@@ -59,10 +58,10 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     private final SearchService searchService;
 
     @Inject
-    public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                  TransportService transportService, SearchService searchService, ActionFilters actionFilters,
+    public TransportExplainAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                  SearchService searchService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 ExplainRequest::new, ThreadPool.Names.GET);
         this.searchService = searchService;
     }

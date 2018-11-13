@@ -69,7 +69,6 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
     public RepositoriesService(Settings settings, ClusterService clusterService, TransportService transportService,
                                Map<String, Repository.Factory> typesRegistry,
                                ThreadPool threadPool) {
-        super(settings);
         this.typesRegistry = typesRegistry;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -78,7 +77,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
             clusterService.addStateApplier(this);
         }
-        this.verifyAction = new VerifyNodeRepositoryAction(settings, transportService, clusterService, this);
+        this.verifyAction = new VerifyNodeRepositoryAction(transportService, clusterService, this);
     }
 
     /**

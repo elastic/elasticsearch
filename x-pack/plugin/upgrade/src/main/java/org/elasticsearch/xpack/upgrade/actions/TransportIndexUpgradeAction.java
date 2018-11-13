@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -28,11 +27,11 @@ public class TransportIndexUpgradeAction extends TransportMasterNodeAction<Index
     private final IndexUpgradeService indexUpgradeService;
 
     @Inject
-    public TransportIndexUpgradeAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportIndexUpgradeAction(TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters,
                                        IndexUpgradeService indexUpgradeService,
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, IndexUpgradeAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(IndexUpgradeAction.NAME, transportService, clusterService, threadPool, actionFilters,
             IndexUpgradeAction.Request::new, indexNameExpressionResolver);
         this.indexUpgradeService = indexUpgradeService;
     }

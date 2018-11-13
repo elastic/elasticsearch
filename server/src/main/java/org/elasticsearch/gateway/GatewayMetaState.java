@@ -210,9 +210,7 @@ public class GatewayMetaState implements ClusterStateApplier {
             try {
                 long generation = metaStateService.writeGlobalState(reason, metaData);
                 commitCleanupActions.add(() -> metaStateService.cleanupGlobalState(generation));
-                if (previousManifest.isGlobalGenerationMissing() == false) {
-                    rollbackCleanupActions.add(() -> metaStateService.cleanupGlobalState(previousManifest.getGlobalGeneration()));
-                }
+                rollbackCleanupActions.add(() -> metaStateService.cleanupGlobalState(previousManifest.getGlobalGeneration()));
                 return generation;
             } catch (WriteStateException e) {
                 rollback();
@@ -226,10 +224,8 @@ public class GatewayMetaState implements ClusterStateApplier {
                 Index index = metaData.getIndex();
                 long generation = metaStateService.writeIndex(reason, metaData);
                 commitCleanupActions.add(() -> metaStateService.cleanupIndex(index, generation));
-                Long previousGeneration = previousManifest.getIndexGenerations().get(index);
-                if (previousGeneration != null) {
-                    rollbackCleanupActions.add(() -> metaStateService.cleanupIndex(index, previousGeneration));
-                }
+                long previousGeneration = previousManifest.getIndexGenerations().getOrDefault(index, -1L);
+                rollbackCleanupActions.add(() -> metaStateService.cleanupIndex(index, previousGeneration));
                 return generation;
             } catch (WriteStateException e) {
                 rollback();

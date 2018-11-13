@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingTombstonesAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -459,6 +460,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Coordinator.PUBLISH_TIMEOUT_SETTING,
                     JoinHelper.JOIN_TIMEOUT_SETTING,
                     Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
+                    TransportAddVotingTombstonesAction.MAXIMUM_VOTING_TOMBSTONES_SETTING,
                     ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING
             )));
 

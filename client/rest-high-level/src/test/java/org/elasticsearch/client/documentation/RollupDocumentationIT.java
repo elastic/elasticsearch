@@ -34,8 +34,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.RollupClient;
+import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
-import org.elasticsearch.client.rollup.DeleteRollupJobResponse;
 import org.elasticsearch.client.rollup.GetRollupCapsRequest;
 import org.elasticsearch.client.rollup.GetRollupCapsResponse;
 import org.elasticsearch.client.rollup.GetRollupIndexCapsRequest;
@@ -533,7 +533,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::rollup-delete-job-request
         try {
             // tag::rollup-delete-job-execute
-            DeleteRollupJobResponse response = client.rollup().deleteRollupJob(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse response = client.rollup().deleteRollupJob(request, RequestOptions.DEFAULT);
             // end::rollup-delete-job-execute
 
             // tag::rollup-delete-job-response
@@ -544,9 +544,9 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         // tag::rollup-delete-job-execute-listener
-        ActionListener<DeleteRollupJobResponse> listener = new ActionListener<DeleteRollupJobResponse>() {
+        ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
             @Override
-            public void onResponse(DeleteRollupJobResponse response) {
+            public void onResponse(AcknowledgedResponse response) {
                 boolean acknowledged = response.isAcknowledged(); // <1>
             }
 

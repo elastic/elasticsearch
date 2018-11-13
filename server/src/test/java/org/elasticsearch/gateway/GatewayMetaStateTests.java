@@ -19,11 +19,14 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,13 +34,19 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.test.TestCustomMetaData;
 import org.mockito.ArgumentCaptor;
 
-import java.util.ArrayList;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -246,8 +255,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         List<GatewayMetaState.IndexMetaDataAction> actions =
                 GatewayMetaState.resolveIndexMetaDataActions(indices, relevantIndices, oldMetaData, newMetaData);
 
-        List<Runnable> cleanupActions = new ArrayList<>();
-
         assertThat(actions, hasSize(3));
 
         for (GatewayMetaState.IndexMetaDataAction action : actions) {
@@ -273,6 +280,145 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 assertThat(reason.getValue(), containsString(Long.toString(versionChangedIndex.getVersion())));
                 assertThat(reason.getValue(), containsString(Long.toString(newVersionChangedIndex.getVersion())));
             }
+        }
+    }
+
+    private static class MetaStateServiceWithFailures extends MetaStateService {
+        private final int invertedFailRate;
+        private boolean failRandomly;
+
+        private <T> MetaDataStateFormat<T> wrap(MetaDataStateFormat<T> format) {
+            return new MetaDataStateFormat<T>(format.getPrefix()) {
+                @Override
+                public void toXContent(XContentBuilder builder, T state) throws IOException {
+                   format.toXContent(builder, state);
+                }
+
+                @Override
+                public T fromXContent(XContentParser parser) throws IOException {
+                    return format.fromXContent(parser);
+                }
+
+                @Override
+                protected Directory newDirectory(Path dir) {
+                    MockDirectoryWrapper mock = newMockFSDirectory(dir);
+                    if (failRandomly) {
+                        MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
+                            @Override
+                            public void eval(MockDirectoryWrapper dir) throws IOException {
+                                int r = randomIntBetween(0, invertedFailRate);
+                                if (r == 0) {
+                                    throw new MockDirectoryWrapper.FakeIOException();
+                                }
+                            }
+                        };
+                        mock.failOn(fail);
+                    }
+                    closeAfterSuite(mock);
+                    return mock;
+                }
+            };
+        }
+
+        MetaStateServiceWithFailures(int invertedFailRate, NodeEnvironment nodeEnv, NamedXContentRegistry namedXContentRegistry) {
+            super(nodeEnv, namedXContentRegistry);
+            META_DATA_FORMAT = wrap(MetaData.FORMAT);
+            INDEX_META_DATA_FORMAT = wrap(IndexMetaData.FORMAT);
+            MANIFEST_FORMAT = wrap(Manifest.FORMAT);
+            failRandomly = false;
+            this.invertedFailRate = invertedFailRate;
+        }
+
+        void failRandomly() {
+            failRandomly = true;
+        }
+
+        void noFailures() {
+            failRandomly = false;
+        }
+    }
+
+    private boolean metaDataEquals(MetaData md1, MetaData md2) {
+        boolean equals = MetaData.isGlobalStateEquals(md1, md2);
+
+        for (IndexMetaData imd : md1) {
+            IndexMetaData imd2 = md2.index(imd.getIndex());
+            equals = equals && imd.equals(imd2);
+        }
+
+        for (IndexMetaData imd : md2) {
+            IndexMetaData imd2 = md1.index(imd.getIndex());
+            equals = equals && imd.equals(imd2);
+        }
+        return equals;
+    }
+
+    private MetaData randomMetaData() {
+        int settingNo = randomIntBetween(0, 10);
+        MetaData.Builder builder = MetaData.builder()
+                .persistentSettings(Settings.builder().put("setting" + settingNo, randomAlphaOfLength(5)).build());
+        int numOfIndices = randomIntBetween(0, 3);
+
+        for (int i = 0; i < numOfIndices; i++) {
+            int indexNo = randomIntBetween(0, 50);
+            IndexMetaData indexMetaData = IndexMetaData.builder("index" + indexNo).settings(
+                    Settings.builder()
+                            .put(IndexMetaData.SETTING_INDEX_UUID, "index" + indexNo)
+                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .build()
+            ).build();
+            builder.put(indexMetaData, false);
+        }
+        return builder.build();
+    }
+
+    public void testTransactionAtomicityWithFailures() throws IOException {
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateServiceWithFailures metaStateService =
+                    new MetaStateServiceWithFailures(randomIntBetween(100, 1000), env, xContentRegistry());
+
+            // We only guarantee atomicity of writes, if there is initial Manifest file
+            Manifest manifest = Manifest.empty();
+            MetaData metaData = MetaData.EMPTY_META_DATA;
+            metaStateService.writeManifest("startup", Manifest.empty());
+
+            metaStateService.failRandomly();
+            Set<MetaData> possibleMetaData = new HashSet<>();
+            possibleMetaData.add(metaData);
+
+            for (int i = 0; i < randomIntBetween(1, 5); i++) {
+                GatewayMetaState.Transaction tx = new GatewayMetaState.Transaction(metaStateService, manifest);
+                metaData = randomMetaData();
+                Map<Index, Long> indexGenerations = new HashMap<>();
+
+                try {
+                    long globalGeneration = tx.writeGlobalState("global", metaData);
+
+                    for (IndexMetaData indexMetaData : metaData) {
+                        long generation = tx.writeIndex("index", indexMetaData);
+                        indexGenerations.put(indexMetaData.getIndex(), generation);
+                    }
+
+                    Manifest newManifest = new Manifest(globalGeneration, indexGenerations);
+                    tx.writeManifest("manifest", newManifest);
+                    possibleMetaData.clear();
+                    possibleMetaData.add(metaData);
+                    manifest = newManifest;
+                } catch (WriteStateException e) {
+                    if (e.isDirty()) {
+                        possibleMetaData.add(metaData);
+                    }
+                }
+            }
+
+            metaStateService.noFailures();
+
+            Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
+            MetaData loadedMetaData = manifestAndMetaData.v2();
+
+            assertTrue(possibleMetaData.stream().anyMatch(md -> metaDataEquals(md, loadedMetaData)));
         }
     }
 

@@ -456,4 +456,8 @@ public abstract class MetaDataStateFormat<T> {
         }
         IOUtils.rm(stateDirectories);
     }
+
+    public String getPrefix() {
+        return prefix;
+    }
 }

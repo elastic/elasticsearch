@@ -63,7 +63,7 @@ final class SecurityRequestConverters {
     static Request putUser(PutUserRequest putUserRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_xpack/security/user")
-            .addPathPart(putUserRequest.getUsername())
+            .addPathPart(putUserRequest.getUser().getUsername())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putUserRequest, REQUEST_BODY_CONTENT_TYPE));

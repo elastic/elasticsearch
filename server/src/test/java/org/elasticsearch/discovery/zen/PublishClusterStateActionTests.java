@@ -55,7 +55,6 @@ import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
@@ -917,12 +916,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         @Override
         public void sendResponse(TransportResponse response) throws IOException {
-            this.response.set(response);
-            assertThat(error.get(), nullValue());
-        }
-
-        @Override
-        public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
             this.response.set(response);
             assertThat(error.get(), nullValue());
         }

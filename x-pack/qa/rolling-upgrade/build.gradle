@@ -120,7 +120,6 @@ subprojects {
       mustRunAfter(precommit)
     }
 
-    Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
       dependsOn copyTestNodeKeystore
       if (version.before('6.3.0')) {
@@ -135,7 +134,6 @@ subprojects {
       bwcVersion = version
       numBwcNodes = 3
       numNodes = 3
-      minimumMasterNodes = { 3 }
       clusterName = 'rolling-upgrade'
       waitCondition = waitWithAuth
       setting 'xpack.monitoring.exporters._http.type', 'http'
@@ -183,13 +181,13 @@ subprojects {
       systemProperty 'tests.rest.suite', 'old_cluster'
     }
 
-    Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure unicastSeed ->
+    Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure getOtherUnicastHostAddresses ->
       configure(extensions.findByName("${baseName}#${name}")) {
         dependsOn lastRunner, "${baseName}#oldClusterTestCluster#node${stopNode}.stop"
         setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
         clusterName = 'rolling-upgrade'
-        unicastTransportUri = { seedNode, node, ant -> unicastSeed() }
-        minimumMasterNodes = { 3 }
+        otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
+        minimumMasterNodes = { 2 }
         /* Override the data directory so the new node always gets the node we
         * just stopped's data directory. */
         dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
@@ -224,7 +222,7 @@ subprojects {
 
     configureUpgradeCluster("oneThirdUpgradedTestCluster", oldClusterTestRunner, 0,
       // Use all running nodes as seed nodes so there is no race between pinging and the tests
-      { oldClusterTest.nodes.get(1).transportUri() + ',' + oldClusterTest.nodes.get(2).transportUri() })
+      { [oldClusterTest.nodes.get(1).transportUri(), oldClusterTest.nodes.get(2).transportUri()] })
 
     Task oneThirdUpgradedTestRunner = tasks.getByName("${baseName}#oneThirdUpgradedTestRunner")
     oneThirdUpgradedTestRunner.configure {
@@ -243,7 +241,7 @@ subprojects {
 
     configureUpgradeCluster("twoThirdsUpgradedTestCluster", oneThirdUpgradedTestRunner, 1,
       // Use all running nodes as seed nodes so there is no race between pinging and the tests
-      { oldClusterTest.nodes.get(2).transportUri() + ',' + oneThirdUpgradedTest.nodes.get(0).transportUri() })
+      { [oldClusterTest.nodes.get(2).transportUri(), oneThirdUpgradedTest.nodes.get(0).transportUri()] })
 
     Task twoThirdsUpgradedTestRunner = tasks.getByName("${baseName}#twoThirdsUpgradedTestRunner")
     twoThirdsUpgradedTestRunner.configure {
@@ -256,7 +254,7 @@ subprojects {
 
     configureUpgradeCluster("upgradedClusterTestCluster", twoThirdsUpgradedTestRunner, 2,
       // Use all running nodes as seed nodes so there is no race between pinging and the tests
-      { oneThirdUpgradedTest.nodes.get(0).transportUri() + ',' + twoThirdsUpgradedTest.nodes.get(0).transportUri() })
+      { [oneThirdUpgradedTest.nodes.get(0).transportUri(), twoThirdsUpgradedTest.nodes.get(0).transportUri()] })
 
     Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
     upgradedClusterTestRunner.configure {

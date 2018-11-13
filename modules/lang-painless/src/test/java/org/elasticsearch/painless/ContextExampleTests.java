@@ -19,6 +19,11 @@
 
 package org.elasticsearch.painless;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.singletonMap;
+
 /**
  * These tests run the Painless scripts used in the context docs against
  * slightly modified data designed around unit tests rather than a fully-
@@ -308,4 +313,51 @@ public class ContextExampleTests extends ScriptTestCase {
     curl -XPOST localhost:9200/seats/seat/_bulk?pipeline=seats -H "Content-Type: application/x-ndjson" --data-binary "@/home/jdconrad/test/seats.json"
 
     */
+
+
+    // Use script_fields API to add two extra fields to the hits
+
+    /*
+    curl -X GET localhost:9200/seats/_search
+    {
+        "query" : {
+            "match_all": {}
+        },
+        "script_fields" : {
+            "day-of-week" : {
+                "script" : {
+                    "source": "doc['datetime'].value.getDayOfWeek()"
+                }
+            },
+            "number-of-actors" : {
+                "script" : {
+                    "source": "params['_source']['actors'].length"
+                }
+            }
+        }
+    }
+    */
+
+
+    // Testing only params, as I am not sure how to test Script Doc Values in painless
+    public void testScriptFieldsScript() {
+        Map<String, Object> hit = new HashMap<>();
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("number-of-actors", 4);
+        hit.put("fields", fields);
+
+        Map<String, Object> source = new HashMap<>();
+        String[] actors =  {"James Holland", "Krissy Smith", "Joe Muir", "Ryan Earns"};
+        source.put("actors", actors);
+
+        assertEquals(hit, exec(
+            "Map fields = new HashMap();" +
+                "fields[\"number-of-actors\"] = params['_source']['actors'].length;" +
+                "Map rtn = new HashMap();" +
+                "rtn[\"fields\"] = fields;" +
+                "return rtn;",
+            singletonMap("_source", source), true)
+        );
+    }
 }
+

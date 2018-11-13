@@ -30,7 +30,7 @@ import java.io.IOException;
  * A request to clear the voting tombstones from the cluster state, optionally waiting for these nodes to be removed from the cluster first.
  */
 public class ClearVotingTombstonesRequest extends MasterNodeRequest<ClearVotingTombstonesRequest> {
-    private boolean waitForRemoval;
+    private boolean waitForRemoval = true;
     private TimeValue timeout = TimeValue.timeValueSeconds(30);
 
     /**
@@ -46,14 +46,15 @@ public class ClearVotingTombstonesRequest extends MasterNodeRequest<ClearVotingT
     }
 
     /**
-     * @return whether to wait for the tombstoned nodes to be removed from the cluster before removing their tombstones.
+     * @return whether to wait for the tombstoned nodes to be removed from the cluster before removing their tombstones. True by default.
      */
     public boolean getWaitForRemoval() {
         return waitForRemoval;
     }
 
     /**
-     * @param waitForRemoval whether to wait for the tombstoned nodes to be removed from the cluster before removing their tombstones.
+     * @param waitForRemoval whether to wait for the tombstoned nodes to be removed from the cluster before removing their tombstones. True
+     *                       by default.
      */
     public void setWaitForRemoval(boolean waitForRemoval) {
         this.waitForRemoval = waitForRemoval;

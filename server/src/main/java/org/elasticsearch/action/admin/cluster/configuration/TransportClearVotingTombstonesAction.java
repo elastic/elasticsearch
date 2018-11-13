@@ -103,7 +103,8 @@ public class TransportClearVotingTombstonesAction
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new ElasticsearchTimeoutException("timed out waiting for removal of nodes "
+                    listener.onFailure(new ElasticsearchTimeoutException(
+                        "timed out waiting for removal of nodes; if nodes should not be removed, set waitForRemoval to false. "
                         + initialState.getVotingTombstones()));
                 }
             }, allTombstonedNodesRemoved);

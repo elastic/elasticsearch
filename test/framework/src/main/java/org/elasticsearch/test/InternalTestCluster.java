@@ -1662,9 +1662,7 @@ public final class InternalTestCluster extends TestCluster {
         if (withdrawnNodeIds.isEmpty() == false) {
             logger.info("removing voting tombstones for {} after shutdown", withdrawnNodeIds);
             try {
-                final ClearVotingTombstonesRequest request = new ClearVotingTombstonesRequest();
-                request.setWaitForRemoval(true);
-                client().execute(ClearVotingTombstonesAction.INSTANCE, request).get();
+                client().execute(ClearVotingTombstonesAction.INSTANCE, new ClearVotingTombstonesRequest()).get();
             } catch (InterruptedException | ExecutionException e) {
                 throw new AssertionError("unexpected", e);
             }

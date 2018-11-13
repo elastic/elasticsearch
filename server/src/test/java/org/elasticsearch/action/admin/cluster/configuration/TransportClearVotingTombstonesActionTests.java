@@ -106,8 +106,10 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final SetOnce<ClearVotingTombstonesResponse> responseHolder = new SetOnce<>();
 
+        final ClearVotingTombstonesRequest clearVotingTombstonesRequest = new ClearVotingTombstonesRequest();
+        clearVotingTombstonesRequest.setWaitForRemoval(false);
         transportService.sendRequest(localNode, ClearVotingTombstonesAction.NAME,
-            new ClearVotingTombstonesRequest(),
+            clearVotingTombstonesRequest,
             expectSuccess(r -> {
                 responseHolder.set(r);
                 countDownLatch.countDown();
@@ -124,7 +126,6 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
         final SetOnce<TransportException> responseHolder = new SetOnce<>();
 
         final ClearVotingTombstonesRequest clearVotingTombstonesRequest = new ClearVotingTombstonesRequest();
-        clearVotingTombstonesRequest.setWaitForRemoval(true);
         clearVotingTombstonesRequest.setTimeout(TimeValue.timeValueMillis(100));
         transportService.sendRequest(localNode, ClearVotingTombstonesAction.NAME,
             clearVotingTombstonesRequest,
@@ -145,10 +146,8 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final SetOnce<ClearVotingTombstonesResponse> responseHolder = new SetOnce<>();
 
-        final ClearVotingTombstonesRequest clearVotingTombstonesRequest = new ClearVotingTombstonesRequest();
-        clearVotingTombstonesRequest.setWaitForRemoval(true);
         transportService.sendRequest(localNode, ClearVotingTombstonesAction.NAME,
-            clearVotingTombstonesRequest,
+            new ClearVotingTombstonesRequest(),
             expectSuccess(r -> {
                 responseHolder.set(r);
                 countDownLatch.countDown();

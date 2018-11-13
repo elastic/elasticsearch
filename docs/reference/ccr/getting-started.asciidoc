@@ -146,7 +146,7 @@ remote cluster.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[skip:remote connection sometimes not connected]
 // TEST[s/127.0.0.1:9300/$body.leader.seeds.0/]
 // TEST[s/127.0.0.1:9200/$body.leader.http_addresses.0/]
 // TEST[s/"connected" : true/"connected" : $body.leader.connected/]

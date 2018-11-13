@@ -144,6 +144,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
@@ -151,7 +152,6 @@ import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_M
 import static org.elasticsearch.discovery.zen.FileBasedUnicastHostsProvider.UNICAST_HOSTS_FILE;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
-import static org.elasticsearch.test.ESTestCase.bootstrapNodes;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -522,9 +522,9 @@ public final class InternalTestCluster extends TestCluster {
         }
         final int ord = nextNodeId.getAndIncrement();
         final Runnable onTransportServiceStarted = () -> {}; // do not create unicast host file for this one node.
-        final NodeAndClient buildNode = buildNode(ord, random.nextLong(), null, false, 1, onTransportServiceStarted);
+        final Settings settings = Settings.builder().put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1).build();
+        final NodeAndClient buildNode = buildNode(ord, random.nextLong(), settings, false, 1, onTransportServiceStarted);
         assert nodes.isEmpty();
-        bootstrapNodes(true, buildNode::startNode, Collections.singletonList(buildNode.node()), logger, clientWrapper);
         buildNode.startNode();
         publishNode(buildNode);
         return buildNode;
@@ -1088,10 +1088,15 @@ public final class InternalTestCluster extends TestCluster {
         final int defaultMinMasterNodes = (numberOfMasterNodes / 2) + 1;
         final List<NodeAndClient> toStartAndPublish = new ArrayList<>(); // we want to start nodes in one go due to min master nodes
         final Runnable onTransportServiceStarted = () -> rebuildUnicastHostFiles(toStartAndPublish);
+        boolean bootstrapNodeRequired = prevNodeCount == 0;
         for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
             final Settings.Builder settings = Settings.builder();
             settings.put(Node.NODE_MASTER_SETTING.getKey(), true);
             settings.put(Node.NODE_DATA_SETTING.getKey(), false);
+            if (bootstrapNodeRequired) {
+                settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDedicatedMasterNodes);
+                bootstrapNodeRequired = false;
+            }
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes,
                 onTransportServiceStarted);
             toStartAndPublish.add(nodeAndClient);
@@ -1102,11 +1107,15 @@ public final class InternalTestCluster extends TestCluster {
                 // if we don't have dedicated master nodes, keep things default
                 settings.put(Node.NODE_MASTER_SETTING.getKey(), false).build();
                 settings.put(Node.NODE_DATA_SETTING.getKey(), true).build();
+            } else if (bootstrapNodeRequired) {
+                settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDataNodes);
+                bootstrapNodeRequired = false;
             }
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes,
                 onTransportServiceStarted);
             toStartAndPublish.add(nodeAndClient);
         }
+        assert bootstrapNodeRequired == false;
         for (int i = numSharedDedicatedMasterNodes + numSharedDataNodes;
              i < numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
             final Builder settings = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false)
@@ -1115,9 +1124,6 @@ public final class InternalTestCluster extends TestCluster {
                 onTransportServiceStarted);
             toStartAndPublish.add(nodeAndClient);
         }
-
-        bootstrapNodes(prevNodeCount == 0, () -> startAndPublishNodesAndClients(toStartAndPublish),
-            toStartAndPublish.stream().map(NodeAndClient::node).collect(Collectors.toList()), logger, clientWrapper);
 
         startAndPublishNodesAndClients(toStartAndPublish);
 
@@ -1890,17 +1896,27 @@ public final class InternalTestCluster extends TestCluster {
         }
         final List<NodeAndClient> nodes = new ArrayList<>();
         final int prevMasterCount = getMasterNodesCount();
+        boolean bootstrapNodeRequired = prevMasterCount == 0;
         for (Settings nodeSettings : settings) {
-            nodes.add(buildNode(nodeSettings, defaultMinMasterNodes, () -> rebuildUnicastHostFiles(nodes)));
+            final Settings nodeSettingsIncludingBootstrap;
+            if (bootstrapNodeRequired) {
+                nodeSettingsIncludingBootstrap = Settings.builder()
+                    .put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(),
+                        (int) Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count())
+                    .put(nodeSettings)
+                    .build();
+                bootstrapNodeRequired = false;
+            } else {
+                nodeSettingsIncludingBootstrap = nodeSettings;
+            }
+
+            nodes.add(buildNode(nodeSettingsIncludingBootstrap, defaultMinMasterNodes, () -> rebuildUnicastHostFiles(nodes)));
         }
-        bootstrapNodes(prevMasterCount == 0,
-            () -> {
-                startAndPublishNodesAndClients(nodes);
-                if (autoManageMinMasterNodes) {
-                    validateClusterFormed();
-                }
-            },
-            nodes.stream().map(NodeAndClient::node).collect(Collectors.toList()), logger, clientWrapper);
+        assert bootstrapNodeRequired == false;
+        startAndPublishNodesAndClients(nodes);
+        if (autoManageMinMasterNodes) {
+            validateClusterFormed();
+        }
         return nodes.stream().map(NodeAndClient::getName).collect(Collectors.toList());
     }
 

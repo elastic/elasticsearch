@@ -115,6 +115,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Releasable prevotingRound;
     private long maxTermSeen;
     private final Reconfigurator reconfigurator;
+    private final ClusterBootstrapService clusterBootstrapService;
 
     private Mode mode;
     private Optional<DiscoveryNode> lastKnownLeader;
@@ -152,6 +153,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
+        this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
     }
 
     private Runnable getOnLeaderFailure() {
@@ -484,11 +486,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         synchronized (mutex) {
             becomeCandidate("startInitialJoin");
         }
+
+        clusterBootstrapService.start();
     }
 
     @Override
     protected void doStop() {
         configuredHostsResolver.stop();
+        clusterBootstrapService.stop();
     }
 
     @Override

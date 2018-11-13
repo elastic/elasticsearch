@@ -64,6 +64,6 @@ applying token filters required creating and using custom analysis plugins.
 [float]
 === Use ODBC to connect to {es} SQL
 
-{ES} SQL now supports ODBC mode in addition to JDBC. The functionality is
+{es} SQL now supports ODBC mode in addition to JDBC. The functionality is
 currently the same as JDBC. An alpha version of the ODBC client is now
 available for download.

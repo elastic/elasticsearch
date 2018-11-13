@@ -56,19 +56,19 @@ PUT _ilm/policy/my_policy
 --------------------------------------------------
 // CONSOLE
 
-The Above example configures a policy that moves the index into the warm phase
-after one day. Until then, the index is in a waiting state. After moving into the
-warm phase, it will wait until 30 days have elapsed before moving to the delete phase and
-deleting the index.
+The Above example configures a policy that moves the index into the warm
+phase after one day. Until then, the index is in a waiting state. After
+moving into the warm phase, it will wait until 30 days have elapsed before
+moving to the delete phase and deleting the index.
 
 `min_age` is usually the time elapsed from the time the index is created. If the
-index is rolled over, then `min_age` is the time elapsed from the time the index is
-rolled over. The intention here is to execute following phases and actions relative to
-when data was written last to a rolled over index.
+index is rolled over, then `min_age` is the time elapsed from the time the index
+is rolled over. The intention here is to execute following phases and actions
+relative to when data was written last to a rolled over index.
 
 === Actions
 
-Here is the list of actions and which phases they are supported by.
+The below list shows the actions which are available in each phase.
 
 * Hot
   - <<ilm-rollover-action,Rollover>>
@@ -104,10 +104,14 @@ the <<shard-allocation-filtering,Shard allocation filtering documentation>>.
 [options="header"]
 |======
 | Name                 | Required  | Default     | Description
-| `number_of_replicas` | no        | -           | The number of replicas to assign to the index
-| `include`            | no        | -           | assigns an index to nodes having at least _one_ of the attributes
-| `exclude`            | no        | -           | assigns an index to nodes having _none_ of the attributes
-| `require`            | no        | -           | assigns an index to nodes having _all_ of the attributes
+| `number_of_replicas` | no        | -           | The number of replicas to
+                                                   assign to the index
+| `include`            | no        | -           | assigns an index to nodes
+                                                   having at least _one_ of the attributes
+| `exclude`            | no        | -           | assigns an index to nodes having
+                                                   _none_ of the attributes
+| `require`            | no        | -           | assigns an index to nodes having
+                                                   _all_ of the attributes
 |======
 
 If `number_of_replicas` is not configured, then at least one of `include`,
@@ -221,16 +225,21 @@ PUT _ilm/policy/my_policy
 
 Phases allowed: warm.
 
-NOTE: Index will be be made read-only when this action is run (see: <<dynamic-index-settings,index.blocks.write>>)
+NOTE: Index will be be made read-only when this action is run
+(see: <<dynamic-index-settings,index.blocks.write>>)
 
-The Force Merge Action <<indices-forcemerge,force merges>> the index into at most a specific number of <<indices-segments,segments>>.
+The Force Merge Action <<indices-forcemerge,force merges>> the index into at
+most a specific number of <<indices-segments,segments>>.
 
 [[ilm-forcemerge-options]]
 .Force Merge Options
 [options="header"]
 |======
 | Name                 | Required  | Default             | Description
-| `max_num_segments`   | yes       | -                   | The number of segments to merge to. To fully merge the index, set it to `1`
+| `max_num_segments`   | yes       | -                   | The number of
+                                                           segments to merge to.
+                                                           To fully merge the
+                                                           index, set it to `1`
 |======
 
 [source,js]
@@ -257,7 +266,8 @@ PUT _ilm/policy/my_policy
 
 Phases allowed: warm.
 
-This action will set the index to be read-only (see: <<dynamic-index-settings,index.blocks.write>>)
+This action will set the index to be read-only
+(see: <<dynamic-index-settings,index.blocks.write>>)
 
 This action does not have any options associated with it.
 
@@ -289,6 +299,27 @@ index format must match pattern '^.*-\\d+$', for example (`logs-000001`).
 The managed index must set `index.lifecycle.rollover_alias` as the
 alias to rollover. The index must also have this alias pointing to it.
 
+For example, if an index to be managed has an alias `my_data`. The managed
+index "my_index" must be the write index for the alias. For more information, read
+<<indices-rollover-is-write-index,Write Index Alias Behavior>>.
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "settings": {
+    "index.lifecycle.name": "my_policy",
+    "index.lifecycle.rollover_alias": "my_data"
+  },
+  "aliases": {
+    "my_data": {
+      "is_write_index": true
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
 The Rollover Action rolls an alias over to a new index when the
 existing index meets one of the rollover conditions.
 
@@ -298,13 +329,20 @@ existing index meets one of the rollover conditions.
 [options="header"]
 |======
 | Name       | Required  | Default             | Description
-| `max_size` | no        | -                   | max index storage size. See <<byte-units, Byte Units>> for formatting
-| `max_docs` | no        | -                   | max number of documents an index is to contain before rolling over.
-| `max_age`  | no        | -                   | max time elapsed from index creation. See <<time-units, Time Units>> for formatting
+| `max_size` | no        | -                   | max index storage size.
+                                                 See <<byte-units, Byte Units>>
+                                                 for formatting
+| `max_docs` | no        | -                   | max number of documents an
+                                                 index is to contain before
+                                                 rolling over.
+| `max_age`  | no        | -                   | max time elapsed from index
+                                                 creation. See
+                                                 <<time-units, Time Units>>
+                                                 for formatting
 |======
 
-At least one of `max_size`, `max_docs`, `max_age` or any combinations of the three
-are required to be specified.
+At least one of `max_size`, `max_docs`, `max_age` or any combinations of the
+three are required to be specified.
 
 ===== Example: Rollover when index is too large
 
@@ -380,8 +418,8 @@ PUT _ilm/policy/my_policy
 ===== Example: Rollover when index is too old or too large
 
 This example rolls the index over when it has been created at least
-7 days ago or it is at least 100 gigabytes. In this case, the index will be rolled
-over when any of the conditions is met.
+7 days ago or it is at least 100 gigabytes. In this case, the index will be
+rolled over when any of the conditions is met.
 
 [source,js]
 --------------------------------------------------
@@ -407,14 +445,16 @@ PUT _ilm/policy/my_policy
 [[ilm-shrink-action]]
 ==== Shrink
 
-NOTE: Index will be be made read-only when this action is run (see: <<dynamic-index-settings,index.blocks.write>>)
+NOTE: Index will be be made read-only when this action is run
+(see: <<dynamic-index-settings,index.blocks.write>>)
 
-This action shrinks an existing index into a new index with fewer primary shards. It
-calls the <<indices-shrink-index,Shrink API>> to shrink the index. Since allocating
-all the primary shards of the index to one node is a prerequisite, this action will
-first allocate the primary shards to a valid node. After shrinking, it will swap aliases
-pointing to the original index into the new shrunken index. The new index will also
-have a new name: "shrink-<origin-index-name>". So if the original index was called "logs",
+This action shrinks an existing index into a new index with fewer primary
+shards. It calls the <<indices-shrink-index,Shrink API>> to shrink the index.
+Since allocating all the primary shards of the index to one node is a
+prerequisite, this action will first allocate the primary shards to a valid
+node. After shrinking, it will swap aliases pointing to the original index
+into the new shrunken index. The new index will also have a new name:
+"shrink-<origin-index-name>". So if the original index was called "logs",
 then the new index will be named "shrink-logs".
 
 [[ilm-shrink-options]]
@@ -422,7 +462,11 @@ then the new index will be named "shrink-logs".
 [options="header"]
 |======
 | Name               | Required  | Default             | Description
-| `number_of_shards` | yes       | -                   | The number of shards to shrink to. must be a factor of the number of shards in the source index.
+| `number_of_shards` | yes       | -                   | The number of shards
+                                                         to shrink to. must be
+                                                         a factor of the number
+                                                         of shards in the
+                                                         source index.
 |======
 
 [source,js]

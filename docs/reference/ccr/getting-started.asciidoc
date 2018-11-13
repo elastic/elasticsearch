@@ -135,6 +135,9 @@ remote cluster.
     "seeds" : [
       "127.0.0.1:9300"
     ],
+    "http_addresses" : [
+      "127.0.0.1:9200"
+    ],
     "connected" : true, <1>
     "num_nodes_connected" : 1, <2>
     "max_connections_per_cluster" : 3,
@@ -143,8 +146,9 @@ remote cluster.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[skip:awaits fixing]
+// TESTRESPONSE
 // TEST[s/127.0.0.1:9300/$body.leader.seeds.0/]
+// TEST[s/127.0.0.1:9200/$body.leader.http_addresses.0/]
 // TEST[s/"connected" : true/"connected" : $body.leader.connected/]
 // TEST[s/"num_nodes_connected" : 1/"num_nodes_connected" : $body.leader.num_nodes_connected/]
 <1> This shows the local cluster is connected to the remote cluster with cluster

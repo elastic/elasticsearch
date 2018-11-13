@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -66,7 +67,12 @@ public class ClusterBootstrapService {
 
         if (initialMasterNodeCount > 0 && transportService.getLocalNode().isMasterNode()) {
             logger.debug("unsafely waiting for discovery of [{}] master-eligible nodes", initialMasterNodeCount);
-            awaitDiscovery();
+
+            final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                threadContext.markAsSystemContext();
+                awaitDiscovery();
+            }
         }
     }
 

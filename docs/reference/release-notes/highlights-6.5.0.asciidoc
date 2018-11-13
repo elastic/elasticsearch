@@ -37,8 +37,9 @@ If you use the +partition_field_name+ or +by_field_name+ parameters in a {ml} jo
 *Split Data* field in the {kib} multi-metric job wizard), it generates many 
 simultaneous analyses that are modeled independently. In 6.5, we have decreased 
 the influence of the anomaly scores in each partition on other partitions' scores. 
-The overall effect of the change is to produce a much wider range of scores in 
-partitioned multi-metric jobs.
+As a result, record- and influencer-level results change a lot, but the overall 
+anomaly score still uses sophisticated aggregation to ensure rate-limited 
+alerts for the job. 
 
 [float]
 === Find multi-bucket anomalies in {ml} jobs

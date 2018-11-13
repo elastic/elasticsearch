@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
@@ -81,7 +82,7 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
 
         request.resolveNodes(state); // throws IllegalArgumentException if no nodes matched
 
-        clusterService.submitStateUpdateTask("add-voting-tombstones", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("add-voting-tombstones", new ClusterStateUpdateTask(Priority.URGENT) {
 
             private Set<DiscoveryNode> resolvedNodes;
 

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -115,7 +116,7 @@ public class TransportClearVotingTombstonesAction
 
     private void submitClearTombstonesTask(ClearVotingTombstonesRequest request, long startTimeMillis,
                                            ActionListener<ClearVotingTombstonesResponse> listener) {
-        clusterService.submitStateUpdateTask("clear-voting-tombstones", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("clear-voting-tombstones", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final Builder builder = ClusterState.builder(currentState);

@@ -33,12 +33,13 @@ enabled.
 `index.soft_deletes.enabled`::
 
 Whether or not soft deletes are enabled on the index. Soft deletes can only be
-configured at index creation and only on indices created on or after 6.5.0.
+configured at index creation and only on indices created on or after 6.5.0. The
+default value is `false`.
 
 `index.soft_deletes.retention.operations`::
 
 The number of soft deletes to retain. Soft deletes are collected during merges
 on the underlying Lucene index yet retained up to the number of operations
-configured by this setting.
+configured by this setting. The default value is `0`.
 
 For more information about index settings, see {ref}/index-modules.html[Index modules].

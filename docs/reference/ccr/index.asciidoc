@@ -18,7 +18,7 @@ local cluster. This functionality can be used in some common production use case
 This guide provides an overview of {ccr}:
 
 * <<ccr-overview>>
-* <<ccr-ov-soft-deletes>>
+* <<ccr-requirements>>
 * <<ccr-ov-auto-follow>>
 * <<ccr-getting-started>>
 

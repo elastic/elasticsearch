@@ -29,7 +29,7 @@ Replication can be configured in two ways:
 * Automatically using
   <<ccr-ov-auto-follow,auto-follow patterns>>
 
-NOTE: You must also <<ccr-ov-soft-deletes,configure the leader index>>.
+NOTE: You must also <<ccr-requirements,configure the leader index>>.
 
 [float]
 === The mechanics of replication

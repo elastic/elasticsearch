@@ -87,5 +87,9 @@ clusters to your local cluster. You create an index in your local cluster
 (known as a _follower index_) that follows an index (known as a _leader index_)
 in a remote cluster. You can also automatically follow indices in a 
 remote cluster that match a pattern. The individual write operations that occur 
-on the leader indices are then replayed on the follower indices. For more 
-information, see {stack-ov}/xpack-ccr.html[Cross-cluster replication] and <<ccr-apis>>. 
+on the leader indices are then replayed on the follower indices. This 
+functionality is useful for replicating data to a second cluster for disaster 
+recovery purposes and for geo-proximity so that reads can be served locally.
+
+For more information, see {stack-ov}/xpack-ccr.html[Cross-cluster replication] 
+and <<ccr-apis>>. 

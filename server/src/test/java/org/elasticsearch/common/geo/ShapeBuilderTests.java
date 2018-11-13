@@ -36,7 +36,6 @@ import org.locationtech.spatial4j.exception.InvalidShapeException;
 import org.locationtech.spatial4j.shape.Circle;
 import org.locationtech.spatial4j.shape.Point;
 import org.locationtech.spatial4j.shape.Rectangle;
-import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.impl.PointImpl;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiLineString;

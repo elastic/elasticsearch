@@ -200,29 +200,6 @@ This mapping definition maps the location field to the geo_shape
 type using the default vector implementation. It provides
 approximately 1e-6 decimal degree precision.
 
-[source,js]
---------------------------------------------------
-PUT /example
-{
-    "mappings": {
-        "doc": {
-            "properties": {
-                "location": {
-                    "type": "geo_shape",
-                    "tree": "quadtree",
-                    "precision": "100m"
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// TEST[skip:deprecated mapping]
-
-This mapping maps the location field to the geo_shape type using the deprecated
-quad_tree implementation and a precision of 100m. Elasticsearch translates
-this into a tree_levels setting of 20.
-
 [float]
 ===== Performance considerations with Prefix Trees
 

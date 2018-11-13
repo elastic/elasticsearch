@@ -271,11 +271,13 @@ public class IndexLifecycleRunner {
      * @param nextStepKey    The next step to move the index into
      * @param nowSupplier    The current-time supplier for updating when steps changed
      * @param stepRegistry   The steps registry to check a step-key's existence in the index's current policy
+     * @param forcePhaseDefinitionRefresh When true, step information will be recompiled from the latest version of the
+     *                                    policy. Otherwise, existing phase definition is used.
      * @return The updated cluster state where the index moved to <code>nextStepKey</code>
      */
     static ClusterState moveClusterStateToStep(String indexName, ClusterState currentState, StepKey currentStepKey,
                                                StepKey nextStepKey, LongSupplier nowSupplier,
-                                               PolicyStepsRegistry stepRegistry) {
+                                               PolicyStepsRegistry stepRegistry, boolean forcePhaseDefinitionRefresh) {
         IndexMetaData idxMeta = currentState.getMetaData().index(indexName);
         Settings indexSettings = idxMeta.getSettings();
         String indexPolicySetting = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
@@ -295,18 +297,19 @@ public class IndexLifecycleRunner {
                 "] with policy [" + indexPolicySetting + "] does not exist");
         }
 
-        return IndexLifecycleRunner.moveClusterStateToNextStep(idxMeta.getIndex(), currentState, currentStepKey, nextStepKey, nowSupplier);
+        return IndexLifecycleRunner.moveClusterStateToNextStep(idxMeta.getIndex(), currentState, currentStepKey,
+            nextStepKey, nowSupplier, forcePhaseDefinitionRefresh);
     }
 
     static ClusterState moveClusterStateToNextStep(Index index, ClusterState clusterState, StepKey currentStep, StepKey nextStep,
-                                                   LongSupplier nowSupplier) {
+                                                   LongSupplier nowSupplier, boolean forcePhaseDefinitionRefresh) {
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
         IndexLifecycleMetadata ilmMeta = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas()
             .get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()));
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
         LifecycleExecutionState newLifecycleState = moveExecutionStateToNextStep(policyMetadata,
-            lifecycleState, currentStep, nextStep, nowSupplier);
+            lifecycleState, currentStep, nextStep, nowSupplier, forcePhaseDefinitionRefresh);
         ClusterState.Builder newClusterStateBuilder = newClusterStateWithLifecycleState(index, clusterState, newLifecycleState);
 
         return newClusterStateBuilder.build();
@@ -324,7 +327,7 @@ public class IndexLifecycleRunner {
         causeXContentBuilder.endObject();
         LifecycleExecutionState nextStepState = moveExecutionStateToNextStep(policyMetadata,
             LifecycleExecutionState.fromIndexMetadata(idxMeta), currentStep, new StepKey(currentStep.getPhase(),
-                currentStep.getAction(), ErrorStep.NAME), nowSupplier);
+                currentStep.getAction(), ErrorStep.NAME), nowSupplier, false);
         LifecycleExecutionState.Builder failedState = LifecycleExecutionState.builder(nextStepState);
         failedState.setFailedStep(currentStep.getName());
         failedState.setStepInfo(BytesReference.bytes(causeXContentBuilder).utf8ToString());
@@ -343,9 +346,9 @@ public class IndexLifecycleRunner {
             StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
             String failedStep = lifecycleState.getFailedStep();
             if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName())
-                && Strings.isNullOrEmpty(failedStep) == false) {
+                    && Strings.isNullOrEmpty(failedStep) == false) {
                 StepKey nextStepKey = new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
-                newState = moveClusterStateToStep(index, currentState, currentStepKey, nextStepKey, nowSupplier, stepRegistry);
+                newState = moveClusterStateToStep(index, currentState, currentStepKey, nextStepKey, nowSupplier, stepRegistry, true);
             } else {
                 throw new IllegalArgumentException("cannot retry an action for an index ["
                     + index + "] that has not encountered an error when running a Lifecycle Policy");
@@ -357,7 +360,8 @@ public class IndexLifecycleRunner {
     private static LifecycleExecutionState moveExecutionStateToNextStep(LifecyclePolicyMetadata policyMetadata,
                                                                         LifecycleExecutionState existingState,
                                                                         StepKey currentStep, StepKey nextStep,
-                                                                        LongSupplier nowSupplier) {
+                                                                        LongSupplier nowSupplier,
+                                                                        boolean forcePhaseDefinitionRefresh) {
         long nowAsMillis = nowSupplier.getAsLong();
         LifecycleExecutionState.Builder updatedState = LifecycleExecutionState.builder(existingState);
         updatedState.setPhase(nextStep.getPhase());
@@ -369,7 +373,7 @@ public class IndexLifecycleRunner {
         updatedState.setFailedStep(null);
         updatedState.setStepInfo(null);
 
-        if (currentStep.getPhase().equals(nextStep.getPhase()) == false) {
+        if (currentStep.getPhase().equals(nextStep.getPhase()) == false || forcePhaseDefinitionRefresh) {
             final String newPhaseDefinition;
             final Phase nextPhase;
             if ("new".equals(nextStep.getPhase()) || TerminalPolicyStep.KEY.equals(nextStep)) {

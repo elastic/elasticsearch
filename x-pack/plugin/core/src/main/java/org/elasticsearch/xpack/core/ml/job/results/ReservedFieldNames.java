@@ -188,7 +188,6 @@ public final class ReservedFieldNames {
             Job.DATA_DESCRIPTION.getPreferredName(),
             Job.DESCRIPTION.getPreferredName(),
             Job.FINISHED_TIME.getPreferredName(),
-            Job.ESTABLISHED_MODEL_MEMORY.getPreferredName(),
             Job.MODEL_PLOT_CONFIG.getPreferredName(),
             Job.RENORMALIZATION_WINDOW_DAYS.getPreferredName(),
             Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName(),

@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.is;
 public class InterimResultsDeletedAfterReopeningJobIT extends MlNativeAutodetectIntegTestCase {
 
     @After
-    public void cleanUpTest() throws Exception {
+    public void cleanUpTest() {
         cleanUp();
     }
 

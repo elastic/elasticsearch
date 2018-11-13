@@ -91,9 +91,6 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setModelSnapshotMinVersion(Version.CURRENT);
         }
         if (useInternalParser && randomBoolean()) {
-            update.setEstablishedModelMemory(randomNonNegativeLong());
-        }
-        if (useInternalParser && randomBoolean()) {
             update.setJobVersion(randomFrom(Version.CURRENT, Version.V_6_2_0, Version.V_6_1_0));
         }
         if (useInternalParser) {

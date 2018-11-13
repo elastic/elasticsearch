@@ -57,7 +57,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         // These fields should not be set by a REST request
         INTERNAL_PARSER.declareString(Builder::setModelSnapshotId, Job.MODEL_SNAPSHOT_ID);
-        INTERNAL_PARSER.declareLong(Builder::setEstablishedModelMemory, Job.ESTABLISHED_MODEL_MEMORY);
         INTERNAL_PARSER.declareString(Builder::setModelSnapshotMinVersion, Job.MODEL_SNAPSHOT_MIN_VERSION);
         INTERNAL_PARSER.declareString(Builder::setJobVersion, Job.JOB_VERSION);
         INTERNAL_PARSER.declareBoolean(Builder::setClearFinishTime, CLEAR_JOB_FINISH_TIME);
@@ -77,7 +76,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
     private final Version modelSnapshotMinVersion;
-    private final Long establishedModelMemory;
     private final Version jobVersion;
     private final Boolean clearJobFinishTime;
 
@@ -87,8 +85,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                       @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
                       @Nullable Long modelSnapshotRetentionDays, @Nullable List<String> categorisationFilters,
                       @Nullable Map<String, Object> customSettings, @Nullable String modelSnapshotId,
-                      @Nullable Version modelSnapshotMinVersion, @Nullable Long establishedModelMemory,
-                      @Nullable Version jobVersion, @Nullable Boolean clearJobFinishTime) {
+                      @Nullable Version modelSnapshotMinVersion, @Nullable Version jobVersion, @Nullable Boolean clearJobFinishTime) {
         this.jobId = jobId;
         this.groups = groups;
         this.description = description;
@@ -103,7 +100,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
         this.customSettings = customSettings;
         this.modelSnapshotId = modelSnapshotId;
         this.modelSnapshotMinVersion = modelSnapshotMinVersion;
-        this.establishedModelMemory = establishedModelMemory;
         this.jobVersion = jobVersion;
         this.clearJobFinishTime = clearJobFinishTime;
     }
@@ -135,10 +131,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         customSettings = in.readMap();
         modelSnapshotId = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            establishedModelMemory = in.readOptionalLong();
-        } else {
-            establishedModelMemory = null;
+        // was establishedModelMemory
+        if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readOptionalLong();
         }
         if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.readBoolean()) {
             jobVersion = Version.readVersion(in);
@@ -181,8 +176,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeOptionalLong(establishedModelMemory);
+        // was establishedModelMemory
+        if (out.getVersion().onOrAfter(Version.V_6_1_0) && out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalLong(null);
         }
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             if (jobVersion != null) {
@@ -261,10 +257,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
         return modelSnapshotMinVersion;
     }
 
-    public Long getEstablishedModelMemory() {
-        return establishedModelMemory;
-    }
-
     public Version getJobVersion() {
         return jobVersion;
     }
@@ -320,9 +312,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (modelSnapshotMinVersion != null) {
             builder.field(Job.MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(), modelSnapshotMinVersion);
         }
-        if (establishedModelMemory != null) {
-            builder.field(Job.ESTABLISHED_MODEL_MEMORY.getPreferredName(), establishedModelMemory);
-        }
         if (jobVersion != null) {
             builder.field(Job.JOB_VERSION.getPreferredName(), jobVersion);
         }
@@ -373,9 +362,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         if (modelSnapshotMinVersion != null) {
             updateFields.add(Job.MODEL_SNAPSHOT_MIN_VERSION.getPreferredName());
-        }
-        if (establishedModelMemory != null) {
-            updateFields.add(Job.ESTABLISHED_MODEL_MEMORY.getPreferredName());
         }
         if (jobVersion != null) {
             updateFields.add(Job.JOB_VERSION.getPreferredName());
@@ -452,14 +438,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (modelSnapshotMinVersion != null) {
             builder.setModelSnapshotMinVersion(modelSnapshotMinVersion);
         }
-        if (establishedModelMemory != null) {
-            // An established model memory of zero means we don't actually know the established model memory
-            if (establishedModelMemory > 0) {
-                builder.setEstablishedModelMemory(establishedModelMemory);
-            } else {
-                builder.setEstablishedModelMemory(null);
-            }
-        }
         if (jobVersion != null) {
             builder.setJobVersion(jobVersion);
         }
@@ -487,7 +465,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && (customSettings == null || Objects.equals(customSettings, job.getCustomSettings()))
                 && (modelSnapshotId == null || Objects.equals(modelSnapshotId, job.getModelSnapshotId()))
                 && (modelSnapshotMinVersion == null || Objects.equals(modelSnapshotMinVersion, job.getModelSnapshotMinVersion()))
-                && (establishedModelMemory == null || Objects.equals(establishedModelMemory, job.getEstablishedModelMemory()))
                 && (jobVersion == null || Objects.equals(jobVersion, job.getJobVersion()))
                 && ((clearJobFinishTime == null || clearJobFinishTime == false) || job.getFinishedTime() == null);
     }
@@ -536,7 +513,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && Objects.equals(this.customSettings, that.customSettings)
                 && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
                 && Objects.equals(this.modelSnapshotMinVersion, that.modelSnapshotMinVersion)
-                && Objects.equals(this.establishedModelMemory, that.establishedModelMemory)
                 && Objects.equals(this.jobVersion, that.jobVersion)
                 && Objects.equals(this.clearJobFinishTime, that.clearJobFinishTime);
     }
@@ -545,7 +521,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
     public int hashCode() {
         return Objects.hash(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, categorizationFilters, customSettings,
-                modelSnapshotId, modelSnapshotMinVersion, establishedModelMemory, jobVersion, clearJobFinishTime);
+                modelSnapshotId, modelSnapshotMinVersion, jobVersion, clearJobFinishTime);
     }
 
     public static class DetectorUpdate implements Writeable, ToXContentObject {
@@ -655,7 +631,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
         private Version modelSnapshotMinVersion;
-        private Long establishedModelMemory;
         private Version jobVersion;
         private Boolean clearJobFinishTime;
 
@@ -738,11 +713,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setEstablishedModelMemory(Long establishedModelMemory) {
-            this.establishedModelMemory = establishedModelMemory;
-            return this;
-        }
-
         public Builder setJobVersion(Version version) {
             this.jobVersion = version;
             return this;
@@ -761,7 +731,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         public JobUpdate build() {
             return new JobUpdate(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
                     renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, categorizationFilters, customSettings,
-                    modelSnapshotId, modelSnapshotMinVersion, establishedModelMemory, jobVersion, clearJobFinishTime);
+                    modelSnapshotId, modelSnapshotMinVersion, jobVersion, clearJobFinishTime);
         }
     }
 }

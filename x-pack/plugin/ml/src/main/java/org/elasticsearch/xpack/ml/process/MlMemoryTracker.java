@@ -128,12 +128,6 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             return memoryRequirement;
         }
 
-        // Fallback for mixed version 6.6+/pre-6.6 cluster - TODO: remove in 7.0
-        Job job = MlMetadata.getMlMetadata(clusterService.state()).getJobs().get(jobId);
-        if (job != null) {
-            return job.estimateMemoryFootprint();
-        }
-
         return null;
     }
 

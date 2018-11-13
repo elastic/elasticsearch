@@ -514,11 +514,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         OpenJobAction.JobParams jobParams = request.getJobParams();
         if (licenseState.isMachineLearningAllowed()) {
 
-            // If the whole cluster supports the ML memory tracker then we don't need
-            // to worry about updating established model memory on the job objects
-            // TODO: remove in 7.0 as it will always be true
-            boolean clusterSupportsMlMemoryTracker = state.getNodes().getMinNodeVersion().onOrAfter(Version.V_6_6_0);
-
             // Clear job finished time once the job is started and respond
             ActionListener<AcknowledgedResponse> clearJobFinishTime = ActionListener.wrap(
                 response -> {
@@ -562,31 +557,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 listener::onFailure
             );
 
-            // Update established model memory for pre-6.1 jobs that haven't had it set (TODO: remove in 7.0)
-            // and increase the model memory limit for 6.1 - 6.3 jobs
+            // Increase the model memory limit for 6.1 - 6.3 jobs
             ActionListener<Boolean> missingMappingsListener = ActionListener.wrap(
                     response -> {
                         Job job = jobParams.getJob();
                         if (job != null) {
                             Version jobVersion = job.getJobVersion();
-                            Long jobEstablishedModelMemory = job.getEstablishedModelMemory();
-                            if (clusterSupportsMlMemoryTracker == false && (jobVersion == null || jobVersion.before(Version.V_6_1_0))
-                                    && (jobEstablishedModelMemory == null || jobEstablishedModelMemory == 0)) {
-                                // TODO: remove in 7.0 - established model memory no longer needs to be set on the job object
-                                // Set the established memory usage for pre 6.1 jobs
-                                jobResultsProvider.getEstablishedMemoryUsage(job.getId(), null, null, establishedModelMemory -> {
-                                    if (establishedModelMemory != null && establishedModelMemory > 0) {
-                                        JobUpdate update = new JobUpdate.Builder(job.getId())
-                                                .setEstablishedModelMemory(establishedModelMemory).build();
-                                        UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(job.getId(), update);
-
-                                        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
-                                                jobUpdateListener);
-                                    } else {
-                                        jobUpdateListener.onResponse(null);
-                                    }
-                                }, listener::onFailure);
-                            } else if (jobVersion != null &&
+                            if (jobVersion != null &&
                                     (jobVersion.onOrAfter(Version.V_6_1_0) && jobVersion.before(Version.V_6_3_0))) {
                                 // Increase model memory limit if < 512MB
                                 if (job.getAnalysisLimits() != null && job.getAnalysisLimits().getModelMemoryLimit() != null &&

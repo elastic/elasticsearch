@@ -67,7 +67,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final ParseField DATA_DESCRIPTION = new ParseField("data_description");
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField FINISHED_TIME = new ParseField("finished_time");
-    public static final ParseField ESTABLISHED_MODEL_MEMORY = new ParseField("established_model_memory");
     public static final ParseField MODEL_PLOT_CONFIG = new ParseField("model_plot_config");
     public static final ParseField RENORMALIZATION_WINDOW_DAYS = new ParseField("renormalization_window_days");
     public static final ParseField BACKGROUND_PERSIST_INTERVAL = new ParseField("background_persist_interval");
@@ -102,7 +101,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 p -> TimeUtils.parseTimeField(p, CREATE_TIME.getPreferredName()), CREATE_TIME, ValueType.VALUE);
         parser.declareField(Builder::setFinishedTime,
                 p -> TimeUtils.parseTimeField(p, FINISHED_TIME.getPreferredName()), FINISHED_TIME, ValueType.VALUE);
-        parser.declareLong(Builder::setEstablishedModelMemory, ESTABLISHED_MODEL_MEMORY);
         parser.declareObject(Builder::setAnalysisConfig, ignoreUnknownFields ? AnalysisConfig.LENIENT_PARSER : AnalysisConfig.STRICT_PARSER,
             ANALYSIS_CONFIG);
         parser.declareObject(Builder::setAnalysisLimits, ignoreUnknownFields ? AnalysisLimits.LENIENT_PARSER : AnalysisLimits.STRICT_PARSER,
@@ -140,8 +138,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     // TODO: Use java.time for the Dates here: x-pack-elasticsearch#829
     private final Date createTime;
     private final Date finishedTime;
-    // TODO: Remove in 7.0
-    private final Long establishedModelMemory;
     private final AnalysisConfig analysisConfig;
     private final AnalysisLimits analysisLimits;
     private final DataDescription dataDescription;
@@ -157,7 +153,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     private final boolean deleting;
 
     private Job(String jobId, String jobType, Version jobVersion, List<String> groups, String description,
-                Date createTime, Date finishedTime, Long establishedModelMemory,
+                Date createTime, Date finishedTime,
                 AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                 Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
@@ -170,7 +166,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         this.description = description;
         this.createTime = createTime;
         this.finishedTime = finishedTime;
-        this.establishedModelMemory = establishedModelMemory;
         this.analysisConfig = analysisConfig;
         this.analysisLimits = analysisLimits;
         this.dataDescription = dataDescription;
@@ -204,10 +199,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 in.readVLong();
             }
         }
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            establishedModelMemory = in.readOptionalLong();
-        } else {
-            establishedModelMemory = null;
+        // for removed establishedModelMemory field
+        if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readOptionalLong();
         }
         analysisConfig = new AnalysisConfig(in);
         analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
@@ -313,16 +307,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
      */
     public Date getFinishedTime() {
         return finishedTime;
-    }
-
-    /**
-     * The established model memory of the job, or <code>null</code> if model
-     * memory has not reached equilibrium yet.
-     *
-     * @return The established model memory of the job
-     */
-    public Long getEstablishedModelMemory() {
-        return establishedModelMemory;
     }
 
     /**
@@ -432,22 +416,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     }
 
     /**
-     * Make a best estimate of the job's memory footprint using the information available.
-     * If a job has an established model memory size, then this is the best estimate.
-     * Otherwise, assume the maximum model memory limit will eventually be required.
-     * In either case, a fixed overhead is added to account for the memory required by the
-     * program code and stack.
-     * @return an estimate of the memory requirement of this job, in bytes
-     */
-    // TODO: remove this method in 7.0
-    public long estimateMemoryFootprint() {
-        if (establishedModelMemory != null && establishedModelMemory > 0) {
-            return establishedModelMemory + PROCESS_MEMORY_OVERHEAD.getBytes();
-        }
-        return ByteSizeUnit.MB.toBytes(analysisLimits.getModelMemoryLimit()) + PROCESS_MEMORY_OVERHEAD.getBytes();
-    }
-
-    /**
      * Returns the timestamp before which data is not accepted by the job.
      * This is the latest record timestamp minus the job latency.
      * @param dataCounts the job data counts
@@ -489,8 +457,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeOptionalLong(establishedModelMemory);
+        // for removed establishedModelMemory field
+        if (out.getVersion().onOrAfter(Version.V_6_1_0) && out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalLong(null);
         }
         analysisConfig.writeTo(out);
         out.writeOptionalWriteable(analysisLimits);
@@ -540,9 +509,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         if (finishedTime != null) {
             builder.timeField(FINISHED_TIME.getPreferredName(), FINISHED_TIME.getPreferredName() + humanReadableSuffix,
                     finishedTime.getTime());
-        }
-        if (establishedModelMemory != null) {
-            builder.field(ESTABLISHED_MODEL_MEMORY.getPreferredName(), establishedModelMemory);
         }
         builder.field(ANALYSIS_CONFIG.getPreferredName(), analysisConfig, params);
         if (analysisLimits != null) {
@@ -600,7 +566,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 && Objects.equals(this.description, that.description)
                 && Objects.equals(this.createTime, that.createTime)
                 && Objects.equals(this.finishedTime, that.finishedTime)
-                && Objects.equals(this.establishedModelMemory, that.establishedModelMemory)
                 && Objects.equals(this.analysisConfig, that.analysisConfig)
                 && Objects.equals(this.analysisLimits, that.analysisLimits)
                 && Objects.equals(this.dataDescription, that.dataDescription)
@@ -618,7 +583,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, jobType, jobVersion, groups, description, createTime, finishedTime, establishedModelMemory,
+        return Objects.hash(jobId, jobType, jobVersion, groups, description, createTime, finishedTime,
                 analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
                 modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting);
@@ -659,8 +624,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private DataDescription dataDescription;
         private Date createTime;
         private Date finishedTime;
-        // TODO: remove in 7.0
-        private Long establishedModelMemory;
         private ModelPlotConfig modelPlotConfig;
         private Long renormalizationWindowDays;
         private TimeValue backgroundPersistInterval;
@@ -690,7 +653,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             this.dataDescription = job.getDataDescription();
             this.createTime = job.getCreateTime();
             this.finishedTime = job.getFinishedTime();
-            this.establishedModelMemory = job.getEstablishedModelMemory();
             this.modelPlotConfig = job.getModelPlotConfig();
             this.renormalizationWindowDays = job.getRenormalizationWindowDays();
             this.backgroundPersistInterval = job.getBackgroundPersistInterval();
@@ -721,8 +683,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     in.readVLong();
                 }
             }
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                establishedModelMemory = in.readOptionalLong();
+            // for removed establishedModelMemory field
+            if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.getVersion().before(Version.V_7_0_0_alpha1)) {
+                 in.readOptionalLong();
             }
             analysisConfig = in.readOptionalWriteable(AnalysisConfig::new);
             analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
@@ -803,11 +766,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         public Builder setFinishedTime(Date finishedTime) {
             this.finishedTime = finishedTime;
-            return this;
-        }
-
-        public Builder setEstablishedModelMemory(Long establishedModelMemory) {
-            this.establishedModelMemory = establishedModelMemory;
             return this;
         }
 
@@ -916,8 +874,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
                 out.writeBoolean(false);
             }
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeOptionalLong(establishedModelMemory);
+            // for removed establishedModelMemory field
+            if (out.getVersion().onOrAfter(Version.V_6_1_0) && out.getVersion().before(Version.V_7_0_0_alpha1)) {
+                out.writeOptionalLong(null);
             }
             out.writeOptionalWriteable(analysisConfig);
             out.writeOptionalWriteable(analysisLimits);
@@ -959,9 +918,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             }
             if (finishedTime != null) {
                 builder.field(FINISHED_TIME.getPreferredName(), finishedTime.getTime());
-            }
-            if (establishedModelMemory != null) {
-                builder.field(ESTABLISHED_MODEL_MEMORY.getPreferredName(), establishedModelMemory);
             }
             if (analysisConfig != null) {
                 builder.field(ANALYSIS_CONFIG.getPreferredName(), analysisConfig, params);
@@ -1023,7 +979,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     && Objects.equals(this.dataDescription, that.dataDescription)
                     && Objects.equals(this.createTime, that.createTime)
                     && Objects.equals(this.finishedTime, that.finishedTime)
-                    && Objects.equals(this.establishedModelMemory, that.establishedModelMemory)
                     && Objects.equals(this.modelPlotConfig, that.modelPlotConfig)
                     && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
                     && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
@@ -1039,7 +994,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         @Override
         public int hashCode() {
             return Objects.hash(id, jobType, jobVersion, groups, description, analysisConfig, analysisLimits, dataDescription,
-                    createTime, finishedTime, establishedModelMemory, modelPlotConfig, renormalizationWindowDays,
+                    createTime, finishedTime, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
                     modelSnapshotMinVersion, resultsIndexName, deleting);
         }
@@ -1115,7 +1070,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         public Job build(Date createTime) {
             setCreateTime(createTime);
             setJobVersion(Version.CURRENT);
-            setEstablishedModelMemory(null);
             return build();
         }
 
@@ -1151,7 +1105,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             }
 
             return new Job(
-                    id, jobType, jobVersion, groups, description, createTime, finishedTime, establishedModelMemory,
+                    id, jobType, jobVersion, groups, description, createTime, finishedTime,
                     analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
                     modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting);

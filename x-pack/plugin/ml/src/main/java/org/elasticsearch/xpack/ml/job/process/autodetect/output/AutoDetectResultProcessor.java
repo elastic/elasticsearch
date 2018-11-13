@@ -112,6 +112,7 @@ public class AutoDetectResultProcessor {
      * New model size stats are read as the process is running
      */
     private volatile ModelSizeStats latestModelSizeStats;
+    // TODO: remove in 7.0, along with all established model memory functionality in this class
     private volatile Date latestDateForEstablishedModelMemoryCalc;
     private volatile long latestEstablishedModelMemory;
     private volatile boolean haveNewLatestModelSizeStats;

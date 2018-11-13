@@ -180,6 +180,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcess
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
@@ -275,6 +276,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
     private final SetOnce<DatafeedManager> datafeedManager = new SetOnce<>();
+    private final SetOnce<MlMemoryTracker> memoryTracker = new SetOnce<>();
 
     public MachineLearning(Settings settings, Path configPath) {
         this.settings = settings;
@@ -415,6 +417,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         this.datafeedManager.set(datafeedManager);
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
                 autodetectProcessManager);
+        MlMemoryTracker memoryTracker = new MlMemoryTracker(clusterService, threadPool, jobManager, jobResultsProvider);
+        this.memoryTracker.set(memoryTracker);
 
         // This object's constructor attaches to the license state, so there's no need to retain another reference to it
         new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
@@ -433,7 +437,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 jobDataCountsPersister,
                 datafeedManager,
                 auditor,
-                new MlAssignmentNotifier(auditor, clusterService)
+                new MlAssignmentNotifier(auditor, clusterService),
+                memoryTracker
         );
     }
 
@@ -444,8 +449,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         }
 
         return Arrays.asList(
-                new TransportOpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get()),
-                new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedManager.get())
+                new TransportOpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get(),
+                    memoryTracker.get()),
+                new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor( datafeedManager.get())
         );
     }
 

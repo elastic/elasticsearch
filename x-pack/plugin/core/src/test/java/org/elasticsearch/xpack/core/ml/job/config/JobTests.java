@@ -544,7 +544,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setEstablishedModelMemory(0L);
         }
         assertEquals(ByteSizeUnit.MB.toBytes(AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB)
-                        + Job.PROCESS_MEMORY_OVERHEAD.getBytes(), builder.build().estimateMemoryFootprint());
+            + Job.PROCESS_MEMORY_OVERHEAD.getBytes(), builder.build().estimateMemoryFootprint());
     }
 
     public void testEarliestValidTimestamp_GivenEmptyDataCounts() {

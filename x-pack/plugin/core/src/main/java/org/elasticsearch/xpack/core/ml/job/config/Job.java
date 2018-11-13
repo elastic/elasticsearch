@@ -140,6 +140,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     // TODO: Use java.time for the Dates here: x-pack-elasticsearch#829
     private final Date createTime;
     private final Date finishedTime;
+    // TODO: Remove in 7.0
     private final Long establishedModelMemory;
     private final AnalysisConfig analysisConfig;
     private final AnalysisLimits analysisLimits;
@@ -438,6 +439,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
      * program code and stack.
      * @return an estimate of the memory requirement of this job, in bytes
      */
+    // TODO: remove this method in 7.0
     public long estimateMemoryFootprint() {
         if (establishedModelMemory != null && establishedModelMemory > 0) {
             return establishedModelMemory + PROCESS_MEMORY_OVERHEAD.getBytes();
@@ -657,6 +659,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private DataDescription dataDescription;
         private Date createTime;
         private Date finishedTime;
+        // TODO: remove in 7.0
         private Long establishedModelMemory;
         private ModelPlotConfig modelPlotConfig;
         private Long renormalizationWindowDays;
@@ -1112,10 +1115,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         public Job build(Date createTime) {
             setCreateTime(createTime);
             setJobVersion(Version.CURRENT);
-            // TODO: Maybe we _could_ accept a value for this supplied at create time - it would
-            // mean cloned jobs that hadn't been edited much would start with an accurate expected size.
-            // But on the other hand it would mean jobs that were cloned and then completely changed
-            // would start with a size that was completely wrong.
             setEstablishedModelMemory(null);
             return build();
         }

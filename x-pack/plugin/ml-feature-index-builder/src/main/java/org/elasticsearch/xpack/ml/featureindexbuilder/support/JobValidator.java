@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
@@ -138,6 +139,14 @@ public class JobValidator {
         searchRequest.source(sourceBuilder);
 
         client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(response -> {
+            if (response == null) {
+                listener.onFailure(new RuntimeException("Unexpected null response from test query"));
+                return;
+            }
+            if (response.status() != RestStatus.OK) {
+                listener.onFailure(new RuntimeException("Unexpected status from response of test query: " + response.status()));
+                return;
+            }
             listener.onResponse(true);
         }, e->{
             listener.onFailure(new RuntimeException("Failed to test query",e));

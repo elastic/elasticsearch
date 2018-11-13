@@ -296,8 +296,10 @@ include::ml/put-filter.asciidoc[]
 The Java High Level REST Client supports the following Migration APIs:
 
 * <<java-rest-high-migration-get-assistance>>
+* <<java-rest-high-migration-upgrade>>
 
 include::migration/get-assistance.asciidoc[]
+include::migration/upgrade.asciidoc[]
 
 == Rollup APIs
 
@@ -311,12 +313,14 @@ The Java High Level REST Client supports the following Rollup APIs:
 * <<{upid}-rollup-delete-job>>
 * <<java-rest-high-x-pack-rollup-get-job>>
 * <<{upid}-x-pack-rollup-get-rollup-caps>>
+* <<{upid}-x-pack-rollup-get-rollup-index-caps>>
 
 include::rollup/put_job.asciidoc[]
 include::rollup/start_job.asciidoc[]
 include::rollup/delete_job.asciidoc[]
 include::rollup/get_job.asciidoc[]
 include::rollup/get_rollup_caps.asciidoc[]
+include::rollup/get_rollup_index_caps.asciidoc[]
 
 == Security APIs
 
@@ -405,6 +409,8 @@ don't leak into the rest of the documentation.
 
 The Java High Level REST Client supports the following CCR APIs:
 
+* <<{upid}-ccr-put-follow>>
 * <<{upid}-ccr-pause-follow>>
 
+include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]

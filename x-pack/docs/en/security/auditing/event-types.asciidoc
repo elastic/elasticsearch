@@ -89,10 +89,22 @@ descriptions for the format that you are using.
                         `realm_authentication_failed`, `access_denied`, `access_granted`,
                         `connection_denied`, `connection_granted`, `tampered_request`,
                         `run_as_denied`, `run_as_granted`.
+`opaque_id`       ::    The value of the `X-Opaque-Id` HTTP header (if present) of
+                        the request associated with this event. This header can
+                        be used freely by the client to mark API calls, as it has
+                        no semantics in Elasticsearch.
+
+If the `event.type` is `rest`, the following attributes are also present:
+
+`url.path`        ::    The path part of the URL (between the port and the query
+                        string) of the REST request associated with this event.
+                        This is URL encoded.
+`url.query`       ::    The query part of the URL (after "?", if present) of th
+                        REST request associated with this event. This is URL encoded.
 
 [float]
 [[audit-event-attributes-deprecated-formats]]
-=== Audit event attributes in the deprecated formats
+=== Audit event attributes for the deprecated formats
 
 The following table shows the common attributes that can be associated with
 every event, when it is output to the `<clustername>_access.log` file or to the

@@ -32,26 +32,25 @@ The standard <<painless-api-reference, Painless API>> is available.
 To run this example, first follow the steps in
 <<painless-context-examples, context examples>>.
 
-Imagine that you want to find seats to performances where your favorite
-actors play. You have a list of favorite actors in mind, and you want
-to find performances that have at least certain minimum number of actors
-from your favorite list. `terms_set` query with
-`minimum_should_match_script` is a way to accomplish this. To make
-the query request more configurable, you can define
-`min_actors_to_see` as a script parameter.
+Imagine that you want to find seats to performances by your favorite
+actors. You have a list of favorite actors in mind, and you want
+to find performances where the cast includes at least a certain
+number of them. `terms_set` query with `minimum_should_match_script`
+is a way to accomplish this. To make the query request more configurable,
+you can define `min_actors_to_see` as a script parameter.
 
-To ensure that `min_actors_to_see` parameter doesn't exceed the number
-your favorite actors, use the script below. This script
-selects the minimum value between the parameter `min_actors_to_see` and
-the parameter `num_terms`, which represents the length of the list of
-your favorite actors.
+To ensure that the parameter `min_actors_to_see` doesn't exceed
+the number of favorite actors, you can use `num_term`s to get
+the number of actors in the list and `Math.min` to get the lesser
+of the two.
 
 [source,Painless]
 ----
 Math.min(params['num_terms'], params['min_actors_to_see'])
 ----
 
-Submit the following request to find seats to performances with your favorite actors:
+The following request finds seats to performances with at least
+two of the three specified actors.
 
 [source,js]
 ----

@@ -245,7 +245,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
 
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
-        // Test job IDs only
+        // Test IDs only
         SortedSet<String> expandedIds =
                 blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedIds("foo*", true, actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("foo-1", "foo-2")), expandedIds);
@@ -262,7 +262,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         expandedIds = blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedIds("bar-1,foo*", true, actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("bar-1", "foo-1", "foo-2")), expandedIds);
 
-        // Test full job config
+        // Test full config
         List<DatafeedConfig.Builder> expandedDatafeedBuilders =
                 blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedConfigs("foo*", true, actionListener));
         List<DatafeedConfig> expandedDatafeeds =
@@ -288,6 +288,33 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
                 blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedConfigs("bar-1,foo*", true, actionListener));
         expandedDatafeeds = expandedDatafeedBuilders.stream().map(DatafeedConfig.Builder::build).collect(Collectors.toList());
         assertThat(expandedDatafeeds, containsInAnyOrder(bar1, foo1, foo2));
+    }
+
+    public void testExpandDatafeedsWithoutMissingCheck() throws Exception {
+        DatafeedConfig foo1 = putDatafeedConfig(createDatafeedConfig("foo-1", "j1"), Collections.emptyMap());
+        putDatafeedConfig(createDatafeedConfig("bar-1", "j3"), Collections.emptyMap());
+
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+
+        // Test IDs only
+        SortedSet<String> expandedIds =
+                blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedIdsWithoutMissingCheck("tim", actionListener));
+        assertThat(expandedIds, empty());
+
+        expandedIds = blockingCall(actionListener ->
+                datafeedConfigProvider.expandDatafeedIdsWithoutMissingCheck("foo-1,dave", actionListener));
+        assertThat(expandedIds, contains("foo-1"));
+
+        // Test full config
+        List<DatafeedConfig.Builder> expandedDatafeedBuilders =
+                blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedConfigsWithoutMissingCheck("tim", actionListener));
+        assertThat(expandedDatafeedBuilders, empty());
+
+        expandedDatafeedBuilders = blockingCall(actionListener ->
+                        datafeedConfigProvider.expandDatafeedConfigsWithoutMissingCheck("foo*,dave", actionListener));
+        List<DatafeedConfig>  expandedDatafeeds =
+                expandedDatafeedBuilders.stream().map(DatafeedConfig.Builder::build).collect(Collectors.toList());
+        assertThat(expandedDatafeeds, contains(foo1));
     }
 
     public void testFindDatafeedsForJobIds() throws Exception {

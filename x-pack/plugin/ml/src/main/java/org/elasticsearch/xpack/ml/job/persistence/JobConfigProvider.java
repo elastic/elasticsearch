@@ -537,17 +537,9 @@ public class JobConfigProvider {
      * @param listener The expanded job Ids listener
      */
     public void expandJobsIds(String expression, boolean allowNoJobs, boolean excludeDeleting, ActionListener<SortedSet<String>> listener) {
+        SearchRequest searchRequest = makeExpandIdsSearchRequest(expression, excludeDeleting);
+
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
-        sourceBuilder.sort(Job.ID.getPreferredName());
-        sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(Job.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
-        sourceBuilder.docValueField(Job.GROUPS.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
-
-        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(sourceBuilder).request();
-
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoJobs);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
@@ -577,6 +569,72 @@ public class JobConfigProvider {
                         listener::onFailure)
                 , client::search);
 
+    }
+
+    public static class JobIdsAndGroups {
+        private SortedSet<String> jobs;
+        private SortedSet<String> groups;
+
+        public JobIdsAndGroups(SortedSet<String> jobs, SortedSet<String> groups) {
+            this.jobs = jobs;
+            this.groups = groups;
+        }
+
+        public SortedSet<String> getJobs() {
+            return jobs;
+        }
+
+        public SortedSet<String> getGroups() {
+            return groups;
+        }
+    }
+
+    /**
+     * Similar to {@link #expandJobsIds(String, boolean, boolean, ActionListener)} but no error
+     * is generated if there are missing Ids. Whatever Ids match will be returned.
+     *
+     * This method is only for use when combining jobs Ids from multiple sources, its usage
+     * should be limited.
+     *
+     * @param expression the expression to resolve
+     * @param excludeDeleting If true exclude jobs marked as deleting
+     * @param listener The expanded job Ids listener
+     */
+    public void expandJobsIdsWithoutMissingCheck(String expression, boolean excludeDeleting, ActionListener<JobIdsAndGroups> listener) {
+
+        SearchRequest searchRequest = makeExpandIdsSearchRequest(expression, excludeDeleting);
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(
+                        response -> {
+                            SortedSet<String> jobIds = new TreeSet<>();
+                            SortedSet<String> groupsIds = new TreeSet<>();
+                            SearchHit[] hits = response.getHits().getHits();
+                            for (SearchHit hit : hits) {
+                                jobIds.add(hit.field(Job.ID.getPreferredName()).getValue());
+                                List<Object> groups = hit.field(Job.GROUPS.getPreferredName()).getValues();
+                                if (groups != null) {
+                                    groupsIds.addAll(groups.stream().map(Object::toString).collect(Collectors.toList()));
+                                }
+                            }
+
+                            listener.onResponse(new JobIdsAndGroups(jobIds, groupsIds));
+                        },
+                        listener::onFailure)
+                , client::search);
+
+    }
+
+    private SearchRequest makeExpandIdsSearchRequest(String expression, boolean excludeDeleting) {
+        String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
+        sourceBuilder.sort(Job.ID.getPreferredName());
+        sourceBuilder.fetchSource(false);
+        sourceBuilder.docValueField(Job.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        sourceBuilder.docValueField(Job.GROUPS.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+
+        return client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSource(sourceBuilder).request();
     }
 
     /**
@@ -629,6 +687,51 @@ public class JobConfigProvider {
                                 // some required jobs were not found
                                 listener.onFailure(ExceptionsHelper.missingJobException(requiredMatches.unmatchedIdsString()));
                                 return;
+                            }
+
+                            listener.onResponse(jobs);
+                        },
+                        listener::onFailure)
+                , client::search);
+
+    }
+
+    /**
+     * The same logic as {@link #expandJobsIdsWithoutMissingCheck(String, boolean, ActionListener)}
+     * but the full anomaly detector job configuration is returned.
+     *
+     * This method is only for use when combining jobs from multiple sources, its usage
+     * should be limited.
+     *
+     * @param expression the expression to resolve
+     * @param excludeDeleting If true exclude jobs marked as deleting
+     * @param listener The expanded jobs listener
+     */
+    // NORELEASE jobs should be paged or have a mechanism to return all jobs if there are many of them
+    public void expandJobsWithoutMissingcheck(String expression, boolean excludeDeleting, ActionListener<List<Job.Builder>> listener) {
+        String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
+        sourceBuilder.sort(Job.ID.getPreferredName());
+
+        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSource(sourceBuilder).request();
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(
+                        response -> {
+                            List<Job.Builder> jobs = new ArrayList<>();
+
+                            SearchHit[] hits = response.getHits().getHits();
+                            for (SearchHit hit : hits) {
+                                try {
+                                    BytesReference source = hit.getSourceRef();
+                                    Job.Builder job = parseJobLenientlyFromSource(source);
+                                    jobs.add(job);
+                                } catch (IOException e) {
+                                    // TODO A better way to handle this rather than just ignoring the error?
+                                    logger.error("Error parsing anomaly detector job configuration [" + hit.getId() + "]", e);
+                                }
                             }
 
                             listener.onResponse(jobs);

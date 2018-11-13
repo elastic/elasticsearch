@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.job.groups;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NameResolver;
 
 import java.util.ArrayList;
@@ -55,8 +54,12 @@ public class GroupOrJobLookup {
         }
     }
 
-    public Set<String> expandJobIds(String expression, boolean allowNoJobs) {
-        return new GroupOrJobResolver().expand(expression, allowNoJobs);
+    public Set<String> expandJobIds(String expression) {
+        return new GroupOrJobResolver().expand(expression);
+    }
+
+    public Set<String> expandGroupIds(String expression) {
+        return new GroupResolver().expand(expression);
     }
 
     public boolean isGroupOrJob(String id) {
@@ -66,7 +69,6 @@ public class GroupOrJobLookup {
     private class GroupOrJobResolver extends NameResolver {
 
         private GroupOrJobResolver() {
-            super(ExceptionsHelper::missingJobException);
         }
 
         @Override
@@ -86,6 +88,35 @@ public class GroupOrJobLookup {
         protected List<String> lookup(String key) {
             GroupOrJob groupOrJob = groupOrJobLookup.get(key);
             return groupOrJob == null ? Collections.emptyList() : groupOrJob.jobs().stream().map(Job::getId).collect(Collectors.toList());
+        }
+    }
+
+    private class GroupResolver extends NameResolver {
+
+        private GroupResolver() {
+        }
+
+        @Override
+        protected Set<String> keys() {
+            return nameSet();
+        }
+
+        @Override
+        protected Set<String> nameSet() {
+            return groupOrJobLookup.entrySet().stream()
+                    .filter(entry -> entry.getValue().isGroup())
+                    .map(entry -> entry.getKey())
+                    .collect(Collectors.toSet());
+        }
+
+        @Override
+        protected List<String> lookup(String key) {
+            GroupOrJob groupOrJob = groupOrJobLookup.get(key);
+            if (groupOrJob == null || groupOrJob.isGroup() == false) {
+                return Collections.emptyList();
+            } else {
+                return Collections.singletonList(key);
+            }
         }
     }
 }

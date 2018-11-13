@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.MockClientBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
@@ -57,10 +58,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -74,6 +78,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -168,7 +174,7 @@ public class JobManagerTests extends ESTestCase {
         assertEquals(clusterJob, jobHolder.get());
     }
 
-    public void testExpandJobsFromClusterStateAndIndex() throws IOException {
+    public void testExpandJobsFromClusterStateAndIndex_GivenAll() throws IOException {
         Job csJobFoo1 = buildJobBuilder("foo-cs-1").build();
         Job csJobFoo2 = buildJobBuilder("foo-cs-2").build();
         Job csJobBar = buildJobBuilder("bar-cs").build();
@@ -190,7 +196,7 @@ public class JobManagerTests extends ESTestCase {
         Job.Builder indexJobFoo = buildJobBuilder("foo-index");
         docsAsBytes.add(toBytesReference(indexJobFoo.build()));
 
-        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
         mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
@@ -218,9 +224,269 @@ public class JobManagerTests extends ESTestCase {
         assertThat(jobIds, contains("foo-cs-1", "foo-cs-2", "foo-index"));
     }
 
+    public void testExpandJob_GivenDuplicateConfig() throws IOException {
+        Job csJob = buildJobBuilder("dupe").build();
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(csJob, false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        List<BytesReference> docsAsBytes = new ArrayList<>();
+        Job.Builder indexJob = buildJobBuilder("dupe");
+        docsAsBytes.add(toBytesReference(indexJob.build()));
+
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
+        mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
+
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
+        AtomicReference<QueryPage<Job>> jobsHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        jobManager.expandJobs("_all", true, ActionListener.wrap(
+                jobsHolder::set,
+                exceptionHolder::set
+        ));
+
+        assertNull(jobsHolder.get());
+        assertThat(exceptionHolder.get(), instanceOf(IllegalStateException.class));
+        assertEquals("Job [dupe] configuration exists in both clusterstate and index", exceptionHolder.get().getMessage());
+    }
+
+    public void testExpandJobs_SplitBetweenClusterStateAndIndex() throws IOException {
+        Job csJob = buildJobBuilder("cs-job").build();
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(csJob, false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+
+        List<BytesReference> docsAsBytes = new ArrayList<>();
+
+        Job.Builder indexJob = buildJobBuilder("index-job");
+        docsAsBytes.add(toBytesReference(indexJob.build()));
+
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
+        mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
+
+        AtomicReference<QueryPage<Job>> jobsHolder = new AtomicReference<>();
+        jobManager.expandJobs("cs-job,index-job", true, ActionListener.wrap(
+                jobs -> jobsHolder.set(jobs),
+                e -> fail(e.getMessage())
+        ));
+
+        assertNotNull(jobsHolder.get());
+        assertThat(jobsHolder.get().results(), hasSize(2));
+        List<String> jobIds = jobsHolder.get().results().stream().map(Job::getId).collect(Collectors.toList());
+        assertThat(jobIds, contains("cs-job", "index-job"));
+    }
+
+    public void testExpandJobs_GivenJobInClusterStateNotIndex() {
+        Job.Builder csJobFoo1 = buildJobBuilder("foo-cs-1");
+        csJobFoo1.setGroups(Collections.singletonList("foo-group"));
+        Job.Builder csJobFoo2 = buildJobBuilder("foo-cs-2");
+        csJobFoo2.setGroups(Collections.singletonList("foo-group"));
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(csJobFoo1.build(), false);
+        mlMetadata.putJob(csJobFoo2.build(), false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        List<BytesReference> docsAsBytes = new ArrayList<>();
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
+        mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
+
+
+        AtomicReference<QueryPage<Job>> jobsHolder = new AtomicReference<>();
+        jobManager.expandJobs("foo*", true, ActionListener.wrap(
+                jobs -> jobsHolder.set(jobs),
+                e -> fail(e.getMessage())
+        ));
+
+        assertNotNull(jobsHolder.get());
+        assertThat(jobsHolder.get().results(), hasSize(2));
+        List<String> jobIds = jobsHolder.get().results().stream().map(Job::getId).collect(Collectors.toList());
+        assertThat(jobIds, contains("foo-cs-1", "foo-cs-2"));
+
+        jobManager.expandJobs("foo-group", true, ActionListener.wrap(
+                jobs -> jobsHolder.set(jobs),
+                e -> fail(e.getMessage())
+        ));
+
+        assertNotNull(jobsHolder.get());
+        assertThat(jobsHolder.get().results(), hasSize(2));
+        jobIds = jobsHolder.get().results().stream().map(Job::getId).collect(Collectors.toList());
+        assertThat(jobIds, contains("foo-cs-1", "foo-cs-2"));
+    }
+
+    public void testExpandJobIds_GivenDuplicateConfig() {
+        Job csJob = buildJobBuilder("dupe").build();
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(csJob, false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        Map<String, DocumentField> fieldMap = new HashMap<>();
+        fieldMap.put(Job.ID.getPreferredName(),
+                new DocumentField(Job.ID.getPreferredName(), Collections.singletonList("dupe")));
+        fieldMap.put(Job.GROUPS.getPreferredName(),
+                new DocumentField(Job.ID.getPreferredName(), Collections.emptyList()));
+
+        List<Map<String, DocumentField>> fieldHits = new ArrayList<>();
+        fieldHits.add(fieldMap);
+
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
+        mockClientBuilder.prepareSearchFields(AnomalyDetectorsIndex.configIndexName(), fieldHits);
+
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
+        AtomicReference<SortedSet<String>> jobIdsHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        jobManager.expandJobIds("_all", true, ActionListener.wrap(
+                jobIdsHolder::set,
+                exceptionHolder::set
+        ));
+
+        assertNull(jobIdsHolder.get());
+        assertThat(exceptionHolder.get(), instanceOf(IllegalStateException.class));
+        assertEquals("Job [dupe] configuration exists in both clusterstate and index", exceptionHolder.get().getMessage());
+    }
+
+    public void testExpandJobIdsFromClusterStateAndIndex_GivenAll() {
+        Job.Builder csJobFoo1 = buildJobBuilder("foo-cs-1");
+        csJobFoo1.setGroups(Collections.singletonList("foo-group"));
+        Job.Builder csJobFoo2 = buildJobBuilder("foo-cs-2");
+        csJobFoo2.setGroups(Collections.singletonList("foo-group"));
+        Job csJobBar = buildJobBuilder("bar-cs").build();
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(csJobFoo1.build(), false);
+        mlMetadata.putJob(csJobFoo2.build(), false);
+        mlMetadata.putJob(csJobBar, false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        Map<String, DocumentField> fieldMap = new HashMap<>();
+        fieldMap.put(Job.ID.getPreferredName(),
+                new DocumentField(Job.ID.getPreferredName(), Collections.singletonList("index-job")));
+        fieldMap.put(Job.GROUPS.getPreferredName(),
+                new DocumentField(Job.ID.getPreferredName(), Collections.singletonList("index-group")));
+
+        List<Map<String, DocumentField>> fieldHits = new ArrayList<>();
+        fieldHits.add(fieldMap);
+
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
+        mockClientBuilder.prepareSearchFields(AnomalyDetectorsIndex.configIndexName(), fieldHits);
+
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
+        AtomicReference<SortedSet<String>> jobIdsHolder = new AtomicReference<>();
+        jobManager.expandJobIds("_all", true, ActionListener.wrap(
+                jobs -> jobIdsHolder.set(jobs),
+                e -> fail(e.getMessage())
+        ));
+
+        assertNotNull(jobIdsHolder.get());
+        assertThat(jobIdsHolder.get(), contains("bar-cs", "foo-cs-1", "foo-cs-2", "index-job"));
+
+        jobManager.expandJobIds("index-group", true, ActionListener.wrap(
+                jobs -> jobIdsHolder.set(jobs),
+                e -> fail(e.getMessage())
+        ));
+
+        assertNotNull(jobIdsHolder.get());
+        assertThat(jobIdsHolder.get(), contains("index-job"));
+    }
+
+    public void testExpandJobIds_GivenJobInClusterStateNotIndex() {
+        Job csJobFoo1 = buildJobBuilder("foo-cs-1").build();
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(csJobFoo1, false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
+        mockClientBuilder.prepareSearchFields(AnomalyDetectorsIndex.configIndexName(), Collections.emptyList());
+
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
+        AtomicReference<SortedSet<String>> jobIdsHolder = new AtomicReference<>();
+        jobManager.expandJobIds("foo*", true, ActionListener.wrap(
+                jobs -> jobIdsHolder.set(jobs),
+                e -> fail(e.getMessage())
+        ));
+
+        assertNotNull(jobIdsHolder.get());
+        assertThat(jobIdsHolder.get(), hasSize(1));
+        assertThat(jobIdsHolder.get(), contains("foo-cs-1"));
+    }
+
+    public void testExpandJobIds_GivenConfigInIndexAndClusterState() {
+        Job csJobFoo1 = buildJobBuilder("cs-job").build();
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(csJobFoo1, false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        Map<String, DocumentField> fieldMap = new HashMap<>();
+        fieldMap.put(Job.ID.getPreferredName(),
+                new DocumentField(Job.ID.getPreferredName(), Collections.singletonList("index-job")));
+        fieldMap.put(Job.GROUPS.getPreferredName(),
+                new DocumentField(Job.ID.getPreferredName(), Collections.emptyList()));
+
+        List<Map<String, DocumentField>> fieldHits = new ArrayList<>();
+        fieldHits.add(fieldMap);
+
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
+        mockClientBuilder.prepareSearchFields(AnomalyDetectorsIndex.configIndexName(), fieldHits);
+
+
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
+        AtomicReference<SortedSet<String>> jobIdsHolder = new AtomicReference<>();
+        jobManager.expandJobIds("index-job,cs-job", true, ActionListener.wrap(
+                jobs -> jobIdsHolder.set(jobs),
+                e -> fail(e.getMessage())
+        ));
+
+        assertNotNull(jobIdsHolder.get());
+        assertThat(jobIdsHolder.get(), hasSize(2));
+        assertThat(jobIdsHolder.get(), contains("cs-job" ,"index-job"));
+    }    
+
     @SuppressWarnings("unchecked")
     public void testPutJob_AddsCreateTime() throws IOException {
-        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
@@ -258,8 +524,75 @@ public class JobManagerTests extends ESTestCase {
         });
     }
 
+    public void testJobExists_GivenMissingJob() {
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+
+        ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
+                Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        doAnswer(invocationOnMock -> {
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+            listener.onResponse(false);
+            return null;
+        }).when(jobConfigProvider).jobExists(anyString(), anyBoolean(), any());
+
+        JobManager jobManager = new JobManager(environment, environment.settings(), jobResultsProvider, clusterService,
+                auditor, threadPool, mock(Client.class), updateJobProcessNotifier, jobConfigProvider);
+
+        AtomicBoolean jobExistsHolder = new AtomicBoolean();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        jobManager.jobExists("non-job", ActionListener.wrap(
+                jobExistsHolder::set,
+                exceptionHolder::set
+        ));
+
+        assertFalse(jobExistsHolder.get());
+        assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+    }
+
+    public void testJobExists_GivenJobIsInClusterState() {
+        Job csJobFoo1 = buildJobBuilder("cs-job").build();
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(csJobFoo1, false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+
+        ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
+                Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        doAnswer(invocationOnMock -> {
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+            listener.onResponse(false);
+            return null;
+        }).when(jobConfigProvider).jobExists(anyString(), anyBoolean(), any());
+
+        JobManager jobManager = new JobManager(environment, environment.settings(), jobResultsProvider, clusterService,
+                auditor, threadPool, mock(Client.class), updateJobProcessNotifier, jobConfigProvider);
+
+        AtomicBoolean jobExistsHolder = new AtomicBoolean();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        jobManager.jobExists("cs-job", ActionListener.wrap(
+                jobExistsHolder::set,
+                exceptionHolder::set
+        ));
+
+        assertTrue(jobExistsHolder.get());
+        assertNull(exceptionHolder.get());
+    }
+
     public void testPutJob_ThrowsIfJobExistsInClusterState() throws IOException {
-        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
@@ -284,7 +617,7 @@ public class JobManagerTests extends ESTestCase {
 
     public void testNotifyFilterChangedGivenNoop() {
         MlFilter filter = MlFilter.builder("my_filter").build();
-        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         jobManager.notifyFilterChanged(filter, Collections.emptySet(), Collections.emptySet(), ActionListener.wrap(
@@ -336,7 +669,7 @@ public class JobManagerTests extends ESTestCase {
             return null;
         }).when(updateJobProcessNotifier).submitJobUpdate(any(), any());
 
-        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
         mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
@@ -387,7 +720,7 @@ public class JobManagerTests extends ESTestCase {
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 
-        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
         mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
@@ -423,7 +756,7 @@ public class JobManagerTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.state()).thenReturn(clusterState);
 
-        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
         mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
@@ -439,7 +772,7 @@ public class JobManagerTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
     }
 
-    public void testUpdateProcessOnCalendarChanged() throws IOException {
+    public void testUpdateProcessOnCalendarChanged() {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job-1", "node_id", JobState.OPENED, tasksBuilder);
         addJobTask("job-2", "node_id", JobState.OPENED, tasksBuilder);
@@ -451,7 +784,7 @@ public class JobManagerTests extends ESTestCase {
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 
-        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
         // For the JobConfigProvider expand groups search.
         // The search will not return any results
         mockClientBuilder.prepareSearchFields(AnomalyDetectorsIndex.configIndexName(), Collections.emptyList());
@@ -487,7 +820,7 @@ public class JobManagerTests extends ESTestCase {
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 
-        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
         // For the JobConfigProvider expand groups search.
         // group-1 will expand to job-1 and job-2
         List<Map<String, DocumentField>> fieldHits = new ArrayList<>();

@@ -45,6 +45,18 @@ public final class ExpandedIdsMatcher {
     private final LinkedList<IdMatcher> requiredMatches;
 
     /**
+     * Generate the list of required matches from {@code tokenExpression} and initialize.
+     *
+     * @param tokenExpression           Token expression string will be split by {@link #tokenizeExpression(String)}
+     * @param allowNoMatchForWildcards  If true then it is not required for wildcard
+     *                                  expressions to match an Id meaning they are
+     *                                  not returned in the list of required matches
+     */
+    public ExpandedIdsMatcher(String tokenExpression, boolean allowNoMatchForWildcards) {
+        this(ExpandedIdsMatcher.tokenizeExpression(tokenExpression), allowNoMatchForWildcards);
+    }
+
+    /**
      * Generate the list of required matches from the expressions in {@code tokens}
      * and initialize.
      *

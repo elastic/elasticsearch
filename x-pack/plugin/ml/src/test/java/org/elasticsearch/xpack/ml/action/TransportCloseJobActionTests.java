@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -31,7 +30,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
@@ -61,13 +60,13 @@ import static org.mockito.Mockito.when;
 public class TransportCloseJobActionTests extends ESTestCase {
 
     private ClusterService clusterService;
-    private JobConfigProvider jobConfigProvider;
+    private JobManager jobManager;
     private DatafeedConfigProvider datafeedConfigProvider;
 
     @Before
     private void setupMocks() {
         clusterService = mock(ClusterService.class);
-        jobConfigProvider = mock(JobConfigProvider.class);
+        jobManager = mock(JobManager.class);
         datafeedConfigProvider = mock(DatafeedConfigProvider.class);
     }
 
@@ -222,7 +221,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         SortedSet<String> expandedIds = new TreeSet<>();
         expandedIds.add("foo");
-        mockJobConfigProviderExpandIds(expandedIds);
+        mockJobManagerExpandIds(expandedIds);
         mockDatafeedConfigFindDatafeeds(Collections.emptySortedSet());
 
         AtomicBoolean gotResponse = new AtomicBoolean(false);
@@ -278,8 +277,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
     private TransportCloseJobAction createAction() {
         return new TransportCloseJobAction(Settings.EMPTY,
                 mock(TransportService.class), mock(ThreadPool.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
-                clusterService, mock(Client.class), mock(Auditor.class), mock(PersistentTasksService.class),
-                jobConfigProvider, datafeedConfigProvider);
+                clusterService, mock(Auditor.class), mock(PersistentTasksService.class), datafeedConfigProvider, jobManager);
     }
 
     private void mockDatafeedConfigFindDatafeeds(Set<String> datafeedIds) {
@@ -291,13 +289,13 @@ public class TransportCloseJobActionTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedsForJobIds(any(), any(ActionListener.class));
     }
 
-    private void mockJobConfigProviderExpandIds(Set<String> expandedIds) {
+    private void mockJobManagerExpandIds(Set<String> expandedIds) {
         doAnswer(invocation -> {
-            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[3];
+            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[2];
             listener.onResponse(expandedIds);
 
             return null;
-        }).when(jobConfigProvider).expandJobsIds(any(), anyBoolean(), anyBoolean(), any(ActionListener.class));
+        }).when(jobManager).expandJobIds(any(), anyBoolean(), any(ActionListener.class));
     }
 
 }

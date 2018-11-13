@@ -20,18 +20,10 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigReader;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<GetDatafeedsAction.Request,
         GetDatafeedsAction.Response> {
@@ -65,51 +57,15 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
                                    ActionListener<GetDatafeedsAction.Response> listener) {
         logger.debug("Get datafeed '{}'", request.getDatafeedId());
 
-        Map<String, DatafeedConfig> clusterStateConfigs =
-                expandClusterStateDatafeeds(request.getDatafeedId(), request.allowNoDatafeeds(), state);
+        DatafeedConfigReader datafeedConfigReader = new DatafeedConfigReader(datafeedConfigProvider);
 
-        datafeedConfigProvider.expandDatafeedConfigs(request.getDatafeedId(), request.allowNoDatafeeds(), ActionListener.wrap(
-                datafeedBuilders -> {
-                    // Check for duplicate datafeeds
-                    for (DatafeedConfig.Builder datafeed : datafeedBuilders) {
-                        if (clusterStateConfigs.containsKey(datafeed.getId())) {
-                            listener.onFailure(new IllegalStateException("Datafeed [" + datafeed.getId() + "] configuration " +
-                                    "exists in both clusterstate and index"));
-                            return;
-                        }
-                    }
-
-                    // Merge cluster state and index configs
-                    List<DatafeedConfig> datafeeds = new ArrayList<>(datafeedBuilders.size() + clusterStateConfigs.values().size());
-                    for (DatafeedConfig.Builder builder: datafeedBuilders) {
-                        datafeeds.add(builder.build());
-                    }
-
-                    datafeeds.addAll(clusterStateConfigs.values());
-                    Collections.sort(datafeeds, Comparator.comparing(DatafeedConfig::getId));
+        datafeedConfigReader.expandDatafeedConfigs(request.getDatafeedId(), request.allowNoDatafeeds(), state, ActionListener.wrap(
+                datafeeds -> {
                     listener.onResponse(new GetDatafeedsAction.Response(new QueryPage<>(datafeeds, datafeeds.size(),
                             DatafeedConfig.RESULTS_FIELD)));
                 },
                 listener::onFailure
         ));
-    }
-
-    Map<String, DatafeedConfig> expandClusterStateDatafeeds(String datafeedExpression, boolean allowNoDatafeeds,
-                                                            ClusterState clusterState) {
-
-        Map<String, DatafeedConfig> configById = new HashMap<>();
-        try {
-            MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-            Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(datafeedExpression, allowNoDatafeeds);
-
-            for (String expandedDatafeedId : expandedDatafeedIds) {
-                configById.put(expandedDatafeedId, mlMetadata.getDatafeed(expandedDatafeedId));
-            }
-        } catch (Exception e){
-            // ignore
-        }
-
-        return configById;
     }
 
     @Override

@@ -12,7 +12,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -37,7 +36,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.io.IOException;
@@ -52,28 +51,25 @@ import java.util.stream.Collectors;
 public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJobAction.JobTask, CloseJobAction.Request,
         CloseJobAction.Response, CloseJobAction.Response> {
 
-    private final Client client;
     private final ClusterService clusterService;
     private final Auditor auditor;
     private final PersistentTasksService persistentTasksService;
-    private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
+    private final JobManager jobManager;
 
     @Inject
     public TransportCloseJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   ClusterService clusterService, Client client, Auditor auditor,
-                                   PersistentTasksService persistentTasksService, JobConfigProvider jobConfigProvider,
-                                   DatafeedConfigProvider datafeedConfigProvider) {
+                                   ClusterService clusterService, Auditor auditor, PersistentTasksService persistentTasksService,
+                                   DatafeedConfigProvider datafeedConfigProvider, JobManager jobManager) {
         // We fork in innerTaskOperation(...), so we can use ThreadPool.Names.SAME here:
         super(settings, CloseJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 indexNameExpressionResolver, CloseJobAction.Request::new, CloseJobAction.Response::new, ThreadPool.Names.SAME);
-        this.client = client;
         this.clusterService = clusterService;
         this.auditor = auditor;
         this.persistentTasksService = persistentTasksService;
-        this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
+        this.jobManager = jobManager;
     }
 
     @Override
@@ -107,7 +103,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
              */
 
             PersistentTasksCustomMetaData tasksMetaData = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoJobs(), true, ActionListener.wrap(
+            jobManager.expandJobIds(request.getJobId(), request.allowNoJobs(), ActionListener.wrap(
                     expandedJobIds -> {
                         validate(expandedJobIds, request.isForce(), tasksMetaData, ActionListener.wrap(
                                 response -> {

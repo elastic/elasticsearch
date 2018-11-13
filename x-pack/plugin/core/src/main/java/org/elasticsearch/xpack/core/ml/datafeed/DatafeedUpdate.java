@@ -132,7 +132,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         this.scrollSize = in.readOptionalVInt();
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             delayedDataCheckWindow = in.readOptionalTimeValue();
             shouldRunDelayedDataCheck = in.readOptionalBoolean();
         } else {
@@ -176,7 +176,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         out.writeOptionalVInt(scrollSize);
         out.writeOptionalWriteable(chunkingConfig);
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeOptionalTimeValue(delayedDataCheckWindow);
             out.writeOptionalBoolean(shouldRunDelayedDataCheck);
         }

@@ -45,7 +45,7 @@ public class TransportPutFeatureIndexBuilderJobAction
     public TransportPutFeatureIndexBuilderJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService,
             XPackLicenseState licenseState, PersistentTasksService persistentTasksService, Client client) {
-        super(settings, PutFeatureIndexBuilderJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(PutFeatureIndexBuilderJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, PutFeatureIndexBuilderJobAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;

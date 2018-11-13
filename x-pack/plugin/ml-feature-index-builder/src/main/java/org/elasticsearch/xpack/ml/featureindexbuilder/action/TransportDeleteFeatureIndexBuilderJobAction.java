@@ -36,7 +36,7 @@ public class TransportDeleteFeatureIndexBuilderJobAction
     public TransportDeleteFeatureIndexBuilderJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                           PersistentTasksService persistentTasksService, ClusterService clusterService) {
-        super(settings, DeleteFeatureIndexBuilderJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(DeleteFeatureIndexBuilderJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, DeleteFeatureIndexBuilderJobAction.Request::new);
         this.persistentTasksService = persistentTasksService;
     }

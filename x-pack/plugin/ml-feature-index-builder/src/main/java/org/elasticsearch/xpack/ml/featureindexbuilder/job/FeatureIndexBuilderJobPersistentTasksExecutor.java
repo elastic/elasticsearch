@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.featureindexbuilder.job;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -25,9 +24,9 @@ public class FeatureIndexBuilderJobPersistentTasksExecutor extends PersistentTas
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
 
-    public FeatureIndexBuilderJobPersistentTasksExecutor(Settings settings, Client client, SchedulerEngine schedulerEngine,
+    public FeatureIndexBuilderJobPersistentTasksExecutor(Client client, SchedulerEngine schedulerEngine,
             ThreadPool threadPool) {
-        super(settings, "xpack/feature_index_builder/job", FeatureIndexBuilder.TASK_THREAD_POOL_NAME);
+        super("xpack/feature_index_builder/job", FeatureIndexBuilder.TASK_THREAD_POOL_NAME);
         this.client = client;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;

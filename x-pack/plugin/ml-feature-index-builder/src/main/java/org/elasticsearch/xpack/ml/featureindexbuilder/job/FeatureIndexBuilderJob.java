@@ -55,7 +55,8 @@ public class FeatureIndexBuilderJob implements XPackPlugin.XPackPersistentTaskPa
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_7_0_0_alpha1;
+        // TODO: to be changed once target version has been defined
+        return Version.CURRENT;
     }
 
     @Override

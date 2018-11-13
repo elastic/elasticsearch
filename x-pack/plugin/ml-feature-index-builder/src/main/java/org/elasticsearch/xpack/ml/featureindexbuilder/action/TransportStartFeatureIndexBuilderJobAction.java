@@ -37,7 +37,7 @@ public class TransportStartFeatureIndexBuilderJobAction extends
     @Inject
     public TransportStartFeatureIndexBuilderJobAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
             ClusterService clusterService, XPackLicenseState licenseState) {
-        super(settings, StartFeatureIndexBuilderJobAction.NAME, clusterService, transportService, actionFilters,
+        super(StartFeatureIndexBuilderJobAction.NAME, clusterService, transportService, actionFilters,
                 StartFeatureIndexBuilderJobAction.Request::new, StartFeatureIndexBuilderJobAction.Response::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
     }

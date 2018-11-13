@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -143,13 +144,13 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
 
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool,
-            Client client) {
+            Client client, SettingsModule settingsModule) {
         if (enabled == false || transportClientMode) {
             return emptyList();
         }
 
         SchedulerEngine schedulerEngine = new SchedulerEngine(settings, Clock.systemUTC());
-        return Collections.singletonList(new FeatureIndexBuilderJobPersistentTasksExecutor(settings, client,
+        return Collections.singletonList(new FeatureIndexBuilderJobPersistentTasksExecutor(client,
                 schedulerEngine, threadPool));
     }
 

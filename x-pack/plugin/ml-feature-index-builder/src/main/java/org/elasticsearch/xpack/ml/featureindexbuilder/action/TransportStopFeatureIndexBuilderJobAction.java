@@ -31,7 +31,7 @@ public class TransportStopFeatureIndexBuilderJobAction extends
     @Inject
     public TransportStopFeatureIndexBuilderJobAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
             ClusterService clusterService) {
-        super(settings, StopFeatureIndexBuilderJobAction.NAME, clusterService, transportService, actionFilters,
+        super(StopFeatureIndexBuilderJobAction.NAME, clusterService, transportService, actionFilters,
                 StopFeatureIndexBuilderJobAction.Request::new, StopFeatureIndexBuilderJobAction.Response::new, ThreadPool.Names.SAME);
     }
 

@@ -45,35 +45,50 @@ The following is a list of the events that can be generated:
 [[audit-event-attributes]]
 === Audit event attributes
 
-In the 6.5.0 version a new <<audit-log-output, `logfile` audit output>> format
-has been added. It outputs audit entries to the `<clustername>_audit.log` file
-in the form of flat (no nested objects) JSON documents, one per line. Attribute
-names hence translate to JSON keys.
+A new <<audit-log-output, `logfile` audit output>> format has been added in the
+6.5.0 version. This format also brough in a few changes for the audit event attributes.
 
-The following lists attributes as they are in the newly introduced format, but
-their names and values are analogous to those in the deprecated `logfile`
-format (or the `index` output format). However, it is expected that these formats
-will evolve independetly in th 6.x series, so it is best to follow the attribute
+The new format is output to the `<clustername>_audit.log` file.
+The audit entries are formatted as flat (that is, no nested objects) JSON documents,
+one per line. Hence, the attribute names are the JSON keys. They follow a dotted
+name syntax.
+
+The following list shows attributes that are common to all audit events.
+Their names and values are analogous to those in the deprecated `logfile` or
+`index` output formats. However, it is expected that the formats will evolve
+independetly during the 6.x releases, so it is advisable to follow the attribute
 descriptions for the format that you are using.
 
-The following list shows event attributes that are common to all audit events:
-
-`@timestamp`      ::    The time when the event occurred.
-`node.name`       ::    The name of the cluster node. The name can be changed
-										    in the `elasticsearch.yml` config file.
-`node.id`         ::    The node id. This is persistent across full cluster
-                        restart.
-`host.ip`         ::    The bound node IP address, with which the node can be
-                        communicated with.
-`host.name`       ::    The unresolved node hostname.
-`origin.address`  ::    It denotes the source IP address of the request associated
-                        with this event. This might be the address of the client,
-												the address of another cluster node, or the local node's
-												bound address (if the request originated locally). Unless
-												the	client connects directly to the cluster, the
-	                      _client	address_ will actually be the address of the first
-												OSI layer 3 proxy in front of the cluster.
-`origin.type`     ::    
+`@timestamp`      ::    The time, in ISO9601 format, when the event occurred.
+`node.name`       ::    The name of the node. This name can be changed
+                        from the `elasticsearch.yml` config file.
+`node.id`         ::    The automatically assigned node's id. This is persistent
+                        across full cluster restarts.
+`host.ip`         ::    The bound IP address of the node, with which the node
+                        can be communicated with.
+`host.name`       ::    The unresolved node's hostname.
+`origin.address`  ::    The source IP address of the request associated with
+                        this event. This could be the address of the remote client,
+                        the address of another cluster node, or the local node's
+                        bound address, if the request originated locally. Unless
+                        the remote client connects directly to the cluster, the
+                        _client	address_ will actually be the address of the first
+                        OSI layer 3 proxy in front of the cluster.
+`origin.type`     ::    The origin type of the request associated with this event:
+                        `rest` (request originated from a REST API request),
+                        `transport` (request was received on the transport channel),
+                        `local_node` (the local node issued the request).
+`event.type`      ::    The internal processing layer that generated the event:
+                        `rest`, `transport` or `ip_filter`.
+                        This is different from `origin.type` because a request
+                        originating from the REST API is translated to a number
+                        of transport messages, generating audit events with
+                        `origin.type: rest` and `event.type: transport`.
+`event.action`    ::    The type of event that occurred: `anonymous_access_denied`,
+                        `authentication_failed`, `authentication_success`,
+                        `realm_authentication_failed`, `access_denied`, `access_granted`,
+                        `connection_denied`, `connection_granted`, `tampered_request`,
+                        `run_as_denied`, `run_as_granted`.
 
 [float]
 [[audit-event-attributes-deprecated-formats]]
@@ -93,9 +108,10 @@ every event, when it is output to the `<clustername>_access.log` file or to the
 | `node_host_address` | The IP address of the node.
 | `layer`             | The layer from which this event originated: `rest`, `transport` or `ip_filter`
 | `event_type`        | The type of event that occurred: `anonymous_access_denied`,
-                        `authentication_failed`, `access_denied`, `access_granted`,
-                        `connection_granted`, `connection_denied`, `tampered_request`,
-                        `run_as_granted`, `run_as_denied`.
+                        `authentication_failed`, `authentication_success`,
+                        `realm_authentication_failed`, `access_denied`, `access_granted`,
+                        `connection_denied`, `connection_granted`, `tampered_request`,
+                        `run_as_denied`, `run_as_granted`.
 |======
 
 For an event in the <<audit-log-output,audit log file output>> these are

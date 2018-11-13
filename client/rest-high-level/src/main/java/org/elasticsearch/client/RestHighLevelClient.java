@@ -1725,6 +1725,38 @@ public class RestHighLevelClient implements Closeable {
             throw new IOException("Unable to parse response body for " + response, e);
         }
     }
+    
+    /**
+     * Defines a helper method for requests that can 404 and in which case will return an empty Optional 
+     * otherwise tries to parse the response body
+     */
+    protected final <Req extends Validatable, Resp> Optional<Resp> performRequestAndParseOptionalEntity(Req request,
+                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                  RequestOptions options,
+                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser
+                                                                  ) throws IOException {
+        Optional<ValidationException> validationException = request.validate();
+        if (validationException != null && validationException.isPresent()) {
+            throw validationException.get();
+        }
+        Request req = requestConverter.apply(request);
+        req.setOptions(options);
+        Response response;
+        try {
+            response = client.performRequest(req);
+        } catch (ResponseException e) {
+            if (RestStatus.NOT_FOUND.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+                return Optional.empty();
+            }
+            throw parseResponseException(e);
+        }
+
+        try {
+            return Optional.of(parseEntity(response.getEntity(), entityParser));
+        } catch (Exception e) {
+            throw new IOException("Unable to parse response body for " + response, e);
+        }
+    }      
 
     @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
@@ -1862,6 +1894,62 @@ public class RestHighLevelClient implements Closeable {
             }
         };
     }
+    
+    /**
+     * Async request which returns empty Optionals in the case of 404s or parses entity into an Optional
+     */
+    protected final <Req extends Validatable, Resp> void performRequestAsyncAndParseOptionalEntity(Req request,
+            CheckedFunction<Req, Request, IOException> requestConverter,
+            RequestOptions options,
+            CheckedFunction<XContentParser, Resp, IOException> entityParser,
+            ActionListener<Optional<Resp>> listener) {
+        Optional<ValidationException> validationException = request.validate();
+        if (validationException != null && validationException.isPresent()) {
+            listener.onFailure(validationException.get());
+            return;
+        }
+        Request req;
+        try {
+            req = requestConverter.apply(request);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        req.setOptions(options);
+        ResponseListener responseListener = wrapResponseListener404sOptional(response -> parseEntity(response.getEntity(), 
+                entityParser), listener);
+        client.performRequestAsync(req, responseListener);        
+    }    
+    
+    final <Resp> ResponseListener wrapResponseListener404sOptional(CheckedFunction<Response, Resp, IOException> responseConverter,
+            ActionListener<Optional<Resp>> actionListener) {
+        return new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                try {
+                    actionListener.onResponse(Optional.of(responseConverter.apply(response)));
+                } catch (Exception e) {
+                    IOException ioe = new IOException("Unable to parse response body for " + response, e);
+                    onFailure(ioe);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                if (exception instanceof ResponseException) {
+                    ResponseException responseException = (ResponseException) exception;
+                    Response response = responseException.getResponse();
+                    if (RestStatus.NOT_FOUND.getStatus() == response.getStatusLine().getStatusCode()) {
+                            actionListener.onResponse(Optional.empty());
+                    } else {
+                        actionListener.onFailure(parseResponseException(responseException));
+                    }
+                } else {
+                    actionListener.onFailure(exception);
+                }
+            }
+        };
+    }    
 
     /**
      * Converts a {@link ResponseException} obtained from the low level REST client into an {@link ElasticsearchException}.

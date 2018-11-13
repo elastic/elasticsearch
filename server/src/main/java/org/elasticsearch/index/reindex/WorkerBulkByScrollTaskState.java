@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -188,8 +189,12 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         synchronized (delayedPrepareBulkRequestReference) {
             TimeValue delay = throttleWaitTime(lastBatchStartTime, timeValueNanos(System.nanoTime()), lastBatchSize);
             logger.debug("[{}]: preparing bulk request for [{}]", task.getId(), delay);
-            delayedPrepareBulkRequestReference.set(new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(),
-                delay, new RunOnce(prepareBulkRequestRunnable)));
+            try {
+                delayedPrepareBulkRequestReference.set(new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(),
+                    delay, new RunOnce(prepareBulkRequestRunnable)));
+            } catch (EsRejectedExecutionException e) {
+                prepareBulkRequestRunnable.onRejection(e);
+            }
         }
     }
 

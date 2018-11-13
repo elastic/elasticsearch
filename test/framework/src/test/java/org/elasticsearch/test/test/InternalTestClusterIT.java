@@ -65,10 +65,7 @@ public class InternalTestClusterIT extends ESIntegTestCase {
         ensureGreen();
 
         while (internalCluster().size() > 1) {
-            final int nodesToRemain = internalCluster().size() - 1;
-            logger.info("--> reducing to [{}] nodes", nodesToRemain);
-            internalCluster().ensureAtMostNumDataNodes(nodesToRemain);
-            assertThat(internalCluster().size(), lessThanOrEqualTo(nodesToRemain));
+            internalCluster().stopRandomNode(s -> true);
         }
 
         ensureGreen();

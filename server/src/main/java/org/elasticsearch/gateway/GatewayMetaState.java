@@ -135,7 +135,7 @@ public class GatewayMetaState implements ClusterStateApplier {
                 }
 
                 final Manifest newManifest = new Manifest(globalStateGeneration, indices);
-                tx.writeManifest("startup", newManifest);
+                tx.writeManifestAndCleanup("startup", newManifest);
             } catch (Exception e) {
                 logger.error("failed to read or re-write local state, exiting...", e);
                 throw e;
@@ -184,7 +184,7 @@ public class GatewayMetaState implements ClusterStateApplier {
      * This class is used to write changed global {@link MetaData}, {@link IndexMetaData} and {@link Manifest} to disk.
      * This class delegates <code>write*</code> calls to corresponding write calls in {@link MetaStateService} and
      * additionally it keeps track of cleanup actions to be performed if transaction succeeds or fails.
-     * Transaction succeeds if {@link #writeManifest(String, Manifest)} call succeeds, transaction fails if
+     * Transaction succeeds if {@link #writeManifestAndCleanup(String, Manifest)} call succeeds, transaction fails if
      * any <code>write*</code> call fails.
      * Once transaction succeeds/fails it can no longer be used.
      */
@@ -208,9 +208,9 @@ public class GatewayMetaState implements ClusterStateApplier {
         long writeGlobalState(String reason, MetaData metaData) throws WriteStateException {
             assert finished == false : TRANSACTION_COMPLETED_MSG;
             try {
+                rollbackCleanupActions.add(() -> metaStateService.cleanupGlobalState(previousManifest.getGlobalGeneration()));
                 long generation = metaStateService.writeGlobalState(reason, metaData);
                 commitCleanupActions.add(() -> metaStateService.cleanupGlobalState(generation));
-                rollbackCleanupActions.add(() -> metaStateService.cleanupGlobalState(previousManifest.getGlobalGeneration()));
                 return generation;
             } catch (WriteStateException e) {
                 rollback();
@@ -222,10 +222,10 @@ public class GatewayMetaState implements ClusterStateApplier {
             assert finished == false : TRANSACTION_COMPLETED_MSG;
             try {
                 Index index = metaData.getIndex();
-                long generation = metaStateService.writeIndex(reason, metaData);
-                commitCleanupActions.add(() -> metaStateService.cleanupIndex(index, generation));
                 long previousGeneration = previousManifest.getIndexGenerations().getOrDefault(index, -1L);
                 rollbackCleanupActions.add(() -> metaStateService.cleanupIndex(index, previousGeneration));
+                long generation = metaStateService.writeIndex(reason, metaData);
+                commitCleanupActions.add(() -> metaStateService.cleanupIndex(index, generation));
                 return generation;
             } catch (WriteStateException e) {
                 rollback();
@@ -233,11 +233,10 @@ public class GatewayMetaState implements ClusterStateApplier {
             }
         }
 
-        long writeManifest(String reason, Manifest manifest) throws WriteStateException {
+        long writeManifestAndCleanup(String reason, Manifest manifest) throws WriteStateException {
             assert finished == false : TRANSACTION_COMPLETED_MSG;
             try {
-                long generation = metaStateService.writeManifest(reason, manifest);
-                commitCleanupActions.add(() -> metaStateService.cleanupManifest(generation));
+                long generation = metaStateService.writeManifestAndCleanup(reason, manifest);
                 commitCleanupActions.forEach(Runnable::run);
                 finished = true;
                 return generation;
@@ -276,7 +275,7 @@ public class GatewayMetaState implements ClusterStateApplier {
 
     private void writeManifest(Transaction tx, Manifest manifest) throws IOException {
         if (manifest.equals(previousManifest) == false) {
-            tx.writeManifest("changed", manifest);
+            tx.writeManifestAndCleanup("changed", manifest);
         }
     }
 

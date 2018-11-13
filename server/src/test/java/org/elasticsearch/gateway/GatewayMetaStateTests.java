@@ -382,7 +382,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
             // We only guarantee atomicity of writes, if there is initial Manifest file
             Manifest manifest = Manifest.empty();
             MetaData metaData = MetaData.EMPTY_META_DATA;
-            metaStateService.writeManifest("startup", Manifest.empty());
+            metaStateService.writeManifestAndCleanup("startup", Manifest.empty());
 
             metaStateService.failRandomly();
             Set<MetaData> possibleMetaData = new HashSet<>();
@@ -402,7 +402,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                     }
 
                     Manifest newManifest = new Manifest(globalGeneration, indexGenerations);
-                    tx.writeManifest("manifest", newManifest);
+                    tx.writeManifestAndCleanup("manifest", newManifest);
                     possibleMetaData.clear();
                     possibleMetaData.add(metaData);
                     manifest = newManifest;

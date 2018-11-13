@@ -129,7 +129,7 @@ public class MetaStateServiceTests extends ESTestCase {
 
     public void testLoadEmptyStateWithManifest() throws IOException {
         Manifest manifest = Manifest.empty();
-        metaStateService.writeManifest("test", manifest);
+        metaStateService.writeManifestAndCleanup("test", manifest);
 
         Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
         assertTrue(manifestAndMetaData.v1().isEmpty());
@@ -144,7 +144,7 @@ public class MetaStateServiceTests extends ESTestCase {
             put(index.getIndex(), indexGeneration);
         }});
         assertTrue(manifest.isGlobalGenerationMissing());
-        metaStateService.writeManifest("test", manifest);
+        metaStateService.writeManifestAndCleanup("test", manifest);
 
         Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
         assertThat(manifestAndMetaData.v1(), equalTo(manifest));
@@ -168,7 +168,7 @@ public class MetaStateServiceTests extends ESTestCase {
             put(index.getIndex(), indexGeneration);
         }});
 
-        metaStateService.writeManifest("first manifest write", manifest);
+        metaStateService.writeManifestAndCleanup("first manifest write", manifest);
 
         MetaData newMetaData = MetaData.builder()
                 .persistentSettings(Settings.builder().put("test1", "value2").build())
@@ -188,10 +188,9 @@ public class MetaStateServiceTests extends ESTestCase {
             put(index.getIndex(), indexGeneration);
         }});
 
-        long manifestGeneration = metaStateService.writeManifest("second manifest write", manifest);
+        metaStateService.writeManifestAndCleanup("second manifest write", manifest);
         metaStateService.cleanupGlobalState(globalGeneration);
         metaStateService.cleanupIndex(index.getIndex(), indexGeneration);
-        metaStateService.cleanupManifest(manifestGeneration);
 
         manifestAndMetaData = metaStateService.loadFullState();
         assertThat(manifestAndMetaData.v1(), equalTo(manifest));

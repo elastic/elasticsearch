@@ -193,14 +193,15 @@ public class MetaStateService {
     }
 
     /**
-     * Writes manifest file (represented by {@link Manifest}) to disk.
+     * Writes manifest file (represented by {@link Manifest}) to disk and performs cleanup of old manifest state file if
+     * the write succeeds or newly created manifest state if the write fails.
      *
      * @throws WriteStateException if exception when writing state occurs. See also {@link WriteStateException#isDirty()}
      */
-    public long writeManifest(String reason, Manifest manifest) throws WriteStateException {
+    public long writeManifestAndCleanup(String reason, Manifest manifest) throws WriteStateException {
         logger.trace("[_meta] writing state, reason [{}]", reason);
         try {
-            long generation = MANIFEST_FORMAT.write(manifest, nodeEnv.nodeDataPaths());
+            long generation = MANIFEST_FORMAT.writeAndCleanup(manifest, nodeEnv.nodeDataPaths());
             logger.trace("[_meta] state written (generation: {})", generation);
             return generation;
         } catch (WriteStateException ex) {
@@ -266,15 +267,6 @@ public class MetaStateService {
     }
 
     /**
-     * Removes old state files in meta state directory.
-     *
-     * @param currentGeneration current state generation to keep in the directory.
-     */
-    public void cleanupManifest(long currentGeneration) {
-        MANIFEST_FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.nodeDataPaths());
-    }
-
-    /**
      * Writes index metadata and updates manifest file accordingly.
      * Used by tests.
      */
@@ -284,9 +276,8 @@ public class MetaStateService {
         Map<Index, Long> indices = new HashMap<>(manifest.getIndexGenerations());
         indices.put(metaData.getIndex(), generation);
         manifest = new Manifest(manifest.getGlobalGeneration(), indices);
-        long metaStateGeneration = writeManifest(reason, manifest);
+        writeManifestAndCleanup(reason, manifest);
         cleanupIndex(metaData.getIndex(), generation);
-        cleanupManifest(metaStateGeneration);
     }
 
     /**
@@ -297,8 +288,7 @@ public class MetaStateService {
         long generation = writeGlobalState(reason, metaData);
         Manifest manifest = loadManifestOrEmpty();
         manifest = new Manifest(generation, manifest.getIndexGenerations());
-        long metaStateGeneration = writeManifest(reason, manifest);
+        writeManifestAndCleanup(reason, manifest);
         cleanupGlobalState(generation);
-        cleanupManifest(metaStateGeneration);
     }
 }

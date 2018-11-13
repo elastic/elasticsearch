@@ -50,6 +50,8 @@ import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
+import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
+import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
@@ -101,6 +103,7 @@ import org.elasticsearch.client.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.client.ml.job.config.Operator;
 import org.elasticsearch.client.ml.job.config.RuleCondition;
 import org.elasticsearch.client.ml.job.process.DataCounts;
+import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.client.ml.job.results.AnomalyRecord;
 import org.elasticsearch.client.ml.job.results.Bucket;
 import org.elasticsearch.client.ml.job.results.CategoryDefinition;
@@ -1856,6 +1859,102 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-categories-execute-async
             client.machineLearning().getCategoriesAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::get-categories-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetModelSnapshots() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-get-model-snapshots";
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a snapshot
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"test-get-model-snapshots\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"test-get-model-snapshots\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+        client.index(indexRequest, RequestOptions.DEFAULT);
+
+        {
+            // tag::get-model-snapshots-request
+            GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(jobId); // <1>
+            // end::get-model-snapshots-request
+
+            // tag::get-model-snapshots-snapshot-id
+            request.setSnapshotId("1541587919"); // <1>
+            // end::get-model-snapshots-snapshot-id
+
+            // Set snapshot id to null as it is incompatible with other args
+            request.setSnapshotId(null); // <1>
+
+            // tag::get-model-snapshots-desc
+            request.setDesc(true); // <1>
+            // end::get-model-snapshots-desc
+
+            // tag::get-model-snapshots-end
+            request.setEnd("2018-11-07T21:00:00Z"); // <1>
+            // end::get-model-snapshots-end
+
+            // tag::get-model-snapshots-page
+            request.setPageParams(new PageParams(100, 200)); // <1>
+            // end::get-model-snapshots-page
+
+            // Set page params back to null so the response contains the snapshot we indexed
+            request.setPageParams(null);
+
+            // tag::get-model-snapshots-sort
+            request.setSort("latest_result_time_stamp"); // <1>
+            // end::get-model-snapshots-sort
+
+            // tag::get-model-snapshots-start
+            request.setStart("2018-11-07T00:00:00Z"); // <1>
+            // end::get-model-snapshots-start
+
+            // tag::get-model-snapshots-execute
+            GetModelSnapshotsResponse response = client.machineLearning().getModelSnapshots(request, RequestOptions.DEFAULT);
+            // end::get-model-snapshots-execute
+
+            // tag::get-model-snapshots-response
+            long count = response.count(); // <1>
+            List<ModelSnapshot> modelSnapshots = response.snapshots(); // <2>
+            // end::get-model-snapshots-response
+
+            assertEquals(1, modelSnapshots.size());
+        }
+        {
+            GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(jobId);
+
+            // tag::get-model-snapshots-execute-listener
+            ActionListener<GetModelSnapshotsResponse> listener =
+                new ActionListener<GetModelSnapshotsResponse>() {
+                    @Override
+                    public void onResponse(GetModelSnapshotsResponse getModelSnapshotsResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-model-snapshots-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-model-snapshots-execute-async
+            client.machineLearning().getModelSnapshotsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-model-snapshots-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

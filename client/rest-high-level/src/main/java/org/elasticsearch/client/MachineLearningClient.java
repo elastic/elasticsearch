@@ -47,6 +47,8 @@ import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
+import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
+import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
@@ -893,6 +895,46 @@ public final class MachineLearningClient {
                 GetCategoriesResponse::fromXContent,
                 listener,
                 Collections.emptySet());
+    }
+
+    /**
+     * Gets the snapshots for a Machine Learning Job.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-snapshot.html">
+     * ML GET model snapshots documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetModelSnapshotsResponse getModelSnapshots(GetModelSnapshotsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getModelSnapshots,
+            options,
+            GetModelSnapshotsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets the snapshots for a Machine Learning Job, notifies listener once the requested snapshots are retrieved.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-snapshot.html">
+     * ML GET model snapshots documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getModelSnapshotsAsync(GetModelSnapshotsRequest request, RequestOptions options,
+                                       ActionListener<GetModelSnapshotsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getModelSnapshots,
+            options,
+            GetModelSnapshotsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 
     /**

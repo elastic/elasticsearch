@@ -42,6 +42,7 @@ import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
+import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
@@ -356,6 +357,19 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getCategoriesRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getModelSnapshots(GetModelSnapshotsRequest getModelSnapshotsRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(getModelSnapshotsRequest.getJobId())
+            .addPathPartAsIs("model_snapshots")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(getModelSnapshotsRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

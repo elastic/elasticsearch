@@ -318,6 +318,31 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         assertEquals(shapeBuilder.numDimensions(), 3);
     }
 
+    public void testParseOpenPolygon() throws IOException {
+        String openPolygon = "POLYGON ((100 5, 100 10, 90 10, 90 5))";
+
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().value(openPolygon);
+        XContentParser parser = createParser(xContentBuilder);
+        parser.nextToken();
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
+
+        Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
+        final GeoShapeFieldMapper defaultMapperBuilder = new GeoShapeFieldMapper.Builder("test").coerce(false).build(mockBuilderContext);
+        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
+            () -> ShapeParser.parse(parser, defaultMapperBuilder));
+        assertEquals("invalid LinearRing found (coordinates are not closed)", exception.getMessage());
+
+        final GeoShapeFieldMapper coercingMapperBuilder = new GeoShapeFieldMapper.Builder("test").coerce(true).build(mockBuilderContext);
+        ShapeBuilder<?, ?> shapeBuilder = ShapeParser.parse(parser, coercingMapperBuilder);
+        assertNotNull(shapeBuilder);
+        assertEquals("polygon ((100.0 5.0, 100.0 10.0, 90.0 10.0, 90.0 5.0, 100.0 5.0))", shapeBuilder.toWKT());
+    }
+
     public void testParseSelfCrossingPolygon() throws IOException {
         // test self crossing ccw poly not crossing dateline
         List<Coordinate> shellCoordinates = new ArrayList<>();

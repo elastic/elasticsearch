@@ -60,9 +60,9 @@ public final class DeletePrivilegesResponse {
         if (token == null) {
             token = parser.nextToken();
         }
-        ensureExpectedToken(token, XContentParser.Token.START_OBJECT, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
         token = parser.nextToken();
-        ensureExpectedToken(token, XContentParser.Token.FIELD_NAME, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
         final String application = parser.currentName();
         final List<String> foundAndDeletedPrivileges = new ArrayList<>();
         token = parser.nextToken();

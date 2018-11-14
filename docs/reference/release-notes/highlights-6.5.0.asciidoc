@@ -79,7 +79,7 @@ currently the same as JDBC. An alpha version of the ODBC client is now
 available for download.
 
 [float]
-=== Cross-cluster replication (beta)
+=== Cross-cluster replication (beta^*^)
 
 Cross-cluster replication enables you to replicate indices that exist in remote 
 clusters to your local cluster. You create an index in your local cluster 
@@ -94,7 +94,7 @@ For more information, see {stack-ov}/xpack-ccr.html[Cross-cluster replication]
 and <<ccr-apis>>. 
 
 [float]
-=== Monitor {es} with {metricbeat} (beta)
+=== Monitor {es} with {metricbeat} (beta^*^)
 
 In 6.4 and later, you can use {metricbeat} to collect data about {kib} and ship 
 it directly to your monitoring cluster, rather than routing it through {es}. Now 

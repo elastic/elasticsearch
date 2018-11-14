@@ -35,6 +35,7 @@ import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
+import org.elasticsearch.client.ml.GetFiltersRequest;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
@@ -78,6 +79,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.core.IsNull.nullValue;
 
 public class MLRequestConvertersTests extends ESTestCase {
 
@@ -531,7 +534,7 @@ public class MLRequestConvertersTests extends ESTestCase {
     }
 
     public void testPutFilter() throws IOException {
-        MlFilter filter = MlFilterTests.createRandom("foo");
+        MlFilter filter = MlFilterTests.createRandomBuilder("foo").build();
         PutFilterRequest putFilterRequest = new PutFilterRequest(filter);
 
         Request request = MLRequestConverters.putFilter(putFilterRequest);
@@ -542,6 +545,25 @@ public class MLRequestConvertersTests extends ESTestCase {
             MlFilter parsedFilter = MlFilter.PARSER.apply(parser, null).build();
             assertThat(parsedFilter, equalTo(filter));
         }
+    }
+
+    public void testGetFilter() throws IOException {
+        String id = randomAlphaOfLength(10);
+        GetFiltersRequest getFiltersRequest = new GetFiltersRequest();
+
+        getFiltersRequest.setFilterId(id);
+
+        Request request = MLRequestConverters.getFilter(getFiltersRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/filters/" + id, request.getEndpoint());
+        assertThat(request.getParameters().get(PageParams.FROM.getPreferredName()), is(nullValue()));
+        assertThat(request.getParameters().get(PageParams.SIZE.getPreferredName()), is(nullValue()));
+
+        getFiltersRequest.setFrom(1);
+        getFiltersRequest.setSize(10);
+        request = MLRequestConverters.getFilter(getFiltersRequest);
+        assertThat(request.getParameters().get(PageParams.FROM.getPreferredName()), equalTo("1"));
+        assertThat(request.getParameters().get(PageParams.SIZE.getPreferredName()), equalTo("10"));
     }
 
     private static Job createValidJob(String jobId) {

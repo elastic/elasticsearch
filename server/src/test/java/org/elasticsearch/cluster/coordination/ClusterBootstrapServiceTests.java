@@ -146,44 +146,6 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         deterministicTaskQueue.runAllTasks();
     }
 
-    public void testRetriesOnDiscoveryTimeout() {
-        AtomicLong callCount = new AtomicLong();
-        transportService.registerRequestHandler(GetDiscoveredNodesAction.NAME, Names.SAME, GetDiscoveredNodesRequest::new,
-            (request, channel, task) -> deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 30000, () -> {
-                callCount.incrementAndGet();
-                try {
-                    channel.sendResponse(new ElasticsearchTimeoutException("simulated timeout"));
-                } catch (IOException e) {
-                    throw new AssertionError("unexpected", e);
-                }
-            }));
-
-        startServices();
-        while (callCount.get() < 5) {
-            if (deterministicTaskQueue.hasDeferredTasks()) {
-                deterministicTaskQueue.advanceTime();
-            }
-            deterministicTaskQueue.runAllRunnableTasks();
-        }
-    }
-
-    public void testStopsRetryingDiscoveryWhenStopped() {
-        transportService.registerRequestHandler(GetDiscoveredNodesAction.NAME, Names.SAME, GetDiscoveredNodesRequest::new,
-            (request, channel, task) -> deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 30000, () -> {
-                try {
-                    channel.sendResponse(new ElasticsearchTimeoutException("simulated timeout"));
-                } catch (IOException e) {
-                    throw new AssertionError("unexpected", e);
-                }
-            }));
-
-        scheduleStopAfter(150000);
-
-        startServices();
-        deterministicTaskQueue.runAllTasks();
-        // termination means success
-    }
-
     public void testBootstrapsOnDiscoverySuccess() {
         final AtomicBoolean discoveryAttempted = new AtomicBoolean();
         final Set<DiscoveryNode> discoveredNodes = Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toSet());

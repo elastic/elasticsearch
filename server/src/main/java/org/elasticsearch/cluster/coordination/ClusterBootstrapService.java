@@ -89,6 +89,7 @@ public class ClusterBootstrapService {
 
         final GetDiscoveredNodesRequest request = new GetDiscoveredNodesRequest();
         request.setWaitForNodes(initialMasterNodeCount);
+        request.setTimeout(null);
         logger.trace("sending {}", request);
         transportService.sendRequest(transportService.getLocalNode(), GetDiscoveredNodesAction.NAME, request,
             new TransportResponseHandler<GetDiscoveredNodesResponse>() {
@@ -103,13 +104,7 @@ public class ClusterBootstrapService {
 
                 @Override
                 public void handleException(TransportException exp) {
-                    if (exp.getRootCause() instanceof ElasticsearchTimeoutException) {
-                        logger.debug(new ParameterizedMessage("discovery attempt timed out, retrying, request={}", request), exp);
-                        awaitDiscovery();
-                    } else {
-                        // exceptions other than a timeout are fatal
-                        logger.warn("discovery attempt failed, not retrying", exp);
-                    }
+                    logger.warn("discovery attempt failed", exp);
                 }
 
                 @Override

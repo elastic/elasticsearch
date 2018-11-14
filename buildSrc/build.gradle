@@ -119,7 +119,6 @@ if (project == rootProject) {
     if (System.getProperty("repos.mavenLocal") != null) {
       mavenLocal()
     }
-    mavenCentral()
   }
   test.exclude 'org/elasticsearch/test/NamingConventionsCheckBadClasses*'
 }

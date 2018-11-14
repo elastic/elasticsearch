@@ -301,7 +301,8 @@ class BuildPlugin implements Plugin<Project> {
             // such that we don't have to pass hardcoded files to gradle
             repos.mavenLocal()
         }
-        repos.mavenCentral()
+        repos.jcenter()
+
         String luceneVersion = VersionProperties.lucene
         if (luceneVersion.contains('-snapshot')) {
             // extract the revision number from the version with a regex matcher

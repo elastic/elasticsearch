@@ -23,7 +23,7 @@ public class RestCcrStatsAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "ccr_auto_follow_stats";
+        return "ccr_stats";
     }
 
     @Override

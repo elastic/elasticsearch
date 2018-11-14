@@ -24,7 +24,7 @@ public class RestFollowStatsAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "ccr_stats";
+        return "ccr_follower_stats";
     }
 
     @Override

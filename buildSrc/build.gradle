@@ -89,7 +89,10 @@ compileMinimumRuntimeGroovy {
   sourceCompatibility = minimumRuntimeVersion
 }
 dependencies {
-  compile sourceSets.minimumRuntime.output
+  if (project.ext.has("isEclipse") == false || project.ext.isEclipse == false) {
+      // eclipse is confused if this is set explicitly
+    compile sourceSets.minimumRuntime.output
+  }
   minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
   minimumRuntimeCompile localGroovy()
 }
@@ -142,7 +145,6 @@ if (project == rootProject) {
     if (System.getProperty("repos.mavenLocal") != null) {
       mavenLocal()
     }
-    mavenCentral()
   }
   test {
     include "**/*Tests.class"
@@ -193,6 +195,7 @@ if (project != rootProject) {
             ).asPath,
     )
     systemProperty 'test.local-test-repo-path', "${rootProject.buildDir}/local-test-repo"
+    systemProperty 'test.version_under_test', version
     systemProperty 'test.lucene-snapshot-revision', (versions.lucene =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
   }
   check.dependsOn(integTest)
@@ -245,7 +248,7 @@ class VersionPropertiesLoader {
                       elasticsearch
       )
     }
-    String qualifier = systemProperties.getProperty("build.version_qualifier", "alpha1");
+    String qualifier = systemProperties.getProperty("build.version_qualifier", "");
     if (qualifier.isEmpty() == false) {
       if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
         throw new IllegalStateException("Invalid qualifier: " + qualifier)

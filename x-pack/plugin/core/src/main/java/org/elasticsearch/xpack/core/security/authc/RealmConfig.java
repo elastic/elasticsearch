@@ -20,16 +20,15 @@ public class RealmConfig {
     final boolean enabled;
     final int order;
     private final Environment env;
-    private final Settings globalSettings;
+    private final Settings settings;
     private final ThreadContext threadContext;
 
-    public RealmConfig(RealmIdentifier identifier, Settings globalSettings, Environment env,
-                       ThreadContext threadContext) {
+    public RealmConfig(RealmIdentifier identifier, Settings settings, Environment env, ThreadContext threadContext) {
         this.identifier = identifier;
-        this.globalSettings = globalSettings;
+        this.settings = settings;
         this.env = env;
-        enabled = getSetting(RealmSettings.ENABLED_SETTING);
-        order = getSetting(RealmSettings.ORDER_SETTING);
+        this.enabled = getSetting(RealmSettings.ENABLED_SETTING);
+        this.order = getSetting(RealmSettings.ORDER_SETTING);
         this.threadContext = threadContext;
     }
 
@@ -53,8 +52,13 @@ public class RealmConfig {
         return identifier.type;
     }
 
-    public Settings globalSettings() {
-        return globalSettings;
+    /**
+     * @return The settings for the current node.
+     * This will include the settings for this realm (as well as other realms, and other non-security settings).
+     * @see #getConcreteSetting(Setting.AffixSetting)
+     */
+    public Settings settings() {
+        return settings;
     }
 
     public Environment env() {
@@ -95,16 +99,16 @@ public class RealmConfig {
     }
 
     /**
-     * Obtain the value of the provided {@code setting} from the node's {@link #globalSettings global settings}.
+     * Obtain the value of the provided {@code setting} from the node's {@link #settings global settings}.
      * The {@link Setting.AffixSetting} is made <em>concrete</em> through {@link #getConcreteSetting(Setting.AffixSetting)}, which is then
      * used to {@link Setting#get(Settings) retrieve} the setting value.
      */
     public <T> T getSetting(Setting.AffixSetting<T> setting) {
-        return getConcreteSetting(setting).get(globalSettings);
+        return getConcreteSetting(setting).get(settings);
     }
 
     /**
-     * Obtain the value of the provided {@code setting} from the node's {@link #globalSettings global settings}.
+     * Obtain the value of the provided {@code setting} from the node's {@link #settings global settings}.
      * {@link #getConcreteSetting(Function)} is used to obtain a <em>concrete setting</em> from the provided
      * {@link Function}/{@link Setting.AffixSetting}, and this <em>concrete setting</em> is then used to
      * {@link Setting#get(Settings) retrieve} the setting value.
@@ -114,7 +118,7 @@ public class RealmConfig {
     }
 
     /**
-     * Obtain the value of the provided {@code setting} from the node's {@link #globalSettings global settings}.
+     * Obtain the value of the provided {@code setting} from the node's {@link #settings global settings}.
      * {@link #getConcreteSetting(Function)} is used to obtain a <em>concrete setting</em> from the provided
      * {@link Function}/{@link Setting.AffixSetting}.
      * If this <em>concrete setting</em> {@link Setting#exists(Settings) exists} in the global settings, then its value is returned,
@@ -125,7 +129,7 @@ public class RealmConfig {
     }
 
     /**
-     * Obtain the value of the provided {@code setting} from the node's {@link #globalSettings global settings}.
+     * Obtain the value of the provided {@code setting} from the node's {@link #settings global settings}.
      * {@link #getConcreteSetting(Setting.AffixSetting)} is used to obtain a <em>concrete setting</em> from the provided
      * {@link Setting.AffixSetting}.
      * If this <em>concrete setting</em> {@link Setting#exists(Settings) exists} in the global settings, then its value is returned,
@@ -133,30 +137,30 @@ public class RealmConfig {
      */
     public <T> T getSetting(Setting.AffixSetting<T> setting, Supplier<T> orElse) {
         final Setting<T> concrete = setting.getConcreteSettingForNamespace(name());
-        if (concrete.exists(globalSettings)) {
-            return concrete.get(globalSettings);
+        if (concrete.exists(settings)) {
+            return concrete.get(settings);
         } else {
             return orElse.get();
         }
     }
 
     /**
-     * Determines whether the provided {@code setting} has an explicit value in the node's {@link #globalSettings global settings}.
+     * Determines whether the provided {@code setting} has an explicit value in the node's {@link #settings global settings}.
      * {@link #getConcreteSetting(Function)} is used to obtain a <em>concrete setting</em> from the provided
      * {@link Function}/{@link Setting.AffixSetting}, and this <em>concrete setting</em> is then used to
      * {@link Setting#exists(Settings) check} for a value.
      */
     public <T> boolean hasSetting(Function<String, Setting.AffixSetting<T>> settingFactory) {
-        return getConcreteSetting(settingFactory).exists(globalSettings);
+        return getConcreteSetting(settingFactory).exists(settings);
     }
 
     /**
-     * Determines whether the provided {@code setting} has an explicit value in the node's {@link #globalSettings global settings}.
+     * Determines whether the provided {@code setting} has an explicit value in the node's {@link #settings global settings}.
      * {@link #getConcreteSetting(Setting.AffixSetting)} is used to obtain a <em>concrete setting</em> from the provided
      * {@link Setting.AffixSetting}, and this <em>concrete setting</em> is then used to {@link Setting#exists(Settings) check} for a value.
      */
     public <T> boolean hasSetting(Setting.AffixSetting<T> setting) {
-        return getConcreteSetting(setting).exists(globalSettings);
+        return getConcreteSetting(setting).exists(settings);
     }
 
     /**

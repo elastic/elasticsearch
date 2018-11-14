@@ -9,12 +9,14 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
+import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-public class IsNotNull extends UnaryScalarFunction {
+public class IsNotNull extends UnaryScalarFunction implements Negatable<UnaryScalarFunction> {
 
     public IsNotNull(Location location, Expression field) {
         super(location, field);
@@ -37,12 +39,12 @@ public class IsNotNull extends UnaryScalarFunction {
 
     @Override
     protected Processor makeProcessor() {
-        return IsNotNullProcessor.INSTANCE;
+        return new CheckNullProcessor(CheckNullOperation.IS_NOT_NULL);
     }
 
     @Override
     public String processScript(String script) {
-        return Scripts.formatTemplate(Scripts.SQL_SCRIPTS + ".notNull(" + script + ")");
+        return Scripts.formatTemplate(Scripts.SQL_SCRIPTS + ".isNotNull(" + script + ")");
     }
 
     @Override
@@ -53,5 +55,10 @@ public class IsNotNull extends UnaryScalarFunction {
     @Override
     public DataType dataType() {
         return DataType.BOOLEAN;
+    }
+
+    @Override
+    public UnaryScalarFunction negate() {
+        return new IsNull(location(), field());
     }
 }

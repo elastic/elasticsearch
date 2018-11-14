@@ -71,7 +71,7 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
                 boolean canRemainOnCurrentNode = ALLOCATION_DECIDERS
                         .canRemain(shardRouting, clusterState.getRoutingNodes().node(currentNodeId), allocation)
                         .type() == Decision.Type.YES;
-                if (canRemainOnCurrentNode == false) {
+                if (canRemainOnCurrentNode == false || shardRouting.started() == false) {
                     allocationPendingAllShards++;
                 }
             }

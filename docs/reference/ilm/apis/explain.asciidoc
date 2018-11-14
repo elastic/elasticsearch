@@ -1,12 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
-[[ilm-explain]]
+[[ilm-explain-lifecycle]]
 === Explain Lifecycle API
 ++++
 <titleabbrev>Explain Lifecycle</titleabbrev>
 ++++
 
-Shows the current lifecycle status for an index.
+Shows an index's current lifecycle status.
 
 ==== Request
 
@@ -14,11 +14,10 @@ Shows the current lifecycle status for an index.
 
 ==== Description
 
-This API returns information relating to the current lifecycle state of an
-index. This includes information such as the currently executing phase, action,
-and step and the timestamp when the index entered them. It also shows the
-definition of the current phase that is being run and in the event that there
-has been a failure, information regarding the failure.
+Retrieves information about the index's current lifecycle state, such as
+the currently executing phase, action, and step. Shows when the index entered
+each one, the definition of the running phase, and information
+about any failures.
 
 ==== Path Parameters
 
@@ -27,21 +26,15 @@ has been a failure, information regarding the failure.
 
 ==== Request Parameters
 
-`timeout`::
-  (time units) Specifies the period of time to wait for the completion of the 
-  GET operation. When this period of time elapses, the API fails and returns
-  an error. The default value is `30s`. For more information about time units, 
-  see <<time-units>>.
+include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
-`master_timeout`::
-  (time units) Specifies the period of time to wait for the connection with master.
-  When this period of time elapses, the API fails and returns an error.
-  The default value is `30s`. For more information about time units, see <<time-units>>.
+==== Authorization
 
+include::ilm-index-mgt-privilege.asciidoc[]
 
 ==== Examples
 
-The following example retrieves the lifecycle state for the index `my_index`:
+The following example retrieves the lifecycle state of `my_index`:
 
 //////////////////////////
 
@@ -91,7 +84,8 @@ GET my_index/_ilm/explain
 // CONSOLE
 // TEST[continued]
 
-When the index is first taken over by ILM you will see a response like the following:
+When management of the index is first taken over by ILM, `explain` shows
+that the index is managed and in the `new` phase:
 
 [source,js]
 --------------------------------------------------
@@ -102,12 +96,12 @@ When the index is first taken over by ILM you will see a response like the follo
       "managed": true, <1>
       "policy": "my_policy", <2>
       "lifecycle_date_millis": 1538475653281, <3>
-      "phase": "new", <4>
-      "phase_time_millis": 1538475653317, <5>
-      "action": "complete", <6>
-      "action_time_millis": 1538475653317, <7>
-      "step": "complete", <8>
-      "step_time_millis": 1538475653317 <9>
+      "phase": "new",
+      "phase_time_millis": 1538475653317, <4>
+      "action": "complete",
+      "action_time_millis": 1538475653317, <5>
+      "step": "complete",
+      "step_time_millis": 1538475653317 <6>
     }
   }
 }
@@ -121,17 +115,14 @@ When the index is first taken over by ILM you will see a response like the follo
 ILM the other fields will not be shown
 <2> The name of the policy which ILM is using for this index
 <3> The timestamp used for the `min_age`
-<4> The current phase
-<5> The timestamp for when the index entered the current phase
-<6> The current action
-<7> The timestamp for when the index entered the current action
-<8> The current step
-<9> The timestamp for when the index entered the current step
+<4> When the index entered the current phase
+<5> When the index entered the current action
+<6> When the index entered the current step
 
-When the policy is running on the index the response will contain a
-`phase_execution` object that describes the exact phase that is being run.
+Once the policy is running on the index, the response includes a
+`phase_execution` object that shows the definition of the current phase.
 Changes to the underlying policy will not affect this index until the current
-phase definition has been completely executed.
+phase completes.
 
 [source,js]
 --------------------------------------------------
@@ -152,9 +143,9 @@ phase definition has been completely executed.
       "step": "attempt_rollover",
       "step_time_millis": 1538475653317,
       "step_time": "2018-10-15T13:45:22.577Z",
-      "phase_execution": { <1>
-        "policy": "my_lifecycle3", <2>
-        "phase_definition": { <3>
+      "phase_execution": {
+        "policy": "my_lifecycle3",
+        "phase_definition": { <1>
           "min_age": "0ms",
           "actions": {
             "rollover": {
@@ -162,9 +153,9 @@ phase definition has been completely executed.
             }
           }
         },
-        "version": 3, <4>
-        "modified_date": "2018-10-15T13:21:41.576Z", <5>
-        "modified_date_in_millis": 1539609701576 <6>
+        "version": 3, <2>
+        "modified_date": "2018-10-15T13:21:41.576Z", <3>
+        "modified_date_in_millis": 1539609701576 <4>
       }
     }
   }
@@ -172,16 +163,14 @@ phase definition has been completely executed.
 --------------------------------------------------
 // CONSOLE
 // TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
-<1> The phase execution information for this index in its current phase
-<2> The policy that this phase definition was loaded from
-<3> The phase definition itself. This is the JSON for the phase loaded from the
-policy at the time the index entered the current phase
-<4> The version of the policy at the time the phase definition was loaded
-<5> The last modified date of the policy at the time the phase definition was loaded 
-<6> The last modified epoch time of the policy at the time the phase definition was loaded
+<1> The JSON phase definition loaded from the specified policy when the index
+entered this phase
+<2> The version of the policy that was loaded
+<3> The date the loaded policy was last modified
+<4> The epoch time when the loaded policy was last modified
 
-
-If the policy is waiting for a step to complete for the index, the response will contain step information such as:
+If {ILM} is waiting for a step to complete, the response includes status
+information for the step that's being performed on the index.
 
 [source,js]
 --------------------------------------------------
@@ -236,14 +225,12 @@ If the policy is waiting for a step to complete for the index, the response will
 --------------------------------------------------
 // CONSOLE
 // TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
-<1> `step_info` shows information about what ILM is waiting for on this index.
-In this case we are waiting for all shard copies of the index to be active.
+<1> Status of the step that's in progress.
 
-If the index is in the ERROR step, something has gone wrong when executing a
-step in the policy and will need to be investigated and resolved for the index
-to make progress. TO help determine how to resolve the error the explain response 
-will show the step that failed in `failed_step`, and the information on the error
-that occurred in `step_info`.
+If the index is in the ERROR step, something went wrong while executing a
+step in the policy and and you will need to take action for the index to proceed
+to the next step. To help you diagnose the problem, the explain response shows
+the step that failed and the step info provides information about the error.
 
 [source,js]
 --------------------------------------------------
@@ -291,6 +278,5 @@ that occurred in `step_info`.
 --------------------------------------------------
 // CONSOLE
 // TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
-<1> The step that caused an error
-<2> Information on the error that occurred. In this case the next index already
-existed when the rollover operation was performed
+<1> The step that caused the error
+<2> What went wrong

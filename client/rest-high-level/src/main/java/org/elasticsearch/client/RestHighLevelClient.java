@@ -61,6 +61,7 @@ import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
+import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
@@ -492,6 +493,20 @@ public class RestHighLevelClient implements Closeable {
     public final BulkByScrollResponse reindex(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
             reindexRequest, RequestConverters::reindex, options, BulkByScrollResponse::fromXContent, emptySet()
+        );
+    }
+
+    /**
+     * Submits a reindex task.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
+     * @param reindexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the submission response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final TaskSubmissionResponse submitReindexTask(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            reindexRequest, RequestConverters::submitReindex, options, TaskSubmissionResponse::fromXContent, emptySet()
         );
     }
 

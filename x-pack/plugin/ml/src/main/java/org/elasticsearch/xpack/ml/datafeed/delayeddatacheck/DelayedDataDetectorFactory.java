@@ -21,7 +21,8 @@ public class DelayedDataDetectorFactory {
 
     public static DelayedDataDetector buildDetector(Job job, DatafeedConfig datafeedConfig, Client client) {
         if (datafeedConfig.getDelayedDataCheckConfig().isEnabled()) {
-            long window = validateAndCalculateWindowLength(job.getAnalysisConfig().getBucketSpan(), datafeedConfig.getDelayedDataCheckConfig().getCheckWindow());
+            long window = validateAndCalculateWindowLength(job.getAnalysisConfig().getBucketSpan(),
+                datafeedConfig.getDelayedDataCheckConfig().getCheckWindow());
             long bucketSpan = job.getAnalysisConfig().getBucketSpan() == null ? 0 : job.getAnalysisConfig().getBucketSpan().millis();
             return new DatafeedDelayedDataDetector(bucketSpan,
                 window,

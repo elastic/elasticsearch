@@ -147,15 +147,19 @@ public class InternalTestClusterTests extends ESTestCase {
     }
 
     private void assertMMNinClusterSetting(InternalTestCluster cluster, int masterNodes) {
-        final int minMasterNodes = masterNodes / 2 + 1;
         for (final String node : cluster.getNodeNames()) {
-            Settings stateSettings = cluster.client(node).admin().cluster().prepareState().setLocal(true)
-                .get().getState().getMetaData().settings();
-
-            assertEquals("dynamic setting for node [" + node + "] has the wrong min_master_node setting : ["
-                    + stateSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) + "]",
-                DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(stateSettings).intValue(), minMasterNodes);
+            assertMMNinClusterSetting(node, cluster, masterNodes);
         }
+    }
+
+    private void assertMMNinClusterSetting(String node, InternalTestCluster cluster, int masterNodes) {
+        final int minMasterNodes = masterNodes / 2 + 1;
+        Settings stateSettings = cluster.client(node).admin().cluster().prepareState().setLocal(true)
+            .get().getState().getMetaData().settings();
+
+        assertEquals("dynamic setting for node [" + node + "] has the wrong min_master_node setting : ["
+                + stateSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) + "]",
+            DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(stateSettings).intValue(), minMasterNodes);
     }
 
     public void testBeforeTest() throws Exception {
@@ -505,7 +509,11 @@ public class InternalTestClusterTests extends ESTestCase {
                     cluster.rollingRestart(new InternalTestCluster.RestartCallback() {
                         @Override
                         public Settings onNodeStopped(String nodeName) throws Exception {
-                            assertMMNinClusterSetting(cluster, 1);
+                            for (String name : cluster.getNodeNames()) {
+                                if (name.equals(nodeName) == false) {
+                                    assertMMNinClusterSetting(name, cluster, 1);
+                                }
+                            }
                             return super.onNodeStopped(nodeName);
                         }
                     });

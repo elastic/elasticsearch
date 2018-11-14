@@ -16,32 +16,36 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 
-public class StartRollupJobResponse extends AcknowledgedResponse {
+public class StopRollupJobResponseTests extends AbstractXContentTestCase<StopRollupJobResponse> {
 
-    private static final String PARSE_FIELD_NAME = "started";
+    private boolean acknowledged;
 
-    private static final ConstructingObjectParser<StartRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("start_rollup_job_response", StartRollupJobResponse::new, PARSE_FIELD_NAME);
-
-    public StartRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
-    }
-
-    public static StartRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    @Before
+    public void setupAcknoledged() {
+        acknowledged = randomBoolean();
     }
 
     @Override
-    protected String getFieldName() {
-        return PARSE_FIELD_NAME;
+    protected StopRollupJobResponse createTestInstance() {
+        return new StopRollupJobResponse(acknowledged);
     }
+
+    @Override
+    protected  StopRollupJobResponse doParseInstance(XContentParser parser) throws IOException {
+        return StopRollupJobResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
 }

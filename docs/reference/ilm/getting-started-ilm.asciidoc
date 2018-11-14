@@ -106,7 +106,7 @@ To begin, we will want to bootstrap our first index to write to.
 
 [source,js]
 -----------------------
-PUT datastream-0000001
+PUT datastream-000001
 {
   "aliases": {
     "datastream": {
@@ -123,7 +123,7 @@ that tie our index and our policy together correctly. We need to make sure
 that our index name matches our index template pattern of "datastream-*",
 which it does. We are using the rollover action in our policy, which
 requires that our index name ends with a number. In our case, we used
-`0000001`. This is important so that Rollover can increment this number when
+`000001`. This is important so that Rollover can increment this number when
 naming the new index created from rolling over.
 
 Our index creation request leverages its template to apply our settings,
@@ -161,8 +161,8 @@ managed indices.
 --------------------------------------------------
 {
   "indices": {
-    "datastream-0000001": {
-      "index": "datastream-0000001",
+    "datastream-000001": {
+      "index": "datastream-000001",
       "managed": true,                           <1>
       "policy": "datastream_policy",             <2>
       "lifecycle_date_millis": 1538475653281,
@@ -191,11 +191,11 @@ managed indices.
 }
 --------------------------------------------------
 // CONSOLE
-// TESTRESPONSE[s/"lifecycle_date_millis": 1538475653281/"lifecycle_date_millis": $body.indices.datastream-0000001.lifecycle_date_millis/]
-// TESTRESPONSE[s/"phase_time_millis": 1538475653317/"phase_time_millis": $body.indices.datastream-0000001.phase_time_millis/]
-// TESTRESPONSE[s/"action_time_millis": 1538475653317/"action_time_millis": $body.indices.datastream-0000001.action_time_millis/]
-// TESTRESPONSE[s/"step_time_millis": 1538475653317/"step_time_millis": $body.indices.datastream-0000001.step_time_millis/]
-// TESTRESPONSE[s/"modified_date_in_millis": 1539609701576/"modified_date_in_millis": $body.indices.datastream-0000001.phase_execution.modified_date_in_millis/]
+// TESTRESPONSE[s/"lifecycle_date_millis": 1538475653281/"lifecycle_date_millis": $body.indices.datastream-000001.lifecycle_date_millis/]
+// TESTRESPONSE[s/"phase_time_millis": 1538475653317/"phase_time_millis": $body.indices.datastream-000001.phase_time_millis/]
+// TESTRESPONSE[s/"action_time_millis": 1538475653317/"action_time_millis": $body.indices.datastream-000001.action_time_millis/]
+// TESTRESPONSE[s/"step_time_millis": 1538475653317/"step_time_millis": $body.indices.datastream-000001.step_time_millis/]
+// TESTRESPONSE[s/"modified_date_in_millis": 1539609701576/"modified_date_in_millis": $body.indices.datastream-000001.phase_execution.modified_date_in_millis/]
 <1> this index is managed by ILM
 <2> the policy in question, in this case, "datastream_policy"
 <3> what phase the index is currently in
@@ -213,8 +213,8 @@ by {ILM} until its conditions are met and it rolls over the index.
 Afterwards, the original index will stay in the hot phase until 90 more
 days pass and it is deleted in the delete phase.
 As time goes on, new indices will be created and deleted.
-With `datastream-0000002` being created when the index mets the rollover
-conditions and `datastream-0000003` created after that. We will be able
+With `datastream-000002` being created when the index mets the rollover
+conditions and `datastream-000003` created after that. We will be able
 to search across all of our managed indices using the "datastream" alias,
 and we will be able to write to our to-be-rolled-over write indices using
 that same alias.

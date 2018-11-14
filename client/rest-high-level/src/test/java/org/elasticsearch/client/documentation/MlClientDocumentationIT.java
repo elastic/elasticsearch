@@ -87,6 +87,7 @@ import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
@@ -2225,6 +2226,68 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-filters-execute-async
             client.machineLearning().getFilterAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::get-filters-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testUpdateFilter() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        String filterId = "update-filter-doc-test";
+        MlFilter.Builder filterBuilder = MlFilter.builder(filterId).setDescription("test").setItems("*.google.com", "wikipedia.org");
+
+        client.machineLearning().putFilter(new PutFilterRequest(filterBuilder.build()), RequestOptions.DEFAULT);
+
+        {
+            // tag::update-filter-request
+            UpdateFilterRequest request = new UpdateFilterRequest(filterId); // <1>
+            // end::update-filter-request
+
+            // tag::update-filter-description
+            request.setDescription("my new description"); // <1>
+            // end::update-filter-description
+
+            // tag::update-filter-add-items
+            request.setAddItems(Arrays.asList("*.bing.com", "*.elastic.co")); // <1>
+            // end::update-filter-add-items
+
+            // tag::update-filter-remove-items
+            request.setRemoveItems(Arrays.asList("*.google.com")); // <1>
+            // end::update-filter-remove-items
+
+            // tag::update-filter-execute
+            PutFilterResponse response = client.machineLearning().updateFilter(request, RequestOptions.DEFAULT);
+            // end::update-filter-execute
+
+            // tag::update-filter-response
+            MlFilter updatedFilter = response.getResponse(); // <1>
+            // end::update-filter-response
+            assertEquals(request.getDescription(), updatedFilter.getDescription());
+        }
+        {
+            UpdateFilterRequest request = new UpdateFilterRequest(filterId);
+
+            // tag::update-filter-execute-listener
+            ActionListener<PutFilterResponse> listener = new ActionListener<PutFilterResponse>() {
+                @Override
+                public void onResponse(PutFilterResponse putFilterResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::update-filter-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::update-filter-execute-async
+            client.machineLearning().updateFilterAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::update-filter-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

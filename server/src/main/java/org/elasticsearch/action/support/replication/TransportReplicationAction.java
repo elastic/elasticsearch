@@ -313,7 +313,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    class AsyncPrimaryAction extends AbstractRunnable implements ActionListener<PrimaryShardReference> {
+    class AsyncPrimaryAction extends AbstractRunnable {
 
         private final Request request;
         // targetAllocationID of the shard this request is meant for
@@ -354,22 +354,13 @@ public abstract class TransportReplicationAction<
                     primaryTerm, actualTerm);
             }
 
-            final ActionListener<PrimaryShardReference> onReferenceAcquired = this;
-            acquirePrimaryOperationPermit(indexShard, request, new ActionListener<Releasable>() {
-                @Override
-                public void onResponse(Releasable releasable) {
-                    onReferenceAcquired.onResponse(new PrimaryShardReference(indexShard, releasable));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    onReferenceAcquired.onFailure(e);
-                }
-            });
+            acquirePrimaryOperationPermit(indexShard, request, ActionListener.wrap(
+                releasable -> runWithReleasable(new PrimaryShardReference(indexShard, releasable)),
+                this::onFailure
+            ));
         }
 
-        @Override
-        public void onResponse(PrimaryShardReference primaryShardReference) {
+        void runWithReleasable(final PrimaryShardReference primaryShardReference) {
             try {
                 final ClusterState clusterState = clusterService.state();
                 final IndexMetaData indexMetaData = clusterState.metaData().getIndexSafe(primaryShardReference.routingEntry().index());

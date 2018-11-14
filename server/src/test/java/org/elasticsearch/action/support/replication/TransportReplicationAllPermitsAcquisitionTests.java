@@ -208,11 +208,11 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         }
 
                         @Override
-                        public void onResponse(final TransportReplicationAction.PrimaryShardReference reference) {
+                        void runWithReleasable(final TransportReplicationAction.PrimaryShardReference reference) {
                             assertThat(reference.indexShard.getActiveOperationsCount(), greaterThan(0));
                             assertSame(primary, reference.indexShard);
                             assertBlockIsPresentForDelayedOp();
-                            super.onResponse(reference);
+                            super.runWithReleasable(reference);
                         }
 
                         @Override
@@ -250,7 +250,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
                 allPermitsAction.new AsyncPrimaryAction(request(), allocationId(), primaryTerm(), transportChannel(allPermitFuture), null) {
                     @Override
-                    public void onResponse(TransportReplicationAction<Request, Request, Response>.PrimaryShardReference reference) {
+                    void runWithReleasable(final TransportReplicationAction.PrimaryShardReference reference) {
                         assertEquals("All permits must be acquired", 0, reference.indexShard.getActiveOperationsCount());
                         assertSame(primary, reference.indexShard);
 
@@ -274,7 +274,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         } catch (InterruptedException | BrokenBarrierException e) {
                             onFailure(e);
                         }
-                        super.onResponse(reference);
+                        super.runWithReleasable(reference);
                     }
                 };
             asyncPrimaryAction.run();

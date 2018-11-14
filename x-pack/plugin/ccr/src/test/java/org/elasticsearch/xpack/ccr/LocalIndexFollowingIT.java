@@ -11,6 +11,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
+import org.elasticsearch.xpack.ccr.respository.RemoteClusterRepository;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
@@ -26,6 +27,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
     public void testFollowIndex() throws Exception {
+        client().admin().cluster().preparePutRepository("local").setType(RemoteClusterRepository.TYPE).get();
+
         final String leaderIndexSettings = getIndexSettings(2, 0,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));

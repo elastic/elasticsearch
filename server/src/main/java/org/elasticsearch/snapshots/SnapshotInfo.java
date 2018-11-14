@@ -232,7 +232,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private final List<SnapshotShardFailure> shardFailures;
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, SnapshotState state) {
-        this(snapshotId, indices, state, null, null, 0L, 0L, 0, 0, Collections.emptyList(), null);
+        this(snapshotId, indices, state, null, Version.CURRENT, 0L, 0L, 0, 0, Collections.emptyList(), null);
     }
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, long startTime, Boolean includeGlobalState) {

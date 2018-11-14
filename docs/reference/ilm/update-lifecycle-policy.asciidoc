@@ -1,9 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
 [[update-lifecycle-policy]]
-== Update lifecycle policy
+== Update Lifecycle Policy
+++++
+<titleabbrev>Update Policy</titleabbrev>
+++++
 
-Updating existing ILM policies is useful to fix mistakes or change
+You can update an existing lifecycle policy to fix mistakes or change
 strategies for newly created indices. It is possible to update policy definitions
 and an index's `index.lifecycle.name` settings independently. To prevent the situation
 that phase definitions are modified while currently being executed on an index, each index
@@ -173,7 +176,7 @@ PUT my_index
 // TEST[continued]
 ////
 
-The <<ilm-explain,Explain API>> is useful to introspect managed indices to see which phase definition they are currently executing.
+The <<ilm-explain-lifecycle,Explain API>> is useful to introspect managed indices to see which phase definition they are currently executing.
 Using this API, we can find out that `my_index` is currently attempting to be rolled over.
 
 [source,js]

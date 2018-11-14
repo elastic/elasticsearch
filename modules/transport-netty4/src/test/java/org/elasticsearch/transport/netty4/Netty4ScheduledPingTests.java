@@ -38,7 +38,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -91,7 +90,7 @@ public class Netty4ScheduledPingTests extends ESTestCase {
         serviceA.registerRequestHandler("internal:sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
             (request, channel, task) -> {
                 try {
-                    channel.sendResponse(TransportResponse.Empty.INSTANCE, TransportResponseOptions.EMPTY);
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
                 } catch (IOException e) {
                     logger.error("Unexpected failure", e);
                     fail(e.getMessage());

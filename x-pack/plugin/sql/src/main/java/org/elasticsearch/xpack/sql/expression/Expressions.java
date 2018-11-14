@@ -72,11 +72,11 @@ public final class Expressions {
 
     public static boolean nullable(List<? extends Expression> exps) {
         for (Expression exp : exps) {
-            if (!exp.nullable()) {
-                return false;
+            if (exp.nullable()) {
+                return true;
             }
         }
-        return true;
+        return false;
     }
 
     public static boolean foldable(List<? extends Expression> exps) {

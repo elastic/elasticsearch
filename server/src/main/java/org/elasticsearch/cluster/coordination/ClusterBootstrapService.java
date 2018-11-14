@@ -71,7 +71,36 @@ public class ClusterBootstrapService {
             final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 threadContext.markAsSystemContext();
-                awaitDiscovery();
+
+                final GetDiscoveredNodesRequest request = new GetDiscoveredNodesRequest();
+                request.setWaitForNodes(initialMasterNodeCount);
+                request.setTimeout(null);
+                logger.trace("sending {}", request);
+                transportService.sendRequest(transportService.getLocalNode(), GetDiscoveredNodesAction.NAME, request,
+                    new TransportResponseHandler<GetDiscoveredNodesResponse>() {
+                        @Override
+                        public void handleResponse(GetDiscoveredNodesResponse response) {
+                            assert response.getNodes().size() >= initialMasterNodeCount;
+                            assert response.getNodes().stream().allMatch(DiscoveryNode::isMasterNode);
+                            logger.debug("discovered {}, starting to bootstrap", response.getNodes());
+                            awaitBootstrap(response.getBootstrapConfiguration());
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            logger.warn("discovery attempt failed", exp);
+                        }
+
+                        @Override
+                        public String executor() {
+                            return Names.SAME;
+                        }
+
+                        @Override
+                        public GetDiscoveredNodesResponse read(StreamInput in) throws IOException {
+                            return new GetDiscoveredNodesResponse(in);
+                        }
+                    });
             }
         }
     }
@@ -79,44 +108,6 @@ public class ClusterBootstrapService {
     public void stop() {
         assert running == true;
         running = false;
-    }
-
-    private void awaitDiscovery() {
-        if (running == false) {
-            logger.debug("awaitDiscovery: not running");
-            return;
-        }
-
-        final GetDiscoveredNodesRequest request = new GetDiscoveredNodesRequest();
-        request.setWaitForNodes(initialMasterNodeCount);
-        request.setTimeout(null);
-        logger.trace("sending {}", request);
-        transportService.sendRequest(transportService.getLocalNode(), GetDiscoveredNodesAction.NAME, request,
-            new TransportResponseHandler<GetDiscoveredNodesResponse>() {
-                @Override
-                public void handleResponse(GetDiscoveredNodesResponse response) {
-                    assert response.getNodes().size() >= initialMasterNodeCount;
-                    assert response.getNodes().stream().allMatch(DiscoveryNode::isMasterNode);
-
-                    logger.debug("discovered {}, starting to bootstrap", response.getNodes());
-                    awaitBootstrap(response.getBootstrapConfiguration());
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    logger.warn("discovery attempt failed", exp);
-                }
-
-                @Override
-                public String executor() {
-                    return Names.SAME;
-                }
-
-                @Override
-                public GetDiscoveredNodesResponse read(StreamInput in) throws IOException {
-                    return new GetDiscoveredNodesResponse(in);
-                }
-            });
     }
 
     private void awaitBootstrap(final BootstrapConfiguration bootstrapConfiguration) {

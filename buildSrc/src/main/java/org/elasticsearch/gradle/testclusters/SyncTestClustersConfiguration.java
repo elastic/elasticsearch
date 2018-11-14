@@ -60,7 +60,7 @@ public class SyncTestClustersConfiguration extends DefaultTask {
     @TaskAction
     public void doExtract() {
         File outputDir = getOutputDir();
-        getProject().delete(getOutputDir());
+        getProject().delete(outputDir);
         outputDir.mkdirs();
         getDependencies().forEach(dep ->
             getProject().copy(spec -> {

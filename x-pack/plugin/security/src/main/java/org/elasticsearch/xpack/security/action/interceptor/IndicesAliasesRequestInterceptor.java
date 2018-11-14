@@ -70,7 +70,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                                 permissionsMap.computeIfAbsent(alias, userPermissions.indices()::allowedActionsMatcher);
                             if (Operations.subsetOf(aliasPermissions, indexPermissions) == false) {
                                 // TODO we've already audited a access granted event so this is going to look ugly
-                                auditTrailService.accessDenied(authentication, action, request, userPermissions.names());
+                                auditTrailService.accessDenied(null, authentication, action, request, userPermissions.names());
                                 throw Exceptions.authorizationError("Adding an alias is not allowed when the alias " +
                                     "has more permissions than any of the indices");
                             }

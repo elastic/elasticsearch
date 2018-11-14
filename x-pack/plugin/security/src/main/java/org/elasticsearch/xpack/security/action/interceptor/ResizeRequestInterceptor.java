@@ -59,7 +59,7 @@ public final class ResizeRequestInterceptor implements RequestInterceptor<Resize
                 userPermissions.indices().allowedActionsMatcher(request.getTargetIndexRequest().index());
             if (Operations.subsetOf(targetIndexPermissions, sourceIndexPermissions) == false) {
                 // TODO we've already audited a access granted event so this is going to look ugly
-                auditTrailService.accessDenied(authentication, action, request, userPermissions.names());
+                auditTrailService.accessDenied(null, authentication, action, request, userPermissions.names());
                 throw Exceptions.authorizationError("Resizing an index is not allowed when the target index " +
                     "has more permissions than the source index");
             }

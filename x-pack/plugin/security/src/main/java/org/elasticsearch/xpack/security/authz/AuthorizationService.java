@@ -153,7 +153,7 @@ public class AuthorizationService {
             if (SystemUser.isAuthorized(action)) {
                 putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                 putTransientIfNonExisting(ROLE_NAMES_KEY, new String[] { SystemUser.ROLE_NAME });
-                auditTrail.accessGranted(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
+                auditTrail.accessGranted(null, authentication, action, request, new String[] { SystemUser.ROLE_NAME });
                 return;
             }
             throw denial(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
@@ -170,7 +170,7 @@ public class AuthorizationService {
             if (authentication.getLookedUpBy() == null) {
                 throw denyRunAs(authentication, action, request, permission.names());
             } else if (permission.runAs().check(authentication.getUser().principal())) {
-                auditTrail.runAsGranted(authentication, action, request, permission.names());
+                auditTrail.runAsGranted(null, authentication, action, request, permission.names());
                 permission = runAsRole;
             } else {
                 throw denyRunAs(authentication, action, request, permission.names());
@@ -183,7 +183,7 @@ public class AuthorizationService {
             final ClusterPermission cluster = permission.cluster();
             if (cluster.check(action, request) || checkSameUserPermissions(action, request, authentication) ) {
                 putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
-                auditTrail.accessGranted(authentication, action, request, permission.names());
+                auditTrail.accessGranted(null, authentication, action, request, permission.names());
                 return;
             }
             throw denial(authentication, action, request, permission.names());
@@ -202,7 +202,7 @@ public class AuthorizationService {
             }
             // we check if the user can execute the action, without looking at indices, which will be authorized at the shard level
             if (permission.indices().check(action)) {
-                auditTrail.accessGranted(authentication, action, request, permission.names());
+                auditTrail.accessGranted(null, authentication, action, request, permission.names());
                 return;
             }
             throw denial(authentication, action, request, permission.names());
@@ -213,7 +213,7 @@ public class AuthorizationService {
             }
             // we check if the user can execute the action, without looking at indices, which will be authorized at the shard level
             if (permission.indices().check(action)) {
-                auditTrail.accessGranted(authentication, action, request, permission.names());
+                auditTrail.accessGranted(null, authentication, action, request, permission.names());
                 return;
             }
             throw denial(authentication, action, request, permission.names());
@@ -224,7 +224,7 @@ public class AuthorizationService {
                         + action + "] is a proxy action");
             }
             if (permission.indices().check(action)) {
-                auditTrail.accessGranted(authentication, action, request, permission.names());
+                auditTrail.accessGranted(null, authentication, action, request, permission.names());
                 return;
             } else {
                 // we do this here in addition to the denial below since we might run into an assertion on scroll request below if we
@@ -253,7 +253,7 @@ public class AuthorizationService {
                     // we store the request as a transient in the ThreadContext in case of a authorization failure at the shard
                     // level. If authorization fails we will audit a access_denied message and will use the request to retrieve
                     // information such as the index and the incoming address of the request
-                    auditTrail.accessGranted(authentication, action, request, permission.names());
+                    auditTrail.accessGranted(null, authentication, action, request, permission.names());
                     return;
                 }
             } else {
@@ -289,7 +289,7 @@ public class AuthorizationService {
         //'-*' matches no indices so we allow the request to go through, which will yield an empty response
         if (resolvedIndices.isNoIndicesPlaceholder()) {
             putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_NO_INDICES);
-            auditTrail.accessGranted(authentication, action, request, permission.names());
+            auditTrail.accessGranted(null, authentication, action, request, permission.names());
             return;
         }
 
@@ -335,7 +335,7 @@ public class AuthorizationService {
             authorizeBulkItems(authentication, (BulkShardRequest) request, permission, metaData, localIndices, authorizedIndices);
         }
 
-        auditTrail.accessGranted(authentication, action, request, permission.names());
+        auditTrail.accessGranted(null, authentication, action, request, permission.names());
     }
 
     private boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
@@ -423,7 +423,7 @@ public class AuthorizationService {
         try {
             return indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices);
         } catch (Exception e) {
-            auditTrail.accessDenied(authentication, action, request, permission.names());
+            auditTrail.accessDenied(null, authentication, action, request, permission.names());
             throw e;
         }
     }
@@ -551,13 +551,13 @@ public class AuthorizationService {
     }
 
     ElasticsearchSecurityException denial(Authentication authentication, String action, TransportRequest request, String[] roleNames) {
-        auditTrail.accessDenied(authentication, action, request, roleNames);
+        auditTrail.accessDenied(null, authentication, action, request, roleNames);
         return denialException(authentication, action);
     }
 
     private ElasticsearchSecurityException denyRunAs(Authentication authentication, String action, TransportRequest request,
                                                      String[] roleNames) {
-        auditTrail.runAsDenied(authentication, action, request, roleNames);
+        auditTrail.runAsDenied(null, authentication, action, request, roleNames);
         return denialException(authentication, action);
     }
 

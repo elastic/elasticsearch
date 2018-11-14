@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.security.audit;
 
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportMessage;
@@ -16,6 +19,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class AuditUtil {
+
+    private static final String AUDIT_REQUEST_ID = "_xpack_audit_request_id";
 
     public static String restRequestContent(RestRequest request) {
         if (request.hasContent()) {
@@ -37,5 +42,18 @@ public class AuditUtil {
 
     private static Set<String> arrayToSetOrNull(String[] indices) {
         return indices == null ? null : new HashSet<>(Arrays.asList(indices));
+    }
+
+    public static String getOrGenerateRequestId(ThreadContext threadContext) {
+        String requestId = extractRequestId(threadContext);
+        if (Strings.isEmpty(requestId)) {
+            requestId = UUIDs.base64UUID();
+            threadContext.putTransient(AUDIT_REQUEST_ID, requestId);
+        }
+        return requestId;
+    }
+
+    public static String extractRequestId(ThreadContext threadContext) {
+        return threadContext.getTransient(AUDIT_REQUEST_ID);
     }
 }

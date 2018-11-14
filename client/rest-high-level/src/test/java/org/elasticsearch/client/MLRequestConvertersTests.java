@@ -39,6 +39,7 @@ import org.elasticsearch.client.ml.GetFiltersRequest;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
+import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
@@ -388,6 +389,21 @@ public class MLRequestConvertersTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             GetCategoriesRequest parsedRequest = GetCategoriesRequest.PARSER.apply(parser, null);
             assertThat(parsedRequest, equalTo(getCategoriesRequest));
+        }
+    }
+
+    public void testGetModelSnapshots() throws IOException {
+        String jobId = randomAlphaOfLength(10);
+        GetModelSnapshotsRequest getModelSnapshotsRequest = new GetModelSnapshotsRequest(jobId);
+        getModelSnapshotsRequest.setPageParams(new PageParams(100, 300));
+
+
+        Request request = MLRequestConverters.getModelSnapshots(getModelSnapshotsRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/model_snapshots", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            GetModelSnapshotsRequest parsedRequest = GetModelSnapshotsRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(getModelSnapshotsRequest));
         }
     }
 

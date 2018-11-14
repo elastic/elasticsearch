@@ -25,6 +25,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.rollup.GetRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.StartRollupJobRequest;
+import org.elasticsearch.client.rollup.StopRollupJobRequest;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfigTests;
 import org.elasticsearch.test.ESTestCase;
@@ -59,6 +60,18 @@ public class RollupRequestConvertersTests extends ESTestCase {
         assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(request.getParameters().keySet(), empty());
         assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testStopJob() throws IOException {
+        String jobId = randomAlphaOfLength(5);
+
+        StopRollupJobRequest stopJob = new StopRollupJobRequest(jobId);
+
+        Request request = RollupRequestConverters.stopJob(stopJob);
+        assertThat(request.getEndpoint(), equalTo("/_xpack/rollup/job/" + jobId + "/_stop"));
+        assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(request.getParameters().keySet(), empty());
+        assertNull(request.getEntity());
     }
 
     public void testGetJob() {

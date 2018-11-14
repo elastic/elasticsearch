@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapClusterAction;
 import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapClusterRequest;
@@ -40,7 +39,6 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -57,7 +55,6 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
     private DiscoveryNode localNode, otherNode1, otherNode2;
     private DeterministicTaskQueue deterministicTaskQueue;
-    private MockTransport transport;
     private TransportService transportService;
     private ClusterBootstrapService clusterBootstrapService;
 
@@ -69,7 +66,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
         deterministicTaskQueue = new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random());
 
-        transport = new MockTransport() {
+        final MockTransport transport = new MockTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 throw new AssertionError("unexpected " + action);
@@ -92,20 +89,6 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         clusterBootstrapService.start();
-    }
-
-    private void scheduleStopAfter(long delay) {
-        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + delay, new Runnable() {
-            @Override
-            public void run() {
-                clusterBootstrapService.stop();
-            }
-
-            @Override
-            public String toString() {
-                return "stop cluster bootstrap service";
-            }
-        });
     }
 
     public void testDoesNothingOnNonMasterNodes() {
@@ -196,11 +179,19 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             (request, channel, task) -> channel.sendResponse(new GetDiscoveredNodesResponse(discoveredNodes)));
 
         transportService.registerRequestHandler(BootstrapClusterAction.NAME, Names.SAME, BootstrapClusterRequest::new,
-            (request, channel, task) -> {
-                channel.sendResponse(new ElasticsearchException("simulated exception"));
-            });
+            (request, channel, task) -> channel.sendResponse(new ElasticsearchException("simulated exception")));
 
-        scheduleStopAfter(200000);
+        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 200000, new Runnable() {
+            @Override
+            public void run() {
+                clusterBootstrapService.stop();
+            }
+
+            @Override
+            public String toString() {
+                return "stop cluster bootstrap service";
+            }
+        });
 
         startServices();
         deterministicTaskQueue.runAllTasks();

@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
@@ -36,12 +35,12 @@ public class TransportIndexUpgradeInfoAction
 
 
     @Inject
-    public TransportIndexUpgradeInfoAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportIndexUpgradeInfoAction(TransportService transportService, ClusterService clusterService,
                                            ThreadPool threadPool, ActionFilters actionFilters,
                                            IndexUpgradeService indexUpgradeService,
                                            IndexNameExpressionResolver indexNameExpressionResolver,
                                            XPackLicenseState licenseState) {
-        super(settings, IndexUpgradeInfoAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(IndexUpgradeInfoAction.NAME, transportService, clusterService, threadPool, actionFilters,
             IndexUpgradeInfoRequest::new, indexNameExpressionResolver);
         this.indexUpgradeService = indexUpgradeService;
         this.licenseState = licenseState;

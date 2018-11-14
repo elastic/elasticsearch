@@ -46,10 +46,6 @@ public final class Allocators {
     private static class NoopGatewayAllocator extends GatewayAllocator {
         public static final NoopGatewayAllocator INSTANCE = new NoopGatewayAllocator();
 
-        protected NoopGatewayAllocator() {
-            super(Settings.EMPTY);
-        }
-
         @Override
         public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
             // noop
@@ -79,7 +75,7 @@ public final class Allocators {
 
     public static AllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings) throws
         InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
-        return new AllocationService(settings,
+        return new AllocationService(
             defaultAllocationDeciders(settings, clusterSettings),
             NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
     }
@@ -88,7 +84,7 @@ public final class Allocators {
         IllegalAccessException, InvocationTargetException, InstantiationException, NoSuchMethodException {
         Collection<AllocationDecider> deciders =
             ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList());
-        return new AllocationDeciders(settings, deciders);
+        return new AllocationDeciders(deciders);
 
     }
 

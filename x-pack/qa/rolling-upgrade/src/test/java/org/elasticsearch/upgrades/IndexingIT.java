@@ -55,7 +55,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
                 Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
                 assertThat("this branch is not needed if we aren't compatible with 6.0",
                         minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
-                if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0_alpha1)) {
+                if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
                     XContentBuilder template = jsonBuilder();
                     template.startObject();
                     {

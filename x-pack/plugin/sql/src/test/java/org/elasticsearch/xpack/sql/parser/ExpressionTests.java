@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import static org.hamcrest.core.StringStartsWith.startsWith;
@@ -156,6 +158,22 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("?a", sub2.children().get(0).toString());
         assertEquals(Literal.class, sub2.children().get(1).getClass());
         assertEquals("2", ((Literal) sub2.children().get(1)).name());
+    }
+
+    public void testEquals() {
+        Expression expr = parser.createExpression("a = 10");
+        assertEquals(Equals.class, expr.getClass());
+        Equals eq = (Equals) expr;
+        assertEquals("(a) == 10", eq.name());
+        assertEquals(2, eq.children().size());
+    }
+
+    public void testNotEquals() {
+        Expression expr = parser.createExpression("a != 10");
+        assertEquals(NotEquals.class, expr.getClass());
+        NotEquals neq = (NotEquals) expr;
+        assertEquals("(a) != 10", neq.name());
+        assertEquals(2, neq.children().size());
     }
 
     public void testCastWithUnquotedDataType() {

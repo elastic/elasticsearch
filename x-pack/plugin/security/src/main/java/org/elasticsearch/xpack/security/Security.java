@@ -113,8 +113,8 @@ import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -344,7 +344,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 b.bind(CompositeRolesStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(NativeRoleMappingStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(AuditTrailService.class)
-                    .toInstance(new AuditTrailService(settings, Collections.emptyList(), getLicenseState()));
+                    .toInstance(new AuditTrailService(Collections.emptyList(), getLicenseState()));
             });
             return modules;
         }
@@ -415,7 +415,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             }
         }
         final AuditTrailService auditTrailService =
-                new AuditTrailService(settings, new ArrayList<>(auditTrails), getLicenseState());
+                new AuditTrailService(new ArrayList<>(auditTrails), getLicenseState());
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
@@ -487,16 +487,16 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final Set<RequestInterceptor> requestInterceptors;
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
             requestInterceptors = Collections.unmodifiableSet(Sets.newHashSet(
-                    new SearchRequestInterceptor(settings, threadPool, getLicenseState()),
-                    new UpdateRequestInterceptor(settings, threadPool, getLicenseState()),
-                    new BulkShardRequestInterceptor(settings, threadPool, getLicenseState()),
-                    new ResizeRequestInterceptor(settings, threadPool, getLicenseState(), auditTrailService),
+                    new SearchRequestInterceptor(threadPool, getLicenseState()),
+                    new UpdateRequestInterceptor(threadPool, getLicenseState()),
+                    new BulkShardRequestInterceptor(threadPool, getLicenseState()),
+                    new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
                     new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)));
         } else {
             requestInterceptors = Collections.emptySet();
         }
 
-        securityActionFilter.set(new SecurityActionFilter(settings, authcService.get(), authzService, getLicenseState(),
+        securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, getLicenseState(),
                 requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
 
         return components;
@@ -607,7 +607,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         // authentication and authorization settings
         AnonymousUser.addSettings(settingsList);
-        RealmSettings.addSettings(settingsList, securityExtensions);
+        settingsList.addAll(InternalRealmsSettings.getSettings());
         NativeRolesStore.addSettings(settingsList);
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
@@ -644,7 +644,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public List<String> getSettingsFilter() {
         List<String> asArray = settings.getAsList(SecurityField.setting("hide_settings"));
         ArrayList<String> settingsFilter = new ArrayList<>(asArray);
-        settingsFilter.addAll(RealmSettings.getSettingsFilter(securityExtensions));
         // hide settings where we don't define them - they are part of a group...
         settingsFilter.add("transport.profiles.*." + SecurityField.setting("*"));
         return settingsFilter;
@@ -900,9 +899,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
 
         Map<String, Supplier<Transport>> transports = new HashMap<>();
-        transports.put(SecurityField.NAME4, () -> new SecurityNetty4ServerTransport(settings, threadPool,
+        transports.put(SecurityField.NAME4, () -> new SecurityNetty4ServerTransport(settings, Version.CURRENT, threadPool,
             networkService, bigArrays, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
-        transports.put(SecurityField.NIO, () -> new SecurityNioTransport(settings, threadPool,
+        transports.put(SecurityField.NIO, () -> new SecurityNioTransport(settings, Version.CURRENT, threadPool,
             networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
 
         return Collections.unmodifiableMap(transports);
@@ -1032,7 +1031,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     static final class ValidateUpgradedSecurityIndex implements BiConsumer<DiscoveryNode, ClusterState> {
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
-            if (state.getNodes().getMinNodeVersion().before(Version.V_7_0_0_alpha1)) {
+            if (state.getNodes().getMinNodeVersion().before(Version.V_7_0_0)) {
                 IndexMetaData indexMetaData = state.getMetaData().getIndices().get(SECURITY_INDEX_NAME);
                 if (indexMetaData != null && INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()) < INTERNAL_INDEX_FORMAT) {
                     throw new IllegalStateException("Security index is not on the current version [" + INTERNAL_INDEX_FORMAT + "] - " +

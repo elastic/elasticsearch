@@ -352,7 +352,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
                 .thenReturn(new HttpResponse(503))
                 .thenReturn(new HttpResponse(200, randomAlphaOfLength(10)));
 
-        TextTemplateEngine replaceHttpWithHttpsTemplateEngine = new TextTemplateEngine(Settings.EMPTY, null) {
+        TextTemplateEngine replaceHttpWithHttpsTemplateEngine = new TextTemplateEngine(null) {
             @Override
             public String render(TextTemplate textTemplate, Map<String, Object> model) {
                 return textTemplate.getTemplate().replaceAll("REPLACEME", "REPLACED");

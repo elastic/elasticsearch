@@ -16,7 +16,6 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
@@ -50,9 +49,9 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
     private final Client client;
 
     @Inject
-    public TransportActivateWatchAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+    public TransportActivateWatchAction(TransportService transportService, ActionFilters actionFilters,
                                         Clock clock, XPackLicenseState licenseState, WatchParser parser, Client client) {
-        super(settings, ActivateWatchAction.NAME, transportService, actionFilters, licenseState, ActivateWatchRequest::new);
+        super(ActivateWatchAction.NAME, transportService, actionFilters, licenseState, ActivateWatchRequest::new);
         this.clock = clock;
         this.parser = parser;
         this.client = client;

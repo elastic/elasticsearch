@@ -1,6 +1,6 @@
 setup:
   - skip:
-        version: " - 6.6.0"
+        version: " - 6.5.99"
         reason:  "added in 6.6.0"
   - do:
         indices.create:

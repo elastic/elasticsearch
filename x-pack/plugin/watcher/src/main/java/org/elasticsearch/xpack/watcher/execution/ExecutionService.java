@@ -101,7 +101,6 @@ public class ExecutionService extends AbstractComponent {
     public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
                             Clock clock, WatchParser parser, ClusterService clusterService, Client client,
                             ExecutorService genericExecutor) {
-        super(settings);
         this.historyStore = historyStore;
         this.triggeredWatchStore = triggeredWatchStore;
         this.executor = executor;

@@ -100,8 +100,8 @@ public class BroadcastReplicationTests extends ESTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, clusterService, transportService,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), null);
+        broadcastReplicationAction = new TestBroadcastReplicationAction(clusterService, transportService,
+                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(), null);
     }
 
     @Override
@@ -210,10 +210,10 @@ public class BroadcastReplicationTests extends ESTestCase {
         protected final Set<Tuple<ShardId, ActionListener<ReplicationResponse>>> capturedShardRequests =
             ConcurrentCollections.newConcurrentSet();
 
-        TestBroadcastReplicationAction(Settings settings, ClusterService clusterService, TransportService transportService,
+        TestBroadcastReplicationAction(ClusterService clusterService, TransportService transportService,
                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                 TransportReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse> action) {
-            super("internal:test-broadcast-replication-action", DummyBroadcastRequest::new, settings, clusterService, transportService,
+            super("internal:test-broadcast-replication-action", DummyBroadcastRequest::new, clusterService, transportService,
                     actionFilters, indexNameExpressionResolver, action);
         }
 

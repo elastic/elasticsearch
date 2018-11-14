@@ -199,7 +199,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         }
 
         public static IsCloseToRelative closeToRelative(double expected) {
-            return closeToRelative(expected, 0.05);
+            return closeToRelative(expected, 0.1);
         }
     }
 

@@ -92,7 +92,6 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
     @Inject
     public IndicesStore(Settings settings, IndicesService indicesService,
                         ClusterService clusterService, TransportService transportService, ThreadPool threadPool) {
-        super(settings);
         this.settings = settings;
         this.indicesService = indicesService;
         this.clusterService = clusterService;

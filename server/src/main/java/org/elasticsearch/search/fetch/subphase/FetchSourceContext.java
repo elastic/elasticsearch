@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,8 +43,6 @@ import java.util.function.Function;
  * Context used to fetch the {@code _source}.
  */
 public class FetchSourceContext implements Writeable, ToXContentObject {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(FetchSourceContext.class));
 
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
@@ -110,21 +106,11 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         }
 
         String sIncludes = request.param("_source_includes");
-        String sInclude = request.param("_source_include");
-        if (sInclude != null) {
-            DEPRECATION_LOGGER.deprecated("Deprecated parameter [_source_include] used, expected [_source_includes] instead");
-            sIncludes = sInclude;
-        }
         if (sIncludes != null) {
             sourceIncludes = Strings.splitStringByCommaToArray(sIncludes);
         }
 
         String sExcludes = request.param("_source_excludes");
-        String sExclude = request.param("_source_exclude");
-        if (sExclude != null) {
-            DEPRECATION_LOGGER.deprecated("Deprecated parameter [_source_exclude] used, expected [_source_excludes] instead");
-            sExcludes = sExclude;
-        }
         if (sExcludes != null) {
             sourceExcludes = Strings.splitStringByCommaToArray(sExcludes);
         }

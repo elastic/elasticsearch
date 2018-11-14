@@ -398,10 +398,10 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         triggeredWatch.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
 
         ScheduleRegistry scheduleRegistry = new ScheduleRegistry(Collections.singleton(new CronSchedule.Parser()));
-        TriggerEngine triggerEngine = new WatchTests.ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, new ClockMock());
-        TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
+        TriggerEngine triggerEngine = new WatchTests.ParseOnlyScheduleTriggerEngine(scheduleRegistry, new ClockMock());
+        TriggerService triggerService = new TriggerService(singleton(triggerEngine));
 
-        TriggeredWatch.Parser parser = new TriggeredWatch.Parser(Settings.EMPTY, triggerService);
+        TriggeredWatch.Parser parser = new TriggeredWatch.Parser(triggerService);
         TriggeredWatch parsedTriggeredWatch = parser.parse(triggeredWatch.id().value(), 0, BytesReference.bytes(jsonBuilder));
 
         XContentBuilder jsonBuilder2 = XContentFactory.jsonBuilder();

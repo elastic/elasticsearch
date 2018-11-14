@@ -71,7 +71,6 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
     private final Map<Object, StatsAndCount> stats2 = new IdentityHashMap<>();
 
     public IndicesQueryCache(Settings settings) {
-        super(settings);
         final ByteSizeValue size = INDICES_CACHE_QUERY_SIZE_SETTING.get(settings);
         final int count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);
         logger.debug("using [node] query cache with size [{}] max filter count [{}]",

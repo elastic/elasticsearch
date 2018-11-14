@@ -56,7 +56,7 @@ public class FileUserPasswdStore {
 
     FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService, Runnable listener) {
         file = resolveFile(config.env());
-        settings = config.globalSettings();
+        settings = config.settings();
         users = parseFileLenient(file, logger, settings);
         listeners = new CopyOnWriteArrayList<>(Collections.singletonList(listener));
         FileWatcher watcher = new FileWatcher(file.getParent());

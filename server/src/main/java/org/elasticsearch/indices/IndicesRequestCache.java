@@ -88,7 +88,6 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
     private final Cache<Key, BytesReference> cache;
 
     IndicesRequestCache(Settings settings) {
-        super(settings);
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         long sizeInBytes = size.getBytes();

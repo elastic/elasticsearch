@@ -224,6 +224,12 @@ public class DataTypeConversionTests extends ESTestCase {
         assertNull(conversion.convert(10.0));
     }
 
+    public void testConversionFromNull() {
+        Conversion conversion = DataTypeConversion.conversionFor(DataType.NULL, DataType.INTEGER);
+        assertNull(conversion.convert(null));
+        assertNull(conversion.convert(10));
+    }
+
     public void testConversionToIdentity() {
         Conversion conversion = DataTypeConversion.conversionFor(DataType.INTEGER, DataType.INTEGER);
         assertNull(conversion.convert(null));

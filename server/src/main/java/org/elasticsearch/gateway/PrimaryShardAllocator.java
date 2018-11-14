@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardSt
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.AsyncShardFetch.FetchResult;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
@@ -63,11 +62,6 @@ import java.util.stream.Stream;
  * copy that can immediately be promoted to primary, as this takes place in {@link RoutingNodes#failShard}.
  */
 public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
-
-    public PrimaryShardAllocator(Settings settings) {
-        super(settings);
-    }
-
     /**
      * Is the allocator responsible for allocating the given {@link ShardRouting}?
      */

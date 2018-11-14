@@ -84,8 +84,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertNotNull(ml.description());
         assertTrue(ml.available());
         assertTrue(ml.enabled());
-        assertEquals(mainResponse.getVersion().toString(),
-                ml.nativeCodeInfo().get("version").toString().replace("-SNAPSHOT", ""));
+        assertEquals(mainResponse.getBuild().getQualifiedVersion(), ml.nativeCodeInfo().get("version").toString());
     }
 
     public void testXPackInfoEmptyRequest() throws IOException {

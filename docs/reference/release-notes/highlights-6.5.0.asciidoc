@@ -92,7 +92,7 @@ recovery purposes and for geo-proximity so that reads can be served locally.
 For more information, see {stack-ov}/xpack-ccr.html[Cross-cluster replication] 
 and <<ccr-apis>>. 
 
-=== Monitor {es} with {metribeat} (beta)
+=== Monitor {es} with {metricbeat} (beta)
 
 In 6.4 and later, you can use {metricbeat} to collect data about {kib} and ship 
 it directly to your monitoring cluster, rather than routing it through {es}. Now 

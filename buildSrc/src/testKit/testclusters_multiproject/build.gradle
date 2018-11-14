@@ -13,7 +13,7 @@ allprojects {
 testClusters {
     myTestCluster {
         distribution = 'ZIP'
-        version = '7.0.0-alpha1-SNAPSHOT'
+        version = System.getProperty("test.version_under_test")
     }
 }
 

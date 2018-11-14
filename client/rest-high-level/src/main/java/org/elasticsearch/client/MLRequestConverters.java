@@ -40,6 +40,7 @@ import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
+import org.elasticsearch.client.ml.GetFiltersRequest;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
@@ -56,6 +57,7 @@ import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 
@@ -473,6 +475,24 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putFilterRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getFilter(GetFiltersRequest getFiltersRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("filters")
+            .addPathPart(getFiltersRequest.getFilterId())
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (getFiltersRequest.getSize() != null) {
+            params.putParam(PageParams.SIZE.getPreferredName(), getFiltersRequest.getSize().toString());
+        }
+        if (getFiltersRequest.getFrom() != null) {
+            params.putParam(PageParams.FROM.getPreferredName(), getFiltersRequest.getFrom().toString());
+        }
         return request;
     }
 

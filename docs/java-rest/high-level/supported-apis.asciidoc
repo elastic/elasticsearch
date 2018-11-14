@@ -265,7 +265,11 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-put-calendar>>
 * <<{upid}-delete-calendar>>
 * <<{upid}-put-filter>>
+<<<<<<< HEAD
 * <<{upid}-delete-filter>>
+=======
+* <<{upid}-get-filters>>
+>>>>>>> origin/master
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -295,7 +299,11 @@ include::ml/get-calendars.asciidoc[]
 include::ml/put-calendar.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
 include::ml/put-filter.asciidoc[]
+<<<<<<< HEAD
 include::ml/delete-filter.asciidoc[]
+=======
+include::ml/get-filters.asciidoc[]
+>>>>>>> origin/master
 
 == Migration APIs
 
@@ -316,6 +324,7 @@ The Java High Level REST Client supports the following Rollup APIs:
 
 * <<java-rest-high-x-pack-rollup-put-job>>
 * <<{upid}-rollup-start-job>>
+* <<{upid}-rollup-stop-job>>
 * <<{upid}-rollup-delete-job>>
 * <<java-rest-high-x-pack-rollup-get-job>>
 * <<{upid}-x-pack-rollup-get-rollup-caps>>
@@ -323,6 +332,7 @@ The Java High Level REST Client supports the following Rollup APIs:
 
 include::rollup/put_job.asciidoc[]
 include::rollup/start_job.asciidoc[]
+include::rollup/stop_job.asciidoc[]
 include::rollup/delete_job.asciidoc[]
 include::rollup/get_job.asciidoc[]
 include::rollup/get_rollup_caps.asciidoc[]
@@ -422,3 +432,15 @@ The Java High Level REST Client supports the following CCR APIs:
 
 include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]
+
+== Index Lifecycle Management APIs
+
+:upid: {mainid}-ilm
+:doc-tests-file: {doc-tests}/ILMDocumentationIT.java
+
+The Java High Level REST Client supports the following Index Lifecycle
+Management APIs:
+
+* <<{upid}-ilm-put-lifecycle-policy>>
+
+include::ilm/put_lifecycle_policy.asciidoc[]

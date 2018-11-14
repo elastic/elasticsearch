@@ -16,53 +16,36 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.rollup;
 
-package org.elasticsearch.script;
-
-import org.apache.lucene.search.Scorable;
-import org.elasticsearch.search.lookup.DocLookup;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 
-/**
- * A float encapsulation that dynamically accesses the score of a document.
- *
- * The provided {@link DocLookup} is used to retrieve the score
- * for the current document.
- */
-public final class ScoreAccessor extends Number {
+public class StopRollupJobResponseTests extends AbstractXContentTestCase<StopRollupJobResponse> {
 
-    Scorable scorer;
+    private boolean acknowledged;
 
-    public ScoreAccessor(Scorable scorer) {
-        this.scorer = scorer;
-    }
-
-    float score() {
-        try {
-            return scorer.score();
-        } catch (IOException e) {
-            throw new RuntimeException("Could not get score", e);
-        }
+    @Before
+    public void setupAcknoledged() {
+        acknowledged = randomBoolean();
     }
 
     @Override
-    public int intValue() {
-        return (int)score();
+    protected StopRollupJobResponse createTestInstance() {
+        return new StopRollupJobResponse(acknowledged);
     }
 
     @Override
-    public long longValue() {
-        return (long)score();
+    protected  StopRollupJobResponse doParseInstance(XContentParser parser) throws IOException {
+        return StopRollupJobResponse.fromXContent(parser);
     }
 
     @Override
-    public float floatValue() {
-        return score();
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 
-    @Override
-    public double doubleValue() {
-        return score();
-    }
 }

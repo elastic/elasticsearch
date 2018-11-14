@@ -16,32 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.ml;
 
-package org.elasticsearch.client.rollup;
-
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class StartRollupJobResponse extends AcknowledgedResponse {
+public class GetFiltersRequestTests extends AbstractXContentTestCase<GetFiltersRequest> {
 
-    private static final String PARSE_FIELD_NAME = "started";
-
-    private static final ConstructingObjectParser<StartRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("start_rollup_job_response", StartRollupJobResponse::new, PARSE_FIELD_NAME);
-
-    public StartRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
-    }
-
-    public static StartRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    @Override
+    protected GetFiltersRequest createTestInstance() {
+        GetFiltersRequest request = new GetFiltersRequest();
+        if (randomBoolean()) {
+            request.setFilterId(randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            request.setSize(randomInt(100));
+        }
+        if (randomBoolean()) {
+            request.setFrom(randomInt(100));
+        }
+        return request;
     }
 
     @Override
-    protected String getFieldName() {
-        return PARSE_FIELD_NAME;
+    protected GetFiltersRequest doParseInstance(XContentParser parser) throws IOException {
+        return GetFiltersRequest.PARSER.apply(parser, null);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 }

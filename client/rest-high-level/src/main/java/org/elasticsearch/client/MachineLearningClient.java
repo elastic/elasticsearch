@@ -42,6 +42,8 @@ import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsResponse;
+import org.elasticsearch.client.ml.GetFiltersRequest;
+import org.elasticsearch.client.ml.GetFiltersResponse;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetInfluencersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -1209,6 +1211,44 @@ public final class MachineLearningClient {
     }
 
     /**
+     * Gets Machine Learning Filters
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-filter.html">ML GET Filter documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return GetFilterResponse with enclosed {@link org.elasticsearch.client.ml.job.config.MlFilter} objects
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetFiltersResponse getFilter(GetFiltersRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getFilter,
+            options,
+            GetFiltersResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets Machine Learning Filters asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-filter.html">ML GET Filter documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getFilterAsync(GetFiltersRequest request, RequestOptions options, ActionListener<GetFiltersResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getFilter,
+            options,
+            GetFiltersResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
      * Deletes the given Machine Learning filter
      * <p>
      * For additional info
@@ -1247,5 +1287,4 @@ public final class MachineLearningClient {
             listener,
             Collections.emptySet());
     }
-
 }

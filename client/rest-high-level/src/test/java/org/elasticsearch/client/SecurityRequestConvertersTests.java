@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.CreateTokenRequest;
+import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
@@ -271,6 +272,21 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/security/privilege", request.getEndpoint());
         assertEquals(Collections.emptyMap(), request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    public void testDeletePrivileges() {
+        final String application = randomAlphaOfLengthBetween(1, 12);
+        final List<String> privileges = randomSubsetOf(randomIntBetween(1, 3), "read", "write", "all");
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
+        DeletePrivilegesRequest deletePrivilegesRequest =
+            new DeletePrivilegesRequest(application, privileges.toArray(Strings.EMPTY_ARRAY), refreshPolicy);
+        Request request = SecurityRequestConverters.deletePrivileges(deletePrivilegesRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/privilege/" + application + "/" + Strings.collectionToCommaDelimitedString(privileges),
+            request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
     }
 }

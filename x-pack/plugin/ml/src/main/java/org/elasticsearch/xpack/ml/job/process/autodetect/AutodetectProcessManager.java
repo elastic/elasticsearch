@@ -521,8 +521,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams, autoDetectExecutorService,
                 onProcessCrash(jobTask));
         AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
-                client, auditor, jobId, renormalizer, jobResultsPersister, jobResultsProvider, autodetectParams.modelSizeStats(),
-                autodetectParams.modelSnapshot() != null);
+                client, auditor, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = createAutodetectExecutorService(autoDetectExecutorService);

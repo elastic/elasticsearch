@@ -436,10 +436,9 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     public void testBuilder_buildWithCreateTime() {
         Job.Builder builder = buildJobBuilder("foo");
         Date now = new Date();
-        Job job = builder.setEstablishedModelMemory(randomNonNegativeLong()).build(now);
+        Job job = builder.build(now);
         assertEquals(now, job.getCreateTime());
         assertEquals(Version.CURRENT, job.getJobVersion());
-        assertNull(job.getEstablishedModelMemory());
     }
 
     public void testJobWithoutVersion() throws IOException {
@@ -514,39 +513,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertEquals(e.getMessage(), "job and group names must be unique but job [foo] and group [foo] have the same name");
     }
 
-    public void testEstimateMemoryFootprint_GivenEstablished() {
-        Job.Builder builder = buildJobBuilder("established");
-        long establishedModelMemory = randomIntBetween(10_000, 2_000_000_000);
-        builder.setEstablishedModelMemory(establishedModelMemory);
-        if (randomBoolean()) {
-            builder.setAnalysisLimits(new AnalysisLimits(randomNonNegativeLong(), null));
-        }
-        assertEquals(establishedModelMemory + Job.PROCESS_MEMORY_OVERHEAD.getBytes(), builder.build().estimateMemoryFootprint());
-    }
-
-    public void testEstimateMemoryFootprint_GivenLimitAndNotEstablished() {
-        Job.Builder builder = buildJobBuilder("limit");
-        if (rarely()) {
-            // An "established" model memory of 0 means "not established".  Generally this won't be set, so getEstablishedModelMemory()
-            // will return null, but if it returns 0 we shouldn't estimate the job's memory requirement to be 0.
-            builder.setEstablishedModelMemory(0L);
-        }
-        ByteSizeValue limit = new ByteSizeValue(randomIntBetween(100, 10000), ByteSizeUnit.MB);
-        builder.setAnalysisLimits(new AnalysisLimits(limit.getMb(), null));
-        assertEquals(limit.getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes(), builder.build().estimateMemoryFootprint());
-    }
-
-    public void testEstimateMemoryFootprint_GivenNoLimitAndNotEstablished() {
-        Job.Builder builder = buildJobBuilder("nolimit");
-        if (rarely()) {
-            // An "established" model memory of 0 means "not established".  Generally this won't be set, so getEstablishedModelMemory()
-            // will return null, but if it returns 0 we shouldn't estimate the job's memory requirement to be 0.
-            builder.setEstablishedModelMemory(0L);
-        }
-        assertEquals(ByteSizeUnit.MB.toBytes(AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB)
-                        + Job.PROCESS_MEMORY_OVERHEAD.getBytes(), builder.build().estimateMemoryFootprint());
-    }
-
     public void testEarliestValidTimestamp_GivenEmptyDataCounts() {
         assertThat(createRandomizedJob().earliestValidTimestamp(new DataCounts("foo")), equalTo(0L));
     }
@@ -617,9 +583,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         builder.setCreateTime(new Date(randomNonNegativeLong()));
         if (randomBoolean()) {
             builder.setFinishedTime(new Date(randomNonNegativeLong()));
-        }
-        if (randomBoolean()) {
-            builder.setEstablishedModelMemory(randomNonNegativeLong());
         }
         builder.setAnalysisConfig(AnalysisConfigTests.createRandomized());
         builder.setAnalysisLimits(AnalysisLimits.validateAndSetDefaults(AnalysisLimitsTests.createRandomized(), null,

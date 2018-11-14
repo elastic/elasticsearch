@@ -123,12 +123,10 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34084")
     public void testSingleNode() throws Exception {
         verifyMaxNumberOfJobsLimit(1, randomIntBetween(1, 100));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34084")
     public void testMultipleNodes() throws Exception {
         verifyMaxNumberOfJobsLimit(3, randomIntBetween(1, 100));
     }

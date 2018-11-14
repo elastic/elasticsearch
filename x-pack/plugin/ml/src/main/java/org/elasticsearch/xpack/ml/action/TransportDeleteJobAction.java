@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayList;
@@ -93,6 +94,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     private final JobResultsProvider jobResultsProvider;
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
+    private final MlMemoryTracker memoryTracker;
 
     /**
      * A map of task listeners by job_id.
@@ -107,7 +109,8 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                                     ThreadPool threadPool, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver, PersistentTasksService persistentTasksService,
                                     Client client, Auditor auditor, JobResultsProvider jobResultsProvider,
-                                    JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider) {
+                                    JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider,
+                                    MlMemoryTracker memoryTracker) {
         super(DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, DeleteJobAction.Request::new);
         this.client = client;
@@ -116,6 +119,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         this.jobResultsProvider = jobResultsProvider;
         this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
+        this.memoryTracker = memoryTracker;
         this.listenersByJobId = new HashMap<>();
     }
 
@@ -209,6 +213,9 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     private void normalDeleteJob(ParentTaskAssigningClient parentTaskClient, DeleteJobAction.Request request,
                                  ActionListener<AcknowledgedResponse> listener) {
         String jobId = request.getJobId();
+
+        // We clean up the memory tracker on delete rather than close as close is not a master node action
+        memoryTracker.removeJob(jobId);
 
         // Step 4. When the job has been removed from the cluster state, return a response
         // -------

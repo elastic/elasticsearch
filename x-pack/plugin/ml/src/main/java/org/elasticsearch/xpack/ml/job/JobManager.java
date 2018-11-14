@@ -66,7 +66,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -580,25 +579,17 @@ public class JobManager {
 
         // Step 1. update the job
         // -------
-        Consumer<Long> updateJobHandler = response -> {
-            JobUpdate update = new JobUpdate.Builder(request.getJobId())
-                    .setModelSnapshotId(modelSnapshot.getSnapshotId())
-                    .setEstablishedModelMemory(response)
-                    .build();
+        JobUpdate update = new JobUpdate.Builder(request.getJobId())
+            .setModelSnapshotId(modelSnapshot.getSnapshotId())
+            .build();
 
-            jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit, ActionListener.wrap(
-                    job -> {
-                        auditor.info(request.getJobId(),
-                                Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
-                        updateHandler.accept(Boolean.TRUE);
-                    },
-                    actionListener::onFailure
-            ));
-        };
-
-        // Step 0. Find the appropriate established model memory for the reverted job
-        // -------
-        jobResultsProvider.getEstablishedMemoryUsage(request.getJobId(), modelSizeStats.getTimestamp(), modelSizeStats, updateJobHandler,
-                actionListener::onFailure);
+        jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit, ActionListener.wrap(
+            job -> {
+                auditor.info(request.getJobId(),
+                    Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
+                updateHandler.accept(Boolean.TRUE);
+            },
+            actionListener::onFailure
+        ));
     }
 }

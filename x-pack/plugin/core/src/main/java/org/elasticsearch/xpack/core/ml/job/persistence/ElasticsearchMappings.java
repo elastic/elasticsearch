@@ -282,9 +282,6 @@ public class ElasticsearchMappings {
         .startObject(Job.FINISHED_TIME.getPreferredName())
             .field(TYPE, DATE)
         .endObject()
-        .startObject(Job.ESTABLISHED_MODEL_MEMORY.getPreferredName())
-            .field(TYPE, LONG) // TODO should be ByteSizeValue
-        .endObject()
 
         .startObject(Job.MODEL_PLOT_CONFIG.getPreferredName())
             .startObject(PROPERTIES)

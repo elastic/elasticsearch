@@ -1,6 +1,7 @@
 //
 // SELECT with = and !=
 //
+// Need to CAST as STRING since for boolean types jdbc CSV translates null -> false
 equalsSelectClause
 SELECT CAST(4 = 4 AS STRING), CAST(NOT 4 = 4 AS STRING), CAST(3 = 4 AS STRING), CAST(NOT 3 = 4 AS STRING), CAST(1 = null AS STRING), CAST(NOT null = 1 AS STRING);
 
@@ -37,6 +38,37 @@ FROM "test_emp" WHERE emp_no IN(10018, 10019, 10020) ORDER BY emp_no;
 false                                 |true                                       |null                                     |null
 true                                  |false                                      |null                                     |null
 null                                  |null                                       |null                                     |null
+;
+
+
+//
+// SELECT with OR and AND and NULL handling
+//
+// Need to CAST as STRING since for boolean types jdbc CSV translates null -> false
+selectWithOrAndNullHandling
+SELECT CAST(true OR null AS STRING), CAST(null OR true AS STRING), CAST(false OR null AS STRING), CAST(null OR false AS STRING), CAST(null OR null AS STRING);
+
+  CAST(true OR null AS VARCHAR):s |  CAST(null OR true AS VARCHAR):s |  CAST(false OR null AS VARCHAR):s |  CAST(null OR false AS VARCHAR):s |  CAST(null OR null AS VARCHAR):s
+----------------------------------+----------------------------------+-----------------------------------+-----------------------------------+---------------------------------
+true                              |true                              |null                               |null                               |null
+;
+
+selectWithAndAndNullHandling
+SELECT CAST(true AND null AS STRING), CAST(null AND true AS STRING), CAST(false AND null AS STRING), CAST(null AND false AS STRING), CAST(null AND null AS STRING);
+
+  CAST(true AND null AS VARCHAR):s |  CAST(null AND true AS VARCHAR):s |  CAST(false AND null AS VARCHAR):s |  CAST(null AND false AS VARCHAR):s |  CAST(null AND null AS VARCHAR):s
+-----------------------------------+-----------------------------------+------------------------------------+------------------------------------+----------------------------------
+null                               |null                               |false                               |false                               |null
+;
+
+selectWithOrAndAndAndNullHandling_WithTableColumns
+SELECT CAST(languages = 2 OR null AS STRING), CAST(languages = 2 AND null AS STRING) FROM test_emp WHERE emp_no BETWEEN 10018 AND 10020 ORDER BY emp_no;
+
+ CAST(((languages) == 2) OR null AS VARCHAR):s |  CAST(((languages) == 2) AND null AS VARCHAR):s
+-----------------------------------------------+------------------------------------------------
+true                                           |null
+null                                           |false
+null                                           |null
 ;
 
 

@@ -27,6 +27,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
+import java.io.IOException;
+
 public class OsService extends AbstractComponent {
 
     private final OsProbe probe;
@@ -37,7 +39,7 @@ public class OsService extends AbstractComponent {
         Setting.timeSetting("monitor.os.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
                 Property.NodeScope);
 
-    public OsService(Settings settings) {
+    public OsService(Settings settings) throws IOException {
         this.probe = OsProbe.getInstance();
         TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
         this.info = probe.osInfo(refreshInterval.millis(), EsExecutors.numberOfProcessors(settings));

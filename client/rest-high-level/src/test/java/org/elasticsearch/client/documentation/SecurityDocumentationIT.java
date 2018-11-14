@@ -55,6 +55,9 @@ import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
+import org.elasticsearch.client.security.PutPrivilegesRequest;
+import org.elasticsearch.client.security.PutPrivilegesResponse;
+import org.elasticsearch.client.security.PutPrivilegesResponse.Status;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -65,6 +68,7 @@ import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpress
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
@@ -73,6 +77,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -984,6 +989,74 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(response);
             assertTrue(response.isCreated());// technically, this should be false, but the API is broken
             // See https://github.com/elastic/elasticsearch/issues/35115
+        }
+    }
+
+    public void testPutPrivileges() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::put-privileges-request
+            final List<ApplicationPrivilege> privileges = new ArrayList<>();
+            privileges.add(ApplicationPrivilege.builder()
+                    .application("app01")
+                    .privilege("all")
+                    .actions(Sets.newHashSet("action:login"))
+                    .metadata(Collections.singletonMap("k1", "v1"))
+                    .build());
+            final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, RefreshPolicy.IMMEDIATE);
+            // end::put-privileges-request
+
+            // tag::put-privileges-execute
+            final PutPrivilegesResponse putPrivilegesResponse = client.security().putPrivileges(putPrivilegesRequest,
+                    RequestOptions.DEFAULT);
+            // end::put-privileges-execute
+
+            final String applicationName = "app01";
+            final String privilegeName = "all";
+            // tag::put-privileges-response
+            final Status status = putPrivilegesResponse.status(applicationName, privilegeName); // <1>
+            // end::put-privileges-response
+            assertThat(status, is(Status.CREATED));
+        }
+
+        {
+            final List<ApplicationPrivilege> privileges = new ArrayList<>();
+            privileges.add(ApplicationPrivilege.builder()
+                    .application("app01")
+                    .privilege("all")
+                    .actions(Sets.newHashSet("action:login"))
+                    .metadata(Collections.singletonMap("k1", "v1"))
+                    .build());
+            final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, RefreshPolicy.IMMEDIATE);
+
+            // tag::put-privileges-execute-listener
+            ActionListener<PutPrivilegesResponse> listener = new ActionListener<PutPrivilegesResponse>() {
+                @Override
+                public void onResponse(PutPrivilegesResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::put-privileges-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<PutPrivilegesResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            //tag::put-privileges-execute-async
+            client.security().putPrivilegesAsync(putPrivilegesRequest, RequestOptions.DEFAULT, listener); // <1>
+            //end::put-privileges-execute-async
+
+            assertNotNull(future.get(30, TimeUnit.SECONDS));
+            assertThat(future.get().status("app01", "all"), is(Status.UPDATED));
         }
     }
 

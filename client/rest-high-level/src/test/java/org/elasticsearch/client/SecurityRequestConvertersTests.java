@@ -19,10 +19,11 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
@@ -30,7 +31,7 @@ import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
-import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
@@ -38,10 +39,13 @@ import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpress
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -241,6 +245,27 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/security/oauth2/token", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(createTokenRequest, request.getEntity());
+    }
+
+    public void testPutPrivileges() throws Exception {
+        int noOfApplicationPrivileges = randomIntBetween(2, 4);
+        final List<ApplicationPrivilege> privileges = new ArrayList<>();
+        for (int count = 0; count < noOfApplicationPrivileges; count++) {
+            privileges.add(ApplicationPrivilege.builder()
+                    .application(randomAlphaOfLength(4))
+                    .privilege(randomAlphaOfLengthBetween(3, 5))
+                    .actions(Sets.newHashSet(generateRandomStringArray(3, 5, false, false)))
+                    .metadata(Collections.singletonMap("k1", "v1"))
+                    .build());
+        }
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
+        final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, refreshPolicy);
+        final Request request = SecurityRequestConverters.putPrivileges(putPrivilegesRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/privilege", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(putPrivilegesRequest, request.getEntity());
     }
 
     public void testDeletePrivileges() {

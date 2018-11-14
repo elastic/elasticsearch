@@ -46,6 +46,8 @@ import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
+import org.elasticsearch.client.security.PutPrivilegesRequest;
+import org.elasticsearch.client.security.PutPrivilegesResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -503,6 +505,37 @@ public final class SecurityClient {
                                      ActionListener<InvalidateTokenResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::invalidateToken, options,
             InvalidateTokenResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Create or update application privileges.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-privileges.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to create or update application privileges
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create or update application privileges call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public PutPrivilegesResponse putPrivileges(final PutPrivilegesRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::putPrivileges, options,
+                PutPrivilegesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously create or update application privileges. See <a href=
+     * "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-privileges.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to create or update application privileges
+     * @param options the request options (e.g. headers), use
+     * {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void putPrivilegesAsync(final PutPrivilegesRequest request, final RequestOptions options,
+            final ActionListener<PutPrivilegesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::putPrivileges, options,
+                PutPrivilegesResponse::fromXContent, listener, emptySet());
     }
 
     /**

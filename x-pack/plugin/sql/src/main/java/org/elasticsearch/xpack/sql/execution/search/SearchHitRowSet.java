@@ -90,7 +90,7 @@ class SearchHitRowSet extends AbstractRowSet {
         }
     }
     
-    public boolean isLimitReached() {
+    protected boolean isLimitReached() {
         return cursor == Cursor.EMPTY;
     }
 

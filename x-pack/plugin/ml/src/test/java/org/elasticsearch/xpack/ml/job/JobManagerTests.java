@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Matchers;
 import org.mockito.Mockito;
 
 import java.io.IOException;

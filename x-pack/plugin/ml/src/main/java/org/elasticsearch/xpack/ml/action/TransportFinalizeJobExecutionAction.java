@@ -63,7 +63,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
                 .collect(Collectors.toList());
 
         // This action should not be called for jobs that have
-        // their configuration in index documents 
+        // their configuration in index documents
 
         if (jobsInClusterState.isEmpty()) {
             // This action is a no-op for jobs not defined in the cluster state.

@@ -853,7 +853,9 @@ public final class Def {
     }
 
     public static Byte defToByteExplicit(final Object value) {
-        if (value instanceof Character) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
             return (byte)(char)value;
         } else {
             return ((Number)value).byteValue();
@@ -861,7 +863,9 @@ public final class Def {
     }
 
     public static Short defToShortExplicit(final Object value) {
-        if (value instanceof Character) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
             return (short)(char)value;
         } else {
             return ((Number)value).shortValue();
@@ -869,7 +873,9 @@ public final class Def {
     }
 
     public static Character defToCharacterExplicit(final Object value) {
-        if (value instanceof Character) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
             return (Character)value;
         } else {
             return (char)((Number)value).intValue();
@@ -877,7 +883,9 @@ public final class Def {
     }
 
     public static Integer defToIntegerExplicit(final Object value) {
-        if (value instanceof Character) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
             return (int)(char)value;
         } else {
             return ((Number)value).intValue();
@@ -885,7 +893,9 @@ public final class Def {
     }
 
     public static Long defToLongExplicit(final Object value) {
-        if (value instanceof Character) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
             return (long)(char)value;
         } else {
             return ((Number)value).longValue();
@@ -893,7 +903,9 @@ public final class Def {
     }
 
     public static Float defToFloatExplicit(final Object value) {
-        if (value instanceof Character) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
             return (float)(char)value;
         } else {
             return ((Number)value).floatValue();
@@ -901,7 +913,9 @@ public final class Def {
     }
 
     public static Double defToDoubleExplicit(final Object value) {
-        if (value instanceof Character) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
             return (double)(char)value;
         } else {
             return ((Number)value).doubleValue();

@@ -286,6 +286,31 @@ public class CastTests extends ScriptTestCase {
         });
     }
 
+    public void testDefToBoxedImplicit() {
+        assertEquals((byte)1, exec("def x = (byte)1; Byte y = x; return y;"));
+        assertEquals((short)1, exec("def x = (short)1; Short y = x; return y;"));
+        assertEquals((char)1, exec("def x = (char)1; Character y = x; return y;"));
+        assertEquals(1, exec("def x = 1; Integer y = x; return y;"));
+        assertEquals(1L, exec("def x = 1; Long y = x; return y;"));
+        assertEquals(1F, exec("def x = 1; Float y = x; return y;"));
+        assertEquals(1D, exec("def x = 1; Double y = x; return y;"));
+    }
+
+    public void testDefToBoxedExplicit() {
+        assertEquals((byte)1, exec("def x = 1; Byte y = (Byte)x; return y;"));
+        assertEquals((short)1, exec("def x = 1; Short y = (Short)x; return y;"));
+        assertEquals((char)1, exec("def x = 1; Character y = (Character)x; return y;"));
+        assertEquals(1, exec("def x = 1D; Integer y = (Integer)x; return y;"));
+        assertEquals(1L, exec("def x = 1D; Long y = (Long)x; return y;"));
+        assertEquals(1F, exec("def x = 1D; Float y = (Float)x; return y;"));
+        assertEquals(1D, exec("def x = 1D; Double y = (Double)x; return y;"));
+    }
+
+    public void testDefToBoxedException() {
+        expectScriptThrows(ClassCastException.class, () -> exec("def x = 1; Byte y = x; return y;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("def x = (short)1; Character y = x; return y;"));
+    }
+
     public void testUnboxMethodParameters() {
         assertEquals('a', exec("'a'.charAt(Integer.valueOf(0))"));
     }

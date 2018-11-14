@@ -53,6 +53,8 @@ public class BaseClassTests extends ScriptTestCase {
         contexts.put(ReturnsPrimitiveInt.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(ReturnsPrimitiveFloat.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(ReturnsPrimitiveDouble.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(ReturnsBoxedInteger.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(ReturnsBoxedDouble.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(NoArgsConstant.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(WrongArgsConstant.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(WrongLengthOfArgConstant.CONTEXT, Whitelist.BASE_WHITELISTS);
@@ -564,6 +566,131 @@ public class BaseClassTests extends ScriptTestCase {
         assertEquals(0.0,
                 scriptEngine.compile("testReturnsPrimitiveDouble13", "int i = 0", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
+    }
+
+    public abstract static class ReturnsBoxedInteger {
+        public interface Factory {
+            ReturnsBoxedInteger newInstance();
+        }
+
+        public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("returnsboxedinteger", Factory.class);
+
+        public static final String[] PARAMETERS = new String[] {};
+        public abstract Integer execute();
+    }
+    public void testReturnsBoxedInteger() throws Exception {
+        assertEquals(Integer.valueOf(1),
+                scriptEngine.compile("testReturnsBoxedInteger0", "1", ReturnsBoxedInteger.CONTEXT, emptyMap())
+                        .newInstance().execute());
+        assertEquals(Integer.valueOf(1),
+                scriptEngine.compile("testReturnsBoxedInteger1", "(int) 1L", ReturnsBoxedInteger.CONTEXT, emptyMap())
+                        .newInstance().execute());
+        assertEquals(Integer.valueOf(1),
+                scriptEngine.compile("testReturnsBoxedInteger2", "(int) 1.1d", ReturnsBoxedInteger.CONTEXT, emptyMap())
+                        .newInstance().execute());
+        assertEquals(Integer.valueOf(1),
+                scriptEngine.compile("testReturnsBoxedInteger3", "(int) 1.1f", ReturnsBoxedInteger.CONTEXT, emptyMap())
+                        .newInstance().execute());
+        assertEquals(Integer.valueOf(1),
+                scriptEngine.compile("testReturnsBoxedInteger4", "Integer.valueOf(1)", ReturnsBoxedInteger.CONTEXT, emptyMap())
+                        .newInstance().execute());
+
+        assertEquals(Integer.valueOf(1),
+                scriptEngine.compile("testReturnsBoxedInteger5", "def i = 1; i", ReturnsBoxedInteger.CONTEXT, emptyMap())
+                        .newInstance().execute());
+        assertEquals(Integer.valueOf(1),
+                scriptEngine.compile(
+                        "testReturnsBoxedInteger6", "def i = Integer.valueOf(1); i", ReturnsBoxedInteger.CONTEXT, emptyMap())
+                        .newInstance().execute());
+
+        assertEquals(Integer.valueOf(2),
+                scriptEngine.compile("testReturnsBoxedInteger7", "1 + 1", ReturnsBoxedInteger.CONTEXT, emptyMap()).newInstance().execute());
+
+        Exception e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile("testReturnsBoxedInteger8", "1L", ReturnsBoxedInteger.CONTEXT, emptyMap()).newInstance().execute());
+        assertEquals("Cannot cast from [long] to [java.lang.Integer].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile("testReturnsBoxedInteger9", "1.1f", ReturnsBoxedInteger.CONTEXT, emptyMap()).newInstance().execute());
+        assertEquals("Cannot cast from [float] to [java.lang.Integer].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile("testReturnsBoxedInteger10", "1.1d", ReturnsBoxedInteger.CONTEXT, emptyMap()).newInstance().execute());
+        assertEquals("Cannot cast from [double] to [java.lang.Integer].", e.getMessage());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile("testReturnsBoxedInteger11", "def i = 1L; i", ReturnsBoxedInteger.CONTEXT, emptyMap())
+                        .newInstance().execute());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile("testReturnsBoxedInteger12", "def i = 1.1f; i", ReturnsBoxedInteger.CONTEXT, emptyMap())
+                        .newInstance().execute());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile("testReturnsBoxedInteger13", "def i = 1.1d; i", ReturnsBoxedInteger.CONTEXT, emptyMap())
+                        .newInstance().execute());
+
+        assertEquals(Integer.valueOf(0),
+                scriptEngine.compile("testReturnsBoxedInteger14", "short i; i = 0", ReturnsBoxedInteger.CONTEXT, emptyMap())
+                        .newInstance().execute());
+        assertNull(
+                scriptEngine.compile("testReturnsBoxedInteger15", "return null", ReturnsBoxedInteger.CONTEXT, emptyMap())
+                        .newInstance().execute());
+    }
+    
+    public abstract static class ReturnsBoxedDouble {
+        public interface Factory {
+            ReturnsBoxedDouble newInstance();
+        }
+
+        public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("returnsboxeddouble", Factory.class);
+
+        public static final String[] PARAMETERS = new String[] {};
+        public abstract Double execute();
+    }
+    public void testReturnsBoxedDouble() throws Exception {
+        assertEquals(1.0,
+                scriptEngine.compile("testReturnsBoxedDouble0", "1", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                        .newInstance().execute(), 0);
+        assertEquals(1.0,
+                scriptEngine.compile("testReturnsBoxedDouble1", "1L", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                        .newInstance().execute(), 0);
+        assertEquals(1.1,
+                scriptEngine.compile("testReturnsBoxedDouble2", "1.1d", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                        .newInstance().execute(), 0);
+        assertEquals((double) 1.1f,
+                scriptEngine.compile("testReturnsBoxedDouble3", "1.1f", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                        .newInstance().execute(), 0);
+        assertEquals(1.1, scriptEngine.compile(
+                "testReturnsBoxedDouble4", "Double.valueOf(1.1)", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                .newInstance().execute(), 0);
+        assertEquals((double) 1.1f, scriptEngine.compile(
+                "testReturnsBoxedDouble5", "(def)Float.valueOf(1.1f)", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                .newInstance().execute(), 0);
+
+        assertEquals(1.0,
+                scriptEngine.compile("testReturnsBoxedDouble6", "def d = 1; d", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                        .newInstance().execute(), 0);
+        assertEquals(1.0,
+                scriptEngine.compile("testReturnsBoxedDouble7", "def d = 1L; d", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                        .newInstance().execute(), 0);
+        assertEquals(1.1,
+                scriptEngine.compile("testReturnsBoxedDouble8", "def d = 1.1d; d", ReturnsBoxedDouble.CONTEXT, emptyMap()).
+                        newInstance().execute(), 0);
+        assertEquals((double) 1.1f,
+                scriptEngine.compile("testReturnsBoxedDouble9", "def d = 1.1f; d", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                        .newInstance().execute(), 0);
+        assertEquals(1.1, scriptEngine.compile(
+                "testReturnsBoxedDouble10", "def d = Double.valueOf(1.1); d", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                .newInstance().execute(), 0);
+        assertEquals((double) 1.1f, scriptEngine.compile(
+                "testReturnsBoxedDouble11", "def d = Float.valueOf(1.1f); d", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                .newInstance().execute(), 0);
+
+        assertEquals(1.1 + 6.7,
+                scriptEngine.compile("testReturnsBoxedDouble12", "1.1 + 6.7", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                        .newInstance().execute(), 0);
+        assertEquals(0.0,
+                scriptEngine.compile("testReturnsBoxedDouble13", "int i; i = 0", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                        .newInstance().execute(), 0);
+        assertNull(
+                scriptEngine.compile("testReturnsBoxedDouble13", "def x; x = null", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                        .newInstance().execute());
     }
 
     public abstract static class NoArgsConstant {

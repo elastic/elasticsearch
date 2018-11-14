@@ -145,14 +145,15 @@ public final class TransportPutFollowAction
                 },
                 listener::onFailure);
 
+        // TODO: The commented out settings do not currently work with restore
         // Copy all settings, but overwrite a few settings.
         Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(leaderIndexMetaData.getSettings());
+//        settingsBuilder.put(leaderIndexMetaData.getSettings());
         // Overwriting UUID here, because otherwise we can't follow indices in the same cluster
-        settingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+//        settingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
         settingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex());
         settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        settingsBuilder.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+//        settingsBuilder.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
 
         client.admin().cluster()
             .prepareRestoreSnapshot(request.getRemoteCluster(), RemoteClusterRepository.SNAPSHOT_ID.getName())

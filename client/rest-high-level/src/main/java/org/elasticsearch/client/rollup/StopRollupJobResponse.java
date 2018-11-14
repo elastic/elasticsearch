@@ -25,18 +25,18 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class StartRollupJobResponse extends AcknowledgedResponse {
+public class StopRollupJobResponse extends AcknowledgedResponse {
 
-    private static final String PARSE_FIELD_NAME = "started";
+    private static final String PARSE_FIELD_NAME = "stopped";
 
-    private static final ConstructingObjectParser<StartRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("start_rollup_job_response", StartRollupJobResponse::new, PARSE_FIELD_NAME);
+    private static final ConstructingObjectParser<StopRollupJobResponse, Void> PARSER = AcknowledgedResponse
+            .generateParser("stop_rollup_job_response", StopRollupJobResponse::new, PARSE_FIELD_NAME);
 
-    public StartRollupJobResponse(boolean acknowledged) {
+    public StopRollupJobResponse(boolean acknowledged) {
         super(acknowledged);
     }
 
-    public static StartRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
+    public static StopRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 

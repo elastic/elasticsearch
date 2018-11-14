@@ -47,7 +47,7 @@ public class AuditUtil {
     public static String getOrGenerateRequestId(ThreadContext threadContext) {
         String requestId = extractRequestId(threadContext);
         if (Strings.isEmpty(requestId)) {
-            requestId = UUIDs.base64UUID();
+            requestId = UUIDs.randomBase64UUID();
             threadContext.putTransient(AUDIT_REQUEST_ID, requestId);
         }
         return requestId;

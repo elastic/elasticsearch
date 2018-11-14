@@ -79,6 +79,10 @@ public class WatchStatus {
         return actions.get(actionId);
     }
 
+    Map<String, ActionStatus> getActions() {
+        return actions;
+    }
+
     public long version() {
         return version;
     }

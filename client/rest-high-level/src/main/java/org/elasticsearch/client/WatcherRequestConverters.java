@@ -28,12 +28,13 @@ import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchRequest;
+import org.elasticsearch.client.watcher.DeleteWatchRequest;
+import org.elasticsearch.client.watcher.GetWatchRequest;
+import org.elasticsearch.client.watcher.PutWatchRequest;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.client.watcher.WatcherStatsRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.client.watcher.DeleteWatchRequest;
-import org.elasticsearch.client.watcher.PutWatchRequest;
 
 final class WatcherRequestConverters {
 
@@ -73,6 +74,17 @@ final class WatcherRequestConverters {
         ContentType contentType = RequestConverters.createContentType(putWatchRequest.xContentType());
         BytesReference source = putWatchRequest.getSource();
         request.setEntity(new ByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
+        return request;
+    }
+
+
+    static Request getWatch(GetWatchRequest getWatchRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack", "watcher", "watch")
+            .addPathPart(getWatchRequest.getId())
+            .build();
+
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         return request;
     }
 

@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.get;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 
@@ -40,11 +38,11 @@ public class GetWatchResponse extends ActionResponse {
     /**
      * ctor for found watch
      */
-    public GetWatchResponse(String id, long version, WatchStatus status, BytesReference source, XContentType contentType) {
+    public GetWatchResponse(String id, long version, WatchStatus status, XContentSource source) {
         this.id = id;
         this.status = status;
         this.found = true;
-        this.source = new XContentSource(source, contentType);
+        this.source = source;
         this.version = version;
     }
 

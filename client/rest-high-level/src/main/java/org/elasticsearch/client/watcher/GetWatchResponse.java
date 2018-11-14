@@ -1,0 +1,140 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.elasticsearch.client.watcher;
+
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+
+import java.io.IOException;
+import java.util.Objects;
+
+public class GetWatchResponse {
+    private final String id;
+    private final long version;
+    private final WatchStatus status;
+
+    private final BytesReference source;
+    private final XContentType xContentType;
+
+    public GetWatchResponse(String id) {
+        this(id, Versions.NOT_FOUND, null, null, null);
+    }
+
+    public GetWatchResponse(String id, long version, WatchStatus status, BytesReference source, XContentType xContentType) {
+        this.id = id;
+        this.version = version;
+        this.status = status;
+        this.source = source;
+        this.xContentType = xContentType;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public long getVersion() {
+        return version;
+    }
+
+    public boolean isFound() {
+        return version != Versions.NOT_FOUND;
+    }
+
+    public WatchStatus getStatus() {
+        return status;
+    }
+
+    public BytesReference getSource() {
+        return source;
+    }
+
+    public XContentType getContentType() {
+        return xContentType;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetWatchResponse that = (GetWatchResponse) o;
+        return version == that.version &&
+            Objects.equals(id, that.id) &&
+            Objects.equals(status, that.status) &&
+            Objects.equals(source, that.source) &&
+            xContentType == that.xContentType;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, status, source, xContentType, version);
+    }
+
+    private static final ParseField ID_FIELD = new ParseField("_id");
+    private static final ParseField FOUND_FIELD = new ParseField("found");
+    private static final ParseField VERSION_FIELD = new ParseField("_version");
+    private static final ParseField STATUS_FIELD = new ParseField("status");
+    private static final ParseField WATCH_FIELD = new ParseField("watch");
+
+    private static ConstructingObjectParser<GetWatchResponse, Void> PARSER =
+        new ConstructingObjectParser<>("get_watch_response", true,
+            a -> {
+                boolean isFound = (boolean) a[1];
+                if (isFound) {
+                    XContentSource source = (XContentSource) a[4];
+                    return new GetWatchResponse((String) a[0], (long) a[2], (WatchStatus) a[3], source.source, source.contentType);
+                } else {
+                    return new GetWatchResponse((String) a[0]);
+                }
+            });
+
+    static {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), FOUND_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), VERSION_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
+            (parser, context) -> WatchStatus.parse(parser), STATUS_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
+            (parser, context) -> {
+                try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
+                    builder.copyCurrentStructure(parser);
+                    BytesReference ref = BytesReference.bytes(builder);
+                    return new XContentSource(ref, parser.contentType());
+                }
+            }, WATCH_FIELD);
+    }
+
+    public static GetWatchResponse fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
+    private static class XContentSource {
+        final BytesReference source;
+        final XContentType contentType;
+
+        private XContentSource(BytesReference source, XContentType contentType) {
+            this.source = source;
+            this.contentType = contentType;
+        }
+    }
+}

@@ -1091,14 +1091,12 @@ public final class InternalTestCluster extends TestCluster {
         final int defaultMinMasterNodes = (numberOfMasterNodes / 2) + 1;
         final List<NodeAndClient> toStartAndPublish = new ArrayList<>(); // we want to start nodes in one go due to min master nodes
         final Runnable onTransportServiceStarted = () -> rebuildUnicastHostFiles(toStartAndPublish);
-        boolean bootstrapNodeRequired = prevNodeCount == 0;
         for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
             final Settings.Builder settings = Settings.builder();
             settings.put(Node.NODE_MASTER_SETTING.getKey(), true);
             settings.put(Node.NODE_DATA_SETTING.getKey(), false);
-            if (bootstrapNodeRequired) {
-                settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDedicatedMasterNodes);
-                bootstrapNodeRequired = false;
+            if (prevNodeCount == 0 && autoManageMinMasterNodes) {
+                settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDedicatedMasterNodes + numSharedDataNodes);
             }
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes,
                 onTransportServiceStarted);
@@ -1110,9 +1108,8 @@ public final class InternalTestCluster extends TestCluster {
                 // if we don't have dedicated master nodes, keep things default
                 settings.put(Node.NODE_MASTER_SETTING.getKey(), false).build();
                 settings.put(Node.NODE_DATA_SETTING.getKey(), true).build();
-            } else if (bootstrapNodeRequired) {
-                settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDataNodes);
-                bootstrapNodeRequired = false;
+            } else if (prevNodeCount == 0 && autoManageMinMasterNodes) {
+                settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDedicatedMasterNodes + numSharedDataNodes);
             }
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes,
                 onTransportServiceStarted);
@@ -1931,23 +1928,20 @@ public final class InternalTestCluster extends TestCluster {
         }
         final List<NodeAndClient> nodes = new ArrayList<>();
         final int prevMasterCount = getMasterNodesCount();
-        boolean bootstrapNodeRequired = prevMasterCount == 0;
         for (Settings nodeSettings : settings) {
             final Settings nodeSettingsIncludingBootstrap;
-            if (bootstrapNodeRequired) {
+            if (prevMasterCount == 0 && autoManageMinMasterNodes) {
                 nodeSettingsIncludingBootstrap = Settings.builder()
                     .put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(),
                         (int) Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count())
                     .put(nodeSettings)
                     .build();
-                bootstrapNodeRequired = false;
             } else {
                 nodeSettingsIncludingBootstrap = nodeSettings;
             }
 
             nodes.add(buildNode(nodeSettingsIncludingBootstrap, defaultMinMasterNodes, () -> rebuildUnicastHostFiles(nodes)));
         }
-        assert bootstrapNodeRequired == false;
         startAndPublishNodesAndClients(nodes);
         if (autoManageMinMasterNodes) {
             validateClusterFormed();

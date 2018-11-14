@@ -480,9 +480,7 @@ final class MLRequestConverters {
 
     static Request getFilter(GetFiltersRequest getFiltersRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
-            .addPathPartAsIs("filters")
+            .addPathPartAsIs("_xpack", "ml", "filters")
             .addPathPart(getFiltersRequest.getFilterId())
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);

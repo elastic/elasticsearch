@@ -51,6 +51,8 @@ import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionStat
 
 public class IndexLifecycleRunner {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleRunner.class);
+    private static final ToXContent.Params STACKTRACE_PARAMS =
+        new ToXContent.MapParams(Collections.singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
     private PolicyStepsRegistry stepRegistry;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
@@ -325,8 +327,7 @@ public class IndexLifecycleRunner {
             .get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()));
         XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder();
         causeXContentBuilder.startObject();
-        ElasticsearchException.generateThrowableXContent(causeXContentBuilder,
-            new ToXContent.MapParams(Collections.singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false")), cause);
+        ElasticsearchException.generateThrowableXContent(causeXContentBuilder, STACKTRACE_PARAMS, cause);
         causeXContentBuilder.endObject();
         LifecycleExecutionState nextStepState = moveExecutionStateToNextStep(policyMetadata,
             LifecycleExecutionState.fromIndexMetadata(idxMeta), currentStep, new StepKey(currentStep.getPhase(),

@@ -90,7 +90,8 @@ PUT _template/datastream_template
 <1> match all indices starting with "datastream-". These will include all
     newly created indices from actions like rollover
 <2> the name of the lifecycle policy managing the index
-<3> the alias to use for the rollover action, since it is defined in the policy.
+<3> alias to use for the rollover action, required since a rollover action is
+    defined in the policy.
 
 The above index template introduces a few new settings specific to {ILM}.
 The first being `index.lifecycle.name`. This setting will configure
@@ -121,7 +122,7 @@ PUT datastream-000001
 When creating our index, we have to consider a few important configurations
 that tie our index and our policy together correctly. We need to make sure
 that our index name matches our index template pattern of "datastream-*",
-which it does. We are using the rollover action in our policy, which
+which it does. We are using the <<ilm-rollover-action, Rollover Action>> in our policy, which
 requires that our index name ends with a number. In our case, we used
 `000001`. This is important so that Rollover can increment this number when
 naming the new index created from rolling over.
@@ -219,7 +220,7 @@ to search across all of our managed indices using the "datastream" alias,
 and we will be able to write to our to-be-rolled-over write indices using
 that same alias.
 
-=== Next Steps
+
 
 That's it! We have our first use-case managed by {ILM}.
 

@@ -7,9 +7,12 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
@@ -18,6 +21,7 @@ import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
 
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
@@ -34,9 +38,15 @@ import java.util.stream.Collectors;
 abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
     private final Client client;
+    private final ClusterService clusterService;
 
-    AbstractExpiredJobDataRemover(Client client) {
+    AbstractExpiredJobDataRemover(Client client, ClusterService clusterService) {
         this.client = client;
+        this.clusterService = clusterService;
+    }
+
+    protected Client getClient() {
+        return client;
     }
 
     @Override
@@ -66,8 +76,13 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
     }
 
     private WrappedBatchedJobsIterator newJobIterator() {
+        // Cluster state jobs
+        ClusterState clusterState = clusterService.state();
+        List<Job> jobs = new ArrayList<>(MlMetadata.getMlMetadata(clusterState).getJobs().values());
+        VolatileCursorIterator<Job> clusterStateJobs = new VolatileCursorIterator<>(jobs);
+
         BatchedJobsIterator jobsIterator = new BatchedJobsIterator(client, AnomalyDetectorsIndex.configIndexName());
-        return new WrappedBatchedJobsIterator(jobsIterator);
+        return new WrappedBatchedJobsIterator(jobsIterator, clusterStateJobs);
     }
 
     private long calcCutoffEpochMs(long retentionDays) {
@@ -99,8 +114,9 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         private final BatchedJobsIterator batchedIterator;
         private VolatileCursorIterator<Job> currentBatch;
 
-        WrappedBatchedJobsIterator(BatchedJobsIterator batchedIterator) {
+        WrappedBatchedJobsIterator(BatchedJobsIterator batchedIterator, VolatileCursorIterator<Job> currentBatch) {
             this.batchedIterator = batchedIterator;
+            this.currentBatch = currentBatch;
         }
 
         @Override

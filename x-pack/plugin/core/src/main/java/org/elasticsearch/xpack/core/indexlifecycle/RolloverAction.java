@@ -132,15 +132,15 @@ public class RolloverAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        StepKey rolloverReadyStepKey = new StepKey(phase, NAME, WaitForRolloverReadyStep.NAME);
+        StepKey waitForRolloverReadyStepKey = new StepKey(phase, NAME, WaitForRolloverReadyStep.NAME);
         StepKey rolloverStepKey = new StepKey(phase, NAME, RolloverStep.NAME);
         StepKey updateDateStepKey = new StepKey(phase, NAME, UpdateRolloverLifecycleDateStep.NAME);
 
-        WaitForRolloverReadyStep waitForRolloverReady = new WaitForRolloverReadyStep(rolloverReadyStepKey, rolloverStepKey, client,
-            maxSize, maxAge, maxDocs);
+        WaitForRolloverReadyStep waitForRolloverReadyStep = new WaitForRolloverReadyStep(waitForRolloverReadyStepKey, rolloverStepKey,
+            client, maxSize, maxAge, maxDocs);
         RolloverStep rolloverStep = new RolloverStep(rolloverStepKey, updateDateStepKey, client);
         UpdateRolloverLifecycleDateStep updateDateStep = new UpdateRolloverLifecycleDateStep(updateDateStepKey, nextStepKey);
-        return Arrays.asList(waitForRolloverReady, rolloverStep, updateDateStep);
+        return Arrays.asList(waitForRolloverReadyStep, rolloverStep, updateDateStep);
     }
 
     @Override

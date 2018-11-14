@@ -16,32 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.client.Validatable;
 
-import java.io.IOException;
+import java.util.Objects;
 
-public class StartRollupJobResponse extends AcknowledgedResponse {
+public class StopRollupJobRequest implements Validatable {
 
-    private static final String PARSE_FIELD_NAME = "started";
+    private final String jobId;
 
-    private static final ConstructingObjectParser<StartRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("start_rollup_job_response", StartRollupJobResponse::new, PARSE_FIELD_NAME);
-
-    public StartRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
+    public StopRollupJobRequest(final String jobId) {
+        this.jobId = Objects.requireNonNull(jobId, "id parameter must not be null");
     }
 
-    public static StartRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public String getJobId() {
+        return jobId;
     }
 
     @Override
-    protected String getFieldName() {
-        return PARSE_FIELD_NAME;
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final StopRollupJobRequest that = (StopRollupJobRequest) o;
+        return Objects.equals(jobId, that.jobId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(jobId);
     }
 }

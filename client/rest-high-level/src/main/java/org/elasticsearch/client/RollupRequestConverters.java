@@ -28,6 +28,7 @@ import org.elasticsearch.client.rollup.GetRollupIndexCapsRequest;
 import org.elasticsearch.client.rollup.GetRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.StartRollupJobRequest;
+import org.elasticsearch.client.rollup.StopRollupJobRequest;
 
 import java.io.IOException;
 
@@ -55,8 +56,16 @@ final class RollupRequestConverters {
             .addPathPart(startRollupJobRequest.getJobId())
             .addPathPartAsIs("_start")
             .build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        return request;
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
+    static Request stopJob(final StopRollupJobRequest stopRollupJobRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack", "rollup", "job")
+            .addPathPart(stopRollupJobRequest.getJobId())
+            .addPathPartAsIs("_stop")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 
     static Request getJob(final GetRollupJobRequest getRollupJobRequest) {

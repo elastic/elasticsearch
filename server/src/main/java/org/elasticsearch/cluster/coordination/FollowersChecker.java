@@ -19,17 +19,21 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.discovery.zen.NodesFaultDetection;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -59,7 +63,9 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
  * considering a follower to be faulty, to allow for a brief network partition or a long GC cycle to occur without triggering the removal of
  * a node and the consequent shard reallocation.
  */
-public class FollowersChecker extends AbstractComponent {
+public class FollowersChecker {
+
+    private static final Logger logger = LogManager.getLogger(FollowersChecker.class);
 
     public static final String FOLLOWER_CHECK_ACTION_NAME = "internal:coordination/fault_detection/follower_check";
 
@@ -76,6 +82,8 @@ public class FollowersChecker extends AbstractComponent {
     // the number of failed checks that must happen before the follower is considered to have failed.
     public static final Setting<Integer> FOLLOWER_CHECK_RETRY_COUNT_SETTING =
         Setting.intSetting("cluster.fault_detection.follower_check.retry_count", 3, 1, Setting.Property.NodeScope);
+
+    private final Settings settings;
 
     private final TimeValue followerCheckInterval;
     private final TimeValue followerCheckTimeout;
@@ -94,6 +102,7 @@ public class FollowersChecker extends AbstractComponent {
     public FollowersChecker(Settings settings, TransportService transportService,
                             Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
                             BiConsumer<DiscoveryNode, String> onNodeFailure) {
+        this.settings = settings;
         this.transportService = transportService;
         this.handleRequestAndUpdateState = handleRequestAndUpdateState;
         this.onNodeFailure = onNodeFailure;
@@ -103,8 +112,12 @@ public class FollowersChecker extends AbstractComponent {
         followerCheckRetryCount = FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings);
 
         updateFastResponseState(0, Mode.CANDIDATE);
-        transportService.registerRequestHandler(FOLLOWER_CHECK_ACTION_NAME, Names.SAME, FollowerCheckRequest::new,
+        transportService.registerRequestHandler(FOLLOWER_CHECK_ACTION_NAME, Names.SAME, false, false, FollowerCheckRequest::new,
             (request, transportChannel, task) -> handleFollowerCheck(request, transportChannel));
+        transportService.registerRequestHandler(
+            NodesFaultDetection.PING_ACTION_NAME, NodesFaultDetection.PingRequest::new, Names.SAME, false, false,
+            (request, channel, task) -> // TODO: check that we're a follower of the requesting node?
+                channel.sendResponse(new NodesFaultDetection.PingResponse()));
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
             public void onNodeDisconnected(DiscoveryNode node) {
@@ -290,7 +303,18 @@ public class FollowersChecker extends AbstractComponent {
 
             final FollowerCheckRequest request = new FollowerCheckRequest(fastResponseState.term, transportService.getLocalNode());
             logger.trace("handleWakeUp: checking {} with {}", discoveryNode, request);
-            transportService.sendRequest(discoveryNode, FOLLOWER_CHECK_ACTION_NAME, request,
+
+            final String actionName;
+            final TransportRequest transportRequest;
+            if (Coordinator.isZen1Node(discoveryNode)) {
+                actionName = NodesFaultDetection.PING_ACTION_NAME;
+                transportRequest = new NodesFaultDetection.PingRequest(discoveryNode, ClusterName.CLUSTER_NAME_SETTING.get(settings),
+                    transportService.getLocalNode(), ClusterState.UNKNOWN_VERSION);
+            } else {
+                actionName = FOLLOWER_CHECK_ACTION_NAME;
+                transportRequest = request;
+            }
+            transportService.sendRequest(discoveryNode, actionName, transportRequest,
                 TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
                 new TransportResponseHandler<Empty>() {
                     @Override

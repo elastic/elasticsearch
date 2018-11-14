@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingTombstonesAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -299,6 +300,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
                     RemoteClusterService.SEARCH_ENABLE_REMOTE_CLUSTERS,
                     RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
+                    RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
                     TransportService.TRACE_LOG_EXCLUDE_SETTING,
                     TransportService.TRACE_LOG_INCLUDE_SETTING,
                     TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
@@ -456,7 +458,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ElectionSchedulerFactory.ELECTION_DURATION_SETTING,
                     Coordinator.PUBLISH_TIMEOUT_SETTING,
                     JoinHelper.JOIN_TIMEOUT_SETTING,
-                    Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION
+                    Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
+                    TransportAddVotingTombstonesAction.MAXIMUM_VOTING_TOMBSTONES_SETTING
             )));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(

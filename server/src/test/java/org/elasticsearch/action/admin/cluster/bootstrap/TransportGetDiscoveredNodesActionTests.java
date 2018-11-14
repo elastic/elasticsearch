@@ -46,8 +46,9 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.HandshakeResponse;
-import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Random;
@@ -69,13 +70,24 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
-    private final ActionFilters EMPTY_FILTERS = new ActionFilters(emptySet());
+    private static final ActionFilters EMPTY_FILTERS = new ActionFilters(emptySet());
+
+    private static ThreadPool threadPool;
     private DiscoveryNode localNode;
-    private ThreadPool threadPool;
     private String clusterName;
     private TransportService transportService;
     private Coordinator coordinator;
     private DiscoveryNode otherNode;
+
+    @BeforeClass
+    public static void createThreadPool() {
+        threadPool = new TestThreadPool("test", Settings.EMPTY);
+    }
+
+    @AfterClass
+    public static void shutdownThreadPool() {
+        threadPool.shutdown();
+    }
 
     @Before
     public void setupTest() {
@@ -91,7 +103,6 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
                 }
             }
         };
-        threadPool = new TestThreadPool("test", Settings.EMPTY);
         transportService = transport.createTransportService(
             Settings.builder().put(CLUSTER_NAME_SETTING.getKey(), clusterName).build(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
@@ -104,17 +115,11 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
             new NoOpClusterApplier(), new Random(random().nextLong()));
     }
 
-    @After
-    public void cleanUp() {
-        threadPool.shutdown();
-    }
-
     public void testHandlesNonstandardDiscoveryImplementation() throws InterruptedException {
         final Discovery discovery = mock(Discovery.class);
         verifyZeroInteractions(discovery);
 
         new TransportGetDiscoveredNodesAction(Settings.EMPTY, EMPTY_FILTERS, transportService, discovery); // registers action
-
         transportService.start();
         transportService.acceptIncomingRequests();
 

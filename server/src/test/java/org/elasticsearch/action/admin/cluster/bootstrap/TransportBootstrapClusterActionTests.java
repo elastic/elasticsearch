@@ -62,7 +62,8 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class TransportBootstrapClusterActionTests extends ESTestCase {
 
-    private final ActionFilters EMPTY_FILTERS = new ActionFilters(emptySet());
+    private static final ActionFilters EMPTY_FILTERS = new ActionFilters(emptySet());
+
     private DiscoveryNode discoveryNode;
     private static ThreadPool threadPool;
     private TransportService transportService;

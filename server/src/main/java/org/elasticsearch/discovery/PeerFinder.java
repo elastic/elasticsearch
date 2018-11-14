@@ -20,27 +20,40 @@
 package org.elasticsearch.discovery;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.discovery.zen.UnicastZenPing;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.discovery.zen.ZenPing;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +64,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
-public abstract class PeerFinder extends AbstractComponent {
+public abstract class PeerFinder {
+
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     public static final String REQUEST_PEERS_ACTION_NAME = "internal:discovery/request_peers";
 
@@ -63,6 +78,8 @@ public abstract class PeerFinder extends AbstractComponent {
     public static final Setting<TimeValue> DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING =
         Setting.timeSetting("discovery.request_peers_timeout",
             TimeValue.timeValueMillis(3000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+
+    private final Settings settings;
 
     private final TimeValue findPeersInterval;
     private final TimeValue requestPeersTimeout;
@@ -80,6 +97,7 @@ public abstract class PeerFinder extends AbstractComponent {
 
     public PeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector,
                       ConfiguredHostsResolver configuredHostsResolver) {
+        this.settings = settings;
         findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
@@ -89,6 +107,9 @@ public abstract class PeerFinder extends AbstractComponent {
         transportService.registerRequestHandler(REQUEST_PEERS_ACTION_NAME, Names.GENERIC, false, false,
             PeersRequest::new,
             (request, channel, task) -> channel.sendResponse(handlePeersRequest(request)));
+
+        transportService.registerRequestHandler(UnicastZenPing.ACTION_NAME, Names.GENERIC, false, false,
+            UnicastZenPing.UnicastPingRequest::new, new Zen1UnicastPingRequestHandler());
     }
 
     public void activate(final DiscoveryNodes lastAcceptedNodes) {
@@ -209,7 +230,8 @@ public abstract class PeerFinder extends AbstractComponent {
 
     private List<DiscoveryNode> getFoundPeersUnderLock() {
         assert holdsLock() : "PeerFinder mutex not held";
-        return peersByAddress.values().stream().map(Peer::getDiscoveryNode).filter(Objects::nonNull).collect(Collectors.toList());
+        return peersByAddress.values().stream()
+            .map(Peer::getDiscoveryNode).filter(Objects::nonNull).distinct().collect(Collectors.toList());
     }
 
     private Peer createConnectingPeer(TransportAddress transportAddress) {
@@ -384,50 +406,77 @@ public abstract class PeerFinder extends AbstractComponent {
             logger.trace("{} requesting peers", this);
             peersRequestInFlight = true;
 
-            List<DiscoveryNode> knownNodes = getFoundPeersUnderLock();
+            final List<DiscoveryNode> knownNodes = getFoundPeersUnderLock();
 
-            transportService.sendRequest(discoveryNode, REQUEST_PEERS_ACTION_NAME,
-                new PeersRequest(getLocalNode(), knownNodes),
-                TransportRequestOptions.builder().withTimeout(requestPeersTimeout).build(),
-                new TransportResponseHandler<PeersResponse>() {
+            final TransportResponseHandler<PeersResponse> peersResponseHandler = new TransportResponseHandler<PeersResponse>() {
 
-                    @Override
-                    public PeersResponse read(StreamInput in) throws IOException {
-                        return new PeersResponse(in);
-                    }
+                @Override
+                public PeersResponse read(StreamInput in) throws IOException {
+                    return new PeersResponse(in);
+                }
 
-                    @Override
-                    public void handleResponse(PeersResponse response) {
-                        logger.trace("{} received {}", Peer.this, response);
-                        synchronized (mutex) {
-                            if (active == false) {
-                                return;
-                            }
-
-                            peersRequestInFlight = false;
-
-                            response.getMasterNode().map(DiscoveryNode::getAddress).ifPresent(PeerFinder.this::startProbe);
-                            response.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(PeerFinder.this::startProbe);
+                @Override
+                public void handleResponse(PeersResponse response) {
+                    logger.trace("{} received {}", Peer.this, response);
+                    synchronized (mutex) {
+                        if (active == false) {
+                            return;
                         }
 
-                        if (response.getMasterNode().equals(Optional.of(discoveryNode))) {
-                            // Must not hold lock here to avoid deadlock
-                            assert holdsLock() == false : "PeerFinder mutex is held in error";
-                            onActiveMasterFound(discoveryNode, response.getTerm());
-                        }
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
                         peersRequestInFlight = false;
-                        logger.debug(new ParameterizedMessage("{} peers request failed", Peer.this), exp);
+
+                        response.getMasterNode().map(DiscoveryNode::getAddress).ifPresent(PeerFinder.this::startProbe);
+                        response.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(PeerFinder.this::startProbe);
                     }
 
-                    @Override
-                    public String executor() {
-                        return Names.GENERIC;
+                    if (response.getMasterNode().equals(Optional.of(discoveryNode))) {
+                        // Must not hold lock here to avoid deadlock
+                        assert holdsLock() == false : "PeerFinder mutex is held in error";
+                        onActiveMasterFound(discoveryNode, response.getTerm());
                     }
-                });
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    peersRequestInFlight = false;
+                    logger.debug(new ParameterizedMessage("{} peers request failed", Peer.this), exp);
+                }
+
+                @Override
+                public String executor() {
+                    return Names.GENERIC;
+                }
+            };
+            final String actionName;
+            final TransportRequest transportRequest;
+            final TransportResponseHandler<?> transportResponseHandler;
+            if (Coordinator.isZen1Node(discoveryNode)) {
+                actionName = UnicastZenPing.ACTION_NAME;
+                transportRequest = new UnicastZenPing.UnicastPingRequest(1, ZenDiscovery.PING_TIMEOUT_SETTING.get(settings),
+                    new ZenPing.PingResponse(getLocalNode(), null, ClusterName.CLUSTER_NAME_SETTING.get(settings),
+                        ClusterState.UNKNOWN_VERSION));
+                transportResponseHandler = peersResponseHandler.wrap(ucResponse -> {
+                    Optional<DiscoveryNode> optionalMasterNode = Arrays.stream(ucResponse.pingResponses)
+                        .filter(pr -> discoveryNode.equals(pr.node()) && discoveryNode.equals(pr.master()))
+                        .map(ZenPing.PingResponse::node)
+                        .findFirst();
+                    List<DiscoveryNode> discoveredNodes = new ArrayList<>();
+                    if (optionalMasterNode.isPresent() == false) {
+                        Arrays.stream(ucResponse.pingResponses).map(pr -> pr.master()).filter(Objects::nonNull)
+                            .forEach(discoveredNodes::add);
+                        Arrays.stream(ucResponse.pingResponses).map(pr -> pr.node()).forEach(discoveredNodes::add);
+                    }
+                    return new PeersResponse(optionalMasterNode, discoveredNodes, 0L);
+                }, UnicastZenPing.UnicastPingResponse::new);
+            } else {
+                actionName = REQUEST_PEERS_ACTION_NAME;
+                transportRequest = new PeersRequest(getLocalNode(), knownNodes);
+                transportResponseHandler = peersResponseHandler;
+            }
+            transportService.sendRequest(discoveryNode, actionName,
+                transportRequest,
+                TransportRequestOptions.builder().withTimeout(requestPeersTimeout).build(),
+                transportResponseHandler);
         }
 
         @Override
@@ -437,6 +486,22 @@ public abstract class PeerFinder extends AbstractComponent {
                 ", discoveryNode=" + discoveryNode.get() +
                 ", peersRequestInFlight=" + peersRequestInFlight +
                 '}';
+        }
+    }
+
+    private class Zen1UnicastPingRequestHandler implements TransportRequestHandler<UnicastZenPing.UnicastPingRequest> {
+        @Override
+        public void messageReceived(UnicastZenPing.UnicastPingRequest request, TransportChannel channel, Task task) throws Exception {
+            final PeersRequest peersRequest = new PeersRequest(request.pingResponse.node(),
+                Optional.ofNullable(request.pingResponse.master()).map(Collections::singletonList).orElse(Collections.emptyList()));
+            final PeersResponse peersResponse = handlePeersRequest(peersRequest);
+            final List<ZenPing.PingResponse> pingResponses = new ArrayList<>();
+            final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
+            pingResponses.add(new ZenPing.PingResponse(transportService.getLocalNode(), peersResponse.getMasterNode().orElse(null),
+                clusterName, 0L));
+            peersResponse.getKnownPeers().forEach(dn -> pingResponses.add(
+                new ZenPing.PingResponse(dn, null, clusterName, ClusterState.UNKNOWN_VERSION)));
+            channel.sendResponse(new UnicastZenPing.UnicastPingResponse(request.id, pingResponses.toArray(new ZenPing.PingResponse[0])));
         }
     }
 }

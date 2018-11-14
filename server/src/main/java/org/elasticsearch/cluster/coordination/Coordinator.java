@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapConfiguration;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -75,7 +76,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -641,8 +641,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
             .filter(this::hasJoinVoteFrom).collect(Collectors.toSet());
-        final ClusterState.VotingConfiguration newConfig = reconfigurator.reconfigure(
-            liveNodes, emptySet(), clusterState.getLastAcceptedConfiguration());
+        final ClusterState.VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes,
+            clusterState.getVotingTombstones().stream().map(DiscoveryNode::getId).collect(Collectors.toSet()),
+            clusterState.getLastAcceptedConfiguration());
         if (newConfig.equals(clusterState.getLastAcceptedConfiguration()) == false) {
             assert coordinationState.get().joinVotesHaveQuorumFor(newConfig);
             return ClusterState.builder(clusterState).lastAcceptedConfiguration(newConfig).build();
@@ -1110,7 +1111,18 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         @Override
         protected void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommit,
                                        ActionListener<Empty> responseActionListener) {
-            publicationHandler.sendApplyCommit(destination, applyCommit, wrapWithMutex(responseActionListener));
+            publicationContext.sendApplyCommit(destination, applyCommit, wrapWithMutex(responseActionListener));
         }
+    }
+
+    // TODO: only here temporarily for BWC development, remove once complete
+    public static Settings.Builder addZen1Attribute(Settings.Builder builder) {
+        return builder.put("node.attr.zen1", true);
+    }
+
+    // TODO: only here temporarily for BWC development, remove once complete
+    public static boolean isZen1Node(DiscoveryNode discoveryNode) {
+        return discoveryNode.getVersion().before(Version.V_7_0_0) ||
+            discoveryNode.getAttributes().containsKey("zen1");
     }
 }

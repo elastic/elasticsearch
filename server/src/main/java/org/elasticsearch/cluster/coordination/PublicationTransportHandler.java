@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -29,7 +31,6 @@ import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -39,11 +40,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -52,12 +55,16 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class PublicationTransportHandler extends AbstractComponent {
+public class PublicationTransportHandler {
+
+    private static final Logger logger = LogManager.getLogger(PublicationTransportHandler.class);
 
     public static final String PUBLISH_STATE_ACTION_NAME = "internal:cluster/coordination/publish_state";
     public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
@@ -80,31 +87,57 @@ public class PublicationTransportHandler extends AbstractComponent {
         this.handlePublishRequest = handlePublishRequest;
 
         transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, BytesTransportRequest::new, ThreadPool.Names.GENERIC,
-            false, false, (request, channel, task) -> handleIncomingPublishRequest(request, channel));
+            false, false, (request, channel, task) -> channel.sendResponse(handleIncomingPublishRequest(request)));
+
+        transportService.registerRequestHandler(PublishClusterStateAction.SEND_ACTION_NAME, BytesTransportRequest::new,
+            ThreadPool.Names.GENERIC,
+            false, false, (request, channel, task) -> {
+                handleIncomingPublishRequest(request);
+                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            });
 
         transportService.registerRequestHandler(COMMIT_STATE_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
             ApplyCommitRequest::new,
-            (request, channel, task) -> handleApplyCommit.accept(request, new ActionListener<Void>() {
+            (request, channel, task) -> handleApplyCommit.accept(request, transportCommitCallback(channel)));
 
-                @Override
-                public void onResponse(Void aVoid) {
-                    try {
-                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    } catch (IOException e) {
-                        logger.debug("failed to send response on commit", e);
-                    }
+        transportService.registerRequestHandler(PublishClusterStateAction.COMMIT_ACTION_NAME,
+            PublishClusterStateAction.CommitClusterStateRequest::new,
+            ThreadPool.Names.GENERIC, false, false,
+            (request, channel, task) -> {
+                final Optional<ClusterState> matchingClusterState = Optional.ofNullable(lastSeenClusterState.get()).filter(
+                    cs -> cs.stateUUID().equals(request.stateUUID));
+                if (matchingClusterState.isPresent() == false) {
+                    throw new IllegalStateException("can't resolve cluster state with uuid" +
+                        " [" + request.stateUUID + "] to commit");
                 }
+                final ApplyCommitRequest applyCommitRequest = new ApplyCommitRequest(matchingClusterState.get().getNodes().getMasterNode(),
+                    matchingClusterState.get().term(), matchingClusterState.get().version());
+                handleApplyCommit.accept(applyCommitRequest, transportCommitCallback(channel));
+            });
+    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (IOException ie) {
-                        e.addSuppressed(ie);
-                        logger.debug("failed to send response on commit", e);
-                    }
+    private ActionListener<Void> transportCommitCallback(TransportChannel channel) {
+        return new ActionListener<Void>() {
+
+            @Override
+            public void onResponse(Void aVoid) {
+                try {
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                } catch (IOException e) {
+                    logger.debug("failed to send response on commit", e);
                 }
-            }));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    channel.sendResponse(e);
+                } catch (IOException ie) {
+                    e.addSuppressed(ie);
+                    logger.debug("failed to send response on commit", e);
+                }
+            }
+        };
     }
 
     public PublishClusterStateStats stats() {
@@ -118,6 +151,9 @@ public class PublicationTransportHandler extends AbstractComponent {
 
         void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
                                 ActionListener<PublishWithJoinResponse> responseActionListener);
+
+        void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommitRequest,
+                             ActionListener<TransportResponse.Empty> responseActionListener);
 
     }
 
@@ -136,34 +172,78 @@ public class PublicationTransportHandler extends AbstractComponent {
         buildDiffAndSerializeStates(clusterChangedEvent.state(), clusterChangedEvent.previousState(),
             nodes, sendFullVersion, serializedStates, serializedDiffs);
 
-        return (destination, publishRequest, responseActionListener) -> {
-            assert publishRequest.getAcceptedState() == clusterChangedEvent.state() : "state got switched on us";
-            if (destination.equals(nodes.getLocalNode())) {
-                // the master needs the original non-serialized state as the cluster state contains some volatile information that we don't
-                // want to be replicated because it's not usable on another node (e.g. UnassignedInfo.unassignedTimeNanos) or because it's
-                // mostly just debugging info that would unnecessarily blow up CS updates (I think there was one in snapshot code).
-                // TODO: look into these and check how to get rid of them
-                transportService.getThreadPool().generic().execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        // wrap into fake TransportException, as that's what we expect in Publication
-                        responseActionListener.onFailure(new TransportException(e));
-                    }
+        return new PublicationContext() {
+            @Override
+            public void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
+                                           ActionListener<PublishWithJoinResponse> responseActionListener) {
+                assert publishRequest.getAcceptedState() == clusterChangedEvent.state() : "state got switched on us";
+                if (destination.equals(nodes.getLocalNode())) {
+                    // the master needs the original non-serialized state as the cluster state contains some volatile information that we
+                    // don't want to be replicated because it's not usable on another node (e.g. UnassignedInfo.unassignedTimeNanos) or
+                    // because it's mostly just debugging info that would unnecessarily blow up CS updates (I think there was one in
+                    // snapshot code).
+                    // TODO: look into these and check how to get rid of them
+                    transportService.getThreadPool().generic().execute(new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Exception e) {
+                            // wrap into fake TransportException, as that's what we expect in Publication
+                            responseActionListener.onFailure(new TransportException(e));
+                        }
 
-                    @Override
-                    protected void doRun() {
-                        responseActionListener.onResponse(handlePublishRequest.apply(publishRequest));
-                    }
+                        @Override
+                        protected void doRun() {
+                            responseActionListener.onResponse(handlePublishRequest.apply(publishRequest));
+                        }
 
-                    @Override
-                    public String toString() {
-                        return "publish to self of " + publishRequest;
-                    }
-                });
-            } else if (sendFullVersion || !previousState.nodes().nodeExists(destination)) {
-                sendFullClusterState(newState, serializedStates, destination, responseActionListener);
-            } else {
-                sendClusterStateDiff(newState, serializedDiffs, serializedStates, destination, responseActionListener);
+                        @Override
+                        public String toString() {
+                            return "publish to self of " + publishRequest;
+                        }
+                    });
+                } else if (sendFullVersion || !previousState.nodes().nodeExists(destination)) {
+                    PublicationTransportHandler.this.sendFullClusterState(newState, serializedStates, destination, responseActionListener);
+                } else {
+                    PublicationTransportHandler.this.sendClusterStateDiff(newState, serializedDiffs, serializedStates, destination,
+                        responseActionListener);
+                }
+            }
+
+            @Override
+            public void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommitRequest,
+                                        ActionListener<TransportResponse.Empty> responseActionListener) {
+                TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).build();
+                final String actionName;
+                final TransportRequest transportRequest;
+                if (Coordinator.isZen1Node(destination)) {
+                    actionName = PublishClusterStateAction.COMMIT_ACTION_NAME;
+                    transportRequest = new PublishClusterStateAction.CommitClusterStateRequest(newState.stateUUID());
+                } else {
+                    actionName = COMMIT_STATE_ACTION_NAME;
+                    transportRequest = applyCommitRequest;
+                }
+                transportService.sendRequest(destination, actionName, transportRequest, options,
+                    new TransportResponseHandler<TransportResponse.Empty>() {
+
+                        @Override
+                        public TransportResponse.Empty read(StreamInput in) {
+                            return TransportResponse.Empty.INSTANCE;
+                        }
+
+                        @Override
+                        public void handleResponse(TransportResponse.Empty response) {
+                            responseActionListener.onResponse(response);
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            responseActionListener.onFailure(exp);
+                        }
+
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.GENERIC;
+                        }
+                    });
             }
         };
     }
@@ -175,11 +255,19 @@ public class PublicationTransportHandler extends AbstractComponent {
             // -> no need to put a timeout on the options here, because we want the response to eventually be received
             //  and not log an error if it arrives after the timeout
             // -> no need to compress, we already compressed the bytes
-            TransportRequestOptions options = TransportRequestOptions.builder()
+            final TransportRequestOptions options = TransportRequestOptions.builder()
                 .withType(TransportRequestOptions.Type.STATE).withCompress(false).build();
-            transportService.sendRequest(node, PUBLISH_STATE_ACTION_NAME,
-                new BytesTransportRequest(bytes, node.getVersion()),
-                options,
+            final BytesTransportRequest request = new BytesTransportRequest(bytes, node.getVersion());
+            final Consumer<TransportException> transportExceptionHandler = exp -> {
+                if (sendDiffs && exp.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
+                    logger.debug("resending full cluster state to node {} reason {}", node, exp.getDetailedMessage());
+                    sendFullClusterState(clusterState, serializedStates, node, responseActionListener);
+                } else {
+                    logger.debug(() -> new ParameterizedMessage("failed to send cluster state to {}", node), exp);
+                    responseActionListener.onFailure(exp);
+                }
+            };
+            final TransportResponseHandler<PublishWithJoinResponse> publishWithJoinResponseHandler =
                 new TransportResponseHandler<PublishWithJoinResponse>() {
 
                     @Override
@@ -194,20 +282,27 @@ public class PublicationTransportHandler extends AbstractComponent {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        if (sendDiffs && exp.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
-                            logger.debug("resending full cluster state to node {} reason {}", node, exp.getDetailedMessage());
-                            sendFullClusterState(clusterState, serializedStates, node, responseActionListener);
-                        } else {
-                            logger.debug(() -> new ParameterizedMessage("failed to send cluster state to {}", node), exp);
-                            responseActionListener.onFailure(exp);
-                        }
+                        transportExceptionHandler.accept(exp);
                     }
 
                     @Override
                     public String executor() {
                         return ThreadPool.Names.GENERIC;
                     }
-                });
+                };
+            final String actionName;
+            final TransportResponseHandler<?> transportResponseHandler;
+            if (Coordinator.isZen1Node(node)) {
+                actionName = PublishClusterStateAction.SEND_ACTION_NAME;
+                transportResponseHandler = publishWithJoinResponseHandler.wrap(empty -> new PublishWithJoinResponse(
+                    new PublishResponse(clusterState.term(), clusterState.version()),
+                    Optional.of(new Join(node, transportService.getLocalNode(), clusterState.term(), clusterState.term(),
+                        clusterState.version()))), in -> TransportResponse.Empty.INSTANCE);
+            } else {
+                actionName = PUBLISH_STATE_ACTION_NAME;
+                transportResponseHandler = publishWithJoinResponseHandler;
+            }
+            transportService.sendRequest(node, actionName, request, options, transportResponseHandler);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", node), e);
             responseActionListener.onFailure(e);
@@ -283,7 +378,7 @@ public class PublicationTransportHandler extends AbstractComponent {
         return bStream.bytes();
     }
 
-    private void handleIncomingPublishRequest(BytesTransportRequest request, TransportChannel channel) throws IOException {
+    private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
         final Compressor compressor = CompressorFactory.compressor(request.bytes());
         StreamInput in = request.bytes().streamInput();
         final ClusterState incomingState;
@@ -324,34 +419,6 @@ public class PublicationTransportHandler extends AbstractComponent {
             IOUtils.close(in);
         }
 
-        channel.sendResponse(handlePublishRequest.apply(new PublishRequest(incomingState)));
-    }
-
-    public void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommitRequest,
-                                ActionListener<TransportResponse.Empty> responseActionListener) {
-        TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).build();
-        transportService.sendRequest(destination, COMMIT_STATE_ACTION_NAME, applyCommitRequest, options,
-            new TransportResponseHandler<TransportResponse.Empty>() {
-
-                @Override
-                public TransportResponse.Empty read(StreamInput in) {
-                    return TransportResponse.Empty.INSTANCE;
-                }
-
-                @Override
-                public void handleResponse(TransportResponse.Empty response) {
-                    responseActionListener.onResponse(response);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    responseActionListener.onFailure(exp);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.GENERIC;
-                }
-            });
+        return handlePublishRequest.apply(new PublishRequest(incomingState));
     }
 }

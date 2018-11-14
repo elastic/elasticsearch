@@ -19,6 +19,8 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.CloseableThreadContext;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
@@ -34,7 +36,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -1295,7 +1296,9 @@ public class CoordinatorTests extends ESTestCase {
             }
         }
 
-        class ClusterNode extends AbstractComponent {
+        class ClusterNode {
+            private final Logger logger = LogManager.getLogger(ClusterNode.class);
+
             private final int nodeIndex;
             private Coordinator coordinator;
             private DiscoveryNode localNode;

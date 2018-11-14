@@ -62,6 +62,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -72,6 +73,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Represents the current state of the cluster.
@@ -186,18 +188,21 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     private final VotingConfiguration lastAcceptedConfiguration;
 
+    private final Set<DiscoveryNode> votingTombstones;
+
     // built on demand
     private volatile RoutingNodes routingNodes;
 
     public ClusterState(long term, long version, String stateUUID, ClusterState state) {
         this(state.clusterName, term, version, stateUUID, state.metaData(), state.routingTable(), state.nodes(), state.blocks(),
-            state.customs(), state.getLastCommittedConfiguration(), state.getLastAcceptedConfiguration(), false);
+            state.customs(), state.getLastCommittedConfiguration(), state.getLastAcceptedConfiguration(), state.getVotingTombstones(),
+            false);
     }
 
     public ClusterState(ClusterName clusterName, long term, long version, String stateUUID, MetaData metaData, RoutingTable routingTable,
                         DiscoveryNodes nodes, ClusterBlocks blocks, ImmutableOpenMap<String, Custom> customs,
                         VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
-                        boolean wasReadFromDiff) {
+                        Set<DiscoveryNode> votingTombstones, boolean wasReadFromDiff) {
         this.term = term;
         this.version = version;
         this.stateUUID = stateUUID;
@@ -209,6 +214,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         this.customs = customs;
         this.lastCommittedConfiguration = lastCommittedConfiguration;
         this.lastAcceptedConfiguration = lastAcceptedConfiguration;
+        this.votingTombstones = votingTombstones;
         this.wasReadFromDiff = wasReadFromDiff;
     }
 
@@ -288,6 +294,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return lastCommittedConfiguration;
     }
 
+    public Set<DiscoveryNode> getVotingTombstones() {
+        return votingTombstones;
+    }
+
     // Used for testing and logging to determine how this cluster state was send over the wire
     public boolean wasReadFromDiff() {
         return wasReadFromDiff;
@@ -313,6 +323,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         sb.append("state uuid: ").append(stateUUID).append("\n");
         sb.append("last committed config: ").append(getLastCommittedConfiguration()).append("\n");
         sb.append("last accepted config: ").append(getLastAcceptedConfiguration()).append("\n");
+        sb.append("voting tombstones: ").append(votingTombstones).append("\n");
         sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
         sb.append("meta data version: ").append(metaData.version()).append("\n");
         final String TAB = "   ";
@@ -428,6 +439,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.field("state_uuid", stateUUID);
             builder.field("last_committed_config", lastCommittedConfiguration);
             builder.field("last_accepted_config", lastAcceptedConfiguration);
+            // TODO include voting tombstones here
         }
 
         if (metrics.contains(Metric.MASTER_NODE)) {
@@ -637,6 +649,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
         private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
+        private final Set<DiscoveryNode> votingTombstones = new HashSet<>();
         private boolean fromDiff;
 
 
@@ -647,6 +660,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             this.uuid = state.stateUUID();
             this.lastCommittedConfiguration = state.getLastCommittedConfiguration();
             this.lastAcceptedConfiguration = state.getLastAcceptedConfiguration();
+            this.votingTombstones.addAll(state.getVotingTombstones());
             this.nodes = state.nodes();
             this.routingTable = state.routingTable();
             this.metaData = state.metaData();
@@ -752,7 +766,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 uuid = UUIDs.randomBase64UUID();
             }
             return new ClusterState(clusterName, term, version, uuid, metaData, routingTable, nodes, blocks, customs.build(),
-                lastCommittedConfiguration, lastAcceptedConfiguration, fromDiff);
+                lastCommittedConfiguration, lastAcceptedConfiguration, Collections.unmodifiableSet(new HashSet<>(votingTombstones)),
+                fromDiff);
         }
 
         public static byte[] toBytes(ClusterState state) throws IOException {
@@ -769,6 +784,14 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(data), registry);
             return readFrom(in, localNode);
 
+        }
+
+        public void addVotingTombstone(DiscoveryNode tombstone) {
+            votingTombstones.add(tombstone);
+        }
+
+        public void clearVotingTombstones() {
+            votingTombstones.clear();
         }
     }
 
@@ -792,6 +815,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             builder.lastCommittedConfiguration(new VotingConfiguration(in));
             builder.lastAcceptedConfiguration(new VotingConfiguration(in));
+            in.readSet(DiscoveryNode::new).forEach(builder::addVotingTombstone);
         }
         builder.metaData = MetaData.readFrom(in);
         builder.routingTable = RoutingTable.readFrom(in);
@@ -816,6 +840,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             lastCommittedConfiguration.writeTo(out);
             lastAcceptedConfiguration.writeTo(out);
+            out.writeCollection(votingTombstones, (o, v) -> v.writeTo(o));
         }
         metaData.writeTo(out);
         routingTable.writeTo(out);
@@ -852,6 +877,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         private final VotingConfiguration lastAcceptedConfiguration;
 
+        private final Set<DiscoveryNode> votingTombstones;
+
         private final Diff<RoutingTable> routingTable;
 
         private final Diff<DiscoveryNodes> nodes;
@@ -870,6 +897,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             clusterName = after.clusterName;
             lastCommittedConfiguration = after.lastCommittedConfiguration;
             lastAcceptedConfiguration = after.lastAcceptedConfiguration;
+            votingTombstones = after.votingTombstones;
             routingTable = after.routingTable.diff(before.routingTable);
             nodes = after.nodes.diff(before.nodes);
             metaData = after.metaData.diff(before.metaData);
@@ -890,9 +918,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                 lastCommittedConfiguration = new VotingConfiguration(in);
                 lastAcceptedConfiguration = new VotingConfiguration(in);
+                votingTombstones = in.readSet(DiscoveryNode::new);
             } else {
                 lastCommittedConfiguration = VotingConfiguration.EMPTY_CONFIG;
                 lastAcceptedConfiguration = VotingConfiguration.EMPTY_CONFIG;
+                votingTombstones = Collections.emptySet();
             }
             routingTable = RoutingTable.readDiffFrom(in);
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
@@ -913,6 +943,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 lastCommittedConfiguration.writeTo(out);
                 lastAcceptedConfiguration.writeTo(out);
+                out.writeCollection(votingTombstones, (o, v) -> v.writeTo(o));
             }
             routingTable.writeTo(out);
             nodes.writeTo(out);
@@ -936,6 +967,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.version(toVersion);
             builder.lastCommittedConfiguration(lastCommittedConfiguration);
             builder.lastAcceptedConfiguration(lastAcceptedConfiguration);
+            votingTombstones.forEach(builder::addVotingTombstone);
             builder.routingTable(routingTable.apply(state.routingTable));
             builder.nodes(nodes.apply(state.nodes));
             builder.metaData(metaData.apply(state.metaData));
@@ -1008,6 +1040,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 builder.value(nodeId);
             }
             return builder.endArray();
+        }
+
+        public static VotingConfiguration of(DiscoveryNode... nodes) {
+            // this could be used in many more places - TODO use this where appropriate
+            return new VotingConfiguration(Arrays.stream(nodes).map(DiscoveryNode::getId).collect(Collectors.toSet()));
         }
     }
 }

@@ -129,13 +129,13 @@ public class ClusterStateResponse extends ActionResponse {
         ClusterStateResponse response = (ClusterStateResponse) o;
         return timedOut == response.timedOut &&
             Objects.equals(clusterName, response.clusterName) &&
-            // Best effort. Left of cluster state, because it doesn't implement equals() and hashcode()
+            // Best effort. Left out cluster state, because it doesn't implement equals() and hashcode()
             Objects.equals(totalCompressedSize, response.totalCompressedSize);
     }
 
     @Override
     public int hashCode() {
-        // Best effort for testing. Left of cluster state, because it doesn't implement equals() and hashcode()
+        // Best effort for testing. Left out cluster state, because it doesn't implement equals() and hashcode()
         return Objects.hash(clusterName, totalCompressedSize, timedOut);
     }
 }

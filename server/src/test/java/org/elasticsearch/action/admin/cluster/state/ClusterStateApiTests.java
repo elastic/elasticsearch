@@ -47,7 +47,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         // Pick an arbitrary dynamic cluster setting and change it. Just to get metadata version incremented:
-        updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.max_shards_per_node", 999));
+        updateSettingsRequest.transientSettings(Settings.builder().put("cluster.max_shards_per_node", 999));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         assertBusy(() -> {
@@ -70,7 +70,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
 
         // Remove transient setting, otherwise test fails with the reason that this test leaves state behind:
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.max_shards_per_node", (String) null));
+        updateSettingsRequest.transientSettings(Settings.builder().put("cluster.max_shards_per_node", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
     }
 

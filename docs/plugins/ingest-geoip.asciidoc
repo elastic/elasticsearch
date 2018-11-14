@@ -182,14 +182,14 @@ Which returns:
 --------------------------------------------------
 // TESTRESPONSE
 
-[[mappings-note]]
+[[ingest-geoip-mappings-note]]
 ===== Recognizing Location as a Geopoint
 Although this plugin enriches your document with a `location` field containing
-the estimated latitude and longitude of the ip-address, this field will not be
+the estimated latitude and longitude of the IP address, this field will not be
 indexed as a <<geo-point,`geo_point`>> type in Elasticsearch without explicitely defining it
 as such in the mapping.
 
-For example, here would be the mapping for the example index used in the above examples
+You can use the following mapping for the example index above:
 
 [source,js]
 --------------------------------------------------

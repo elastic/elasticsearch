@@ -34,10 +34,15 @@ public final class DatafeedJobValidator {
         }
 
         DelayedDataCheckConfig delayedDataCheckConfig = datafeedConfig.getDelayedDataCheckConfig();
-        TimeValue delayedDataCheckWindow =  delayedDataCheckConfig.getCheckWindow();
         TimeValue bucketSpan = analysisConfig.getBucketSpan();
-        if (delayedDataCheckConfig.isEnabled()
-            && delayedDataCheckWindow.equals(DelayedDataCheckConfig.DEFAULT_DELAYED_DATA_WINDOW) == false) {
+        if (delayedDataCheckConfig.isEnabled()) {
+            checkValidDelayedDataCheckConfig(bucketSpan, delayedDataCheckConfig);
+        }
+    }
+
+    private static void checkValidDelayedDataCheckConfig(TimeValue bucketSpan, DelayedDataCheckConfig delayedDataCheckConfig) {
+        TimeValue delayedDataCheckWindow =  delayedDataCheckConfig.getCheckWindow();
+        if (delayedDataCheckWindow.equals(DelayedDataCheckConfig.DEFAULT_DELAYED_DATA_WINDOW) == false) {
             if (delayedDataCheckWindow.compareTo(bucketSpan) < 0) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL,

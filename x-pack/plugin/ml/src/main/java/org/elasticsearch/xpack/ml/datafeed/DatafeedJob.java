@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
@@ -169,14 +171,14 @@ class DatafeedJob {
 
             // Keep track of the last bucket time for which we did a missing data check
             this.lastDataCheckTimeMs = this.currentTimeSupplier.get();
-            List<DelayedDataDetector.BucketWithMissingData> response = delayedDataDetector.detectMissingData(latestFinalBucketEndTimeMs);
-            if (response.isEmpty() == false) {
+            List<BucketWithMissingData> missingDataBuckets = delayedDataDetector.detectMissingData(latestFinalBucketEndTimeMs);
+            if (missingDataBuckets.isEmpty() == false) {
 
-                long totalRecordsMissing = response.stream()
-                    .mapToLong(DelayedDataDetector.BucketWithMissingData::getMissingDocumentCount)
+                long totalRecordsMissing = missingDataBuckets.stream()
+                    .mapToLong(BucketWithMissingData::getMissingDocumentCount)
                     .sum();
                 // The response is sorted by asc timestamp, so the last entry is the last bucket
-                Date lastBucketDate = response.get(response.size()-1).getBucket().getTimestamp();
+                Date lastBucketDate = missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket().getTimestamp();
                 int newAudit = Objects.hash(totalRecordsMissing, lastBucketDate);
                 if (newAudit != lastDataCheckAudit) {
                     auditor.warning(jobId,

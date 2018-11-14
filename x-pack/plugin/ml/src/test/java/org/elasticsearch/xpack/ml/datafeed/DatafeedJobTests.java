@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -87,6 +89,7 @@ public class DatafeedJobTests extends ESTestCase {
         flushJobFuture = mock(ActionFuture.class);
         flushJobResponse = new FlushJobAction.Response();
         delayedDataDetector = mock(DelayedDataDetector.class);
+        when(delayedDataDetector.getWindow()).thenReturn(DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS);
         currentTime = 0;
         xContentType = XContentType.JSON;
 
@@ -208,7 +211,7 @@ public class DatafeedJobTests extends ESTestCase {
         when(flushJobFuture.actionGet()).thenReturn(flushJobResponse);
         when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
         when(delayedDataDetector.detectMissingData(2000))
-            .thenReturn(Collections.singletonList(DelayedDataDetector.BucketWithMissingData.fromMissingAndBucket(10, bucket)));
+            .thenReturn(Collections.singletonList(BucketWithMissingData.fromMissingAndBucket(10, bucket)));
         currentTime = 60000L;
         long frequencyMs = 100;
         long queryDelayMs = 1000;

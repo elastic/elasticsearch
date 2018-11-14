@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.datafeed;
+package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
@@ -20,32 +20,35 @@ import java.util.Collections;
 import java.util.Date;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 
-public class DelayedDataDetectorTests extends ESTestCase {
+public class DelayedDataDetectorFactoryTests extends ESTestCase {
 
-    public void testConstructor() {
+    public void testBuilder() {
             Job job = createJob(TimeValue.timeValueSeconds(2));
 
             DatafeedConfig datafeedConfig = createDatafeed(false, null);
 
             // Should not throw
-            new DelayedDataDetector(job, datafeedConfig, mock(Client.class));
+        assertThat(DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, mock(Client.class)),
+            instanceOf(NullDelayedDataDetector.class));
 
             datafeedConfig = createDatafeed(true, TimeValue.timeValueMinutes(10));
 
             // Should not throw
-            new DelayedDataDetector(job, datafeedConfig, mock(Client.class));
+        assertThat(DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, mock(Client.class)),
+            instanceOf(DatafeedDelayedDataDetector.class));
 
             DatafeedConfig tooSmallDatafeedConfig = createDatafeed(true, TimeValue.timeValueSeconds(1));
             IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
-                () -> new DelayedDataDetector(job, tooSmallDatafeedConfig, mock(Client.class)));
+                () -> DelayedDataDetectorFactory.buildDetector(job, tooSmallDatafeedConfig, mock(Client.class)));
             assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL, "1s", "2s"), e.getMessage());
 
             DatafeedConfig tooBigDatafeedConfig = createDatafeed(true, TimeValue.timeValueHours(12));
             e = ESTestCase.expectThrows(IllegalArgumentException.class,
-                () -> new DelayedDataDetector(job, tooBigDatafeedConfig, mock(Client.class)));
+                () -> DelayedDataDetectorFactory.buildDetector(job, tooBigDatafeedConfig, mock(Client.class)));
             assertEquals(Messages.getMessage(
                 Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, "12h", "2s"), e.getMessage());
 
@@ -53,17 +56,9 @@ public class DelayedDataDetectorTests extends ESTestCase {
             datafeedConfig = createDatafeed(true, DelayedDataCheckConfig.DEFAULT_DELAYED_DATA_WINDOW);
 
             // Should not throw
-            DelayedDataDetector delayedDataDetector = new DelayedDataDetector(withBigBucketSpan, datafeedConfig, mock(Client.class));
+        DelayedDataDetector delayedDataDetector =
+            DelayedDataDetectorFactory.buildDetector(withBigBucketSpan, datafeedConfig, mock(Client.class));
             assertThat(delayedDataDetector.getWindow(), equalTo(TimeValue.timeValueHours(3).millis() * 7));
-    }
-
-    public void testDetectMissingData_WhenShouldDetectDelayedDataIsFalse() {
-        Job job = createJob(TimeValue.timeValueSeconds(1));
-        DelayedDataDetector delayedDataDetector = new DelayedDataDetector(job, createDatafeed(false,
-            TimeValue.timeValueMinutes(10)),
-            mock(Client.class));
-
-        assertThat(delayedDataDetector.detectMissingData(100000).isEmpty(), equalTo(true));
     }
 
     private Job createJob(TimeValue bucketSpan) {

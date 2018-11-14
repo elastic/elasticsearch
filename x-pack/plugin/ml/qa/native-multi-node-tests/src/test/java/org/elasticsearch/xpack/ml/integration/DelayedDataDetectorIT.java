@@ -27,8 +27,9 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.datafeed.DelayedDataDetector;
-import org.elasticsearch.xpack.ml.datafeed.DelayedDataDetector.BucketWithMissingData;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.junit.After;
 import org.junit.Before;
 
@@ -81,15 +82,14 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         // Get the latest finalized bucket
         Bucket lastBucket = getLatestFinalizedBucket(jobId);
 
-        DelayedDataDetector delayedDataDetector =
-            new DelayedDataDetector(job.build(new Date()), datafeedConfig, client());
+        DelayedDataDetector delayedDataDetector = newDetector(job.build(new Date()), datafeedConfig);
 
         List<BucketWithMissingData> response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
         assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum(), equalTo(0L));
 
         long missingDocs = randomIntBetween(32, 128);
         // Simply adding data within the current delayed data detection, the choice of 43100000 is arbitrary and within the window
-        // for the DelayedDataDetector
+        // for the DatafeedDelayedDataDetector
         writeData(logger, index, missingDocs, now - 43100000, lastBucket.getEpoch()*1000);
 
         response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
@@ -121,8 +121,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         // Get the latest finalized bucket
         Bucket lastBucket = getLatestFinalizedBucket(jobId);
 
-        DelayedDataDetector delayedDataDetector =
-            new DelayedDataDetector(job.build(new Date()), datafeedConfig, client());
+        DelayedDataDetector delayedDataDetector = newDetector(job.build(new Date()), datafeedConfig);
 
         long missingDocs = randomIntBetween(1, 10);
 
@@ -177,15 +176,14 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         // Get the latest finalized bucket
         Bucket lastBucket = getLatestFinalizedBucket(jobId);
 
-        DelayedDataDetector delayedDataDetector =
-            new DelayedDataDetector(job.build(new Date()), datafeedConfig, client());
+        DelayedDataDetector delayedDataDetector = newDetector(job.build(new Date()), datafeedConfig);
 
         List<BucketWithMissingData> response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
         assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum(), equalTo(0L));
 
         long missingDocs = numDocs;
         // Simply adding data within the current delayed data detection, the choice of 43100000 is arbitrary and within the window
-        // for the DelayedDataDetector
+        // for the DatafeedDelayedDataDetector
         writeData(logger, index, missingDocs, now - 43100000, lastBucket.getEpoch()*1000);
 
         response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
@@ -250,5 +248,9 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         getBucketsRequest.setDescending(true);
         getBucketsRequest.setPageParams(new PageParams(0, 1));
         return getBuckets(getBucketsRequest).get(0);
+    }
+
+    private DelayedDataDetector newDetector(Job job, DatafeedConfig datafeedConfig) {
+        return DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, client());
     }
 }

@@ -43,7 +43,7 @@ public final class Messages {
             "Datafeed frequency [{0}] must be a multiple of the aggregation interval [{1}]";
     public static final String DATAFEED_ID_ALREADY_TAKEN = "A datafeed with id [{0}] already exists";
 
-    public static final String FILTER_CANNOT_DELETE = "Cannot delete filter [{0}] currently used by jobs [{1}]";
+    public static final String FILTER_CANNOT_DELETE = "Cannot delete filter [{0}] currently used by jobs {1}";
     public static final String FILTER_CONTAINS_TOO_MANY_ITEMS = "Filter [{0}] contains too many items; up to [{1}] items are allowed";
     public static final String FILTER_NOT_FOUND = "No filter with id [{0}] exists";
 

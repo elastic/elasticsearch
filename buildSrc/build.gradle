@@ -92,7 +92,10 @@ compileMinimumRuntimeGroovy {
   sourceCompatibility = minimumRuntimeVersion
 }
 dependencies {
-  compile sourceSets.minimumRuntime.output
+  if (project.ext.has("isEclipse") == false || project.ext.isEclipse == false) {
+      // eclipse is confused if this is set explicitly
+    compile sourceSets.minimumRuntime.output
+  }
   minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
   minimumRuntimeCompile localGroovy()
 }

@@ -265,6 +265,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-put-calendar>>
 * <<{upid}-delete-calendar>>
 * <<{upid}-put-filter>>
+* <<{upid}-get-model-snapshots>>
 * <<{upid}-get-filters>>
 * <<{upid}-delete-model-snapshot>>
 
@@ -296,6 +297,7 @@ include::ml/get-calendars.asciidoc[]
 include::ml/put-calendar.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
 include::ml/put-filter.asciidoc[]
+include::ml/get-model-snapshots.asciidoc[]
 include::ml/get-filters.asciidoc[]
 include::ml/delete-model-snapshot.asciidoc[]
 
@@ -353,12 +355,14 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-delete-role-mapping>>
 * <<java-rest-high-security-create-token>>
 * <<{upid}-invalidate-token>>
+* <<{upid}-delete-privileges>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
 include::security/disable-user.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/delete-role.asciidoc[]
+include::security/delete-privileges.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/clear-realm-cache.asciidoc[]
 include::security/authenticate.asciidoc[]

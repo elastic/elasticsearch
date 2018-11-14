@@ -62,9 +62,8 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
                 .filter(id -> mlMetadata.getJobs().containsKey(id))
                 .collect(Collectors.toList());
 
-        // As this action is only called by pre v6.6.0 nodes that cannot run jobs
-        // defined in the index this check should not be necessary i.e. the
-        // job config must be in the clusterstate
+        // This action should not be called for jobs that have
+        // their configuration in index documents 
 
         if (jobsInClusterState.isEmpty()) {
             // This action is a no-op for jobs not defined in the cluster state.

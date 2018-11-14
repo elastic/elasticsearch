@@ -27,7 +27,7 @@ import java.util.Objects;
  */
 public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
-    public static final String NAME = "check_rollover_ready";
+    public static final String NAME = "check-rollover-ready";
 
     private static final Logger logger = LogManager.getLogger(WaitForRolloverReadyStep.class);
 

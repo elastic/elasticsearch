@@ -941,7 +941,7 @@ public final class InternalTestCluster extends TestCluster {
 
         private void recreateNode(final Settings newSettings, final Runnable onTransportServiceStarted) {
             if (closed.get() == false) {
-                throw new RuntimeException("should be closed");
+                throw new IllegalStateException("node " + name + " should be closed before recreating it");
             }
             // use a new seed to make sure we have new node id
             final long newIdSeed = NodeEnvironment.NODE_ID_SEED_SETTING.get(node.settings()) + 1;

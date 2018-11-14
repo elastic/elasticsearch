@@ -128,4 +128,20 @@ public class LicenseRequestConvertersTests extends ESTestCase {
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), is(nullValue()));
     }
+
+    public void testGetLicenseTrialStatus() {
+        Request request = LicenseRequestConverters.getLicenseTrialStatus();
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/license/trial_status", request.getEndpoint());
+        assertEquals(request.getParameters().size(), 0);
+        assertNull(request.getEntity());
+    }
+
+    public void testGetLicenseBasicStatus() {
+        Request request = LicenseRequestConverters.getLicenseBasicStatus();
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/license/basic_status", request.getEndpoint());
+        assertEquals(request.getParameters().size(), 0);
+        assertNull(request.getEntity());
+    }
 }

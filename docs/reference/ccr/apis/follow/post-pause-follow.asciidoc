@@ -48,6 +48,15 @@ POST /<follower_index>/_ccr/pause_follow
 `follower_index` (required)::
   (string) the name of the follower index
 
+
+==== Authorization
+
+If the {es} {security-features} are enabled, to use this API you must have 
+`write` index privileges for the follower index and `read` index privileges for 
+the leader index. You must also have `manage_ccr` cluster privileges. For more 
+information, see {stack-ov}/security-privileges.html[Security privileges].
+
+
 ==== Example
 
 This example pauses a follower index named `follower_index`:

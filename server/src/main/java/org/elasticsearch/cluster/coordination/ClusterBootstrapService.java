@@ -131,7 +131,7 @@ public class ClusterBootstrapService {
             new TransportResponseHandler<BootstrapClusterResponse>() {
                 @Override
                 public void handleResponse(BootstrapClusterResponse response) {
-                    logger.debug("bootstrapped successful: received {}", response);
+                    logger.debug("automatic cluster bootstrapping successful: received {}", response);
                 }
 
                 @Override

@@ -37,7 +37,6 @@ public final class ProcessService extends AbstractComponent {
             Property.NodeScope);
 
     public ProcessService(Settings settings) {
-        super(settings);
         this.probe = ProcessProbe.getInstance();
         final TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
         processStatsCache = new ProcessStatsCache(refreshInterval, probe.processStats());

@@ -100,7 +100,6 @@ public class PluginsService extends AbstractComponent {
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
     public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(settings);
         this.settings = settings;
         this.configPath = configPath;
 

@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -64,11 +63,11 @@ public abstract class TransportInstanceSingleOperationAction<
     final String executor;
     final String shardActionName;
 
-    protected TransportInstanceSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool,
+    protected TransportInstanceSingleOperationAction(String actionName, ThreadPool threadPool,
                                                      ClusterService clusterService, TransportService transportService,
                                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                      Supplier<Request> request) {
-        super(settings, actionName, transportService, actionFilters, request);
+        super(actionName, transportService, actionFilters, request);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;

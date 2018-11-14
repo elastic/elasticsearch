@@ -49,11 +49,6 @@ import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
 final class Compiler {
 
     /**
-     * The maximum number of characters allowed in the script source.
-     */
-    static final int MAXIMUM_SOURCE_LENGTH = 16384;
-
-    /**
      * Define the class with lowest privileges.
      */
     private static final CodeSource CODESOURCE;
@@ -212,12 +207,6 @@ final class Compiler {
      * @return An executable script that implements both a specified interface and is a subclass of {@link PainlessScript}
      */
     Constructor<?> compile(Loader loader, MainMethodReserved reserved, String name, String source, CompilerSettings settings) {
-        if (source.length() > MAXIMUM_SOURCE_LENGTH) {
-            throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
-                " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
-                " plugin if a script longer than this length is a requirement.");
-        }
-
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, painlessLookup,
                 null);
@@ -248,12 +237,6 @@ final class Compiler {
      * @return The bytes for compilation.
      */
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
-        if (source.length() > MAXIMUM_SOURCE_LENGTH) {
-            throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
-                " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
-                " plugin if a script longer than this length is a requirement.");
-        }
-
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SSource root = Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), name, source, settings, painlessLookup,
                 debugStream);

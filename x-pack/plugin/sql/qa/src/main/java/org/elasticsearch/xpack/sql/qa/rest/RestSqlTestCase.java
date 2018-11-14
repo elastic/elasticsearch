@@ -202,7 +202,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     @Override
     public void testSelectInvalidSql() {
         String mode = randomFrom("jdbc", "plain");
-        expectBadRequest(() -> runSql(mode, "SELECT * FRO"), containsString("1:8: Cannot determine columns for *"));
+        expectBadRequest(() -> runSql(mode, "SELECT * FRO"), containsString("1:8: Cannot determine columns for [*]"));
     }
 
     @Override

@@ -24,8 +24,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
@@ -65,16 +63,14 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
             .put(super.nodeSettings())
             .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.client_authentication", sslClientAuth)
-            .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)
-            .put("xpack.security.authc.realms.file.order", "0")
-            .put("xpack.security.authc.realms.pki1.type", PkiRealmSettings.TYPE)
-            .put("xpack.security.authc.realms.pki1.order", "1")
-            .put("xpack.security.authc.realms.pki1.certificate_authorities",
+            .put("xpack.security.authc.realms.file.file.order", "0")
+            .put("xpack.security.authc.realms.pki.pki1.order", "1")
+            .put("xpack.security.authc.realms.pki.pki1.certificate_authorities",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-            .put("xpack.security.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"));
+            .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"));
 
         SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
-                secureSettings.setString("xpack.security.authc.realms.pki1.truststore.secure_password", "truststore-testnode-only"));
+                secureSettings.setString("xpack.security.authc.realms.pki.pki1.truststore.secure_password", "truststore-testnode-only"));
         return builder.build();
     }
 

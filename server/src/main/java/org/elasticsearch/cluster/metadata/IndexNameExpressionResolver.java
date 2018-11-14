@@ -26,9 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
@@ -36,6 +34,7 @@ import org.elasticsearch.common.time.JavaDateMathParser;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 
@@ -54,18 +53,14 @@ import java.util.SortedMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class IndexNameExpressionResolver extends AbstractComponent {
+import static java.util.Collections.unmodifiableList;
 
-    private final List<ExpressionResolver> expressionResolvers;
-    private final DateMathExpressionResolver dateMathExpressionResolver;
+public class IndexNameExpressionResolver {
 
-    public IndexNameExpressionResolver(Settings settings) {
-        super(settings);
-        expressionResolvers = Arrays.asList(
-                dateMathExpressionResolver = new DateMathExpressionResolver(),
-                new WildcardExpressionResolver()
-        );
-    }
+    private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
+    private final List<ExpressionResolver> expressionResolvers = unmodifiableList(Arrays.asList(
+            dateMathExpressionResolver,
+            new WildcardExpressionResolver()));
 
     /**
      * Same as {@link #concreteIndexNames(ClusterState, IndicesOptions, String...)}, but the index expressions and options
@@ -201,7 +196,9 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                         " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
                         " indices without one being designated as a write index");
                 }
-                concreteIndices.add(writeIndex.getIndex());
+                if (addIndex(writeIndex, context)) {
+                    concreteIndices.add(writeIndex.getIndex());
+                }
             } else {
                 if (aliasOrIndex.getIndices().size() > 1 && !options.allowAliasesToMultipleIndices()) {
                     String[] indexNames = new String[aliasOrIndex.getIndices().size()];
@@ -218,12 +215,14 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                         if (failClosed) {
                             throw new IndexClosedException(index.getIndex());
                         } else {
-                            if (options.forbidClosedIndices() == false) {
+                            if (options.forbidClosedIndices() == false && addIndex(index, context)) {
                                 concreteIndices.add(index.getIndex());
                             }
                         }
                     } else if (index.getState() == IndexMetaData.State.OPEN) {
-                        concreteIndices.add(index.getIndex());
+                        if (addIndex(index, context)) {
+                            concreteIndices.add(index.getIndex());
+                        }
                     } else {
                         throw new IllegalStateException("index state [" + index.getState() + "] not supported");
                     }
@@ -237,6 +236,10 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             throw infe;
         }
         return concreteIndices.toArray(new Index[concreteIndices.size()]);
+    }
+
+    private static boolean addIndex(IndexMetaData metaData, Context context) {
+        return (context.options.ignoreThrottled() && IndexSettings.INDEX_SEARCH_THROTTLED.get(metaData.getSettings())) == false;
     }
 
     private static IllegalArgumentException aliasesNotSupportedException(String expression) {

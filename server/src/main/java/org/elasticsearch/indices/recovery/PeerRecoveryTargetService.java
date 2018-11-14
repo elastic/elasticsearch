@@ -101,9 +101,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
     private final RecoveriesCollection onGoingRecoveries;
 
-    public PeerRecoveryTargetService(Settings settings, ThreadPool threadPool, TransportService transportService, RecoverySettings
-            recoverySettings, ClusterService clusterService) {
-        super(settings);
+    public PeerRecoveryTargetService(ThreadPool threadPool, TransportService transportService,
+            RecoverySettings recoverySettings, ClusterService clusterService) {
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.recoverySettings = recoverySettings;

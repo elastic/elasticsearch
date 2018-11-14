@@ -230,7 +230,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         // filter out joda timezones that are deprecated for the java time migration
         List<String> jodaTZIds = DateTimeZone.getAvailableIDs().stream()
-            .filter(DateUtils.DEPRECATED_SHORT_TZ_IDS::contains).sorted().collect(Collectors.toList());
+            .filter(s -> DateUtils.DEPRECATED_SHORT_TZ_IDS.contains(s) == false).sorted().collect(Collectors.toList());
         JODA_TIMEZONE_IDS = Collections.unmodifiableList(jodaTZIds);
 
         List<String> javaTZIds = Arrays.asList(TimeZone.getAvailableIDs());

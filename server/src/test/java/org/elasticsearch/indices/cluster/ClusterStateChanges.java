@@ -127,19 +127,17 @@ public class ClusterStateChanges extends AbstractComponent {
     private final NodeJoinController.JoinTaskExecutor joinTaskExecutor;
 
     public ClusterStateChanges(NamedXContentRegistry xContentRegistry, ThreadPool threadPool) {
-        super(SETTINGS);
-
         ClusterSettings clusterSettings = new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        allocationService = new AllocationService(SETTINGS, new AllocationDeciders(SETTINGS,
+        allocationService = new AllocationService(new AllocationDeciders(
             new HashSet<>(Arrays.asList(new SameShardAllocationDecider(SETTINGS, clusterSettings),
-                new ReplicaAfterPrimaryActiveAllocationDecider(SETTINGS),
+                new ReplicaAfterPrimaryActiveAllocationDecider(),
                 new RandomAllocationDeciderTests.RandomAllocationDecider(getRandom())))),
             new TestGatewayAllocator(), new BalancedShardsAllocator(SETTINGS),
             EmptyClusterInfoService.INSTANCE);
         shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
         shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, logger);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(SETTINGS);
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
         Environment environment = TestEnvironment.newEnvironment(SETTINGS);
         Transport transport = mock(Transport.class); // it's not used
@@ -180,26 +178,26 @@ public class ClusterStateChanges extends AbstractComponent {
                 return indexMetaData;
             }
         };
-        MetaDataIndexStateService indexStateService = new MetaDataIndexStateService(SETTINGS, clusterService, allocationService,
+        MetaDataIndexStateService indexStateService = new MetaDataIndexStateService(clusterService, allocationService,
             metaDataIndexUpgradeService, indicesService, threadPool);
         MetaDataDeleteIndexService deleteIndexService = new MetaDataDeleteIndexService(SETTINGS, clusterService, allocationService);
-        MetaDataUpdateSettingsService metaDataUpdateSettingsService = new MetaDataUpdateSettingsService(SETTINGS, clusterService,
+        MetaDataUpdateSettingsService metaDataUpdateSettingsService = new MetaDataUpdateSettingsService(clusterService,
             allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, threadPool);
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(SETTINGS, clusterService, indicesService,
-            allocationService, new AliasValidator(SETTINGS), environment,
+            allocationService, new AliasValidator(), environment,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool, xContentRegistry, true);
 
         transportCloseIndexAction = new TransportCloseIndexAction(SETTINGS, transportService, clusterService, threadPool,
             indexStateService, clusterSettings, actionFilters, indexNameExpressionResolver, destructiveOperations);
-        transportOpenIndexAction = new TransportOpenIndexAction(SETTINGS, transportService,
+        transportOpenIndexAction = new TransportOpenIndexAction(transportService,
             clusterService, threadPool, indexStateService, actionFilters, indexNameExpressionResolver, destructiveOperations);
-        transportDeleteIndexAction = new TransportDeleteIndexAction(SETTINGS, transportService,
+        transportDeleteIndexAction = new TransportDeleteIndexAction(transportService,
             clusterService, threadPool, deleteIndexService, actionFilters, indexNameExpressionResolver, destructiveOperations);
-        transportUpdateSettingsAction = new TransportUpdateSettingsAction(SETTINGS,
+        transportUpdateSettingsAction = new TransportUpdateSettingsAction(
             transportService, clusterService, threadPool, metaDataUpdateSettingsService, actionFilters, indexNameExpressionResolver);
-        transportClusterRerouteAction = new TransportClusterRerouteAction(SETTINGS,
+        transportClusterRerouteAction = new TransportClusterRerouteAction(
             transportService, clusterService, threadPool, allocationService, actionFilters, indexNameExpressionResolver);
-        transportCreateIndexAction = new TransportCreateIndexAction(SETTINGS,
+        transportCreateIndexAction = new TransportCreateIndexAction(
             transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
 
         ElectMasterService electMasterService = new ElectMasterService(SETTINGS);

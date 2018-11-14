@@ -94,7 +94,6 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     private final ShardsIndicesStatusChecker statusChecker;
 
     IndexingMemoryController(Settings settings, ThreadPool threadPool, Iterable<IndexShard> indexServices) {
-        super(settings);
         this.indexShards = indexServices;
 
         ByteSizeValue indexingBuffer = INDEX_BUFFER_SIZE_SETTING.get(settings);

@@ -74,7 +74,6 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
     public GceUnicastHostsProvider(Settings settings, GceInstancesService gceInstancesService,
             TransportService transportService,
             NetworkService networkService) {
-        super(settings);
         this.settings = settings;
         this.gceInstancesService = gceInstancesService;
         this.transportService = transportService;

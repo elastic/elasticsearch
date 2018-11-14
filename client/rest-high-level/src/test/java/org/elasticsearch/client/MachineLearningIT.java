@@ -44,6 +44,8 @@ import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsResponse;
+import org.elasticsearch.client.ml.GetFiltersRequest;
+import org.elasticsearch.client.ml.GetFiltersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
@@ -58,6 +60,8 @@ import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
+import org.elasticsearch.client.ml.PutFilterRequest;
+import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
@@ -65,6 +69,7 @@ import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
@@ -78,6 +83,7 @@ import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.config.JobState;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
+import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -96,6 +102,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -857,6 +864,91 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 () -> execute(new DeleteCalendarRequest(calendar.getId()), machineLearningClient::deleteCalendar,
                         machineLearningClient::deleteCalendarAsync));
         assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    public void testPutFilter() throws Exception {
+        String filterId = "filter-job-test";
+        MlFilter mlFilter = MlFilter.builder(filterId)
+            .setDescription(randomAlphaOfLength(10))
+            .setItems(generateRandomStringArray(10, 10, false, false))
+            .build();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        PutFilterResponse putFilterResponse = execute(new PutFilterRequest(mlFilter),
+            machineLearningClient::putFilter,
+            machineLearningClient::putFilterAsync);
+        MlFilter createdFilter = putFilterResponse.getResponse();
+
+        assertThat(createdFilter, equalTo(mlFilter));
+    }
+
+    public void testGetFilters() throws Exception {
+        String filterId1 = "get-filter-test-1";
+        String filterId2 = "get-filter-test-2";
+        String filterId3 = "get-filter-test-3";
+        MlFilter mlFilter1 = MlFilter.builder(filterId1)
+            .setDescription(randomAlphaOfLength(10))
+            .setItems(generateRandomStringArray(10, 10, false, false))
+            .build();
+        MlFilter mlFilter2 = MlFilter.builder(filterId2)
+            .setDescription(randomAlphaOfLength(10))
+            .setItems(generateRandomStringArray(10, 10, false, false))
+            .build();
+        MlFilter mlFilter3 = MlFilter.builder(filterId3)
+            .setDescription(randomAlphaOfLength(10))
+            .setItems(generateRandomStringArray(10, 10, false, false))
+            .build();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putFilter(new PutFilterRequest(mlFilter1), RequestOptions.DEFAULT);
+        machineLearningClient.putFilter(new PutFilterRequest(mlFilter2), RequestOptions.DEFAULT);
+        machineLearningClient.putFilter(new PutFilterRequest(mlFilter3), RequestOptions.DEFAULT);
+
+        {
+            GetFiltersRequest getFiltersRequest = new GetFiltersRequest();
+            getFiltersRequest.setFilterId(filterId1);
+
+            GetFiltersResponse getFiltersResponse = execute(getFiltersRequest,
+                machineLearningClient::getFilter,
+                machineLearningClient::getFilterAsync);
+            assertThat(getFiltersResponse.count(), equalTo(1L));
+            assertThat(getFiltersResponse.filters().get(0), equalTo(mlFilter1));
+        }
+        {
+            GetFiltersRequest getFiltersRequest = new GetFiltersRequest();
+
+            getFiltersRequest.setFrom(1);
+            getFiltersRequest.setSize(2);
+
+            GetFiltersResponse getFiltersResponse = execute(getFiltersRequest,
+                machineLearningClient::getFilter,
+                machineLearningClient::getFilterAsync);
+            assertThat(getFiltersResponse.count(), equalTo(2L));
+            assertThat(getFiltersResponse.filters().size(), equalTo(2));
+            assertThat(getFiltersResponse.filters().stream().map(MlFilter::getId).collect(Collectors.toList()),
+                containsInAnyOrder("get-filter-test-2", "get-filter-test-3"));
+        }
+    }
+
+    public void testUpdateFilter() throws Exception {
+        String filterId = "update-filter-test";
+        MlFilter mlFilter = MlFilter.builder(filterId)
+            .setDescription("old description")
+            .setItems(Arrays.asList("olditem1", "olditem2"))
+            .build();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putFilter(new PutFilterRequest(mlFilter), RequestOptions.DEFAULT);
+
+        UpdateFilterRequest updateFilterRequest = new UpdateFilterRequest(filterId);
+
+        updateFilterRequest.setAddItems(Arrays.asList("newItem1", "newItem2"));
+        updateFilterRequest.setRemoveItems(Collections.singletonList("olditem1"));
+        updateFilterRequest.setDescription("new description");
+        MlFilter filter = execute(updateFilterRequest,
+            machineLearningClient::updateFilter,
+            machineLearningClient::updateFilterAsync).getResponse();
+
+        assertThat(filter.getDescription(), equalTo(updateFilterRequest.getDescription()));
+        assertThat(filter.getItems(), contains("newItem1", "newItem2", "olditem2"));
     }
 
     public static String randomValidJobId() {

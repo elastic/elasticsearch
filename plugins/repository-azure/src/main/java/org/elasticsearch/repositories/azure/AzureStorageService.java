@@ -70,7 +70,6 @@ public class AzureStorageService extends AbstractComponent {
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
 
     public AzureStorageService(Settings settings) {
-        super(settings);
         // eagerly load client settings so that secure settings are read
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
         refreshAndClearCache(clientsSettings);

@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
@@ -13,11 +14,11 @@ import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import static org.elasticsearch.xpack.ccr.action.AutoFollowStatsTests.randomReadExceptions;
 import static org.elasticsearch.xpack.ccr.action.StatsResponsesTests.createStatsResponse;
 
-public class AutoFollowStatsResponseTests extends AbstractStreamableTestCase<CcrStatsAction.Response> {
+public class AutoFollowStatsResponseTests extends AbstractWireSerializingTestCase<CcrStatsAction.Response> {
 
     @Override
-    protected CcrStatsAction.Response createBlankInstance() {
-        return new CcrStatsAction.Response();
+    protected Writeable.Reader<CcrStatsAction.Response> instanceReader() {
+        return CcrStatsAction.Response::new;
     }
 
     @Override

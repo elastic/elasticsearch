@@ -95,7 +95,7 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     @Override
     public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
         logger.debug("Register _gce_, _gce:xxx network names");
-        return new GceNameResolver(settings, new GceMetadataService(settings));
+        return new GceNameResolver(new GceMetadataService(settings));
     }
 
     @Override

@@ -16,10 +16,6 @@
         }
       },
       "params": {
-        "include_type_name": {
-          "type" : "string",
-          "description" : "Whether to add the type name to the response"
-        },
         "analyzer": {
           "type" : "string",
           "description" : "The analyzer to use for the query string"
@@ -57,6 +53,10 @@
         "ignore_unavailable": {
             "type" : "boolean",
             "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+        },
+        "ignore_throttled": {
+          "type" : "boolean",
+          "description" : "Whether specified concrete, expanded or aliased indices should be ignored when throttled"
         },
         "allow_no_indices": {
             "type" : "boolean",

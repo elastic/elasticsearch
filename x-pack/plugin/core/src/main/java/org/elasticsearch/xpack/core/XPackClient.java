@@ -6,14 +6,17 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.license.LicensingClient;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackInfoRequestBuilder;
 import org.elasticsearch.xpack.core.ccr.client.CcrClient;
+import org.elasticsearch.xpack.core.indexlifecycle.client.ILMClient;
 import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.core.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
@@ -36,6 +39,7 @@ public class XPackClient {
     private final SecurityClient securityClient;
     private final WatcherClient watcherClient;
     private final MachineLearningClient machineLearning;
+    private final ILMClient ilmClient;
 
     public XPackClient(Client client) {
         this.client = Objects.requireNonNull(client, "client");
@@ -45,6 +49,7 @@ public class XPackClient {
         this.securityClient = new SecurityClient(client);
         this.watcherClient = new WatcherClient(client);
         this.machineLearning = new MachineLearningClient(client);
+        this.ilmClient = new ILMClient(client);
     }
 
     public Client es() {
@@ -75,6 +80,10 @@ public class XPackClient {
         return machineLearning;
     }
 
+    public ILMClient ilmClient() {
+        return ilmClient;
+    }
+
     public XPackClient withHeaders(Map<String, String> headers) {
         return new XPackClient(client.filterWithHeader(headers));
     }
@@ -95,5 +104,9 @@ public class XPackClient {
 
     public void info(XPackInfoRequest request, ActionListener<XPackInfoResponse> listener) {
         client.execute(XPackInfoAction.INSTANCE, request, listener);
+    }
+
+    public void freeze(TransportFreezeIndexAction.FreezeRequest request, ActionListener<AcknowledgedResponse> listener) {
+        client.execute(TransportFreezeIndexAction.FreezeIndexAction.INSTANCE, request, listener);
     }
 }

@@ -128,7 +128,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             final ThreadPool threadPool,
             final NamedXContentRegistry xContentRegistry,
             final boolean forbidPrivateIndexSettings) {
-        super(settings);
         this.settings = settings;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -136,7 +135,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.aliasValidator = aliasValidator;
         this.env = env;
         this.indexScopedSettings = indexScopedSettings;
-        this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
+        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.xContentRegistry = xContentRegistry;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
     }
@@ -576,7 +575,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             final int numberOfShards;
             final Version indexVersionCreated =
                     Version.fromId(Integer.parseInt(indexSettingsBuilder.get(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey())));
-            if (indexVersionCreated.before(Version.V_7_0_0_alpha1)) {
+            if (indexVersionCreated.before(Version.V_7_0_0)) {
                 numberOfShards = 5;
             } else {
                 numberOfShards = 1;
@@ -800,7 +799,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
      * the less default split operations are supported
      */
     public static int calculateNumRoutingShards(int numShards, Version indexVersionCreated) {
-        if (indexVersionCreated.onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (indexVersionCreated.onOrAfter(Version.V_7_0_0)) {
             // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
             // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
             // will always have the behavior of the min node in the cluster.

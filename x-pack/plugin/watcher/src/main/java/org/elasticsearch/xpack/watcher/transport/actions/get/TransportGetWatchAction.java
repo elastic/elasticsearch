@@ -13,7 +13,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -42,9 +41,9 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
     private final Client client;
 
     @Inject
-    public TransportGetWatchAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+    public TransportGetWatchAction(TransportService transportService, ActionFilters actionFilters,
                                    XPackLicenseState licenseState, WatchParser parser, Clock clock, Client client) {
-        super(settings, GetWatchAction.NAME, transportService, actionFilters, licenseState, GetWatchRequest::new);
+        super(GetWatchAction.NAME, transportService, actionFilters, licenseState, GetWatchRequest::new);
         this.parser = parser;
         this.clock = clock;
         this.client = client;

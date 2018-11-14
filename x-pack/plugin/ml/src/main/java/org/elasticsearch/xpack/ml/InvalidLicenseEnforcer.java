@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -20,9 +19,8 @@ public class InvalidLicenseEnforcer extends AbstractComponent {
     private final DatafeedManager datafeedManager;
     private final AutodetectProcessManager autodetectProcessManager;
 
-    InvalidLicenseEnforcer(Settings settings, XPackLicenseState licenseState, ThreadPool threadPool,
+    InvalidLicenseEnforcer(XPackLicenseState licenseState, ThreadPool threadPool,
                            DatafeedManager datafeedManager, AutodetectProcessManager autodetectProcessManager) {
-        super(settings);
         this.threadPool = threadPool;
         this.licenseState = licenseState;
         this.datafeedManager = datafeedManager;

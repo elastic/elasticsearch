@@ -1549,23 +1549,23 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
     public void testTermVectors() throws Exception {
         RestHighLevelClient client = highLevelClient();
-        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping("doc", "user", "type=keyword");
+        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping("_doc", "user", "type=keyword");
         CreateIndexResponse authorsResponse = client.indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
-        client.index(new IndexRequest("index", "doc", "1").source("user", "kimchy"), RequestOptions.DEFAULT);
+        client.index(new IndexRequest("index", "_doc", "1").source("user", "kimchy"), RequestOptions.DEFAULT);
         Response refreshResponse = client().performRequest(new Request("POST", "/authors/_refresh"));
         assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
 
         {
             // tag::term-vectors-request
-            TermVectorsRequest request = new TermVectorsRequest("authors", "doc", "1");
+            TermVectorsRequest request = new TermVectorsRequest("authors", "_doc", "1");
             request.setFields("user");
             // end::term-vectors-request
         }
 
         {
             // tag::term-vectors-request-artificial
-            TermVectorsRequest request = new TermVectorsRequest("authors", "doc");
+            TermVectorsRequest request = new TermVectorsRequest("authors", "_doc");
             XContentBuilder docBuilder = XContentFactory.jsonBuilder();
             docBuilder.startObject().field("user", "guest-user").endObject();
             request.setDoc(docBuilder); // <1>
@@ -1598,7 +1598,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::term-vectors-request-optional-arguments
         }
 
-        TermVectorsRequest request = new TermVectorsRequest("authors", "doc", "1");
+        TermVectorsRequest request = new TermVectorsRequest("authors", "_doc", "1");
         request.setFields("user");
 
         // tag::term-vectors-execute

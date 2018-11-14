@@ -58,17 +58,17 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     private final Client client;
 
     @Inject
-    public TransportResizeAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportResizeAction(TransportService transportService, ClusterService clusterService,
                                  ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
-        this(settings, ResizeAction.NAME, transportService, clusterService, threadPool, createIndexService, actionFilters,
+        this(ResizeAction.NAME, transportService, clusterService, threadPool, createIndexService, actionFilters,
             indexNameExpressionResolver, client);
     }
 
-    protected TransportResizeAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
+    protected TransportResizeAction(String actionName, TransportService transportService, ClusterService clusterService,
                                  ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+        super(actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
             ResizeRequest::new);
         this.createIndexService = createIndexService;
         this.client = client;

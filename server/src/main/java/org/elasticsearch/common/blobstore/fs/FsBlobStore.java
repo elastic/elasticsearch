@@ -42,7 +42,6 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
     private final boolean readOnly;
 
     public FsBlobStore(Settings settings, Path path) throws IOException {
-        super(settings);
         this.path = path;
         this.readOnly = settings.getAsBoolean("readonly", false);
         if (!this.readOnly) {

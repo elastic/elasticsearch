@@ -32,6 +32,7 @@ import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
@@ -331,6 +332,18 @@ final class MLRequestConverters {
             params.putParam("timeout", deleteForecastRequest.timeout().getStringRep());
         }
         return request;
+    }
+
+    static Request deleteModelSnapshot(DeleteModelSnapshotRequest deleteModelSnapshotRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(deleteModelSnapshotRequest.getJobId())
+            .addPathPartAsIs("model_snapshots")
+            .addPathPart(deleteModelSnapshotRequest.getSnapshotId())
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 
     static Request getBuckets(GetBucketsRequest getBucketsRequest) throws IOException {

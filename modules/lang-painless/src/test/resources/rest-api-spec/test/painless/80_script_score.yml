@@ -1,5 +1,68 @@
 # Integration tests for ScriptScoreQuery using Painless
 
+setup:
+- skip:
+    version: " - 6.99.99"
+    reason: "script score query was introduced in 7.0.0"
+
+---
+"Random functions":
+    - do:
+        indices.create:
+            index: test
+            body:
+                settings:
+                    number_of_shards: 2
+                mappings:
+                    _doc:
+                        properties:
+                            f1:
+                                type: keyword
+    - do:
+        index:
+            index: test
+            type: _doc
+            id: 1
+            body: {"f1": "v1"}
+    - do:
+        index:
+            index: test
+            type: _doc
+            id: 2
+            body: {"f1": "v2"}
+    - do:
+        index:
+            index: test
+            type: _doc
+            id: 3
+            body: {"f1": "v3"}
+
+    - do:
+        indices.refresh: {}
+
+    - do:
+        search:
+            index: test
+            body:
+                query:
+                    script_score:
+                        query: {match_all: {} }
+                        script:
+                            source: "randomReproducible(Long.toString(doc['_seq_no'].value), 100)"
+    - match: { hits.total: 3 }
+
+    - do:
+        search:
+            index: test
+            body:
+                query:
+                    script_score:
+                        query: {match_all: {} }
+                        script:
+                            source: "randomNotReproducible(100)"
+    - match: { hits.total: 3 }
+
+---
 "Decay geo functions":
     - do:
         indices.create:

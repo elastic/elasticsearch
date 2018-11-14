@@ -74,6 +74,63 @@ latexmath:[sigmoid(value, k, a) = value^a/ (k^a + value^a)]
 --------------------------------------------------
 // NOTCONSOLE
 
+
+[[random-functions]]
+===== Random functions
+There are two predefined ways to produce random values:
+
+1. `randomNotReproducible(long seed)` uses `java.util.Random` class
+to generate a random value of the type `long`.
+The generated values are designed to be different across different
+shards, and not reproducible between requests' invocations.
+
+    [source,js]
+    --------------------------------------------------
+    "script" : {
+        "source" : "randomNotReproducible(100)"
+    }
+    --------------------------------------------------
+    // NOTCONSOLE
+
+
+2. `randomReproducible(String seedValue, int seed)` produces
+reproducible random values of type `long`. This function requires
+more computational time and memory than the non-reproducible version.
+
+A good candidate for the `seedValue` is a document field that has
+unique values and is already pre-calculated and preloaded
+in the memory. For example,  document's `_seq_no` field is a good
+candidate, as documents on the same shard have unique values
+for the `_seq_no` field.
+
+    [source,js]
+    --------------------------------------------------
+    "script" : {
+        "source" : "randomReproducible(Long.toString(doc['_seq_no'].value), 100)"
+    }
+    --------------------------------------------------
+    // NOTCONSOLE
+
+
+A drawback of using `_seq_no` is that generated values change if
+documents are updated. Another drawback is not absolute uniqueness, as
+documents from different shards with the same sequence numbers
+generate the same random values.
+
+If you need random values to be distinct across different shards,
+you can use a field with unique values, such as  `_id`, but watch out
+for the memory usage as all these unique values need to be loaded into
+memory.
+
+    [source,js]
+    --------------------------------------------------
+    "script" : {
+        "source" : "randomReproducible(doc['_id'].value, 100)"
+    }
+    --------------------------------------------------
+    // NOTCONSOLE
+
+
 [[decay-functions]]
 ===== Decay functions for numeric fields
 You can read more about decay functions
@@ -184,25 +241,9 @@ the following script:
 // NOTCONSOLE
 
 ===== `random_score`
-For easy generating not reproducible random values:
 
-[source,js]
---------------------------------------------------
-"script" : {
-    "source" : "Math.random()"
-}
---------------------------------------------------
-// NOTCONSOLE
-
-or set your own reproducible seed using this script:
-
-[source,js]
---------------------------------------------------
-"script" : {
-    "source" : "Random rnd = new Random(); rnd.setSeed(doc['field'].value); rnd.nextFloat()"
-}
---------------------------------------------------
-// NOTCONSOLE
+Use `randomReproducible` and `randomNotReproducible` functions
+as described in <<random-functions, random functions>>.
 
 
 ===== `field_value_factor`

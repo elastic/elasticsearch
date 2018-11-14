@@ -19,6 +19,8 @@
 
 package org.elasticsearch.script;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -28,6 +30,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.time.ZoneId;
+import java.util.Random;
 
 /**
  * ScoringScriptImpl can be used as {@link ScoreScript}
@@ -47,6 +50,30 @@ public final class ScoreScriptUtils {
      */
     public static double sigmoid(double value, double k, double a){
         return Math.pow(value,a) / (Math.pow(k,a) + Math.pow(value,a));
+    }
+
+
+    // reproducible random
+    public static double randomReproducible(String seedValue, int seed) {
+        int hash = StringHelper.murmurhash3_x86_32(new BytesRef(seedValue), seed);
+        return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
+    }
+
+    // not reproducible random
+    public static final class RandomNotReproducible {
+        private final Random rnd;
+
+        public RandomNotReproducible(long seed) {
+           this.rnd = new Random();
+           // to make different values for different shards
+           // incorporate a hashcode of the Random object, as each shard has its separate instance
+           long seed2 = rnd.hashCode() + seed;
+           rnd.setSeed(seed2);
+        }
+
+        public double randomNotReproducible() {
+           return rnd.nextDouble();
+        }
     }
 
 

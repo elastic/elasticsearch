@@ -19,10 +19,53 @@
 
 package org.elasticsearch.client.security;
 
+import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 public class GetPrivilegesResponse {
-    public static <Resp> Resp fromXContent(XContentParser xContentParser) {
-        return null;
+
+    private List<ApplicationPrivilege> privileges;
+
+    public List<ApplicationPrivilege> getPrivileges() {
+        return privileges;
+    }
+
+    public GetPrivilegesResponse(List<ApplicationPrivilege> privileges) {
+        this.privileges = Collections.unmodifiableList(privileges);
+    }
+
+    public static GetPrivilegesResponse fromXContent(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        List<ApplicationPrivilege> privileges = new ArrayList<>();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != null) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    privileges.add(ApplicationPrivilege.PARSER.parse(parser, null));
+                }
+            }
+        }
+        return new GetPrivilegesResponse(privileges);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetPrivilegesResponse that = (GetPrivilegesResponse) o;
+        return Objects.equals(privileges, that.privileges);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(privileges);
     }
 }

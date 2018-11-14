@@ -63,12 +63,14 @@ import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleM
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
+import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -79,6 +81,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -931,10 +934,23 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 "      \"actions\": [ \"action:login\", \"data:read/*\" ]" +
                 "    }," +
                 "    \"write\": {" +
+                "      \"actions\": [ \"action:login\", \"data:write/*\" ]," +
+                "      \"metadata\": { \"key1\": \"value1\" }" +
+                "    }," +
+                "    \"all\": {" +
+                "      \"actions\": [ \"action:login\", \"data:write/*\" , \"manage:*\"]" +
+                "    }" +
+                "  }," +
+                "  \"testapp2\": {" +
+                "    \"read\": {" +
+                "      \"actions\": [ \"action:login\", \"data:read/*\" ]," +
+                "      \"metadata\": { \"key2\": \"value2\" }" +
+                "    }," +
+                "    \"write\": {" +
                 "      \"actions\": [ \"action:login\", \"data:write/*\" ]" +
                 "    }," +
                 "    \"all\": {" +
-                "      \"actions\": [ \"action:login\", \"data:write/*\" ]" +
+                "      \"actions\": [ \"action:login\", \"data:write/*\" , \"manage:*\"]" +
                 "    }" +
                 "  }" +
                 "}");
@@ -944,12 +960,16 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             //tag::get-privileges-request
-            GetPrivilegesRequest request = new GetPrivilegesRequest("testapp", "read");
+            GetPrivilegesRequest request = new GetPrivilegesRequest("testapp", "write");
             GetPrivilegesResponse response = client.security().getPrivileges(request, RequestOptions.DEFAULT);
             //end::get-roles-request
 
             assertNotNull(response);
-            //TODO: When model is in place
+            assertThat(response.getPrivileges().size(), equalTo(1));
+            assertThat(response.getPrivileges().get(0).getActions().size(), equalTo(2));
+            assertThat(response.getPrivileges().get(0).getActions(), containsInAnyOrder("action:login", "data:write/*"));
+            assertThat(response.getPrivileges().get(0).getMetadata().isEmpty(), equalTo(false));
+            assertThat(response.getPrivileges().get(0).getMetadata().get("key1"), equalTo("value1"));
         }
 
         {
@@ -959,7 +979,22 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::get-all-application-privileges-request
 
             assertNotNull(response);
-            //TODO: When model is in place
+            assertThat(response.getPrivileges().size(), equalTo(3));
+            List<ApplicationPrivilege> privileges = response.getPrivileges();
+            for (ApplicationPrivilege privilege : privileges) {
+                assertThat(privilege.getApplication(), equalTo("testapp"));
+                if (privilege.getName().equals("read")) {
+                    assertThat(privilege.getActions(), containsInAnyOrder("action:login", "data:read/*"));
+                    assertThat(privilege.getMetadata().isEmpty(), equalTo(true));
+                } else if (privilege.getName().equals("write")) {
+                    assertThat(privilege.getActions(), containsInAnyOrder("action:login", "data:write/*"));
+                    assertThat(privilege.getMetadata().isEmpty(), equalTo(false));
+                    assertThat(privilege.getMetadata().get("key1"), equalTo("value1"));
+                } else if (privilege.getName().equals("all")) {
+                    assertThat(privilege.getActions(), containsInAnyOrder("action:login", "data:write/*", "manage:*"));
+                    assertThat(privilege.getMetadata().isEmpty(), equalTo(true));
+                }
+            }
         }
 
         {
@@ -969,7 +1004,35 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::get-all-privileges-request
 
             assertNotNull(response);
-            //TODO: When model is in place
+            assertThat(response.getPrivileges().size(), equalTo(6));
+            List<ApplicationPrivilege> privileges = response.getPrivileges();
+            for (ApplicationPrivilege privilege : privileges) {
+                if (privilege.getApplication().equals("testapp")) {
+                    if (privilege.getName().equals("read")) {
+                        assertThat(privilege.getActions(), containsInAnyOrder("action:login", "data:read/*"));
+                        assertThat(privilege.getMetadata().isEmpty(), equalTo(true));
+                    } else if (privilege.getName().equals("write")) {
+                        assertThat(privilege.getActions(), containsInAnyOrder("action:login", "data:write/*"));
+                        assertThat(privilege.getMetadata().isEmpty(), equalTo(false));
+                        assertThat(privilege.getMetadata().get("key1"), equalTo("value1"));
+                    } else if (privilege.getName().equals("all")) {
+                        assertThat(privilege.getActions(), containsInAnyOrder("action:login", "data:write/*", "manage:*"));
+                        assertThat(privilege.getMetadata().isEmpty(), equalTo(true));
+                    }
+                } else if (privilege.getApplication().equals("testapp2")) {
+                    if (privilege.getName().equals("read")) {
+                        assertThat(privilege.getActions(), containsInAnyOrder("action:login", "data:read/*"));
+                        assertThat(privilege.getMetadata().isEmpty(), equalTo(false));
+                        assertThat(privilege.getMetadata().get("key2"), equalTo("value2"));
+                    } else if (privilege.getName().equals("write")) {
+                        assertThat(privilege.getActions(), containsInAnyOrder("action:login", "data:write/*"));
+                        assertThat(privilege.getMetadata().isEmpty(), equalTo(true));
+                    } else if (privilege.getName().equals("all")) {
+                        assertThat(privilege.getActions(), containsInAnyOrder("action:login", "data:write/*", "manage:*"));
+                        assertThat(privilege.getMetadata().isEmpty(), equalTo(true));
+                    }
+                }
+            }
         }
 
         {

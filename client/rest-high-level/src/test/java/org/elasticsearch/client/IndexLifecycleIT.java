@@ -194,7 +194,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertEquals("foo-01", fooResponse.getIndex());
         assertEquals("hot", fooResponse.getPhase());
         assertEquals("rollover", fooResponse.getAction());
-        assertEquals("attempt_rollover", fooResponse.getStep());
+        assertEquals("check_rollover_ready", fooResponse.getStep());
         assertEquals(new PhaseExecutionInfo(policy.getName(), new Phase("", hotPhase.getMinimumAge(), hotPhase.getActions()),
                 1L, expectedPolicyModifiedDate), fooResponse.getPhaseExecutionInfo());
         IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz-01");
@@ -203,7 +203,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertEquals("baz-01", bazResponse.getIndex());
         assertEquals("hot", bazResponse.getPhase());
         assertEquals("rollover", bazResponse.getAction());
-        assertEquals("attempt_rollover", bazResponse.getStep());
+        assertEquals("check_rollover_ready", bazResponse.getStep());
         IndexLifecycleExplainResponse squashResponse = indexResponses.get("squash");
         assertNotNull(squashResponse);
         assertFalse(squashResponse.managedByILM());

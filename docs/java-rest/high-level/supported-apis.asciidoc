@@ -299,11 +299,8 @@ include::ml/get-calendars.asciidoc[]
 include::ml/put-calendar.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
 include::ml/put-filter.asciidoc[]
-<<<<<<< HEAD
-include::ml/delete-filter.asciidoc[]
-=======
 include::ml/get-filters.asciidoc[]
->>>>>>> origin/master
+include::ml/delete-filter.asciidoc[]
 
 == Migration APIs
 

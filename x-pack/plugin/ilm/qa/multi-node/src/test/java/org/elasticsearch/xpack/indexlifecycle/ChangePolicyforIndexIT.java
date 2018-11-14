@@ -130,11 +130,6 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         assertEquals("node-1,node-2", includesAllocation);
     }
 
-    public void testTempAwaitFix() {
-        // this is a test stub since there is only one test in this class and it is
-        // awaits-fixed. This test is to be removed once testChangePolicyForIndex is resolved
-    }
-
     private void assertStep(String indexName, StepKey expectedStep) throws IOException {
         Response explainResponse = client().performRequest(new Request("GET", "/" + indexName + "/_ilm/explain"));
         assertOK(explainResponse);

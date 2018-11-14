@@ -522,7 +522,7 @@ check_elasticsearch_version() {
     [ "$status" -eq 0 ]
 
     echo $output | grep \"number\"\ :\ \"$versionToCheck\" || {
-        echo "Installed an unexpected version:"
+        echo "Expected $versionToCheck but installed an unexpected version:"
         curl -s localhost:9200
         false
     }

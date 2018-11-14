@@ -201,6 +201,10 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableClusterOnAllNodes(3);
 
+        // Wait for the cluster to be green - this means the indices have been replicated.
+
+        ensureGreen(".ml-config", ".ml-anomalies-shared", ".ml-notifications");
+
         // Open a big job.  This should go on a different node to the 4 small ones.
 
         setupJobWithoutDatafeed("big1", new ByteSizeValue(500, ByteSizeUnit.MB));

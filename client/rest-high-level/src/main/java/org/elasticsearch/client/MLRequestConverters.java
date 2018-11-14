@@ -470,7 +470,9 @@ final class MLRequestConverters {
 
     static Request putFilter(PutFilterRequest putFilterRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack", "ml", "filters")
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("filters")
             .addPathPart(putFilterRequest.getMlFilter().getId())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -480,7 +482,9 @@ final class MLRequestConverters {
 
     static Request getFilter(GetFiltersRequest getFiltersRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack", "ml", "filters")
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("filters")
             .addPathPart(getFiltersRequest.getFilterId())
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -496,9 +500,7 @@ final class MLRequestConverters {
 
     static Request deleteFilter(DeleteFilterRequest deleteFilterRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
-            .addPathPartAsIs("filters")
+            .addPathPartAsIs("_xpack", "ml", "filters")
             .addPathPart(deleteFilterRequest.getId())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);

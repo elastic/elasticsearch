@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -41,6 +42,8 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -66,6 +69,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
@@ -80,8 +84,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -495,7 +501,7 @@ public class JobManagerTests extends ESTestCase {
             AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocation.getArguments()[1];
             task.onAllNodesAcked(null);
             return null;
-        }).when(clusterService).submitStateUpdateTask(Matchers.eq("put-job-foo"), any(AckedClusterStateUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(eq("put-job-foo"), any(AckedClusterStateUpdateTask.class));
 
         ArgumentCaptor<Job> requestCaptor = ArgumentCaptor.forClass(Job.class);
         doAnswer(invocation -> {
@@ -848,6 +854,42 @@ public class JobManagerTests extends ESTestCase {
         assertThat(capturedUpdateParams.get(0).isUpdateScheduledEvents(), is(true));
         assertThat(capturedUpdateParams.get(1).getJobId(), equalTo("job-2"));
         assertThat(capturedUpdateParams.get(1).isUpdateScheduledEvents(), is(true));
+    }
+
+    public void testRevertSnapshot_GivenJobInClusterState() {
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(buildJobBuilder("cs-revert").build(), false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
+                Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        JobManager jobManager = new JobManager(environment, environment.settings(), jobResultsProvider, clusterService,
+                auditor, threadPool, mock(Client.class), updateJobProcessNotifier, jobConfigProvider);
+
+        RevertModelSnapshotAction.Request request = new RevertModelSnapshotAction.Request("cs-revert", "ms-1");
+
+        ModelSnapshot modelSnapshot = mock(ModelSnapshot.class);
+        ModelSizeStats modelSizeStats = mock(ModelSizeStats.class);
+        when(modelSnapshot.getModelSizeStats()).thenReturn(modelSizeStats);
+
+
+        doAnswer(invocation -> {
+            Consumer<Long> listener = (Consumer<Long>) invocation.getArguments()[3];
+            listener.accept(100L);
+            return null;
+        }).when(jobResultsProvider).getEstablishedMemoryUsage(eq("cs-revert"), any(), any(), any(), any());
+
+        jobManager.revertSnapshot(request, mock(ActionListener.class), modelSnapshot);
+        verify(clusterService, times(1)).submitStateUpdateTask(eq("revert-snapshot-cs-revert"), any(AckedClusterStateUpdateTask.class));
+        verify(jobConfigProvider, never()).updateJob(any(), any(), any(), any());
     }
 
     private Job.Builder createJob() {

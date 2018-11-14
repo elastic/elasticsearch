@@ -24,11 +24,11 @@ public final class ClusterStateJobUpdate {
         return mlMetadata.getJobs().containsKey(jobId);
     }
 
-    public static boolean jobIsInClusterState(MlMetadata mlMetadata, String jobId) {
+    public static boolean jobIsInMlMetadata(MlMetadata mlMetadata, String jobId) {
         return mlMetadata.getJobs().containsKey(jobId);
     }
 
-    public static ClusterState updateClusterState(Job job, boolean overwrite, ClusterState currentState) {
+    public static ClusterState putJobInClusterState(Job job, boolean overwrite, ClusterState currentState) {
         MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
         builder.putJob(job, overwrite);
         return buildNewClusterState(currentState, builder);

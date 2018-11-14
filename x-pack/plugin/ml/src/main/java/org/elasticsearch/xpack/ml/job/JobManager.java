@@ -334,7 +334,7 @@ public class JobManager {
 
         // Check for the job in the cluster state first
         MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(state);
-        if (ClusterStateJobUpdate.jobIsInClusterState(currentMlMetadata, job.getId())) {
+        if (ClusterStateJobUpdate.jobIsInMlMetadata(currentMlMetadata, job.getId())) {
             actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
             return;
         }
@@ -419,7 +419,7 @@ public class JobManager {
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
-        if (ClusterStateJobUpdate.jobIsInClusterState(mlMetadata, request.getJobId())) {
+        if (ClusterStateJobUpdate.jobIsInMlMetadata(mlMetadata, request.getJobId())) {
             updateJobClusterState(request, actionListener);
         } else {
             updateJobIndex(request, ActionListener.wrap(
@@ -491,7 +491,7 @@ public class JobManager {
                         public ClusterState execute(ClusterState currentState) {
                             Job job = MlMetadata.getMlMetadata(clusterService.state()).getJobs().get(request.getJobId());
                             updatedJob.set(request.getJobUpdate().mergeWithJob(job, maxModelMemoryLimit));
-                            return ClusterStateJobUpdate.updateClusterState(updatedJob.get(), true, currentState);
+                            return ClusterStateJobUpdate.putJobInClusterState(updatedJob.get(), true, currentState);
                         }
 
                         @Override
@@ -507,7 +507,7 @@ public class JobManager {
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     Job job = MlMetadata.getMlMetadata(clusterService.state()).getJobs().get(request.getJobId());
                     updatedJob.set(request.getJobUpdate().mergeWithJob(job, maxModelMemoryLimit));
-                    return ClusterStateJobUpdate.updateClusterState(updatedJob.get(), true, currentState);
+                    return ClusterStateJobUpdate.putJobInClusterState(updatedJob.get(), true, currentState);
                 }
 
                 @Override
@@ -608,7 +608,7 @@ public class JobManager {
         }
 
         // Read both cluster state and index jobs
-        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(MetaData.ALL, true, clusterService.state());
+        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(MetaData.ALL, clusterService.state());
 
         jobConfigProvider.findJobsWithCustomRules(ActionListener.wrap(
                 indexJobs -> {
@@ -689,7 +689,7 @@ public class JobManager {
                 calendarJobIds.stream().filter(mlMetadata::isGroupOrJob).collect(Collectors.toList());
 
         Set<String> clusterStateIds = new HashSet<>();
-        existingJobsOrGroups.forEach(jobId -> clusterStateIds.addAll(mlMetadata.expandJobIds(jobId, true)));
+        existingJobsOrGroups.forEach(jobId -> clusterStateIds.addAll(mlMetadata.expandJobIds(jobId)));
 
         // calendarJobIds may be a group or job.
         // Expand the groups to the constituent job ids
@@ -779,7 +779,7 @@ public class JobManager {
                             Job.Builder builder = new Job.Builder(job);
                             builder.setModelSnapshotId(modelSnapshot.getSnapshotId());
                             builder.setEstablishedModelMemory(response);
-                            return ClusterStateJobUpdate.updateClusterState(builder.build(), true, currentState);
+                            return ClusterStateJobUpdate.putJobInClusterState(builder.build(), true, currentState);
                         }
                     });
         } else {

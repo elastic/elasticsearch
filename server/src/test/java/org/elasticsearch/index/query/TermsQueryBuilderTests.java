@@ -201,7 +201,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         } catch (IOException ex) {
             throw new ElasticsearchException("boom", ex);
         }
-        return new GetResponse(new GetResult(getRequest.index(), getRequest.type(), getRequest.id(), 0, true, new BytesArray(json), null));
+        return new GetResponse(new GetResult(getRequest.index(), getRequest.type(), getRequest.id(), 0, 1, 0, true, new BytesArray(json), null));
     }
 
     public void testNumeric() throws IOException {

@@ -359,7 +359,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .scriptedUpsert(true);
             long nowInMillis = randomNonNegativeLong();
             // We simulate that the document is not existing yet
-            GetResult getResult = new GetResult("test", "type1", "2", 0, false, null, null);
+            GetResult getResult = new GetResult("test", "type1", "2", 0, 1, 0, false, null, null);
             UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);
             Streamable action = result.action();
             assertThat(action, instanceOf(IndexRequest.class));
@@ -372,7 +372,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .script(mockInlineScript("ctx._timestamp = ctx._now"))
                 .scriptedUpsert(true);
             // We simulate that the document is not existing yet
-            GetResult getResult = new GetResult("test", "type1", "2", 0, true, new BytesArray("{}"), null);
+            GetResult getResult = new GetResult("test", "type1", "2", 0, 1, 0, true, new BytesArray("{}"), null);
             UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> 42L);
             Streamable action = result.action();
             assertThat(action, instanceOf(IndexRequest.class));
@@ -381,7 +381,7 @@ public class UpdateRequestTests extends ESTestCase {
 
     public void testIndexTimeout() {
         final GetResult getResult =
-                new GetResult("test", "type", "1", 0, true, new BytesArray("{\"f\":\"v\"}"), null);
+                new GetResult("test", "type", "1", 0, 1, 0, true, new BytesArray("{\"f\":\"v\"}"), null);
         final UpdateRequest updateRequest =
                 new UpdateRequest("test", "type", "1")
                         .script(mockInlineScript("return"))
@@ -391,7 +391,7 @@ public class UpdateRequestTests extends ESTestCase {
 
     public void testDeleteTimeout() {
         final GetResult getResult =
-                new GetResult("test", "type", "1", 0, true, new BytesArray("{\"f\":\"v\"}"), null);
+                new GetResult("test", "type", "1", 0, 1, 0, true, new BytesArray("{\"f\":\"v\"}"), null);
         final UpdateRequest updateRequest =
                 new UpdateRequest("test", "type", "1")
                         .script(mockInlineScript("ctx.op = delete"))
@@ -402,7 +402,7 @@ public class UpdateRequestTests extends ESTestCase {
     public void testUpsertTimeout() throws IOException {
         final boolean exists = randomBoolean();
         final BytesReference source = exists ? new BytesArray("{\"f\":\"v\"}") : null;
-        final GetResult getResult = new GetResult("test", "type", "1", 0, exists, source, null);
+        final GetResult getResult = new GetResult("test", "type", "1", 0, 1, 0, exists, source, null);
         final XContentBuilder sourceBuilder = jsonBuilder();
         sourceBuilder.startObject();
         {
@@ -535,7 +535,7 @@ public class UpdateRequestTests extends ESTestCase {
     }
 
     public void testRoutingExtraction() throws Exception {
-        GetResult getResult = new GetResult("test", "type", "1", 0, false, null, null);
+        GetResult getResult = new GetResult("test", "type", "1", 0, 1, 0, false, null, null);
         IndexRequest indexRequest = new IndexRequest("test", "type", "1");
 
         // There is no routing and parent because the document doesn't exist
@@ -545,7 +545,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
 
         // Doc exists but has no source or fields
-        getResult = new GetResult("test", "type", "1", 0, true, null, null);
+        getResult = new GetResult("test", "type", "1", 0, 1, 0, true, null, null);
 
         // There is no routing and parent on either request
         assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
@@ -554,7 +554,7 @@ public class UpdateRequestTests extends ESTestCase {
         fields.put("_routing", new DocumentField("_routing", Collections.singletonList("routing1")));
 
         // Doc exists and has the parent and routing fields
-        getResult = new GetResult("test", "type", "1", 0, true, null, fields);
+        getResult = new GetResult("test", "type", "1", 0, 1, 0, true, null, fields);
 
         // Use the get result parent and routing
         assertThat(UpdateHelper.calculateRouting(getResult, indexRequest), equalTo("routing1"));
@@ -563,7 +563,7 @@ public class UpdateRequestTests extends ESTestCase {
     @SuppressWarnings("deprecated") // VersionType.FORCE is deprecated
     public void testCalculateUpdateVersion() throws Exception {
         long randomVersion = randomIntBetween(0, 100);
-        GetResult getResult = new GetResult("test", "type", "1", randomVersion, true, new BytesArray("{}"), null);
+        GetResult getResult = new GetResult("test", "type", "1", 0, 1, randomVersion, true, new BytesArray("{}"), null);
 
         UpdateRequest request = new UpdateRequest("test", "type1", "1");
         long version = UpdateHelper.calculateUpdateVersion(request, getResult);
@@ -580,7 +580,7 @@ public class UpdateRequestTests extends ESTestCase {
 
     public void testNoopDetection() throws Exception {
         ShardId shardId = new ShardId("test", "", 0);
-        GetResult getResult = new GetResult("test", "type", "1", 0, true,
+        GetResult getResult = new GetResult("test", "type", "1", 0, 1, 0, true,
                 new BytesArray("{\"body\": \"foo\"}"),
                 null);
 
@@ -611,7 +611,7 @@ public class UpdateRequestTests extends ESTestCase {
 
     public void testUpdateScript() throws Exception {
         ShardId shardId = new ShardId("test", "", 0);
-        GetResult getResult = new GetResult("test", "type", "1", 0, true,
+        GetResult getResult = new GetResult("test", "type", "1", 0, 1, 0, true,
                 new BytesArray("{\"body\": \"bar\"}"),
                 null);
 

@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
@@ -72,15 +73,16 @@ public class GetResultTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         {
-            GetResult getResult = new GetResult("index", "type", "id", 1, true, new BytesArray("{ \"field1\" : " +
+            GetResult getResult = new GetResult("index", "type", "id", 0, 1, 1, true, new BytesArray("{ \"field1\" : " +
                     "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
                     singletonList("value1"))));
             String output = Strings.toString(getResult);
-            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"found\":true,\"_source\":{ \"field1\" " +
-                    ": \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}", output);
+            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\", \"_seq_no\":0,\"_primary_Term\": 1,\"_version\":1," +
+                "\"found\":true,\"_source\":{ \"field1\": \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}",
+                output);
         }
         {
-            GetResult getResult = new GetResult("index", "type", "id", 1, false, null, null);
+            GetResult getResult = new GetResult("index", "type", "id", 0, 1, 1, false, null, null);
             String output = Strings.toString(getResult);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
         }
@@ -92,7 +94,7 @@ public class GetResultTests extends ESTestCase {
         GetResult getResult = tuple.v1();
         // We don't expect to retrieve the index/type/id of the GetResult because they are not rendered
         // by the toXContentEmbedded method.
-        GetResult expectedGetResult = new GetResult(null, null, null, -1,
+        GetResult expectedGetResult = new GetResult(null, null, null, 0, 1, -1,
                 tuple.v2().isExists(), tuple.v2().sourceRef(), tuple.v2().getFields());
 
         boolean humanReadable = randomBoolean();
@@ -118,7 +120,7 @@ public class GetResultTests extends ESTestCase {
         fields.put("foo", new DocumentField("foo", singletonList("bar")));
         fields.put("baz", new DocumentField("baz", Arrays.asList("baz_0", "baz_1")));
 
-        GetResult getResult = new GetResult("index", "type", "id", 2, true,
+        GetResult getResult = new GetResult("index", "type", "id", 0, 1, 2, true,
                 new BytesArray("{\"foo\":\"bar\",\"baz\":[\"baz_0\",\"baz_1\"]}"), fields);
 
         BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON, false);
@@ -127,7 +129,7 @@ public class GetResultTests extends ESTestCase {
     }
 
     public void testToXContentEmbeddedNotFound() throws IOException {
-        GetResult getResult = new GetResult("index", "type", "id", 1, false, null, null);
+        GetResult getResult = new GetResult("index", "type", "id", 0, 1, 1, false, null, null);
 
         BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON, false);
         assertEquals("{\"found\":false}", originalBytes.utf8ToString());
@@ -149,25 +151,34 @@ public class GetResultTests extends ESTestCase {
     }
 
     public static GetResult copyGetResult(GetResult getResult) {
-        return new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(),
-                getResult.isExists(), getResult.internalSourceRef(), getResult.getFields());
+        return new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(),
+            getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(),
+            getResult.isExists(), getResult.internalSourceRef(), getResult.getFields());
     }
 
     public static GetResult mutateGetResult(GetResult getResult) {
         List<Supplier<GetResult>> mutations = new ArrayList<>();
-        mutations.add(() -> new GetResult(randomUnicodeOfLength(15), getResult.getType(), getResult.getId(), getResult.getVersion(),
+        mutations.add(() -> new GetResult(randomUnicodeOfLength(15), getResult.getType(), getResult.getId(),
+            getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(),
                 getResult.isExists(), getResult.internalSourceRef(), getResult.getFields()));
-        mutations.add(() -> new GetResult(getResult.getIndex(), randomUnicodeOfLength(15), getResult.getId(), getResult.getVersion(),
-                getResult.isExists(), getResult.internalSourceRef(), getResult.getFields()));
-        mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), randomUnicodeOfLength(15), getResult.getVersion(),
-                getResult.isExists(), getResult.internalSourceRef(), getResult.getFields()));
-        mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), randomNonNegativeLong(),
-                getResult.isExists(), getResult.internalSourceRef(), getResult.getFields()));
-        mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(),
-                getResult.isExists() == false, getResult.internalSourceRef(), getResult.getFields()));
-        mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(),
-                getResult.isExists(), RandomObjects.randomSource(random()), getResult.getFields()));
-        mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(),
+        mutations.add(() -> new GetResult(getResult.getIndex(), randomUnicodeOfLength(15), getResult.getId(),
+            getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(),
+            getResult.isExists(), getResult.internalSourceRef(), getResult.getFields()));
+        mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), randomUnicodeOfLength(15),
+            getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(),
+            getResult.isExists(), getResult.internalSourceRef(), getResult.getFields()));
+        mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(),
+            getResult.getSeqNo(), getResult.getPrimaryTerm(), randomNonNegativeLong(),
+            getResult.isExists(), getResult.internalSourceRef(), getResult.getFields()));
+        mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(),
+            getResult.isExists() ? SequenceNumbers.UNASSIGNED_SEQ_NO : getResult.getSeqNo(),
+            getResult.isExists() ? 0 : getResult.getPrimaryTerm(),
+            getResult.getVersion(), getResult.isExists() == false, getResult.internalSourceRef(), getResult.getFields()));
+        mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(),
+            getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(), getResult.isExists(),
+            RandomObjects.randomSource(random()), getResult.getFields()));
+        mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(),
+            getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(),
                 getResult.isExists(), getResult.internalSourceRef(), randomDocumentFields(XContentType.JSON).v1()));
         return randomFrom(mutations).get();
     }
@@ -177,12 +188,16 @@ public class GetResultTests extends ESTestCase {
         final String type = randomAlphaOfLengthBetween(3, 10);
         final String id = randomAlphaOfLengthBetween(3, 10);
         final long version;
+        final long seqNo;
+        final long primaryTerm;
         final boolean exists;
         BytesReference source = null;
         Map<String, DocumentField> fields = null;
         Map<String, DocumentField> expectedFields = null;
         if (frequently()) {
             version = randomNonNegativeLong();
+            seqNo = randomNonNegativeLong();
+            primaryTerm = randomLongBetween(1, 100);
             exists = true;
             if (frequently()) {
                 source = RandomObjects.randomSource(random());
@@ -193,11 +208,13 @@ public class GetResultTests extends ESTestCase {
                 expectedFields = tuple.v2();
             }
         } else {
+            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            primaryTerm = 0;
             version = -1;
             exists = false;
         }
-        GetResult getResult = new GetResult(index, type, id, version, exists, source, fields);
-        GetResult expectedGetResult = new GetResult(index, type, id, version, exists, source, expectedFields);
+        GetResult getResult = new GetResult(index, type, id, seqNo, primaryTerm, version, exists, source, fields);
+        GetResult expectedGetResult = new GetResult(index, type, id, seqNo, primaryTerm, version, exists, source, expectedFields);
         return Tuple.tuple(getResult, expectedGetResult);
     }
 

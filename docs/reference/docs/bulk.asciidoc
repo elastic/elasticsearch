@@ -38,7 +38,7 @@ optional_source\n
 
 *NOTE*: the final line of data must end with a newline character `\n`. Each newline character
 may be preceded by a carriage return `\r`. When sending requests to this endpoint the
-`Content-Type` header should be set to `application/x-ndjson`.
+`Content-Type` header should be set to `application/x-  ndjson`.
 
 The possible actions are `index`, `create`, `delete` and `update`.
 `index` and `create` expect a source on the next

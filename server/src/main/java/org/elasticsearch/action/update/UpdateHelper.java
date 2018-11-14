@@ -316,7 +316,7 @@ public class UpdateHelper extends AbstractComponent {
         }
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
-        return new GetResult(concreteIndex, request.type(), request.id(), version, true, sourceFilteredAsBytes, Collections.emptyMap());
+        return new GetResult(concreteIndex, request.type(), request.id(), 0, 1, version, true, sourceFilteredAsBytes, Collections.emptyMap());
     }
 
     public static class Result {

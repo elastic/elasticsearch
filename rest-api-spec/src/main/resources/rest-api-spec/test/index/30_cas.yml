@@ -15,6 +15,13 @@
  - set: { _primary_term: primary_term }
 
  - do:
+      get:
+          index:  test_1
+          id:     1
+ - match: { _seq_no: $seqno }
+ - match: { _primary_term: $primary_term }
+
+ - do:
       catch:        conflict
       index:
           index:            test_1

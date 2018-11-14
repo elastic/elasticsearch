@@ -74,10 +74,10 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         assertThat(client().prepareGet("index3", "type", "id").setRouting("1").get().getSource().get("foo"), equalTo("baz"));
 
         bulkResponse = client().prepareBulk().add(client().prepareUpdate("alias1", "type", "id").setDoc("foo", "updated")).get();
-        assertFalse(bulkResponse.hasFailures());
+        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
         assertThat(client().prepareGet("index3", "type", "id").setRouting("1").get().getSource().get("foo"), equalTo("updated"));
         bulkResponse = client().prepareBulk().add(client().prepareDelete("alias1", "type", "id")).get();
-        assertFalse(bulkResponse.hasFailures());
+        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
         assertFalse(client().prepareGet("index3", "type", "id").setRouting("1").get().isExists());
     }
 }

@@ -13,7 +13,7 @@ dependencies {
 }
 
 repositories {
-    mavenCentral()
+    jcenter()
     repositories {
         maven {
             url System.getProperty("local.repo.path")

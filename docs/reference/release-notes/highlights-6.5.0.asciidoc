@@ -4,8 +4,6 @@
 <titleabbrev>6.5.0</titleabbrev>
 ++++
 
-coming[6.5.0]
-
 See also <<release-notes-6.5.0,{es} 6.5.0 release notes>>. 
 
 [float]
@@ -55,3 +53,41 @@ analysis. A new `multi_bucket_impact` property in the
 analysis influences the score. In {kib}, anomalies with medium or high 
 multi-bucket impact are depicted in the *Anomaly Explorer* and the 
 *Single Metric Viewer* with a cross symbol instead of a dot. 
+
+[float]
+=== Create source-only snapshots
+
+<<_source_only_repository, Source-only snapshots>> save space on disk by only
+saving stored fields and index metadata. This can result in up to 50% reduction
+in size. Index and doc values are not included, so a restored source-only
+snapshot is not searchable. You must reindex the data into a new index after it's
+restored.
+
+[float]
+=== Apply token filters conditionally
+
+The <analysis-condition-tokenfilter, conditional token filter> enables you to
+use inline Painless scripts to filter out terms. Previously, conditionally
+applying token filters required creating and using custom analysis plugins.
+
+[float]
+=== Use ODBC to connect to {es} SQL
+
+{es} SQL now supports ODBC mode in addition to JDBC. The functionality is
+currently the same as JDBC. An alpha version of the ODBC client is now
+available for download.
+
+[float]
+=== Cross-cluster replication (beta)
+
+Cross-cluster replication enables you to replicate indices that exist in remote 
+clusters to your local cluster. You create an index in your local cluster 
+(known as a _follower index_) that follows an index (known as a _leader index_)
+in a remote cluster. You can also automatically follow indices in a 
+remote cluster that match a pattern. The individual write operations that occur 
+on the leader indices are then replayed on the follower indices. This 
+functionality is useful for replicating data to a second cluster for disaster 
+recovery purposes and for geo-proximity so that reads can be served locally.
+
+For more information, see {stack-ov}/xpack-ccr.html[Cross-cluster replication] 
+and <<ccr-apis>>. 

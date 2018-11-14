@@ -13,6 +13,8 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.Is.is;
 
 public class DelayedDataCheckConfigTests extends AbstractSerializingTestCase<DelayedDataCheckConfig> {
 
@@ -32,7 +34,6 @@ public class DelayedDataCheckConfigTests extends AbstractSerializingTestCase<Del
     }
 
     public void testConstructor() {
-        expectThrows(IllegalArgumentException.class, () -> new DelayedDataCheckConfig(true, null));
         expectThrows(IllegalArgumentException.class, () -> new DelayedDataCheckConfig(true, TimeValue.MINUS_ONE));
         expectThrows(IllegalArgumentException.class, () -> new DelayedDataCheckConfig(true, TimeValue.timeValueHours(25)));
     }
@@ -52,7 +53,7 @@ public class DelayedDataCheckConfigTests extends AbstractSerializingTestCase<Del
     public void testDefaultDelayedDataCheckConfig() {
         DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
         assertThat(delayedDataCheckConfig.isEnabled(), equalTo(true));
-        assertThat(delayedDataCheckConfig.getCheckWindow(), equalTo(DelayedDataCheckConfig.DEFAULT_DELAYED_DATA_WINDOW));
+        assertThat(delayedDataCheckConfig.getCheckWindow(), is(nullValue()));
     }
 
     public static DelayedDataCheckConfig createRandomizedConfig(long bucketSpanMillis) {
@@ -72,7 +73,7 @@ public class DelayedDataCheckConfigTests extends AbstractSerializingTestCase<Del
         switch (between(0, 1)) {
         case 0:
             enabled = !enabled;
-            if (enabled || randomBoolean()) {
+            if (randomBoolean()) {
                 timeWindow = TimeValue.timeValueMillis(randomLongBetween(1, 1000));
             } else {
                 timeWindow = null;

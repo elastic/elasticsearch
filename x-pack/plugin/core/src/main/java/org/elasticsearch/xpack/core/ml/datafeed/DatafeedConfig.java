@@ -205,7 +205,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (in.getVersion().onOrAfter(Version.CURRENT)) {
             delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         } else {
-            delayedDataCheckConfig = DelayedDataCheckConfig.disabledDelayedDataCheckConfig();
+            delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
         }
     }
 

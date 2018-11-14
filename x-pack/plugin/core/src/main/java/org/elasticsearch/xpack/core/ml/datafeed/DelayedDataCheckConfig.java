@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
@@ -26,7 +25,6 @@ import java.util.Objects;
 public class DelayedDataCheckConfig implements ToXContentObject, Writeable {
 
     public static final TimeValue MAX_DELAYED_DATA_WINDOW = TimeValue.timeValueHours(24);
-    public static final TimeValue DEFAULT_DELAYED_DATA_WINDOW = TimeValue.timeValueHours(2);
 
     public static final ParseField ENABLED = new ParseField("enabled");
     public static final ParseField CHECK_WINDOW = new ParseField("check_window");
@@ -51,7 +49,7 @@ public class DelayedDataCheckConfig implements ToXContentObject, Writeable {
     }
 
     public static DelayedDataCheckConfig defaultDelayedDataCheckConfig() {
-        return new DelayedDataCheckConfig(true, DEFAULT_DELAYED_DATA_WINDOW);
+        return new DelayedDataCheckConfig(true, null);
     }
 
     public static DelayedDataCheckConfig enabledDelayedDataCheckConfig(TimeValue timeValue) {
@@ -67,8 +65,7 @@ public class DelayedDataCheckConfig implements ToXContentObject, Writeable {
 
     DelayedDataCheckConfig(Boolean enabled, TimeValue checkWindow) {
         this.enabled = enabled;
-        if (enabled) {
-            ExceptionsHelper.requireNonNull(checkWindow, "when delayed_data_check_config is enabled, check_window must not be null");
+        if (enabled && checkWindow != null) {
             TimeUtils.checkPositive(checkWindow, CHECK_WINDOW);
             if (checkWindow.compareTo(MAX_DELAYED_DATA_WINDOW) > 0) {
                 throw new IllegalArgumentException("check_window [" + checkWindow.getStringRep() + "] must be less than or equal to [24h]");

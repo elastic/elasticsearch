@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -17,7 +16,9 @@ import java.util.Objects;
 
 public class DelayedDataDetectorFactory {
 
-    private static final int FALLBACK_NUMBER_OF_BUCKETS_TO_SPAN = 7;
+    // There are eight 15min buckets in a two hour span, so matching that number as the fallback for very long buckets
+    private static final int FALLBACK_NUMBER_OF_BUCKETS_TO_SPAN = 8;
+    private static final TimeValue DEFAULT_CHECK_WINDOW = TimeValue.timeValueHours(2);
 
     public static DelayedDataDetector buildDetector(Job job, DatafeedConfig datafeedConfig, Client client) {
         if (datafeedConfig.getDelayedDataCheckConfig().isEnabled()) {
@@ -37,19 +38,21 @@ public class DelayedDataDetectorFactory {
     }
 
     private static long validateAndCalculateWindowLength(TimeValue bucketSpan, TimeValue currentWindow) {
-        if (bucketSpan == null || currentWindow == null) {
+        if (bucketSpan == null) {
             return 0;
+        }
+        if (currentWindow == null) { // we should provide a good default
+            if(bucketSpan.compareTo(DEFAULT_CHECK_WINDOW) >= 0) {
+                return FALLBACK_NUMBER_OF_BUCKETS_TO_SPAN * bucketSpan.millis();
+            } else {
+                return DEFAULT_CHECK_WINDOW.millis();
+            }
         }
         if (currentWindow.compareTo(bucketSpan) < 0) {
             // If it is the default value, we assume the user did not set it and the bucket span is very large
-            if (currentWindow.equals(DelayedDataCheckConfig.DEFAULT_DELAYED_DATA_WINDOW)) {
-                //TODO What if bucket_span > 24h?, weird but possible case...
-                return bucketSpan.millis() * FALLBACK_NUMBER_OF_BUCKETS_TO_SPAN;
-            } else {
-                throw new IllegalArgumentException(
-                    Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL, currentWindow.getStringRep(),
-                        bucketSpan.getStringRep()));
-            }
+            throw new IllegalArgumentException(
+                Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL, currentWindow.getStringRep(),
+                    bucketSpan.getStringRep()));
         } else if (currentWindow.millis() > bucketSpan.millis() * 10_000) {
             throw new IllegalArgumentException(
                 Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, currentWindow.getStringRep(),

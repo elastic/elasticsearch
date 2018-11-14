@@ -42,7 +42,7 @@ public final class DatafeedJobValidator {
 
     private static void checkValidDelayedDataCheckConfig(TimeValue bucketSpan, DelayedDataCheckConfig delayedDataCheckConfig) {
         TimeValue delayedDataCheckWindow =  delayedDataCheckConfig.getCheckWindow();
-        if (delayedDataCheckWindow.equals(DelayedDataCheckConfig.DEFAULT_DELAYED_DATA_WINDOW) == false) {
+        if (delayedDataCheckWindow != null) { // NULL implies we calculate on use and thus is always valid
             if (delayedDataCheckWindow.compareTo(bucketSpan) < 0) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL,

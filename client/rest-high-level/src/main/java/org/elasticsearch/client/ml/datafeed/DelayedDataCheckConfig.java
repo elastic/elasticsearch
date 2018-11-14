@@ -66,8 +66,9 @@ public class DelayedDataCheckConfig implements ToXContentObject {
     * The window must be larger than the {@link org.elasticsearch.client.ml.job.config.AnalysisConfig#bucketSpan}, less than
     * 24 hours, and span less than 10,000x buckets.
     *
+    *
     * @param timeValue The time length in the past from the latest finalized bucket to look for latent data.
-    *                  The default value is 2 hours
+    *                  If `null` is provided, the appropriate window is calculated when it is used
     **/
     public static DelayedDataCheckConfig enabledDelayedDataCheckConfig(TimeValue timeValue) {
         return new DelayedDataCheckConfig(true, timeValue);
@@ -85,9 +86,6 @@ public class DelayedDataCheckConfig implements ToXContentObject {
 
     DelayedDataCheckConfig(Boolean enabled, TimeValue checkWindow) {
         this.enabled = enabled;
-        if (enabled) {
-            Objects.requireNonNull(checkWindow, "when delayed_data_check_config is enabled, check_window must not be null");
-        }
         this.checkWindow = checkWindow;
     }
 

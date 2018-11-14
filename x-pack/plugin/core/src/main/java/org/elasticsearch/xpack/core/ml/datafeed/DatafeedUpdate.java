@@ -199,9 +199,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         addOptionalField(builder, DatafeedConfig.SCROLL_SIZE, scrollSize);
         addOptionalField(builder, DatafeedConfig.CHUNKING_CONFIG, chunkingConfig);
-        if (delayedDataCheckConfig != null) {
-            builder.field(DatafeedConfig.DELAYED_DATA_CHECK_CONFIG.getPreferredName(), delayedDataCheckConfig);
-        }
+        addOptionalField(builder, DatafeedConfig.DELAYED_DATA_CHECK_CONFIG, delayedDataCheckConfig);
         builder.endObject();
         return builder;
     }

@@ -109,7 +109,8 @@ The configuration object has the following properties:
 
 `check_window`::
   (time units) The window of time before the latest finalized bucket that should be searched
-  for late data. Defaults to 2 hours
+  for late data. Defaults to `null` which causes an appropriate `check_window` to be calculated
+  when the real-time {dfeed} runs.
 
 [float]
 [[ml-datafeed-counts]]

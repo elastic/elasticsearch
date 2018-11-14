@@ -69,7 +69,9 @@ include-tagged::{doc-tests-file}[{api}-config-set-delayed-data-check-config]
 --------------------------------------------------
 <1> Sets the delayed data check configuration.
 The window must be larger than the Job's bucket size, but smaller than 24 hours,
-and span less than 10,000 buckets. Defaults to 2 hours.
+and span less than 10,000 buckets.
+Defaults to `null`, which causes an appropriate window span to be calculated when
+the datafeed runs.
 To explicitly disable, pass `DelayedDataCheckConfig.disabledDelayedDataCheckConfig()`.
 
 ["source","java",subs="attributes,callouts,macros"]

@@ -52,7 +52,6 @@ import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;

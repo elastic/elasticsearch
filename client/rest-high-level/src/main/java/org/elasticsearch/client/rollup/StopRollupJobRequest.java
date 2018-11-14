@@ -16,21 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle;
+package org.elasticsearch.client.rollup;
 
-public enum Distribution {
+import org.elasticsearch.client.Validatable;
 
-    INTEG_TEST("integ-test"),
-    ZIP("elasticsearch"),
-    ZIP_OSS("elasticsearch-oss");
+import java.util.Objects;
 
-    private final String fileName;
+public class StopRollupJobRequest implements Validatable {
 
-    Distribution(String name) {
-        this.fileName = name;
+    private final String jobId;
+
+    public StopRollupJobRequest(final String jobId) {
+        this.jobId = Objects.requireNonNull(jobId, "id parameter must not be null");
     }
 
-    public String getFileName() {
-        return fileName;
+    public String getJobId() {
+        return jobId;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final StopRollupJobRequest that = (StopRollupJobRequest) o;
+        return Objects.equals(jobId, that.jobId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(jobId);
     }
 }

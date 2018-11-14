@@ -16,29 +16,36 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.rollup;
 
-package org.elasticsearch.common.util.concurrent;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
+import org.junit.Before;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import java.io.IOException;
 
-public class LoggingRunnable implements Runnable {
+public class StopRollupJobResponseTests extends AbstractXContentTestCase<StopRollupJobResponse> {
 
-    private final Runnable runnable;
-    private final Logger logger;
+    private boolean acknowledged;
 
-    public LoggingRunnable(Logger logger, Runnable runnable) {
-        this.runnable = runnable;
-        this.logger = logger;
+    @Before
+    public void setupAcknoledged() {
+        acknowledged = randomBoolean();
     }
 
     @Override
-    public void run() {
-        try {
-            runnable.run();
-        } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("failed to execute [{}]", runnable.toString()), e);
-        }
+    protected StopRollupJobResponse createTestInstance() {
+        return new StopRollupJobResponse(acknowledged);
+    }
+
+    @Override
+    protected  StopRollupJobResponse doParseInstance(XContentParser parser) throws IOException {
+        return StopRollupJobResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 
 }

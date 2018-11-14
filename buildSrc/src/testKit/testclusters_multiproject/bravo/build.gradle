@@ -3,7 +3,10 @@ plugins {
 }
 
 testClusters {
-    myTestCluster
+    myTestCluster {
+        distribution = 'ZIP'
+        version = System.getProperty("test.version_under_test")
+    }
 }
 
 task user1 {

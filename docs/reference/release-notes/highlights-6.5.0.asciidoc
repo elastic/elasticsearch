@@ -92,3 +92,12 @@ recovery purposes and for geo-proximity so that reads can be served locally.
 
 For more information, see {stack-ov}/xpack-ccr.html[Cross-cluster replication] 
 and <<ccr-apis>>. 
+
+=== Monitor {es} with {metribeat} (beta)
+
+In 6.4 and later, you can use {metricbeat} to collect data about {kib} and ship 
+it directly to your monitoring cluster, rather than routing it through {es}. Now 
+in 6.5, you can also use {metricbeat} to collect and ship data about {es}. If 
+you are monitoring {ls} or Beats, at this time you must still use exporters to 
+route the data. See <<configuring-metricbeat>> and 
+{stack-ov}/how-monitoring-works.html[How monitoring works]. 

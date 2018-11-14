@@ -2,7 +2,10 @@ plugins {
     id 'elasticsearch.testclusters'
 }
 testClusters {
-    myTestCluster
+    myTestCluster {
+        distribution = 'ZIP'
+        version = '7.0.0-alpha1-SNAPSHOT'
+    }
 }
 task user1 {
     useCluster testClusters.myTestCluster

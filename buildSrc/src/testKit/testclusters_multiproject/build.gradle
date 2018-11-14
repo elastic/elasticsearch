@@ -2,8 +2,19 @@ plugins {
     id 'elasticsearch.testclusters'
 }
 
+allprojects {
+    repositories {
+        maven {
+            url System.getProperty("local.repo.path")
+        }
+    }
+}
+
 testClusters {
-    myTestCluster
+    myTestCluster {
+        distribution = 'ZIP'
+        version = '7.0.0-alpha1-SNAPSHOT'
+    }
 }
 
 task user1 {

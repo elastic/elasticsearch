@@ -387,6 +387,8 @@ public class DatafeedConfig implements ToXContentObject {
          * See {@link DelayedDataCheckConfig} for more information.
          *
          * @param delayedDataCheckConfig the delayed data check configuration
+         *                               Default value is enabled, with `check_window` being null. This means the true window is
+         *                               calculated when the real-time Datafeed runs.
          */
         public Builder setDelayedDataCheckConfig(DelayedDataCheckConfig delayedDataCheckConfig) {
             this.delayedDataCheckConfig = delayedDataCheckConfig;

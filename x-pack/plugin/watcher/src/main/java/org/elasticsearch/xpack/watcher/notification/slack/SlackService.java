@@ -30,8 +30,7 @@ public class SlackService extends NotificationService<SlackAccount> {
                     (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
 
     private static final Setting.AffixSetting<SecureString> SETTING_URL_SECURE =
-            Setting.affixKeySetting("xpack.notification.slack.account.", "secure_url",
-                    (key) -> SecureSetting.secureString(key, null));
+            Setting.affixKeySetting("xpack.notification.slack.account.", "secure_url", (key) -> SecureSetting.secureString(key, null));
 
     private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS =
             Setting.affixKeySetting("xpack.notification.slack.account.", "message_defaults",
@@ -40,11 +39,10 @@ public class SlackService extends NotificationService<SlackAccount> {
     private final HttpClient httpClient;
 
     public SlackService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
-        super("slack", clusterSettings, SlackService.getSettings());
+        super("slack", clusterSettings, Arrays.asList(SETTING_DEFAULT_ACCOUNT, SETTING_URL, SETTING_DEFAULTS));
         this.httpClient = httpClient;
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_URL, (s, o) -> {}, (s, o) -> {});
-        clusterSettings.addAffixUpdateConsumer(SETTING_URL_SECURE, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_DEFAULTS, (s, o) -> {}, (s, o) -> {});
         reload(settings);
     }

@@ -16,7 +16,7 @@ one or more frozen shards will be executed on a throttled threadpool that ensure
 
 In contrast to ordinary open indices, frozen indices are expected to execute slowly and are not designed for high query load. Parallelism is
 gained only on a per-node level and loading data-structures on demand is expected to be one or more orders of a magnitude slower than query
-execution on a per shard level. Depending on the index and it's data executing a search on a frozen index is expected to be in the seconds
+execution on a per shard level. Depending on the data in an index, a frozen index may execute searches in the seconds to minutes range, when the same index in an unfrozen state may execute the same search request in milliseconds.
 or even minutes range compared to milliseconds on a non-frozen index.
 
 == Best Practices

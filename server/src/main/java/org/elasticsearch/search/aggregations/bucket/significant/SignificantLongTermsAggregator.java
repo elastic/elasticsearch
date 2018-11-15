@@ -45,8 +45,8 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
     public SignificantLongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
             DocValueFormat format, BucketCountThresholds bucketCountThresholds, SearchContext context, Aggregator parent,
-            SubAggCollectionMode subAggCollectMode, SignificanceHeuristic significanceHeuristic, SignificantTermsAggregatorFactory termsAggFactory,
-            IncludeExclude.LongFilter includeExclude,
+            SubAggCollectionMode subAggCollectMode, SignificanceHeuristic significanceHeuristic,
+            SignificantTermsAggregatorFactory termsAggFactory, IncludeExclude.LongFilter includeExclude,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, valuesSource, format, null, bucketCountThresholds, context, parent,

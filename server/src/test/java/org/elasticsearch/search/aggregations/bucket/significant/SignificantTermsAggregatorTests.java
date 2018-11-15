@@ -29,6 +29,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -46,6 +47,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
@@ -62,6 +64,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
@@ -332,6 +335,34 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 assertEquals(oddTerms, aliasOddTerms);
             }
         }
+    }
+
+    public void testShouldDefer() throws Exception {
+        Directory directory = newDirectory();
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        indexWriter.close();
+        IndexReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        SignificantTermsAggregationBuilder aggregationBuilder = new SignificantTermsAggregationBuilder("_name", ValueType.STRING)
+            .field("string")
+            .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
+
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
+        fieldType.setName("string");
+        fieldType.setHasDocValues(true);
+
+        GlobalOrdinalsSignificantTermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        assertThat(aggregator, instanceOf(GlobalOrdinalsSignificantTermsAggregator.class));
+        assertTrue(aggregator.shouldDefer(null));
+
+        aggregationBuilder = new SignificantTermsAggregationBuilder("_name", ValueType.STRING)
+            .field("string");
+        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        assertThat(aggregator, instanceOf(GlobalOrdinalsSignificantTermsAggregator.class));
+        assertFalse(aggregator.shouldDefer(null));
+
+        indexReader.close();
+        directory.close();
     }
 
     private void addMixedTextDocs(TextFieldType textFieldType, IndexWriter w) throws IOException {

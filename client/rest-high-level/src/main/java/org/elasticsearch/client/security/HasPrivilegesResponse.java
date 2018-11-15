@@ -39,7 +39,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public final class HasPrivilegesResponse {
 
     private static final ConstructingObjectParser<HasPrivilegesResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "create_token_response", true, args -> new HasPrivilegesResponse(
+        "has_privileges_response", true, args -> new HasPrivilegesResponse(
         (String) args[0], (Boolean) args[1], checkMap(args[2], 0), checkMap(args[3], 1), checkMap(args[4], 2)));
 
     static {

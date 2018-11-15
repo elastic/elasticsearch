@@ -57,7 +57,7 @@ POST /my_index/_unfreeze
 Frozen indices are throttled in order limit memory consumptions per node. The number of concurrently loaded frozen indices per node is
 limited by the number of threads in the <<search-throttled>> threadpool,  which is `1` by default. 
 Search requests will not be executed against frozen indices by default, even if a frozen index is named explicitly. Th is is ```
-default to prevent accidental slowdowns when a frozen index is hit. To include frozen indices a search request must be executed with
+to prevent accidental slowdowns by targeting a frozen index by mistake.. To include frozen indices a search request must be executed with
 the query parameter `ignore_throttled=false`.
 
 [source,js]

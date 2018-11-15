@@ -67,7 +67,7 @@ restored.
 [float]
 === Apply token filters conditionally
 
-The <analysis-condition-tokenfilter, conditional token filter> enables you to
+The <<analysis-condition-tokenfilter,conditional token filter>> enables you to
 use inline Painless scripts to filter out terms. Previously, conditionally
 applying token filters required creating and using custom analysis plugins.
 

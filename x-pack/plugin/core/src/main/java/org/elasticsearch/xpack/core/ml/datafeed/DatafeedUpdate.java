@@ -132,7 +132,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             in.readOptionalBoolean();
         }
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
             delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         } else {
             delayedDataCheckConfig = null;
@@ -178,7 +178,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             out.writeOptionalBoolean(null);
         }
         out.writeOptionalWriteable(chunkingConfig);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeOptionalWriteable(delayedDataCheckConfig);
         }
     }

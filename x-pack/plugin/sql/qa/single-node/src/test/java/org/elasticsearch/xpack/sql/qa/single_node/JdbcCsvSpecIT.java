@@ -17,9 +17,6 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
     protected int fetchSize() {
         // using a smaller fetchSize for nested documents' tests to uncover bugs
         // similar with https://github.com/elastic/elasticsearch/issues/35176 quicker
-        if (fileName.startsWith("nested")) {
-            return randomBoolean() ? super.fetchSize() : randomIntBetween(1, 5);
-        }
-        return super.fetchSize();
+        return fileName.startsWith("nested") && randomBoolean() ? randomIntBetween(1,5) : super.fetchSize();
     }
 }

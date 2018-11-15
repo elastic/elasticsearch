@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeF
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StWkttosqlProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
@@ -406,5 +408,9 @@ public final class InternalSqlScriptUtils {
 
     public static String aswktShape(Object v) {
         return GeoProcessor.GeoOperation.ASWKT_SHAPE.apply(v).toString();
+    }
+
+    public static GeoShape wktToSql(String wktString) {
+        return StWkttosqlProcessor.apply(wktString);
     }
 }

@@ -6,6 +6,8 @@
         "keyword" : { "type" : "keyword" },
         "date" :  { "type" : "date" },
         "unsupported" : { "type" : "ip_range" },
+        "point": {"type" : "geo_point"},
+        "shape": {"type" : "geo_shape"},
         "some" : {
             "properties" : {
                 "dotted" : {

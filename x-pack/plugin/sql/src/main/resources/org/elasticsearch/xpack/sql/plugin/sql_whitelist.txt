@@ -4,7 +4,14 @@
 # you may not use this file except in compliance with the Elastic License.
 #
 
-# This file contains a whitelist for SQL specific utilities available inside SQL scripting
+# This file contains a whitelist for SQL specific utilities and classes available inside SQL scripting
+
+#### Classes
+
+class org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape {
+
+}
+
 
 class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
 
@@ -117,4 +124,5 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String  ucase(String)
   String aswktPoint(Object)
   String aswktShape(Object)
+  GeoShape wktToSql(String)
 }

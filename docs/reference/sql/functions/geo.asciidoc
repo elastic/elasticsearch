@@ -30,3 +30,28 @@ Returns the WKT representation of the `geometry`. The return type is string.
 --------------------------------------------------
 include-tagged::{sql-specs}/geo/docs.csv-spec[aswkt]
 --------------------------------------------------
+
+
+[[sql-functions-geo-st-as-wkt]]
+===== `ST_AsWKT`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_WKTToSQL(string<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> string geometry
+
+*Output*: WKT string
+
+.Description:
+
+Returns the geometry from WKT representation. The return type is geometry.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/geo/docs.csv-spec[aswkt]
+--------------------------------------------------

@@ -29,19 +29,26 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class ElasticsearchNode {
 
@@ -56,17 +63,24 @@ public class ElasticsearchNode {
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final int NODE_UP_TIMEOUT = 30;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
+    private final LinkedHashMap<String, Predicate<ElasticsearchNode>> waitConditions;
 
     private Distribution distribution;
     private String version;
     private File javaHome;
     private volatile Process esProcess;
+    private final String path;
 
-    ElasticsearchNode(String name, GradleServicesAdapter services, File artifactsExtractDir, File workingDirBase) {
+    ElasticsearchNode(String path, String name, GradleServicesAdapter services, File artifactsExtractDir, File workingDirBase) {
+        this.path = path;
         this.name = name;
         this.services = services;
         this.artifactsExtractDir = artifactsExtractDir;
         this.workingDir = new File(workingDirBase, safeName(name));
+        this.waitConditions = new LinkedHashMap<>();
+        waitConditions.put("http ports file",  (node -> node.getHttpPortsFile().exists()));
+        waitConditions.put("transport ports file",  (node -> node.getTransportPortFile().exists()));
+        waitForUri("cluster health yellow", "/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow");
     }
 
     public String getName() {
@@ -78,7 +92,7 @@ public class ElasticsearchNode {
     }
 
     public void setVersion(String version) {
-        requireNonNull(javaHome, "null version passed when configuring test cluster `" + this + "`");
+        requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
         checkFrozen();
         this.version = version;
     }
@@ -88,12 +102,14 @@ public class ElasticsearchNode {
     }
 
     public void setDistribution(Distribution distribution) {
-        requireNonNull(javaHome, "null distribution passed when configuring test cluster `" + this + "`");
+        requireNonNull(distribution, "null distribution passed when configuring test cluster `" + this + "`");
         checkFrozen();
         this.distribution = distribution;
     }
 
     public void freeze() {
+        requireNonNull(distribution, "null distribution passed when configuring test cluster `" + this + "`");
+        requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
         logger.info("Locking configuration of `{}`", this);
         configurationFrozen.set(true);
     }
@@ -111,6 +127,25 @@ public class ElasticsearchNode {
         return javaHome;
     }
 
+    private void waitForUri(String description, String uri) {
+        waitConditions.put(description, (node) -> {
+            try {
+                URL url = new URL("http://" + this.getHttpPortInternal().get(0) + uri);
+                HttpURLConnection con = (HttpURLConnection) url.openConnection();
+                con.setRequestMethod("GET");
+                con.setConnectTimeout(500);
+                con.setReadTimeout(500);
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
+                    String response = reader.lines().collect(Collectors.joining("\n"));
+                    logger.info("{} -> {} ->\n{}", this, uri, response);
+                }
+                return true;
+            } catch (IOException e) {
+                throw new TestClustersException("Connection attempt to " + this + " failed", e);
+            }
+        });
+    }
+
     synchronized void start() {
         logger.info("Starting `{}`", this);
 
@@ -124,7 +159,10 @@ public class ElasticsearchNode {
         if (distroArtifact.isDirectory() == false) {
             throw new TestClustersException("Can not start " + this + ", is not a directory: " + distroArtifact);
         }
-
+        services.sync(spec -> {
+            spec.from(new File(distroArtifact, "config"));
+            spec.into(getConfigFile().getParent());
+        });
         writeConfigFile();
         startElasticsearchProcess(distroArtifact);
         registerCleanupHooks();
@@ -192,11 +230,26 @@ public class ElasticsearchNode {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> stop(false)));
     }
 
+    public String getHttpSocketURI() {
+        waitForAllConditions();
+        return getHttpPortInternal().get(0);
+    }
+
+    public String getTransportPortURI() {
+        waitForAllConditions();
+        return getTransportPortInternal().get(0);
+    }
+
     synchronized void stop(boolean tailLogs) {
         logger.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
+        if (esProcess == null && tailLogs) {
+            // This is a special case. If start() throws an exception the plugin will still call stop
+            // Another exception here would eat the orriginal.
+            return;
+        }
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         stopHandle(esProcess.toHandle());
-        if(tailLogs) {
+        if (tailLogs) {
             logFileContents("Standard output of node", getStdoutFile());
             logFileContents("Standard error of node", getStdErrFile());
         }
@@ -283,6 +336,7 @@ public class ElasticsearchNode {
     private File getStdoutFile() {
         return new File(getConfPathLogs(), "es.stdout.log");
     }
+
     private File getStdErrFile() {
         return new File(getConfPathLogs(), "es.stderr.log");
     }
@@ -292,6 +346,7 @@ public class ElasticsearchNode {
         getConfPathRepo().mkdirs();
         getConfPathData().mkdirs();
         getConfPathSharedData().mkdirs();
+        getConfPathLogs().mkdirs();
         LinkedHashMap<String, String> config = new LinkedHashMap<>();
         config.put("cluster.name", "cluster-" + safeName(name));
         config.put("node.name", "node-" + safeName(name));
@@ -337,22 +392,116 @@ public class ElasticsearchNode {
             .replaceAll("[^a-zA-Z0-9]+", "-");
     }
 
+    private File getHttpPortsFile() {
+        return new File(getConfPathLogs(), "http.ports");
+    }
+
+    private File getTransportPortFile() {
+        return new File(getConfPathLogs(), "transport.ports");
+    }
+
+    private List<String> getTransportPortInternal() {
+        File transportPortFile = getTransportPortFile();
+        try {
+            return readPortsFile(getTransportPortFile());
+        } catch (IOException e) {
+            throw new TestClustersException(
+                "Failed to read transport ports file: " + transportPortFile + " for " + this, e
+            );
+        }
+    }
+
+    private List<String> getHttpPortInternal() {
+        File httpPortsFile = getHttpPortsFile();
+        try {
+            return readPortsFile(getHttpPortsFile());
+        } catch (IOException e) {
+            throw new TestClustersException(
+                "Failed to read http ports file: " + httpPortsFile + " for " + this, e
+            );
+        }
+    }
+
+    private List<String> readPortsFile(File file) throws IOException {
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            return reader.lines()
+                .map(String::trim)
+                .collect(Collectors.toList());
+        }
+    }
+
+    private void waitForAllConditions() {
+        requireNonNull(esProcess, "Can't wait for `" + this + "` as it was stopped.");
+        long startedAt = System.currentTimeMillis();
+        logger.info("Starting to wait for cluster to come up");
+        waitConditions.forEach((description, predicate) -> {
+            long thisConditionStartedAt = System.currentTimeMillis();
+            boolean conditionMet = false;
+            Throwable lastException = null;
+            while (
+                System.currentTimeMillis() - startedAt < MILLISECONDS.convert(NODE_UP_TIMEOUT, NODE_UP_TIMEOUT_UNIT)
+            ) {
+                if (esProcess.isAlive() == false) {
+                    throw new TestClustersException(
+                        "process was found dead while waiting for " + description + ", " + this
+                    );
+                }
+                try {
+                    if(predicate.test(this)) {
+                        conditionMet = true;
+                        break;
+                    }
+                } catch (Exception e) {
+                    if (lastException == null) {
+                        lastException = e;
+                    } else {
+                        e.addSuppressed(lastException);
+                        lastException = e;
+                    }
+                }
+                try {
+                    Thread.sleep(500);
+                }
+                catch (TestClustersException e) {
+                    throw new TestClustersException(e);
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            if (conditionMet == false) {
+                String message = "`" + this + "` failed to wait for " + description + " after " +
+                    NODE_UP_TIMEOUT + " " + NODE_UP_TIMEOUT_UNIT;
+                if (lastException == null) {
+                    throw new TestClustersException(message);
+                } else {
+                    throw new TestClustersException(message, lastException);
+                }
+            }
+            logger.info(
+                "{}: {} took {} seconds",
+                this,  description,
+                SECONDS.convert(System.currentTimeMillis() - thisConditionStartedAt, MILLISECONDS)
+            );
+        });
+    }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ElasticsearchNode that = (ElasticsearchNode) o;
-        return Objects.equals(name, that.name);
+        return Objects.equals(name, that.name) &&
+            Objects.equals(path, that.path);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name);
+        return Objects.hash(name, path);
     }
 
     @Override
     public String toString() {
-        return "ElasticsearchNode{name='" + name + "'}";
+        return "node{" + path + ":" + name + "}";
     }
 }

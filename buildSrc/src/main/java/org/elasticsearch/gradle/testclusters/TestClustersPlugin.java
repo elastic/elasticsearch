@@ -117,10 +117,11 @@ public class TestClustersPlugin implements Plugin<Project> {
         NamedDomainObjectContainer<ElasticsearchNode> container = project.container(
             ElasticsearchNode.class,
             name -> new ElasticsearchNode(
+                project.getPath(),
                 name,
                 GradleServicesAdapter.getInstance(project),
                 SyncTestClustersConfiguration.getTestClustersConfigurationExtractDir(project),
-                getTestClustersBuildDir(project)
+                new File(project.getBuildDir(), "testclusters")
             )
         );
         project.getExtensions().add(NODE_EXTENSION_NAME, container);
@@ -228,6 +229,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                                 .filter(entry -> runningClusters.contains(entry.getKey()))
                                 .map(Map.Entry::getKey)
                                 .collect(Collectors.toList());
+                            runningClusters.removeAll(stoppable);
                         }
                         stoppable.forEach(each -> each.stop(false));
                     }

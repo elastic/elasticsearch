@@ -18,14 +18,16 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import java.io.IOException;
-
 class TestClustersException extends RuntimeException {
     TestClustersException(String message) {
         super(message);
     }
 
-    public TestClustersException(String message, Throwable cause) {
+    TestClustersException(String message, Throwable cause) {
         super(message, cause);
+    }
+
+    TestClustersException(Throwable cause) {
+        super(cause);
     }
 }

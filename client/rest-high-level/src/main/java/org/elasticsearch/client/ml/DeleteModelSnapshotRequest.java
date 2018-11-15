@@ -20,6 +20,9 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.ml.job.config.Job;
+import org.elasticsearch.client.ml.job.process.ModelSnapshot;
+
 
 import java.util.Objects;
 
@@ -28,12 +31,12 @@ import java.util.Objects;
  */
 public class DeleteModelSnapshotRequest extends ActionRequest {
 
-    private String jobId;
-    private String snapshotId;
+    private final String jobId;
+    private final String snapshotId;
 
     public DeleteModelSnapshotRequest(String jobId, String snapshotId) {
-        this.jobId = Objects.requireNonNull(jobId, "[job_id] must not be null");
-        this.snapshotId = Objects.requireNonNull(snapshotId, "[snapshot_id] must not be null");
+        this.jobId = Objects.requireNonNull(jobId, "[" + Job.ID + "] must not be null");
+        this.snapshotId = Objects.requireNonNull(snapshotId, "[" + ModelSnapshot.SNAPSHOT_ID + "] must not be null");
     }
 
     public String getJobId() {
@@ -42,22 +45,6 @@ public class DeleteModelSnapshotRequest extends ActionRequest {
 
     public String getSnapshotId() {
         return snapshotId;
-    }
-
-    /**
-     * The jobId for which to delete a given snapshot
-     * @param jobId unique jobId to delete snapshots from, must not be null
-     */
-    public void setJobId(String jobId) {
-        this.jobId = Objects.requireNonNull(jobId, "[job_id] must not be null");
-    }
-
-    /**
-     * The snapshotId for which to delete a given snapshot
-     * @param snapshotId unique snapshotId for a give job from which to delete snapshots, must not be null
-     */
-    public void setSnapshotId(String snapshotId) {
-        this.snapshotId = Objects.requireNonNull(snapshotId, "[snapshot_id] must not be null");
     }
 
     @Override

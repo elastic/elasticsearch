@@ -26,17 +26,11 @@ public class DeleteModelSnapshotRequestTests extends ESTestCase {
         NullPointerException ex = expectThrows(NullPointerException.class, () ->
             new DeleteModelSnapshotRequest(null, randomAlphaOfLength(10)));
         assertEquals("[job_id] must not be null", ex.getMessage());
-
-        ex = expectThrows(NullPointerException.class, () -> createTestInstance().setJobId(null));
-        assertEquals("[job_id] must not be null", ex.getMessage());
     }
 
     public void test_WithNullSnapshotId() {
         NullPointerException ex = expectThrows(NullPointerException.class, ()
             -> new DeleteModelSnapshotRequest(randomAlphaOfLength(10), null));
-        assertEquals("[snapshot_id] must not be null", ex.getMessage());
-
-        ex = expectThrows(NullPointerException.class, () -> createTestInstance().setSnapshotId(null));
         assertEquals("[snapshot_id] must not be null", ex.getMessage());
     }
 

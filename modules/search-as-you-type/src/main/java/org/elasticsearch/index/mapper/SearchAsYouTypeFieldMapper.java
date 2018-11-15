@@ -196,23 +196,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
         }
     }
 
-//    private static AnalyzerWrapper wrapAnalyzerWithTokenFilter(NamedAnalyzer analyzer, Function<TokenStream, TokenFilter> function) {
-//
-//        return new AnalyzerWrapper(analyzer.getReuseStrategy()) {
-//
-//            @Override
-//            protected Analyzer getWrappedAnalyzer(String fieldName) {
-//                return analyzer;
-//            }
-//
-//            @Override
-//            protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-//                TokenFilter filter = function.apply(components.getTokenStream());
-//                return new TokenStreamComponents(components.getTokenizer(), filter);
-//            }
-//        };
-//    }
-
     public static class SearchAsYouTypeAnalyzer extends AnalyzerWrapper {
 
         private final Analyzer delegate;

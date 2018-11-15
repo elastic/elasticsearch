@@ -45,6 +45,7 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
     public void testBootstrapCheckOfValidFile() {
         Path file = getDataPath("role_mapping.yml");
         Settings ldapSettings = Settings.builder()
+                .put(settings)
                 .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
         RealmConfig config = getRealmConfig(ldapSettings);
@@ -54,15 +55,15 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         assertFalse(check.check(new BootstrapContext(settings, null)).isFailure());
     }
 
-    private RealmConfig getRealmConfig(Settings realmSettings) {
-        return new RealmConfig(REALM_ID, mergeSettings(realmSettings, settings),
-                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
+    private static RealmConfig getRealmConfig(Settings settings) {
+        return new RealmConfig(REALM_ID, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
     }
 
     public void testBootstrapCheckOfMissingFile() {
         final String fileName = randomAlphaOfLength(10);
         Path file = createTempDir().resolve(fileName);
         Settings ldapSettings = Settings.builder()
+                .put(settings)
                 .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
         RealmConfig config = getRealmConfig(ldapSettings);
@@ -82,6 +83,7 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         Files.write(file, Collections.singletonList("junk"), StandardCharsets.UTF_16);
 
         Settings ldapSettings = Settings.builder()
+                .put(settings)
                 .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
         RealmConfig config = getRealmConfig(ldapSettings);
@@ -101,6 +103,7 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         Files.write(file, Collections.singletonList("role: not-a-dn"));
 
         Settings ldapSettings = Settings.builder()
+                .put(settings)
                 .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
         RealmConfig config = getRealmConfig(ldapSettings);
@@ -115,7 +118,4 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         assertThat(result.getMessage(), containsString("not-a-dn"));
     }
 
-    private Settings mergeSettings(Settings local, Settings global) {
-        return Settings.builder().put(global).put(local).build();
-    }
 }

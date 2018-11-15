@@ -169,8 +169,6 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
             }
         }
 
-        auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
-
         // The listener that will be executed at the end of the chain will notify all listeners
         ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
                 ack -> notifyListeners(request.getJobId(), ack, null),
@@ -190,7 +188,16 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                     finalListener.onFailure(e);
                 });
 
-        markJobAsDeletingIfNotUsed(request.getJobId(), markAsDeletingListener);
+        ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
+            response -> {
+                auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
+                markJobAsDeletingIfNotUsed(request.getJobId(), markAsDeletingListener);
+            },
+            e -> finalListener.onFailure(e));
+
+        // First check that the job exists, because we don't want to audit
+        // the beginning of its deletion if it didn't exist in the first place
+        jobConfigProvider.jobExists(request.getJobId(), true, jobExistsListener);
     }
 
     private void notifyListeners(String jobId, @Nullable AcknowledgedResponse ack, @Nullable Exception error) {

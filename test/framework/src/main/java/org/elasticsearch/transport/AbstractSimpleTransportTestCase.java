@@ -499,106 +499,117 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testVoidMessageCompressed() {
-        serviceA.registerRequestHandler("internal:sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
-            (request, channel, task) -> {
-                try {
-                    TransportResponseOptions responseOptions = TransportResponseOptions.builder().withCompress(true).build();
-                    channel.sendResponse(TransportResponse.Empty.INSTANCE, responseOptions);
-                } catch (IOException e) {
-                    logger.error("Unexpected failure", e);
-                    fail(e.getMessage());
-                }
-            });
+        try (MockTransportService serviceC = build(Settings.EMPTY, CURRENT_VERSION, null, true)) {
+            serviceC.start();
+            serviceC.acceptIncomingRequests();
 
-        TransportFuture<TransportResponse.Empty> res = serviceB.submitRequest(nodeA, "internal:sayHello",
-            TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(true).build(),
-            new TransportResponseHandler<TransportResponse.Empty>() {
-                @Override
-                public TransportResponse.Empty read(StreamInput in) {
-                    return TransportResponse.Empty.INSTANCE;
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.GENERIC;
-                }
-
-                @Override
-                public void handleResponse(TransportResponse.Empty response) {
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    logger.error("Unexpected failure", exp);
-                    fail("got exception instead of a response: " + exp.getMessage());
-                }
-            });
-
-        try {
-            TransportResponse.Empty message = res.get();
-            assertThat(message, notNullValue());
-        } catch (Exception e) {
-            assertThat(e.getMessage(), false, equalTo(true));
-        }
-    }
-
-    public void testHelloWorldCompressed() {
-        serviceA.registerRequestHandler("internal:sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC,
-            new TransportRequestHandler<StringMessageRequest>() {
-                @Override
-                public void messageReceived(StringMessageRequest request, TransportChannel channel, Task task) {
-                    assertThat("moshe", equalTo(request.message));
+            serviceA.registerRequestHandler("internal:sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
+                (request, channel, task) -> {
                     try {
-                        TransportResponseOptions responseOptions = TransportResponseOptions.builder().withCompress(true).build();
-                        channel.sendResponse(new StringMessageResponse("hello " + request.message), responseOptions);
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
                     } catch (IOException e) {
                         logger.error("Unexpected failure", e);
                         fail(e.getMessage());
                     }
-                }
-            });
+                });
 
-        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "internal:sayHello",
-            new StringMessageRequest("moshe"), TransportRequestOptions.builder().withCompress(true).build(),
-            new TransportResponseHandler<StringMessageResponse>() {
-                @Override
-                public StringMessageResponse read(StreamInput in) throws IOException {
-                    return new StringMessageResponse(in);
-                }
+            Settings settingsWithCompress = Settings.builder().put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), true).build();
+            ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
+            serviceC.connectToNode(serviceA.getLocalDiscoNode(), connectionProfile);
 
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.GENERIC;
-                }
 
-                @Override
-                public void handleResponse(StringMessageResponse response) {
-                    assertThat("hello moshe", equalTo(response.message));
-                }
+            TransportFuture<TransportResponse.Empty> res = serviceC.submitRequest(nodeA, "internal:sayHello",
+                TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(true).build(),
+                new TransportResponseHandler<TransportResponse.Empty>() {
+                    @Override
+                    public TransportResponse.Empty read(StreamInput in) {
+                        return TransportResponse.Empty.INSTANCE;
+                    }
 
-                @Override
-                public void handleException(TransportException exp) {
-                    logger.error("Unexpected failure", exp);
-                    fail("got exception instead of a response: " + exp.getMessage());
-                }
-            });
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.GENERIC;
+                    }
 
-        try {
-            StringMessageResponse message = res.get();
-            assertThat("hello moshe", equalTo(message.message));
-        } catch (Exception e) {
-            assertThat(e.getMessage(), false, equalTo(true));
+                    @Override
+                    public void handleResponse(TransportResponse.Empty response) {
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        logger.error("Unexpected failure", exp);
+                        fail("got exception instead of a response: " + exp.getMessage());
+                    }
+                });
+
+            try {
+                TransportResponse.Empty message = res.get();
+                assertThat(message, notNullValue());
+            } catch (Exception e) {
+                assertThat(e.getMessage(), false, equalTo(true));
+            }
+        }
+    }
+
+    public void testHelloWorldCompressed() throws IOException {
+        try (MockTransportService serviceC = build(Settings.EMPTY, CURRENT_VERSION, null, true)) {
+            serviceC.start();
+            serviceC.acceptIncomingRequests();
+
+            serviceA.registerRequestHandler("internal:sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC,
+                (request, channel, task) -> {
+                    assertThat("moshe", equalTo(request.message));
+                    try {
+                        channel.sendResponse(new StringMessageResponse("hello " + request.message));
+                    } catch (IOException e) {
+                        logger.error("Unexpected failure", e);
+                        fail(e.getMessage());
+                    }
+                });
+
+            Settings settingsWithCompress = Settings.builder().put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), true).build();
+            ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
+            serviceC.connectToNode(serviceA.getLocalDiscoNode(), connectionProfile);
+
+            TransportFuture<StringMessageResponse> res = serviceC.submitRequest(nodeA, "internal:sayHello",
+                new StringMessageRequest("moshe"), TransportRequestOptions.builder().withCompress(true).build(),
+                new TransportResponseHandler<StringMessageResponse>() {
+                    @Override
+                    public StringMessageResponse read(StreamInput in) throws IOException {
+                        return new StringMessageResponse(in);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.GENERIC;
+                    }
+
+                    @Override
+                    public void handleResponse(StringMessageResponse response) {
+                        assertThat("hello moshe", equalTo(response.message));
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        logger.error("Unexpected failure", exp);
+                        fail("got exception instead of a response: " + exp.getMessage());
+                    }
+                });
+
+            try {
+                StringMessageResponse message = res.get();
+                assertThat("hello moshe", equalTo(message.message));
+            } catch (Exception e) {
+                assertThat(e.getMessage(), false, equalTo(true));
+            }
         }
     }
 
     public void testErrorMessage() {
         serviceA.registerRequestHandler("internal:sayHelloException", StringMessageRequest::new, ThreadPool.Names.GENERIC,
-            new TransportRequestHandler<StringMessageRequest>() {
-                @Override
-                public void messageReceived(StringMessageRequest request, TransportChannel channel, Task task) throws Exception {
-                    assertThat("moshe", equalTo(request.message));
-                    throw new RuntimeException("bad message !!!");
-                }
+            (request, channel, task) -> {
+                assertThat("moshe", equalTo(request.message));
+                throw new RuntimeException("bad message !!!");
             });
 
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "internal:sayHelloException",
@@ -2028,10 +2039,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
              TcpTransport.NodeChannels connection = originalTransport.openConnection(
                  new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
                  connectionProfile)) {
-            PlainActionFuture<Version> listener = PlainActionFuture.newFuture();
-            originalTransport.executeHandshake(connection.getNode(), connection.channel(TransportRequestOptions.Type.PING),
-                TimeValue.timeValueSeconds(10), listener);
-            assertEquals(listener.actionGet(), Version.CURRENT);
+            assertEquals(connection.getVersion(), Version.CURRENT);
         }
     }
 

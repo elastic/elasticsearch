@@ -287,4 +287,9 @@ public class WatcherXContentParser implements XContentParser {
     public DeprecationHandler getDeprecationHandler() {
         return parser.getDeprecationHandler();
     }
+
+    @Override
+    public Mark markParent() {
+        return parser.markParent();
+    }
 }

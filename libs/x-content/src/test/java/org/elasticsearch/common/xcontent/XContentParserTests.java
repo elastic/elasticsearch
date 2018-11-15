@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -327,4 +328,165 @@ public class XContentParserTests extends ESTestCase {
                     parser.list());
         }
     }
+
+    public void testMarkParent() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        boolean testObject = randomBoolean();
+        int numberOfTokens;
+        if (testObject) {
+            numberOfTokens = generateRandomObjectForMarking(builder);
+        } else {
+            numberOfTokens = generateRandomArrayForMarking(builder);
+        }
+        String content = Strings.toString(builder);
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // first field
+            assertEquals("first_field", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken()); // foo
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // marked field
+            assertEquals("marked_field", parser.currentName());
+            if (testObject) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken()); // {
+            } else {
+                assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken()); // [
+            }
+            XContentParser.Mark mark = parser.markParent();
+            int tokensToSkip = randomInt(numberOfTokens - 1);
+            for (int i = 0; i < tokensToSkip; i++) {
+                // Simulate incomplete parsing
+                assertNotNull(parser.nextToken());
+            }
+            // now skip to the end of the marked_field
+            mark.skipChildren();
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // last field
+            assertEquals("last_field", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testMarkAtWrongPlace() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        generateRandomObjectForMarking(builder);
+        String content = Strings.toString(builder);
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // first field
+            assertEquals("first_field", parser.currentName());
+            IllegalStateException exception = expectThrows(IllegalStateException.class, parser::markParent);
+            assertEquals("markParent() has to be called on the start of an object or an array", exception.getMessage());
+        }
+    }
+
+
+    public void testMarkRoot() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        int numberOfTokens = generateRandomObjectForMarking(builder);
+        String content = Strings.toString(builder);
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            XContentParser.Mark mark = parser.markParent();
+            int tokensToSkip = randomInt(numberOfTokens + 3);
+            for (int i = 0; i < tokensToSkip; i++) {
+                // Simulate incomplete parsing
+                assertNotNull(parser.nextToken());
+            }
+            mark.skipChildren();
+            assertNull(parser.nextToken());
+        }
+
+    }
+
+    /**
+     * Generates a random object {"first_field": "foo", "marked_field": {...random...}, "last_field": "bar}
+     *
+     * Returns the number of tokens in the marked field
+     */
+    private int generateRandomObjectForMarking(XContentBuilder builder) throws IOException {
+        builder.startObject()
+            .field("first_field", "foo")
+            .field("marked_field");
+        int numberOfTokens = generateRandomObject(builder, 0);
+        builder.field("last_field", "bar").endObject();
+        return numberOfTokens;
+    }
+
+
+    /**
+     * Generates a random object {"first_field": "foo", "marked_field": [...random...], "last_field": "bar}
+     *
+     * Returns the number of tokens in the marked field
+     */
+    private int generateRandomArrayForMarking(XContentBuilder builder) throws IOException {
+        builder.startObject()
+            .field("first_field", "foo")
+            .field("marked_field");
+        int numberOfTokens = generateRandomArray(builder, 0);
+        builder.field("last_field", "bar").endObject();
+        return numberOfTokens;
+    }
+
+    private int generateRandomObject(XContentBuilder builder, int level) throws IOException {
+        int tokens = 2;
+        builder.startObject();
+        int numberOfElements = randomInt(5);
+        for (int i = 0; i < numberOfElements; i++) {
+            builder.field(randomAlphaOfLength(10) + "_" + i);
+            tokens += generateRandomValue(builder, level + 1);
+        }
+        builder.endObject();
+        return tokens;
+    }
+
+    private int generateRandomValue(XContentBuilder builder, int level) throws IOException {
+        @SuppressWarnings("unchecked") CheckedSupplier<Integer, IOException> fieldGenerator = randomFrom(
+            () -> {
+                builder.value(randomInt());
+                return 1;
+            },
+            () -> {
+                builder.value(randomAlphaOfLength(10));
+                return 1;
+            },
+            () -> {
+                builder.value(randomDouble());
+                return 1;
+            },
+            () -> {
+                if (level < 3) {
+                    // don't need to go too deep
+                    return generateRandomObject(builder, level + 1);
+                } else {
+                    builder.value(0);
+                    return 1;
+                }
+            },
+            () -> {
+                if (level < 5) { // don't need to go too deep
+                    return generateRandomArray(builder, level);
+                } else {
+                    builder.value(0);
+                    return 1;
+                }
+            }
+        );
+        return fieldGenerator.get();
+    }
+
+    private int generateRandomArray(XContentBuilder builder, int level) throws IOException {
+        int tokens = 2;
+        int arraySize = randomInt(3);
+        builder.startArray();
+        for (int i = 0; i < arraySize; i++) {
+            tokens += generateRandomValue(builder, level + 1);
+        }
+        builder.endArray();
+        return tokens;
+    }
+
 }

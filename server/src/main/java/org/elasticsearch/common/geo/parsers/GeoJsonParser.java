@@ -55,6 +55,7 @@ abstract class GeoJsonParser {
         String malformedException = null;
 
         XContentParser.Token token;
+        XContentParser.Mark mark = parser.markParent();
         try {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -110,10 +111,7 @@ abstract class GeoJsonParser {
             }
         } catch (Exception ex) {
             // Skip all other fields until the end of the object
-            while (parser.currentToken() != XContentParser.Token.END_OBJECT && parser.currentToken() != null) {
-                parser.nextToken();
-                parser.skipChildren();
-            }
+            mark.skipChildren();
             throw ex;
         }
 

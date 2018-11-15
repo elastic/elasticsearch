@@ -253,4 +253,30 @@ public interface XContentParser extends Closeable {
      * The callback to notify when parsing encounters a deprecated field.
      */
     DeprecationHandler getDeprecationHandler();
+
+    /**
+     * Marks the current token to be used with skipMarkedChildren.
+     *
+     * Can be used to gracefully handle parsing errors within large nested structures. Usage:
+     *
+     * Mark mark = parser.mark();
+     * try {
+     *     while (parser.nextToken() != Token.END_OBJECT) {
+     *         // parse
+     *         if (isSomethingWrong) {
+     *           throw ElasticSearchParsingException("some thing is wrong here");
+     *         }
+     *     }
+     * } catch(ElasticSearchParsingException ex) {
+     *     mark.skipChildren(); // skip children and continue parsing
+     * }
+     *
+     * which would be equvivalent to parser.skipChildren() in case of an error
+     *
+     */
+    Mark markParent();
+
+    interface Mark {
+        void skipChildren() throws IOException;
+    }
 }

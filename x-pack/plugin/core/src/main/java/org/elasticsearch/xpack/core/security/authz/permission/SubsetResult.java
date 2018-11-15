@@ -51,36 +51,6 @@ public class SubsetResult {
     }
 
     @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + ((combineDLSQueriesFromIndexPrivilegeMatchingTheseNames == null) ? 0
-                : combineDLSQueriesFromIndexPrivilegeMatchingTheseNames.hashCode());
-        result = prime * result + ((this.result == null) ? 0 : this.result.hashCode());
-        return result;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        SubsetResult other = (SubsetResult) obj;
-        if (combineDLSQueriesFromIndexPrivilegeMatchingTheseNames == null) {
-            if (other.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames != null)
-                return false;
-        } else if (!combineDLSQueriesFromIndexPrivilegeMatchingTheseNames
-                .equals(other.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames))
-            return false;
-        if (result != other.result)
-            return false;
-        return true;
-    }
-
-    @Override
     public String toString() {
         return "SubsetResult [result=" + result + ", combineDLSQueriesFromIndexPrivilegeMatchingTheseNames="
                 + combineDLSQueriesFromIndexPrivilegeMatchingTheseNames + "]";

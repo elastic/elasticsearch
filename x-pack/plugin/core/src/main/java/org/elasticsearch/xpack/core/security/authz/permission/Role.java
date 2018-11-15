@@ -76,18 +76,19 @@ public final class Role {
      * {@link SubsetResult.Result#NO} and if it is clearly a subset will return
      * {@link SubsetResult.Result#YES}. It will return
      * {@link SubsetResult.Result#MAYBE} when the role is a subset in every
-     * other aspect except DLS queries.
+     * other aspect except DLS queries since we cannot determine if a query
+     * returns a subset of documents
      */
     public SubsetResult isSubsetOf(final Role other) {
         Objects.requireNonNull(other, "other role is required for subset checks");
-        SubsetResult result = SubsetResult.isNotASubset();
-        boolean isSubset = this.cluster().isSubsetOf(other.cluster())
+        final boolean isSubset = this.cluster().isSubsetOf(other.cluster())
                 && this.application().isSubsetOf(other.application())
                 && this.runAs().isSubsetOf(other.runAs());
         if (isSubset) {
-            result = this.indices().isSubsetOf(other.indices());
+            return this.indices().isSubsetOf(other.indices());
+        } else {
+            return SubsetResult.isNotASubset();
         }
-        return result;
     }
 
     public static Builder builder(String... names) {

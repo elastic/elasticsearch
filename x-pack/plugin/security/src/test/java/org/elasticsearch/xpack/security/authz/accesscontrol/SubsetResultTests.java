@@ -9,12 +9,9 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 import com.google.common.collect.Sets;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.security.authz.permission.SubsetResult;
-import org.elasticsearch.xpack.core.security.authz.permission.SubsetResult.Result;
 
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -39,7 +36,8 @@ public class SubsetResultTests extends ESTestCase {
         final SubsetResult result1 = SubsetResult.merge(null, isASubsetResult);
         final SubsetResult result2 = SubsetResult.merge(isASubsetResult, null);
         assertThat(result1.result(), equalTo(SubsetResult.Result.YES));
-        assertThat(result1, equalTo(result2));
+        assertThat(result1.result(), equalTo(result2.result()));
+        assertThat(result1.setOfIndexNamesForCombiningDLSQueries(), equalTo(result2.setOfIndexNamesForCombiningDLSQueries()));
     }
 
     public void testMergeWhenBothAreYes() {
@@ -92,40 +90,5 @@ public class SubsetResultTests extends ESTestCase {
         expected.add(Sets.newHashSet("ghi", "jkl"));
         assertThat(result.setOfIndexNamesForCombiningDLSQueries(),
                 equalTo(expected));
-    }
-
-    public void testEqualsHashCode() {
-        final SubsetResult.Result origResult = randomFrom(SubsetResult.Result.values());
-        final String[] origIndexNames = new String[] { randomAlphaOfLength(4), randomAlphaOfLength(3) };
-        SubsetResult subsetResult = createSubsetResultFor(origResult, origIndexNames);
-
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(subsetResult, (original) -> {
-            return createSubsetResultFor(origResult, origIndexNames);
-        });
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(subsetResult, (original) -> {
-            return createSubsetResultFor(origResult, origIndexNames);
-        }, SubsetResultTests::mutateTestItem);
-    }
-
-    private static SubsetResult createSubsetResultFor(final SubsetResult.Result result, String...indexNames) {
-        SubsetResult subsetResult;
-        if (result == Result.YES) {
-            subsetResult = SubsetResult.isASubset();
-        } else if (result == Result.NO) {
-            subsetResult = SubsetResult.isNotASubset();
-        } else {
-            if (indexNames != null && indexNames.length > 0) {
-                subsetResult = SubsetResult.mayBeASubset(Sets.newHashSet(indexNames));
-            } else {
-                subsetResult = SubsetResult.mayBeASubset(Sets.newHashSet(randomAlphaOfLength(5)));
-            }
-        }
-        return subsetResult;
-    }
-
-    private static SubsetResult mutateTestItem(SubsetResult original) {
-        EnumSet<SubsetResult.Result> results = EnumSet.of(SubsetResult.Result.YES, SubsetResult.Result.MAYBE, SubsetResult.Result.NO);
-        results.remove(original.result());
-        return createSubsetResultFor(randomFrom(results));
     }
 }

@@ -230,35 +230,37 @@ public class ApiKeyService {
      * <p>
      * Depending on the index patterns in the
      * {@link SubsetResult#setOfIndexNamesForCombiningDLSQueries()} it finds all
-     * indices privileges from the base descriptors that match and creates a
+     * indices privileges from the existing descriptors that match and creates a
      * {@code bool} query with a {@code should} clause and
      * {@code minimum_should_match} set to 1. For the indices privileges from
-     * the child role descriptors that match, we add them as {@code should}
-     * clause with {@code minimum_should_match} set to 1. The base {@code bool}
-     * query is set as {@code filter} clause on this outer {@code bool} query.
+     * the subset of existing role descriptors that match, we add them as
+     * {@code should} clause with {@code minimum_should_match} set to 1. The
+     * existing {@code bool} query is set as {@code filter} clause on this outer
+     * {@code bool} query.
      *
-     * @param childDescriptors list of {@link RoleDescriptor} from api key
+     * @param subsetRoleDescriptors list of {@link RoleDescriptor} from api key
      * request
-     * @param baseDescriptors list of {@link RoleDescriptor} for current logged
-     * in user
+     * @param existingRoleDescriptors list of {@link RoleDescriptor} for current
+     * logged in user
      * @param result {@link SubsetResult} as determined by the
      * {@link Role#isSubsetOf(Role)} check
      * @param user {@link User} current logged in user
-     * @return returns list of role descriptors equal to child descriptors if
-     * they are not modified else returns modified list of role descriptors
+     * @return returns list of role descriptors same as subset role descriptors
+     * if they are not modified else returns modified list of subset role
+     * descriptors
      * @throws IOException thrown in case of invalid query template or if unable
      * to parse the query
      */
-    private List<RoleDescriptor> modifyRoleDescriptorsToMakeItASubset(final List<RoleDescriptor> childDescriptors,
-            final List<RoleDescriptor> baseDescriptors, final SubsetResult result, final User user) throws IOException {
+    private List<RoleDescriptor> modifyRoleDescriptorsToMakeItASubset(final List<RoleDescriptor> subsetRoleDescriptors,
+            final List<RoleDescriptor> existingRoleDescriptors, final SubsetResult result, final User user) throws IOException {
         final Map<Set<String>, BoolQueryBuilder> indexNamePatternsToBoolQueryBuilder = new HashMap<>();
         for (Set<String> indexNamePattern : result.setOfIndexNamesForCombiningDLSQueries()) {
             final Automaton indexNamesAutomaton = Automatons.patterns(indexNamePattern);
             final BoolQueryBuilder parentFilterQueryBuilder = QueryBuilders.boolQuery();
-            // Now find the index name patterns from all base descriptors that
+            // Now find the index name patterns from all existing role descriptors that
             // match and combine queries
-            for (RoleDescriptor rdbase : baseDescriptors) {
-                for (IndicesPrivileges indicesPriv : rdbase.getIndicesPrivileges()) {
+            for (RoleDescriptor existingRD : existingRoleDescriptors) {
+                for (IndicesPrivileges indicesPriv : existingRD.getIndicesPrivileges()) {
                     if (Operations.subsetOf(indexNamesAutomaton, Automatons.patterns(indicesPriv.getIndices()))) {
                         final String templateResult = SecurityIndexSearcherWrapper.evaluateTemplate(indicesPriv.getQuery().utf8ToString(),
                                 scriptService, user);
@@ -273,10 +275,10 @@ public class ApiKeyService {
 
             final BoolQueryBuilder outerBoolQueryBuilder = QueryBuilders.boolQuery();
             outerBoolQueryBuilder.filter(parentFilterQueryBuilder);
-            // Iterate on child role descriptors and combine queries if the
+            // Iterate on subset role descriptors and combine queries if the
             // index name patterns match.
-            for (RoleDescriptor childRD : childDescriptors) {
-                for (IndicesPrivileges ip : childRD.getIndicesPrivileges()) {
+            for (RoleDescriptor subsetRD : subsetRoleDescriptors) {
+                for (IndicesPrivileges ip : subsetRD.getIndicesPrivileges()) {
                     if (Sets.newHashSet(ip.getIndices()).equals(indexNamePattern)) {
                         final String templateResult = SecurityIndexSearcherWrapper.evaluateTemplate(ip.getQuery().utf8ToString(),
                                 scriptService, user);
@@ -291,10 +293,10 @@ public class ApiKeyService {
             indexNamePatternsToBoolQueryBuilder.put(indexNamePattern, outerBoolQueryBuilder);
         }
 
-        final List<RoleDescriptor> newChildDescriptors = new ArrayList<>();
-        for (RoleDescriptor childRD : childDescriptors) {
+        final List<RoleDescriptor> modifiedSubsetDescriptors = new ArrayList<>();
+        for (RoleDescriptor subsetRD : subsetRoleDescriptors) {
             final Set<IndicesPrivileges> updates = new HashSet<>();
-            for (IndicesPrivileges indicesPriv : childRD.getIndicesPrivileges()) {
+            for (IndicesPrivileges indicesPriv : subsetRD.getIndicesPrivileges()) {
                 Set<String> indices = Sets.newHashSet(indicesPriv.getIndices());
                 if (indexNamePatternsToBoolQueryBuilder.get(indices) != null) {
                     final BoolQueryBuilder boolQueryBuilder = indexNamePatternsToBoolQueryBuilder.get(indices);
@@ -311,11 +313,11 @@ public class ApiKeyService {
                     updates.add(indicesPriv);
                 }
             }
-            final RoleDescriptor rd = new RoleDescriptor(childRD.getName(), childRD.getClusterPrivileges(),
-                    updates.toArray(new IndicesPrivileges[0]), childRD.getApplicationPrivileges(),
-                    childRD.getConditionalClusterPrivileges(), childRD.getRunAs(), childRD.getMetadata(), childRD.getTransientMetadata());
-            newChildDescriptors.add(rd);
+            final RoleDescriptor rd = new RoleDescriptor(subsetRD.getName(), subsetRD.getClusterPrivileges(),
+                    updates.toArray(new IndicesPrivileges[0]), subsetRD.getApplicationPrivileges(),
+                    subsetRD.getConditionalClusterPrivileges(), subsetRD.getRunAs(), subsetRD.getMetadata(), subsetRD.getTransientMetadata());
+            modifiedSubsetDescriptors.add(rd);
         }
-        return newChildDescriptors;
+        return modifiedSubsetDescriptors;
     }
 }

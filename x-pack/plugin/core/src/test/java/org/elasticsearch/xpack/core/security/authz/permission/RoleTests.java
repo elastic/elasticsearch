@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.is;
 
 public class RoleTests extends ESTestCase {
 
-    public void testIsSubsetOf_NullRoleFails() {
+    public void testIsSubsetOfThrowsErrorForNullRole() {
         final Tuple<IndexPrivilege, Set<String>> indicesPrivileges = new Tuple<IndexPrivilege, Set<String>>(IndexPrivilege.ALL,
                 Sets.newHashSet("test-1*"));
         final Privilege runAsPrivilege = new Privilege("name", "user1", "run*");
@@ -36,8 +36,7 @@ public class RoleTests extends ESTestCase {
         assertThat(npe.getMessage(), equalTo("other role is required for subset checks"));
     }
 
-    public void testIsSubsetOf_WithResultYes() {
-
+    public void testIsSubsetOfWhereTheResultIsYes() {
         final Map<ApplicationPrivilege, Set<String>> baseRoleApplicationPrivileges = buildApplicationPrivilege("app-1", "act-name-1",
                 new String[] { "DATA:read/*", "ACTION:act-name-1" }, Sets.newHashSet("res1", "res2"));
         baseRoleApplicationPrivileges.putAll(buildApplicationPrivilege("app-2", "act-name-2",
@@ -65,8 +64,7 @@ public class RoleTests extends ESTestCase {
         assertThat(result.result(), is(SubsetResult.Result.YES));
     }
 
-    public void testIsSubsetOf_WithResultNo() {
-
+    public void testIsSubsetOfWhereTheResultIsNo() {
         final Map<ApplicationPrivilege, Set<String>> baseRoleApplicationPrivileges = buildApplicationPrivilege("app-1", "act-name-1",
                 new String[] { "DATA:read/*", "ACTION:act-name-1" }, Sets.newHashSet("res1", "res2"));
 
@@ -89,8 +87,7 @@ public class RoleTests extends ESTestCase {
         assertThat(result.result(), is(SubsetResult.Result.NO));
     }
 
-    public void testIsSubsetOf_WithResultMaybe() {
-
+    public void testIsSubsetOfWhereTheResultIsMaybe() {
         final Map<ApplicationPrivilege, Set<String>> baseRoleApplicationPrivileges = buildApplicationPrivilege("app-1", "act-name-1",
                 new String[] { "DATA:read/*", "ACTION:act-name-1" }, Sets.newHashSet("res1", "res2"));
 

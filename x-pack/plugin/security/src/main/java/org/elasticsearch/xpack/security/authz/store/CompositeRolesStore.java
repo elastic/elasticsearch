@@ -68,7 +68,6 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
  */
 public class CompositeRolesStore {
 
-
     private static final Setting<Integer> CACHE_SIZE_SETTING =
         Setting.intSetting("xpack.security.authz.store.roles.cache.max_size", 10000, Property.NodeScope);
     private static final Setting<Integer> NEGATIVE_LOOKUP_CACHE_SIZE_SETTING =

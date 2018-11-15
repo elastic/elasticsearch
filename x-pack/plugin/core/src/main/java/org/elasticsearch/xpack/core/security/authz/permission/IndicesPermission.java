@@ -131,7 +131,8 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
      * {@link SubsetResult.Result#NO} and if it is clearly a subset will return
      * {@link SubsetResult.Result#YES}. It will return
      * {@link SubsetResult.Result#MAYBE} when the role is a subset in every
-     * other aspect except DLS queries.
+     * other aspect except DLS queries since we cannot determine if a query
+     * returns a subset of documents
      */
     public SubsetResult isSubsetOf(final IndicesPermission other) {
         if (this.groups() == null || this.groups().length == 0) {
@@ -147,8 +148,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
                 }
             }
             if (resultForThisGroup == null || resultForThisGroup.result() == SubsetResult.Result.NO) {
-                finalResult = SubsetResult.isNotASubset();
-                break;
+                return SubsetResult.isNotASubset();
             } else {
                 finalResult = SubsetResult.merge(finalResult, resultForThisGroup);
             }
@@ -285,34 +285,43 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         }
 
         public SubsetResult isSubsetOf(Group other) {
-            SubsetResult result = SubsetResult.isNotASubset();
-            final boolean areIndicesASubset = Operations.subsetOf(Automatons.patterns(this.indices()),
-                    Automatons.patterns(other.indices()));
-            if (areIndicesASubset) {
-                final boolean arePrivilegesASubset = Operations.subsetOf(this.privilege().getAutomaton(),
-                        other.privilege().getAutomaton());
-                if (arePrivilegesASubset) {
-                    final Automaton thisFieldsPermissionAutomaton = FieldPermissions
-                            .initializePermittedFieldsAutomaton(this.getFieldPermissions().getFieldPermissionsDefinition());
-                    final Automaton otherFieldsPermissionAutomaton = FieldPermissions
-                            .initializePermittedFieldsAutomaton(other.getFieldPermissions().getFieldPermissionsDefinition());
-                    final boolean areFieldPermissionsASubset = Operations.subsetOf(thisFieldsPermissionAutomaton,
-                            otherFieldsPermissionAutomaton);
+            final boolean isSubsetExcludingDls = areIndicesASubset(other) && arePrivilegesASubset(other)
+                    && areFieldPermissionsASubset(other);
+            if (isSubsetExcludingDls) {
+                return isDlsASubset(other);
+            } else {
+                return SubsetResult.isNotASubset();
+            }
+        }
 
-                    if (areFieldPermissionsASubset == true) {
-                        if (this.getQuery() == null || other.getQuery() == null) {
-                            result = SubsetResult.isASubset();
-                        } else {
-                            if (Sets.difference(this.getQuery(), other.getQuery()).isEmpty()) {
-                                result = SubsetResult.isASubset();
-                            } else {
-                                result = SubsetResult.mayBeASubset(Sets.newHashSet(this.indices()));
-                            }
-                        }
-                    }
+        private SubsetResult isDlsASubset(Group other) {
+            SubsetResult result;
+            if (this.getQuery() == null || other.getQuery() == null) {
+                result = SubsetResult.isASubset();
+            } else {
+                if (Sets.difference(this.getQuery(), other.getQuery()).isEmpty()) {
+                    result = SubsetResult.isASubset();
+                } else {
+                    result = SubsetResult.mayBeASubset(Sets.newHashSet(this.indices()));
                 }
             }
             return result;
+        }
+
+        private boolean areFieldPermissionsASubset(Group other) {
+            final Automaton thisFieldsPermissionAutomaton = FieldPermissions
+                    .initializePermittedFieldsAutomaton(this.getFieldPermissions().getFieldPermissionsDefinition());
+            final Automaton otherFieldsPermissionAutomaton = FieldPermissions
+                    .initializePermittedFieldsAutomaton(other.getFieldPermissions().getFieldPermissionsDefinition());
+            return Operations.subsetOf(thisFieldsPermissionAutomaton, otherFieldsPermissionAutomaton);
+        }
+
+        private boolean arePrivilegesASubset(Group other) {
+            return Operations.subsetOf(this.privilege().getAutomaton(), other.privilege().getAutomaton());
+        }
+
+        private boolean areIndicesASubset(Group other) {
+            return Operations.subsetOf(Automatons.patterns(this.indices()), Automatons.patterns(other.indices()));
         }
     }
 

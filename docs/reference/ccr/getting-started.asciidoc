@@ -253,7 +253,7 @@ PUT /server-metrics-copy/_ccr/follow
 Now when you index documents into your leader index, you will see these
 documents replicated in the follower index. You can
 inspect the status of replication using the
-{ref}/ccr-get-follow-stats[get follower stats API].
+{ref}/ccr-get-follow-stats.html[get follower stats API].
 
 //////////////////////////
 

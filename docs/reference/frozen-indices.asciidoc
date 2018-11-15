@@ -24,7 +24,7 @@ Since frozen indices provide a much higher disk to heap ratio at the expense of 
 dedicated nodes to prevent searches on frozen indices influencing traffic on low latency nodes. There is significant overhead in loading
 data-structures on demand which can cause page-faults and garbage collections, which further slow down query execution.
 
-Since indices that are eligible for freezing are likely to not change in the future disk space can be optimized. Many strategies are
+Since indices that are eligible for freezing are unlikely to change in the future, disk space can be optimized as described in <<tune-for-disk-usage>>.
 outlined in <<tune-for-disk-usage>>.
 
 == Freezing and unfreezing an index

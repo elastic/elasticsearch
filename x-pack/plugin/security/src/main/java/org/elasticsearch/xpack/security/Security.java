@@ -251,6 +251,7 @@ import java.util.function.UnaryOperator;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
@@ -540,6 +541,13 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
                         .contains(bearerScheme) == false) {
                     defaultFailureResponseHeaders.get("WWW-Authenticate").add(bearerScheme);
+                }
+            }
+            if (API_KEY_SERVICE_ENABLED_SETTING.get(settings)) {
+                final String apiKeyScheme = "ApiKey";
+                if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
+                    .contains(apiKeyScheme) == false) {
+                    defaultFailureResponseHeaders.get("WWW-Authenticate").add(apiKeyScheme);
                 }
             }
             failureHandler = new DefaultAuthenticationFailureHandler(defaultFailureResponseHeaders);

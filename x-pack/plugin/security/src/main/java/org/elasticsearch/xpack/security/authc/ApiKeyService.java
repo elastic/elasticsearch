@@ -13,6 +13,8 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -40,7 +43,9 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
@@ -51,19 +56,23 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.crypto.SecretKeyFactory;
 
@@ -181,6 +190,122 @@ public class ApiKeyService {
         }
     }
 
+    /**
+     * Checks for the presence of a {@code Authorization} header with a value that starts with
+     * {@code ApiKey }. If found this will attempt to authenticate the key.
+     */
+    void authenticateWithApiKeyIfPresent(ThreadContext ctx, ActionListener<AuthenticationResult> listener) {
+        if (enabled) {
+            final ApiKeyCredentials credentials;
+            try {
+                credentials = getCredentialsFromHeader(ctx);
+            } catch (IllegalArgumentException iae) {
+                listener.onResponse(AuthenticationResult.unsuccessful(iae.getMessage(), iae));
+                return;
+            }
+
+            if (credentials != null) {
+                final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, credentials.getId())
+                    .setFetchSource(true).request();
+                executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
+                    if (response.isExists()) {
+                        try (ApiKeyCredentials ignore = credentials) {
+                            validateApiKeyCredentials(response.getSource(), credentials, clock, listener);
+                        }
+                    } else {
+                        credentials.close();
+                        listener.onResponse(AuthenticationResult.unsuccessful("unable to authenticate", null));
+                    }
+                }, e -> {
+                    credentials.close();
+                    listener.onResponse(AuthenticationResult.unsuccessful("apikey auth encountered a failure", e));
+                }), client::get);
+            } else {
+                listener.onResponse(AuthenticationResult.notHandled());
+            }
+        } else {
+            listener.onResponse(AuthenticationResult.notHandled());
+        }
+    }
+
+    /**
+     * Validates the ApiKey using the source map
+     * @param source the source map from a get of the ApiKey document
+     * @param credentials the credentials provided by the user
+     * @param listener the listener to notify after verification
+     */
+    static void validateApiKeyCredentials(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
+                                          ActionListener<AuthenticationResult> listener) {
+        final String apiKeyHash = (String) source.get("api_key_hash");
+        if (apiKeyHash == null) {
+            throw new IllegalStateException("api key hash is missing");
+        }
+        final boolean verified = verifyKeyAgainstHash(apiKeyHash, credentials);
+
+        if (verified) {
+            final Long expirationEpochMilli = (Long) source.get("expiration_time");
+            if (expirationEpochMilli == null || Instant.ofEpochMilli(expirationEpochMilli).isAfter(clock.instant())) {
+                final String principal = Objects.requireNonNull((String) source.get("principal"));
+                final Map<String, Object> metadata = (Map<String, Object>) source.get("metadata");
+                final List<Map<String, Object>> roleDescriptors = (List<Map<String, Object>>) source.get("role_descriptors");
+                final String[] roleNames = roleDescriptors.stream()
+                    .map(rdSource -> (String) rdSource.get("name"))
+                    .collect(Collectors.toList())
+                    .toArray(Strings.EMPTY_ARRAY);
+                final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
+                listener.onResponse(AuthenticationResult.success(apiKeyUser));
+            } else {
+                listener.onResponse(AuthenticationResult.unsuccessful("api key is expired", null));
+            }
+        } else {
+            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+        }
+    }
+
+    /**
+     * Gets the API Key from the <code>Authorization</code> header if the header begins with
+     * <code>ApiKey </code>
+     */
+    static ApiKeyCredentials getCredentialsFromHeader(ThreadContext threadContext) {
+        String header = threadContext.getHeader("Authorization");
+        if (Strings.hasText(header) && header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length())
+            && header.length() > "ApiKey ".length()) {
+            final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(header.substring("ApiKey ".length()));
+            char[] apiKeyCredChars = null;
+            try {
+                apiKeyCredChars = CharArrays.utf8BytesToChars(decodedApiKeyCredBytes);
+                int colonIndex = -1;
+                for (int i = 0; i < apiKeyCredChars.length; i++) {
+                    if (apiKeyCredChars[i] == ':') {
+                        colonIndex = i;
+                        break;
+                    }
+                }
+
+                if (colonIndex < 1) {
+                    throw new IllegalArgumentException("invalid ApiKey value");
+                }
+                return new ApiKeyCredentials(new String(Arrays.copyOfRange(apiKeyCredChars, 0, colonIndex)),
+                    new SecureString(Arrays.copyOfRange(apiKeyCredChars, colonIndex + 1, apiKeyCredChars.length)));
+            } finally {
+                if (apiKeyCredChars != null) {
+                    Arrays.fill(apiKeyCredChars, (char) 0);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials) {
+        final char[] apiKeyHashChars = apiKeyHash.toCharArray();
+        try {
+            Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
+            return hasher.verify(credentials.getKey(), apiKeyHashChars);
+        } finally {
+            Arrays.fill(apiKeyHashChars, (char) 0);
+        }
+    }
+
     private Instant getApiKeyExpiration(Instant now, CreateApiKeyRequest request) {
         if (request.getExpiration() != null) {
             return now.plusSeconds(request.getExpiration().getSeconds());
@@ -192,6 +317,30 @@ public class ApiKeyService {
     private void ensureEnabled() {
         if (enabled == false) {
             throw new IllegalStateException("tokens are not enabled");
+        }
+    }
+
+    // package private class for testing
+    static final class ApiKeyCredentials implements Closeable {
+        private final String id;
+        private final SecureString key;
+
+        ApiKeyCredentials(String id, SecureString key) {
+            this.id = id;
+            this.key = key;
+        }
+
+        String getId() {
+            return id;
+        }
+
+        SecureString getKey() {
+            return key;
+        }
+
+        @Override
+        public void close() {
+            key.close();
         }
     }
 

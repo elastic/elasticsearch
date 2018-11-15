@@ -65,7 +65,14 @@ final class RollupRequestConverters {
             .addPathPart(stopRollupJobRequest.getJobId())
             .addPathPartAsIs("_stop")
             .build();
-        return new Request(HttpPost.METHOD_NAME, endpoint);
+
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        parameters.withTimeout(stopRollupJobRequest.timeout());
+        if (stopRollupJobRequest.waitForCompletion() != null) {
+            parameters.withWaitForCompletion(stopRollupJobRequest.waitForCompletion());
+        }
+        return request;
     }
 
     static Request getJob(final GetRollupJobRequest getRollupJobRequest) {

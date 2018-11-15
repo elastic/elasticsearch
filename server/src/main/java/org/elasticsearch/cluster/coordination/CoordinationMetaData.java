@@ -112,7 +112,8 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
 
         if (term != that.term) return false;
         if (!lastCommittedConfiguration.equals(that.lastCommittedConfiguration)) return false;
-        return lastAcceptedConfiguration.equals(that.lastAcceptedConfiguration);
+        if (!lastAcceptedConfiguration.equals(that.lastAcceptedConfiguration)) return false;
+        return votingTombstones.equals(that.votingTombstones);
     }
 
     @Override
@@ -120,6 +121,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         int result = (int) (term ^ (term >>> 32));
         result = 31 * result + lastCommittedConfiguration.hashCode();
         result = 31 * result + lastAcceptedConfiguration.hashCode();
+        result = 31 * result + votingTombstones.hashCode();
         return result;
     }
 
@@ -146,6 +148,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
             this.term = state.term;
             this.lastCommittedConfiguration = state.lastCommittedConfiguration;
             this.lastAcceptedConfiguration = state.lastAcceptedConfiguration;
+            this.votingTombstones.addAll(state.votingTombstones);
         }
 
         public Builder term(long term) {

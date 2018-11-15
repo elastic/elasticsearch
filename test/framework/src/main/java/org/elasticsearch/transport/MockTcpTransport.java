@@ -18,15 +18,17 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.cli.SuppressForbidden;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cli.SuppressForbidden;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +37,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
@@ -43,6 +46,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.Closeable;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -52,7 +56,6 @@ import java.net.SocketException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -88,7 +91,6 @@ public class MockTcpTransport extends TcpTransport {
     }
 
     private final ExecutorService executor;
-    private final Version mockVersion;
 
     public MockTcpTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                             CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
@@ -100,11 +102,11 @@ public class MockTcpTransport extends TcpTransport {
     public MockTcpTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                             CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
                             NetworkService networkService, Version mockVersion) {
-        super("mock-tcp-transport", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+        super("mock-tcp-transport", settings, mockVersion, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry,
+            networkService);
         // we have our own crazy cached threadpool this one is not bounded at all...
         // using the ES thread factory here is crucial for tests otherwise disruption tests won't block that thread
         executor = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory(settings, Transports.TEST_MOCK_TRANSPORT_THREAD_PREFIX));
-        this.mockVersion = mockVersion;
     }
 
     @Override
@@ -140,37 +142,32 @@ public class MockTcpTransport extends TcpTransport {
 
     private void readMessage(MockChannel mockChannel, StreamInput input) throws IOException {
         Socket socket = mockChannel.activeChannel;
-        byte[] minimalHeader = new byte[TcpHeader.MARKER_BYTES_SIZE];
-        int firstByte = input.read();
-        if (firstByte == -1) {
+        byte[] minimalHeader = new byte[TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE];
+        try {
+            input.readFully(minimalHeader);
+        } catch (EOFException eof) {
             throw new IOException("Connection reset by peer");
         }
-        minimalHeader[0] = (byte) firstByte;
-        minimalHeader[1] = (byte) input.read();
-        int msgSize = input.readInt();
+
+        // Read message length will throw stream corrupted exception if the marker bytes incorrect
+        int msgSize = TcpTransport.readMessageLength(new BytesArray(minimalHeader));
         if (msgSize == -1) {
             socket.getOutputStream().flush();
         } else {
-            BytesStreamOutput output = new BytesStreamOutput();
             final byte[] buffer = new byte[msgSize];
             input.readFully(buffer);
-            output.write(minimalHeader);
-            output.writeInt(msgSize);
-            output.write(buffer);
-            final BytesReference bytes = output.bytes();
-            if (TcpTransport.validateMessageHeader(bytes)) {
-                InetSocketAddress remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
-                messageReceived(bytes.slice(TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE, msgSize),
-                    mockChannel, mockChannel.profile, remoteAddress, msgSize);
-            } else {
-                // ping message - we just drop all stuff
+            int expectedSize = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE + msgSize;
+            try (BytesStreamOutput output = new ReleasableBytesStreamOutput(expectedSize, bigArrays)) {
+                output.write(minimalHeader);
+                output.write(buffer);
+                consumeNetworkReads(mockChannel, output.bytes());
             }
         }
     }
 
     @Override
     @SuppressForbidden(reason = "real socket for mocking remote connections")
-    protected MockChannel initiateChannel(DiscoveryNode node, ActionListener<Void> connectListener) throws IOException {
+    protected MockChannel initiateChannel(DiscoveryNode node) throws IOException {
         InetSocketAddress address = node.getAddress().address();
         final MockSocket socket = new MockSocket();
         final MockChannel channel = new MockChannel(socket, address, "none");
@@ -183,16 +180,16 @@ public class MockTcpTransport extends TcpTransport {
             if (success == false) {
                 IOUtils.close(socket);
             }
-
         }
 
         executor.submit(() -> {
             try {
                 socket.connect(address);
+                socket.setSoLinger(false, 0);
+                channel.connectFuture.complete(null);
                 channel.loopRead(executor);
-                connectListener.onResponse(null);
             } catch (Exception ex) {
-                connectListener.onFailure(ex);
+                channel.connectFuture.completeExceptionally(ex);
             }
         });
 
@@ -219,6 +216,7 @@ public class MockTcpTransport extends TcpTransport {
         }
         builder.setHandshakeTimeout(connectionProfile.getHandshakeTimeout());
         builder.setConnectTimeout(connectionProfile.getConnectTimeout());
+        builder.setCompressionEnabled(connectionProfile.getCompressionEnabled());
         return builder.build();
     }
 
@@ -235,7 +233,7 @@ public class MockTcpTransport extends TcpTransport {
         socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings));
     }
 
-    public final class MockChannel implements Closeable, TcpChannel {
+    public final class MockChannel implements Closeable, TcpChannel, TcpServerChannel {
         private final AtomicBoolean isOpen = new AtomicBoolean(true);
         private final InetSocketAddress localAddress;
         private final ServerSocket serverSocket;
@@ -243,7 +241,8 @@ public class MockTcpTransport extends TcpTransport {
         private final Socket activeChannel;
         private final String profile;
         private final CancellableThreads cancellableThreads = new CancellableThreads();
-        private final CompletableFuture<Void> closeFuture = new CompletableFuture<>();
+        private final CompletableContext<Void> closeFuture = new CompletableContext<>();
+        private final CompletableContext<Void> connectFuture = new CompletableContext<>();
 
         /**
          * Constructs a new MockChannel instance intended for handling the actual incoming / outgoing traffic.
@@ -383,8 +382,18 @@ public class MockTcpTransport extends TcpTransport {
         }
 
         @Override
+        public String getProfile() {
+            return profile;
+        }
+
+        @Override
         public void addCloseListener(ActionListener<Void> listener) {
-            closeFuture.whenComplete(ActionListener.toBiConsumer(listener));
+            closeFuture.addListener(ActionListener.toBiConsumer(listener));
+        }
+
+        @Override
+        public void addConnectListener(ActionListener<Void> listener) {
+            connectFuture.addListener(ActionListener.toBiConsumer(listener));
         }
 
         @Override
@@ -392,7 +401,6 @@ public class MockTcpTransport extends TcpTransport {
             if (activeChannel != null && activeChannel.isClosed() == false) {
                 activeChannel.setSoLinger(true, value);
             }
-
         }
 
         @Override
@@ -403,6 +411,11 @@ public class MockTcpTransport extends TcpTransport {
         @Override
         public InetSocketAddress getLocalAddress() {
             return localAddress;
+        }
+
+        @Override
+        public InetSocketAddress getRemoteAddress() {
+            return (InetSocketAddress) activeChannel.getRemoteSocketAddress();
         }
 
         @Override
@@ -447,11 +460,6 @@ public class MockTcpTransport extends TcpTransport {
         synchronized (openChannels) {
             assert openChannels.isEmpty() : "there are still open channels: " + openChannels;
         }
-    }
-
-    @Override
-    protected Version getCurrentVersion() {
-        return mockVersion;
     }
 }
 

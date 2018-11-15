@@ -2332,23 +2332,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert newPrimaryTerm > pendingPrimaryTerm;
         assert operationPrimaryTerm <= pendingPrimaryTerm;
         final CountDownLatch termUpdated = new CountDownLatch(1);
-        indexShardOperationPermits.asyncBlockOperations(30, TimeUnit.MINUTES, () -> {
-                assert operationPrimaryTerm <= pendingPrimaryTerm;
-                termUpdated.await();
-                // indexShardOperationPermits doesn't guarantee that async submissions are executed
-                // in the order submitted. We need to guard against another term bump
-                if (operationPrimaryTerm < newPrimaryTerm) {
-                    operationPrimaryTerm = newPrimaryTerm;
-                    onBlocked.run();
-                }
-            },
-            e -> {
+        indexShardOperationPermits.asyncBlockOperations(new ActionListener<Releasable>() {
+            @Override
+            public void onFailure(final Exception e) {
                 try {
                     failShard("exception during primary term transition", e);
                 } catch (AlreadyClosedException ace) {
                     // ignore, shard is already closed
                 }
-            });
+            }
+
+            @Override
+            public void onResponse(final Releasable releasable) {
+                try (Releasable ignored = releasable) {
+                    assert operationPrimaryTerm <= pendingPrimaryTerm;
+                    termUpdated.await();
+                    // indexShardOperationPermits doesn't guarantee that async submissions are executed
+                    // in the order submitted. We need to guard against another term bump
+                    if (operationPrimaryTerm < newPrimaryTerm) {
+                        operationPrimaryTerm = newPrimaryTerm;
+                        onBlocked.run();
+                    }
+                } catch (final Exception e) {
+                    onFailure(e);
+                }
+            }
+        }, 30, TimeUnit.MINUTES);
         pendingPrimaryTerm = newPrimaryTerm;
         termUpdated.countDown();
     }

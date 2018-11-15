@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -97,7 +97,7 @@ public class MultiBucketConsumerService {
      */
     public static class MultiBucketConsumer implements IntConsumer {
         private static final DeprecationLogger DEPRECATION_LOGGER =
-            new DeprecationLogger(Loggers.getLogger(MultiBucketConsumerService.class));
+            new DeprecationLogger(LogManager.getLogger(MultiBucketConsumerService.class));
         private final int limit;
 
         // aggregations execute in a single thread so no atomic here

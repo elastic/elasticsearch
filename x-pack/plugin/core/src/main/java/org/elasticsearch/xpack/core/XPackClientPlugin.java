@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
@@ -471,7 +472,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        return Collections.singletonMap(SecurityField.NAME4, () -> new SecurityNetty4Transport(settings, threadPool,
+        return Collections.singletonMap(SecurityField.NAME4, () -> new SecurityNetty4Transport(settings, Version.CURRENT, threadPool,
                 networkService, bigArrays, namedWriteableRegistry, circuitBreakerService, sslService));
     }
 

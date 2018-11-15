@@ -47,7 +47,6 @@
 [[release-notes-6.5.0]]
 == 6.5.0 Release Notes
 
-coming[6.5.0]
 
 Also see <<breaking-changes-6.5>>.
 
@@ -222,6 +221,7 @@ Docs Infrastructure::
 * Docs: Allow snippets to have line continuation {pull}32649[#32649]
 
 Engine::
+* Do not alloc full buffer for small change requests {pull}35158[#35158]
 * Fill LocalCheckpointTracker with Lucene commit {pull}34474[#34474] (issues: {issue}0[#0], {issue}2[#2], {issue}33656[#33656])
 * Lock down Engine.Searcher {pull}34363[#34363] (issue: {issue}34357[#34357])
 * Fold EngineSearcher into Engine.Searcher {pull}34082[#34082]
@@ -230,9 +230,6 @@ Engine::
 * Move DocsStats into Engine {pull}33835[#33835]
 * Add read-only Engine {pull}33563[#33563] (issues: {issue}32844[#32844], {issue}32867[#32867])
 * Allow engine to recover from translog upto a seqno {pull}33032[#33032] (issue: {issue}32867[#32867])
-
-ILM::
-* 6.x - HLRC: Add ILM Status to HLRC (#33283) {pull}33448[#33448] (issue: {issue}33283[#33283])
 
 Index APIs::
 * Introduce index settings version {pull}34429[#34429]
@@ -370,6 +367,7 @@ Ranking::
 * Use the global doc id to generate random scores {pull}33599[#33599]
 
 Recovery::
+* Use soft-deleted docs to resolve strategy for engine operation {pull}35230[#35230] (issues: {issue}0[#0], {issue}1[#1], {issue}33656[#33656], {issue}34474[#34474])
 * Propagate auto_id_timestamp in primary-replica resync {pull}33964[#33964] (issue: {issue}33693[#33693])
 * Restore local history from translog on promotion {pull}33616[#33616] (issues: {issue}32867[#32867], {issue}33473[#33473])
 * Reset replica engine to global checkpoint on promotion {pull}33473[#33473] (issue: {issue}32867[#32867])
@@ -381,6 +379,7 @@ Rollup::
 * [Rollup] Only allow aggregating on multiples of configured interval {pull}32052[#32052]
 
 SQL::
+* SQL: Improve CircuitBreaker logic for SqlParser {pull}35300[#35300] (issue: {issue}35299[#35299])
 * SQL: Optimizer rule for folding nullable expressions {pull}35080[#35080] (issue: {issue}34826[#34826])
 * SQL: Improve painless script generated from `IN` {pull}35055[#35055] (issue: {issue}34750[#34750])
 * SQL: Implement CAST between STRING and IP {pull}34949[#34949] (issue: {issue}34799[#34799])
@@ -505,6 +504,7 @@ CAT APIs::
 * Cat apis: Fix index creation time to use strict date format {pull}32510[#32510] (issue: {issue}32466[#32466])
 
 CRUD::
+* Fix DeleteRequest validation for nullable or empty id/type {pull}35314[#35314] (issue: {issue}35297[#35297])
 * Fix NOOP bulk updates {pull}32819[#32819] (issues: {issue}31821[#31821], {issue}32808[#32808])
 
 Circuit Breakers::
@@ -558,6 +558,7 @@ Logging::
 * Logging: Configure the node name when we have it {pull}32983[#32983] (issue: {issue}32793[#32793])
 
 Machine Learning::
+* [ML] Prevent notifications being created on deletion of a non existent job {pull}35337[#35337] (issues: {issue}34058[#34058], {issue}35336[#35336])
 * [ML] Prevent default job values overwriting nulled fields {pull}34804[#34804]
 * Handle pre-6.x time fields {pull}34373[#34373]
 * [ML] Get job stats request should filter non-ML job tasks {pull}33516[#33516] (issue: {issue}33515[#33515])
@@ -589,11 +590,11 @@ Packaging::
 * Fix use of hostname in Windows service {pull}34193[#34193]
 * Add temporary directory cleanup workarounds {pull}32615[#32615] (issue: {issue}31732[#31732])
 
+Percolator::
+* Ignore date ranges containing 'now' when pre-processing a percolator query {pull}35160[#35160]
+
 REST API::
 * Core: Fix IndicesSegmentResponse.toXcontent() serialization {pull}33414[#33414] (issue: {issue}29120[#29120])
-
-Ranking::
-* Fix a bug in function_score queries where we use the wrong boost_mode. {pull}35148[#35148] (issue: {issue}35123[#35123])
 
 Recovery::
 * Resync fails to notify on unavaiable exceptions {pull}33615[#33615] (issues: {issue}31179[#31179], {issue}33613[#33613])
@@ -609,7 +610,11 @@ Rollup::
 * [Rollup] Improve ID scheme for rollup documents {pull}32558[#32558] (issue: {issue}32372[#32372])
 
 SQL::
+* SQL: Fix null handling for AND and OR in SELECT {pull}35277[#35277] (issue: {issue}35240[#35240])
+* SQL: Handle null literal for AND and OR in `WHERE` {pull}35236[#35236] (issue: {issue}35088[#35088])
+* SQL: Introduce NotEquals node to simplify expressions {pull}35234[#35234] (issues: {issue}35210[#35210], {issue}35233[#35233])
 * SQL: handle wildcard expansion on incorrect fields {pull}35134[#35134] (issue: {issue}35092[#35092])
+* SQL: Fix null handling for IN => painless script {pull}35124[#35124] (issues: {issue}35108[#35108], {issue}35122[#35122])
 * SQL: Register missing processors {pull}35121[#35121] (issue: {issue}35119[#35119])
 * SQL: Fix NPE thrown if HAVING filter evals to null {pull}35108[#35108] (issue: {issue}35107[#35107])
 * SQL: Proper handling of nested fields at the beginning of the columns list {pull}35068[#35068] (issue: {issue}32951[#32951])
@@ -639,6 +644,7 @@ SQL::
 * SQL: Minor fix for javadoc {pull}32573[#32573] (issue: {issue}32553[#32553])
 
 Scripting::
+* Scripting: Add back lookup vars in score script {pull}34833[#34833]
 * Scripting: Add back params._source access in scripted metric aggs {pull}34777[#34777] (issue: {issue}33884[#33884])
 * Test: Fix last reference to SearchScript {pull}34731[#34731] (issue: {issue}34683[#34683])
 * Ensure map keys cannot be self referencing {pull}34569[#34569]
@@ -672,6 +678,7 @@ Settings::
 * Apply settings filter to get cluster settings API {pull}33247[#33247]
 
 Snapshot/Restore::
+* Register Azure max_retries setting {pull}35286[#35286]
 * Do not override named S3 client credentials {pull}33793[#33793] (issue: {issue}33769[#33769])
 * Ensure fully deleted segments are accounted for correctly {pull}33757[#33757] (issues: {issue}32844[#32844], {issue}33689[#33689], {issue}33755[#33755])
 
@@ -683,6 +690,7 @@ Transport API::
 * Fix serialization of empty field capabilities response {pull}33263[#33263]
 
 Watcher::
+* watcher: Fix integration tests to ensure correct start/stop of Watcher {pull}35271[#35271] (issues: {issue}29877[#29877], {issue}30705[#30705], {issue}33291[#33291], {issue}34448[#34448], {issue}34462[#34462])
 * Make Watcher validation message copy/pasteable {pull}33497[#33497] (issue: {issue}33369[#33369])
 * Watcher: Reload properly on remote shard change {pull}33167[#33167]
 * Watcher: Fix race condition when reloading watches {pull}33157[#33157]

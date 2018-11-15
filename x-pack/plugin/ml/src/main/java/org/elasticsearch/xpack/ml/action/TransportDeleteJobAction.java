@@ -170,8 +170,6 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
             }
         }
 
-        auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
-
         // The listener that will be executed at the end of the chain will notify all listeners
         ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
                 ack -> notifyListeners(request.getJobId(), ack, null),
@@ -180,6 +178,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
         ActionListener<Boolean> markAsDeletingListener = ActionListener.wrap(
                 response -> {
+                    auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
                     if (request.isForce()) {
                         forceDeleteJob(parentTaskClient, request, finalListener);
                     } else {
@@ -187,7 +186,6 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                     }
                 },
                 e -> {
-                    auditor.error(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING_FAILED, e.getMessage()));
                     finalListener.onFailure(e);
                 });
 

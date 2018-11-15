@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -90,8 +89,7 @@ import java.util.stream.Collectors;
  */
 public class JobManager {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-            new DeprecationLogger(Loggers.getLogger(JobManager.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(JobManager.class));
     private static final Logger logger = LogManager.getLogger(JobManager.class);
 
     private final Settings settings;

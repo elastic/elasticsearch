@@ -52,5 +52,6 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         doMasterOperation(request, concreteIndices, state, listener);
     }
 
-    protected abstract void doMasterOperation(Request request, String[] concreteIndices, ClusterState state, ActionListener<Response> listener);
+    protected abstract void doMasterOperation(Request request, String[] concreteIndices, ClusterState state,
+                                              ActionListener<Response> listener);
 }

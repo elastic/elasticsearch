@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardException;
@@ -43,7 +43,7 @@ import java.util.Objects;
  */
 public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSourceBuilder<AB>> implements Writeable, ToXContentFragment {
     private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(Loggers.getLogger(CompositeValuesSourceBuilder.class));
+        new DeprecationLogger(LogManager.getLogger(CompositeValuesSourceBuilder.class));
 
     protected final String name;
     private String field = null;
@@ -330,12 +330,6 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         ValuesSourceConfig<?> config = ValuesSourceConfig.resolve(context.getQueryShardContext(),
             valueType, field, script, missing, null, format);
 
-        if (config.unmapped() && field != null && missing == null && missingBucket == false) {
-            // this source cannot produce any values so we refuse to build
-            // since composite buckets are not created on null values by default.
-            throw new QueryShardException(context.getQueryShardContext(),
-                "failed to find field [" + field + "] and [missing_bucket] is not set");
-        }
         if (missingBucket && missing != null) {
             throw new QueryShardException(context.getQueryShardContext(),
                 "cannot use [missing] option in conjunction with [missing_bucket]");

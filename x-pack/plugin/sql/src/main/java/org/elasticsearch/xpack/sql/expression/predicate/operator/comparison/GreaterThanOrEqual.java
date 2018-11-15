@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
-public class GreaterThanOrEqual extends BinaryComparison implements Negateable {
+public class GreaterThanOrEqual extends BinaryComparison implements Negatable<BinaryComparison> {
 
     public GreaterThanOrEqual(Location location, Expression left, Expression right) {
         super(location, left, right, BinaryComparisonOperation.GTE);

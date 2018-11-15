@@ -61,6 +61,7 @@ import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
+import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
@@ -226,6 +227,7 @@ public class RestHighLevelClient implements Closeable {
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
     private final RollupClient rollupClient = new RollupClient(this);
+    private final CcrClient ccrClient = new CcrClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -317,6 +319,20 @@ public class RestHighLevelClient implements Closeable {
      */
     public RollupClient rollup() {
         return rollupClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed CCR APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-api.html">
+     * CCR APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making CCR API calls
+     */
+    public final CcrClient ccr() {
+        return ccrClient;
     }
 
     /**
@@ -477,6 +493,20 @@ public class RestHighLevelClient implements Closeable {
     public final BulkByScrollResponse reindex(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
             reindexRequest, RequestConverters::reindex, options, BulkByScrollResponse::fromXContent, emptySet()
+        );
+    }
+
+    /**
+     * Submits a reindex task.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
+     * @param reindexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the submission response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final TaskSubmissionResponse submitReindexTask(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            reindexRequest, RequestConverters::submitReindex, options, TaskSubmissionResponse::fromXContent, emptySet()
         );
     }
 
@@ -1710,6 +1740,38 @@ public class RestHighLevelClient implements Closeable {
             throw new IOException("Unable to parse response body for " + response, e);
         }
     }
+    
+    /**
+     * Defines a helper method for requests that can 404 and in which case will return an empty Optional 
+     * otherwise tries to parse the response body
+     */
+    protected final <Req extends Validatable, Resp> Optional<Resp> performRequestAndParseOptionalEntity(Req request,
+                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                  RequestOptions options,
+                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser
+                                                                  ) throws IOException {
+        Optional<ValidationException> validationException = request.validate();
+        if (validationException != null && validationException.isPresent()) {
+            throw validationException.get();
+        }
+        Request req = requestConverter.apply(request);
+        req.setOptions(options);
+        Response response;
+        try {
+            response = client.performRequest(req);
+        } catch (ResponseException e) {
+            if (RestStatus.NOT_FOUND.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+                return Optional.empty();
+            }
+            throw parseResponseException(e);
+        }
+
+        try {
+            return Optional.of(parseEntity(response.getEntity(), entityParser));
+        } catch (Exception e) {
+            throw new IOException("Unable to parse response body for " + response, e);
+        }
+    }      
 
     @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
@@ -1847,6 +1909,62 @@ public class RestHighLevelClient implements Closeable {
             }
         };
     }
+    
+    /**
+     * Async request which returns empty Optionals in the case of 404s or parses entity into an Optional
+     */
+    protected final <Req extends Validatable, Resp> void performRequestAsyncAndParseOptionalEntity(Req request,
+            CheckedFunction<Req, Request, IOException> requestConverter,
+            RequestOptions options,
+            CheckedFunction<XContentParser, Resp, IOException> entityParser,
+            ActionListener<Optional<Resp>> listener) {
+        Optional<ValidationException> validationException = request.validate();
+        if (validationException != null && validationException.isPresent()) {
+            listener.onFailure(validationException.get());
+            return;
+        }
+        Request req;
+        try {
+            req = requestConverter.apply(request);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        req.setOptions(options);
+        ResponseListener responseListener = wrapResponseListener404sOptional(response -> parseEntity(response.getEntity(), 
+                entityParser), listener);
+        client.performRequestAsync(req, responseListener);        
+    }    
+    
+    final <Resp> ResponseListener wrapResponseListener404sOptional(CheckedFunction<Response, Resp, IOException> responseConverter,
+            ActionListener<Optional<Resp>> actionListener) {
+        return new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                try {
+                    actionListener.onResponse(Optional.of(responseConverter.apply(response)));
+                } catch (Exception e) {
+                    IOException ioe = new IOException("Unable to parse response body for " + response, e);
+                    onFailure(ioe);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                if (exception instanceof ResponseException) {
+                    ResponseException responseException = (ResponseException) exception;
+                    Response response = responseException.getResponse();
+                    if (RestStatus.NOT_FOUND.getStatus() == response.getStatusLine().getStatusCode()) {
+                            actionListener.onResponse(Optional.empty());
+                    } else {
+                        actionListener.onFailure(parseResponseException(responseException));
+                    }
+                } else {
+                    actionListener.onFailure(exception);
+                }
+            }
+        };
+    }    
 
     /**
      * Converts a {@link ResponseException} obtained from the low level REST client into an {@link ElasticsearchException}.

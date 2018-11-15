@@ -355,6 +355,7 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
         expectedParams.put("scroll", reindexRequest.getScrollTime().getStringRep());
+        expectedParams.put("wait_for_completion", Boolean.TRUE.toString());
         Request request = RequestConverters.reindex(reindexRequest);
         assertEquals("/_reindex", request.getEndpoint());
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());

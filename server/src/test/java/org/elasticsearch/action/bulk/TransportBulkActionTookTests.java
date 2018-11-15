@@ -111,7 +111,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
         if (controlled) {
 
             return new TestTransportBulkAction(
-                    Settings.EMPTY,
                     threadPool,
                     transportService,
                     clusterService,
@@ -136,7 +135,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
             };
         } else {
             return new TestTransportBulkAction(
-                    Settings.EMPTY,
                     threadPool,
                     transportService,
                     clusterService,
@@ -214,7 +212,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
     static class TestTransportBulkAction extends TransportBulkAction {
 
         TestTransportBulkAction(
-                Settings settings,
                 ThreadPool threadPool,
                 TransportService transportService,
                 ClusterService clusterService,
@@ -225,7 +222,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 AutoCreateIndex autoCreateIndex,
                 LongSupplier relativeTimeProvider) {
             super(
-                    settings,
                     threadPool,
                     transportService,
                     clusterService,

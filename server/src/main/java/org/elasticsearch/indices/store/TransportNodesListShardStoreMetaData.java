@@ -76,7 +76,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                                                 ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, NodeEnvironment nodeEnv,
                                                 ActionFilters actionFilters, NamedXContentRegistry namedXContentRegistry) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
             Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STORE, NodeStoreFilesMetaData.class);
         this.settings = settings;
         this.indicesService = indicesService;

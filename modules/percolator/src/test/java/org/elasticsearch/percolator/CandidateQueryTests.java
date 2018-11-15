@@ -38,7 +38,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiDocValues;
-import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
@@ -1090,7 +1090,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 String queryToString = shardSearcher.doc(controlTopDocs.scoreDocs[i].doc).get("query_to_string");
                 logger.error("controlTopDocs.scoreDocs[{}].query_to_string={}", i, queryToString);
 
-                TermsEnum tenum = MultiFields.getFields(shardSearcher.getIndexReader()).terms(fieldType.queryTermsField.name()).iterator();
+                TermsEnum tenum = MultiTerms.getTerms(shardSearcher.getIndexReader(), fieldType.queryTermsField.name()).iterator();
                 StringBuilder builder = new StringBuilder();
                 for (BytesRef term = tenum.next(); term != null; term = tenum.next()) {
                     PostingsEnum penum = tenum.postings(null);

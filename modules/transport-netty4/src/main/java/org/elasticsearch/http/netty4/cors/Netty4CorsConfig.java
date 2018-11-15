@@ -48,7 +48,6 @@ public final class Netty4CorsConfig {
     private final long maxAge;
     private final Set<HttpMethod> allowedRequestMethods;
     private final Set<String> allowedRequestHeaders;
-    private final boolean allowNullOrigin;
     private final Map<CharSequence, Callable<?>> preflightHeaders;
     private final boolean shortCircuit;
 
@@ -61,7 +60,6 @@ public final class Netty4CorsConfig {
         maxAge = builder.maxAge;
         allowedRequestMethods = builder.requestMethods;
         allowedRequestHeaders = builder.requestHeaders;
-        allowNullOrigin = builder.allowNullOrigin;
         preflightHeaders = builder.preflightHeaders;
         shortCircuit = builder.shortCircuit;
     }
@@ -106,19 +104,6 @@ public final class Netty4CorsConfig {
             return pattern.get().matcher(origin).matches();
         }
         return false;
-    }
-
-    /**
-     * Web browsers may set the 'Origin' request header to 'null' if a resource is loaded
-     * from the local file system.
-     *
-     * If isNullOriginAllowed is true then the server will response with the wildcard for the
-     * the CORS response header 'Access-Control-Allow-Origin'.
-     *
-     * @return {@code true} if a 'null' origin should be supported.
-     */
-    public boolean isNullOriginAllowed() {
-        return allowNullOrigin;
     }
 
     /**

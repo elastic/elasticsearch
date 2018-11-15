@@ -54,7 +54,6 @@ public final class TransportPutFollowAction
 
     @Inject
     public TransportPutFollowAction(
-            final Settings settings,
             final ThreadPool threadPool,
             final TransportService transportService,
             final ClusterService clusterService,
@@ -64,7 +63,6 @@ public final class TransportPutFollowAction
             final AllocationService allocationService,
             final CcrLicenseChecker ccrLicenseChecker) {
         super(
-                settings,
                 PutFollowAction.NAME,
                 transportService,
                 clusterService,
@@ -107,20 +105,12 @@ public final class TransportPutFollowAction
         client.getRemoteClusterClient(remoteCluster);
 
         String leaderIndex = request.getLeaderIndex();
-        createFollowerIndexAndFollowRemoteIndex(request, remoteCluster, leaderIndex, listener);
-    }
-
-    private void createFollowerIndexAndFollowRemoteIndex(
-            final PutFollowAction.Request request,
-            final String remoteCluster,
-            final String leaderIndex,
-            final ActionListener<PutFollowAction.Response> listener) {
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
-                client,
-                remoteCluster,
-                leaderIndex,
-                listener::onFailure,
-                (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));
+            client,
+            remoteCluster,
+            leaderIndex,
+            listener::onFailure,
+            (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));
     }
 
     private void createFollowerIndex(
@@ -135,6 +125,7 @@ public final class TransportPutFollowAction
         if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
             listener.onFailure(
                 new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled"));
+            return;
         }
 
         ActionListener<Boolean> handler = ActionListener.wrap(

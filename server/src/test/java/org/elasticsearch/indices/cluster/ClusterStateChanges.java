@@ -189,15 +189,15 @@ public class ClusterStateChanges extends AbstractComponent {
 
         transportCloseIndexAction = new TransportCloseIndexAction(SETTINGS, transportService, clusterService, threadPool,
             indexStateService, clusterSettings, actionFilters, indexNameExpressionResolver, destructiveOperations);
-        transportOpenIndexAction = new TransportOpenIndexAction(SETTINGS, transportService,
+        transportOpenIndexAction = new TransportOpenIndexAction(transportService,
             clusterService, threadPool, indexStateService, actionFilters, indexNameExpressionResolver, destructiveOperations);
-        transportDeleteIndexAction = new TransportDeleteIndexAction(SETTINGS, transportService,
+        transportDeleteIndexAction = new TransportDeleteIndexAction(transportService,
             clusterService, threadPool, deleteIndexService, actionFilters, indexNameExpressionResolver, destructiveOperations);
-        transportUpdateSettingsAction = new TransportUpdateSettingsAction(SETTINGS,
+        transportUpdateSettingsAction = new TransportUpdateSettingsAction(
             transportService, clusterService, threadPool, metaDataUpdateSettingsService, actionFilters, indexNameExpressionResolver);
-        transportClusterRerouteAction = new TransportClusterRerouteAction(SETTINGS,
+        transportClusterRerouteAction = new TransportClusterRerouteAction(
             transportService, clusterService, threadPool, allocationService, actionFilters, indexNameExpressionResolver);
-        transportCreateIndexAction = new TransportCreateIndexAction(SETTINGS,
+        transportCreateIndexAction = new TransportCreateIndexAction(
             transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
 
         ElectMasterService electMasterService = new ElectMasterService(SETTINGS);

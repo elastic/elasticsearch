@@ -140,7 +140,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         logger.info("--> waiting for listener to be called and cluster state being blocked");
         listenerCalled.await();
 
-        TransportClusterHealthAction action = new TransportClusterHealthAction(Settings.EMPTY, transportService,
+        TransportClusterHealthAction action = new TransportClusterHealthAction(transportService,
             clusterService, threadPool, new ActionFilters(new HashSet<>()), indexNameExpressionResolver, new TestGatewayAllocator());
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
         action.execute(new ClusterHealthRequest().waitForGreenStatus(), listener);

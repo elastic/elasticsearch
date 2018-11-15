@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -31,9 +30,10 @@ import java.util.List;
 public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
-    public TransportRemoveIndexLifecyclePolicyAction(Settings settings, TransportService transportService, ClusterService clusterService,
-            ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, RemoveIndexLifecyclePolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
+    public TransportRemoveIndexLifecyclePolicyAction(TransportService transportService, ClusterService clusterService,
+                                                     ThreadPool threadPool, ActionFilters actionFilters,
+                                                     IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(RemoveIndexLifecyclePolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, Request::new);
     }
 

@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,10 +45,10 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     private final MetaDataMappingService metaDataMappingService;
 
     @Inject
-    public TransportPutMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportPutMappingAction(TransportService transportService, ClusterService clusterService,
                                      ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+        super(PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
             PutMappingRequest::new);
         this.metaDataMappingService = metaDataMappingService;
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import com.amazonaws.util.EC2MetadataUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -86,7 +87,7 @@ class Ec2NameResolver extends AbstractComponent implements CustomNameResolver {
     @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
     public InetAddress[] resolve(Ec2HostnameType type) throws IOException {
         InputStream in = null;
-        String metadataUrl = AwsEc2ServiceImpl.EC2_METADATA_URL + type.ec2Name;
+        String metadataUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService() + "/latest/meta-data/" + type.ec2Name;
         try {
             URL url = new URL(metadataUrl);
             logger.debug("obtaining ec2 hostname from ec2 meta-data url {}", url);

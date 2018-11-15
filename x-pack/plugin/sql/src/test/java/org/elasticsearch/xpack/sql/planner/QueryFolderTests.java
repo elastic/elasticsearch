@@ -65,6 +65,57 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
     }
 
+    public void testFoldingOfIsNull() {
+        PhysicalPlan p = plan("SELECT keyword FROM test WHERE (keyword IS NOT NULL) IS NULL");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec ee = (LocalExec) p;
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+
+    public void testFoldingToLocalExecBooleanAndNull_WhereClause() {
+        PhysicalPlan p = plan("SELECT keyword FROM test WHERE int > 10 AND null AND true");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+
+    public void testFoldingToLocalExecBooleanAndNull_HavingClause() {
+        PhysicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) > 10 AND null");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(2, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+        assertThat(ee.output().get(1).toString(), startsWith("MAX(int){a->"));
+    }
+
+    public void testFoldingBooleanOrNull_WhereClause() {
+        PhysicalPlan p = plan("SELECT keyword FROM test WHERE int > 10 OR null OR false");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals("{\"range\":{\"int\":{\"from\":10,\"to\":null,\"include_lower\":false,\"include_upper\":false,\"boost\":1.0}}}",
+            ee.queryContainer().query().asBuilder().toString().replaceAll("\\s+", ""));
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+
+    public void testFoldingBooleanOrNull_HavingClause() {
+        PhysicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) > 10 OR null");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertTrue(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", "").contains(
+            "\"script\":{\"source\":\"InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a0,params.v0))\"," +
+            "\"lang\":\"painless\",\"params\":{\"v0\":10}},"));
+        assertEquals(2, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+        assertThat(ee.output().get(1).toString(), startsWith("MAX(int){a->"));
+    }
+
     public void testFoldingOfIsNotNull() {
         PhysicalPlan p = plan("SELECT keyword FROM test WHERE (keyword IS NULL) IS NOT NULL");
         assertEquals(EsQueryExec.class, p.getClass());

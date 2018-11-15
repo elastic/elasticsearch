@@ -86,8 +86,8 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             extends TransportAction<GetRollupIndexCapsAction.Request, GetRollupIndexCapsAction.Response> {
 
             @Inject
-            public MockedRollupIndexCapsTransport(Settings settings, TransportService transportService) {
-                super(settings, GetRollupIndexCapsAction.NAME, new ActionFilters(new HashSet<>()), transportService.getTaskManager());
+            public MockedRollupIndexCapsTransport(TransportService transportService) {
+                super(GetRollupIndexCapsAction.NAME, new ActionFilters(new HashSet<>()), transportService.getTaskManager());
             }
 
             @Override

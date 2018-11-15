@@ -67,7 +67,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     // indices options that require every specified index to exist, expand wildcards only to open
     // indices, don't allow that no indices are resolved from wildcard expressions and resolve the
     // expressions only against indices
-    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
+    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
 
     public IndicesAliasesRequest() {
     }
@@ -239,7 +239,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
                 writeIndex = in.readOptionalBoolean();
             }
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                 originalAliases = in.readStringArray();
             }
         }
@@ -256,7 +256,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
                 out.writeOptionalBoolean(writeIndex);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 out.writeStringArray(originalAliases);
             }
         }

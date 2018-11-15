@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
@@ -40,13 +39,11 @@ public class TransportFollowStatsAction extends TransportTasksAction<
 
     @Inject
     public TransportFollowStatsAction(
-            final Settings settings,
             final ClusterService clusterService,
             final TransportService transportService,
             final ActionFilters actionFilters,
             final CcrLicenseChecker ccrLicenseChecker) {
         super(
-                settings,
                 FollowStatsAction.NAME,
                 clusterService,
                 transportService,

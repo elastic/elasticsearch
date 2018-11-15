@@ -79,8 +79,7 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             id = in.readString();
-            // TODO change this after backport
-            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
                 waitForCompletion = in.readBoolean();
                 timeout = in.readTimeValue();
             }
@@ -90,8 +89,7 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            // TODO change this after backport
-            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
                 out.writeBoolean(waitForCompletion);
                 out.writeTimeValue(timeout);
             }

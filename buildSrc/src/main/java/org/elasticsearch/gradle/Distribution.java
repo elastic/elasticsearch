@@ -20,17 +20,17 @@ package org.elasticsearch.gradle;
 
 public enum Distribution {
 
-    INTEG_TEST("integ-test-zip"),
-    ZIP("zip"),
-    ZIP_OSS("zip-oss");
+    INTEG_TEST("integ-test"),
+    ZIP("elasticsearch"),
+    ZIP_OSS("elasticsearch-oss");
 
-    private final String name;
+    private final String fileName;
 
     Distribution(String name) {
-        this.name = name;
+        this.fileName = name;
     }
 
-    public String getName() {
-        return name;
+    public String getFileName() {
+        return fileName;
     }
 }

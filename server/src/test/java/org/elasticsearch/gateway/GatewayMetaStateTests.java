@@ -374,7 +374,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         return builder.build();
     }
 
-    public void testTransactionAtomicityWithFailures() throws IOException {
+    public void testAtomicityWithFailures() throws IOException {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateServiceWithFailures metaStateService =
                     new MetaStateServiceWithFailures(randomIntBetween(100, 1000), env, xContentRegistry());

@@ -318,7 +318,7 @@ public class IndexShardTests extends IndexShardTestCase {
             () -> indexShard.acquireReplicaOperationPermit(indexShard.getPendingPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO,
                 randomNonNegativeLong(), null, ThreadPool.Names.WRITE, ""));
         expectThrows(IndexShardClosedException.class,
-            () -> indexShard.acquireReplicaAllOperationsPermits(indexShard.getPendingPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO,
+            () -> indexShard.acquireAllReplicaOperationsPermits(indexShard.getPendingPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO,
                 randomNonNegativeLong(), null, TimeValue.timeValueSeconds(30L)));
     }
 
@@ -782,7 +782,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
             e = expectThrows(AssertionError.class,
                     () -> indexShard.acquireAllPrimaryOperationsPermits(null, TimeValue.timeValueSeconds(30L)));
-            assertThat(e, hasToString(containsString("acquirePrimaryAllOperationsPermits should only be called on primary shard")));
+            assertThat(e, hasToString(containsString("acquireAllPrimaryOperationsPermits should only be called on primary shard")));
         }
 
         final long primaryTerm = indexShard.getPendingPrimaryTerm();
@@ -3604,7 +3604,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     /**
      * Randomizes the usage of {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)} and
-     * {@link IndexShard#acquireReplicaAllOperationsPermits(long, long, long, ActionListener, TimeValue)} in order to acquire a permit.
+     * {@link IndexShard#acquireAllReplicaOperationsPermits(long, long, long, ActionListener, TimeValue)} in order to acquire a permit.
      */
     private void randomReplicaOperationPermitAcquisition(final IndexShard indexShard,
                                                          final long opPrimaryTerm,
@@ -3617,7 +3617,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.acquireReplicaOperationPermit(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener, executor, info);
         } else {
             final TimeValue timeout = TimeValue.timeValueSeconds(30L);
-            indexShard.acquireReplicaAllOperationsPermits(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener, timeout);
+            indexShard.acquireAllReplicaOperationsPermits(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener, timeout);
         }
     }
 }

@@ -335,7 +335,7 @@ public abstract class TransportReplicationAction<
         @Override
         protected void doRun() throws Exception {
             final ShardId shardId = request.shardId();
-            final IndexShard indexShard = getIndexShard(shardId, targetAllocationID);
+            final IndexShard indexShard = getIndexShard(shardId);
             final ShardRouting shardRouting = indexShard.routingEntry();
             // we may end up here if the cluster state used to route the primary is so stale that the underlying
             // index shard was replaced with a replica. For example - in a two node cluster, if the primary fails
@@ -609,7 +609,7 @@ public abstract class TransportReplicationAction<
             this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
             final ShardId shardId = request.shardId();
             assert shardId != null : "request shardId must be set";
-            this.replica = getIndexShard(shardId, targetAllocationID);
+            this.replica = getIndexShard(shardId);
         }
 
         @Override
@@ -719,7 +719,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected IndexShard getIndexShard(final ShardId shardId, final String targetAllocationID) {
+    protected IndexShard getIndexShard(final ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         return indexService.getShard(shardId.id());
     }

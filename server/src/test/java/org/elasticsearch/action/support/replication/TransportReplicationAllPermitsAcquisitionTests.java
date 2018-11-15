@@ -48,7 +48,6 @@ import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,7 +63,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.BrokenBarrierException;
@@ -88,6 +86,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+
+/**
+ * This test tests the concurrent execution of several transport replication actions. All of these actions (except one) acquire a single
+ * permit during their execution on shards and are expected to fail if a global level or index level block is present in the cluster state.
+ * These actions are all started at the same time, but some are delayed until one last action.
+ *
+ * This last action is special because it acquires all the permits on shards, adds the block to the cluster state and then "releases" the
+ * previously delayed single permit actions. This way, there is a clear transition between the single permit actions executed before the
+ * all permit action that sets the block and those executed afterwards that are doomed to fail because of the block.
+ */
 public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTestCase {
 
     private ClusterService clusterService;
@@ -190,9 +198,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             final PlainActionFuture<Response> listener = new PlainActionFuture<>();
             futures[threadId] = listener;
 
-            // An action with blocks which acquires a single operation permit during execution
-            final TestAction singlePermitAction = new TestAction(Settings.EMPTY, "internal:singlePermitWithBlocks[" + threadId + "]",
-                transportService, clusterService, shardStateAction, threadPool, shardId, primary, replica, false, Optional.of(globalBlock));
+            final TestAction singlePermitAction = new SinglePermitWithBlocksAction(Settings.EMPTY, "internalSinglePermit[" + threadId + "]",
+                transportService, clusterService, shardStateAction, threadPool, shardId, primary, replica, globalBlock);
             actions[threadId] = singlePermitAction;
 
             Thread thread = new Thread(() -> {
@@ -242,8 +249,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         logger.trace("now starting the operation that acquires all permits and sets the block in the cluster state");
 
         // An action which acquires all operation permits during execution and set a block
-        final TestAction allPermitsAction = new TestAction(Settings.EMPTY, "internal:allPermits", transportService, clusterService,
-            shardStateAction, threadPool, shardId, primary, replica, true, Optional.empty());
+        final TestAction allPermitsAction = new AllPermitsThenBlockAction(Settings.EMPTY, "internalAllPermits", transportService,
+            clusterService, shardStateAction, threadPool, shardId, primary, replica);
 
         final PlainActionFuture<Response> allPermitFuture = new PlainActionFuture<>();
         Thread thread = new Thread(() -> {
@@ -337,30 +344,32 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         return new Request().setShardId(primary.shardId());
     }
 
+    /**
+     * A type of {@link TransportReplicationAction} that allows to use the primary and replica shards passed to the constructor for the
+     * execution of the replication action. Also records if the operation is executed on the primary and the replica.
+     */
+    private abstract class TestAction extends TransportReplicationAction<Request, Request, Response> {
 
-    private class TestAction extends TransportReplicationAction<Request, Request, Response> {
-
-        private final ShardId shardId;
-        private final IndexShard primary;
-        private final IndexShard replica;
-        private final boolean acquireAllPermits;
-        private final Optional<Boolean> globalBlock;
-        private final TimeValue timeout = TimeValue.timeValueSeconds(30L);
-
-        private final SetOnce<Boolean> executedOnPrimary = new SetOnce<>();
-        private final SetOnce<Boolean> executedOnReplica = new SetOnce<>();
+        protected final ShardId shardId;
+        protected final IndexShard primary;
+        protected final IndexShard replica;
+        protected final SetOnce<Boolean> executedOnPrimary = new SetOnce<>();
+        protected final SetOnce<Boolean> executedOnReplica = new SetOnce<>();
 
         TestAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
-                   ShardStateAction shardStateAction, ThreadPool threadPool,
-                   ShardId shardId, IndexShard primary, IndexShard replica,
-                   boolean acquireAllPermits, Optional<Boolean> globalBlock) {
+                   ShardStateAction shardStateAction, ThreadPool threadPool, ShardId shardId, IndexShard primary, IndexShard replica) {
             super(settings, actionName, transportService, clusterService, null, threadPool, shardStateAction,
                 new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(), Request::new, Request::new, ThreadPool.Names.SAME);
             this.shardId = Objects.requireNonNull(shardId);
             this.primary = Objects.requireNonNull(primary);
+            assertEquals(shardId, primary.shardId());
             this.replica = Objects.requireNonNull(replica);
-            this.acquireAllPermits = acquireAllPermits;
-            this.globalBlock = globalBlock;
+            assertEquals(shardId, replica.shardId());
+        }
+
+        @Override
+        protected Response newResponseInstance() {
+            return new Response();
         }
 
         public String getActionName() {
@@ -368,40 +377,37 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         }
 
         @Override
-        protected ClusterBlockLevel globalBlockLevel() {
-            if (globalBlock.isPresent()) {
-                return globalBlock.get() ? ClusterBlockLevel.WRITE : super.globalBlockLevel();
-            }
-            return null;
+        protected PrimaryResult<Request, Response> shardOperationOnPrimary(Request shardRequest, IndexShard shard) throws Exception {
+            executedOnPrimary.set(true);
+            // The TransportReplicationAction.getIndexShard() method is overridden for testing purpose but we double check here
+            // that the permit has been acquired on the primary shard
+            assertSame(primary, shard);
+            return new PrimaryResult<>(shardRequest, new Response());
         }
 
         @Override
-        protected ClusterBlockLevel indexBlockLevel() {
-            if (globalBlock.isPresent()) {
-                return globalBlock.get() == false ? ClusterBlockLevel.WRITE : super.indexBlockLevel();
-            }
-            return null;
+        protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard shard) throws Exception {
+            executedOnReplica.set(true);
+            // The TransportReplicationAction.getIndexShard() method is overridden for testing purpose but we double check here
+            // that the permit has been acquired on the replica shard
+            assertSame(replica, shard);
+            return new ReplicaResult();
         }
 
         @Override
-        protected IndexShard getIndexShard(final ShardId indexShardId, final String targetAllocationId) {
-            if (shardId.equals(indexShardId) == false) {
+        protected IndexShard getIndexShard(final ShardId shardId) {
+            if (this.shardId.equals(shardId) == false) {
                 throw new AssertionError("shard id differs from " + shardId);
             }
-            if (Objects.equals(primary.routingEntry().allocationId().getId(), targetAllocationId)) {
-                return primary;
-            } else if (Objects.equals(replica.routingEntry().allocationId().getId(), targetAllocationId)) {
-                return replica;
-            }
-            throw new ShardNotFoundException(shardId, "something went wrong");
+            return (executedOnPrimary.get() == null) ? primary : replica;
         }
 
         @Override
         protected void sendReplicaRequest(final ConcreteReplicaRequest<Request> replicaRequest,
                                           final DiscoveryNode node,
                                           final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
-            assertEquals(clusterService.state().nodes().get("_node2"), node);
-            ReplicaOperationTransportHandler replicaOperationTransportHandler = this.new ReplicaOperationTransportHandler();
+            assertEquals("Replica is always assigned to node 2 in this test", clusterService.state().nodes().get("_node2"), node);
+            ReplicaOperationTransportHandler replicaOperationTransportHandler = new ReplicaOperationTransportHandler();
             try {
                 replicaOperationTransportHandler.messageReceived(replicaRequest, new TransportChannel() {
                     @Override
@@ -428,69 +434,90 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 listener.onFailure(e);
             }
         }
+    }
+
+    /**
+     * A type of {@link TransportReplicationAction} that acquires a single permit during execution and that blocks
+     * on {@link ClusterBlockLevel#WRITE}. The block can be a global level or an index level block depending of the
+     * value of the {@code globalBlock} parameter in the constructor. When the operation is executed on shards it
+     * verifies that at least 1 permit is acquired and that there is no blocks in the cluster state.
+     */
+    private class SinglePermitWithBlocksAction extends TestAction {
+
+        private final boolean globalBlock;
+
+        SinglePermitWithBlocksAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
+                                     ShardStateAction shardStateAction, ThreadPool threadPool,
+                                     ShardId shardId, IndexShard primary, IndexShard replica, boolean globalBlock) {
+            super(settings, actionName, transportService, clusterService, shardStateAction, threadPool, shardId, primary, replica);
+            this.globalBlock = globalBlock;
+        }
+
+        @Override
+        protected ClusterBlockLevel globalBlockLevel() {
+            return globalBlock ? ClusterBlockLevel.WRITE : super.globalBlockLevel();
+        }
+
+        @Override
+        protected ClusterBlockLevel indexBlockLevel() {
+            return globalBlock == false ? ClusterBlockLevel.WRITE : super.indexBlockLevel();
+        }
+
+        @Override
+        protected PrimaryResult<Request, Response> shardOperationOnPrimary(Request shardRequest, IndexShard shard) throws Exception {
+            assertNoBlocks("block must not exist when executing the operation on primary shard: it should have been blocked before");
+            assertThat(shard.getActiveOperationsCount(), greaterThan(0));
+            return super.shardOperationOnPrimary(shardRequest, shard);
+        }
+
+        @Override
+        protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard shard) throws Exception {
+            assertNoBlocks("block must not exist when executing the operation on replica shard: it should have been blocked before");
+            assertThat(shard.getActiveOperationsCount(), greaterThan(0));
+            return super.shardOperationOnReplica(shardRequest, shard);
+        }
+
+        private void assertNoBlocks(final String error) {
+            final ClusterState clusterState = clusterService.state();
+            assertFalse("Global level " + error, clusterState.blocks().hasGlobalBlock(block));
+            assertFalse("Index level " + error, clusterState.blocks().hasIndexBlock(shardId.getIndexName(), block));
+        }
+    }
+
+    /**
+     * A type of {@link TransportReplicationAction} that acquires all permits during execution.
+     */
+    private class AllPermitsThenBlockAction extends TestAction {
+
+        private final TimeValue timeout = TimeValue.timeValueSeconds(30L);
+
+        AllPermitsThenBlockAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
+                                     ShardStateAction shardStateAction, ThreadPool threadPool,
+                                     ShardId shardId, IndexShard primary, IndexShard replica) {
+            super(settings, actionName, transportService, clusterService, shardStateAction, threadPool, shardId, primary, replica);
+        }
 
         @Override
         protected void acquirePrimaryOperationPermit(IndexShard shard, Request request, ActionListener<Releasable> onAcquired) {
-            assertTrue(shard.routingEntry().primary());
-            assertSame(primary, shard);
-            if (acquireAllPermits) {
-                shard.acquireAllPrimaryOperationsPermits(onAcquired, timeout);
-            } else {
-                super.acquirePrimaryOperationPermit(shard, request, onAcquired);
-            }
+            shard.acquireAllPrimaryOperationsPermits(onAcquired, timeout);
         }
 
         @Override
         protected void acquireReplicaOperationPermit(IndexShard shard, Request request, ActionListener<Releasable> onAcquired,
                                                      long primaryTerm, long globalCheckpoint, long maxSeqNo) {
-            assertFalse(shard.routingEntry().primary());
-            assertSame(replica, shard);
-            if (acquireAllPermits) {
-                shard.acquireReplicaAllOperationsPermits(primaryTerm, globalCheckpoint, maxSeqNo, onAcquired, timeout);
-            } else {
-                super.acquireReplicaOperationPermit(shard, request, onAcquired, primaryTerm, globalCheckpoint, maxSeqNo);
-            }
-        }
-
-        @Override
-        protected Response newResponseInstance() {
-            return new Response();
+            shard.acquireAllReplicaOperationsPermits(primaryTerm, globalCheckpoint, maxSeqNo, onAcquired, timeout);
         }
 
         @Override
         protected PrimaryResult<Request, Response> shardOperationOnPrimary(Request shardRequest, IndexShard shard) throws Exception {
-            assertSame(primary, shard);
-            if (acquireAllPermits) {
-                assertEquals("All permits must be acquired", 0, shard.getActiveOperationsCount());
-            } else {
-                assertThat(shard.getActiveOperationsCount(), greaterThan(0));
-            }
-            assertNoBlockOnSinglePermitOps();
-            executedOnPrimary.set(true);
-            return new PrimaryResult<>(shardRequest, new Response());
+            assertEquals("All permits must be acquired", 0, shard.getActiveOperationsCount());
+            return super.shardOperationOnPrimary(shardRequest, shard);
         }
 
         @Override
         protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard shard) throws Exception {
-            assertSame(replica, shard);
-            if (acquireAllPermits) {
-                assertEquals("All permits must be acquired", 0, shard.getActiveOperationsCount());
-            } else {
-                assertThat(shard.getActiveOperationsCount(), greaterThan(0));
-            }
-            assertNoBlockOnSinglePermitOps();
-            executedOnReplica.set(true);
-            return new ReplicaResult();
-        }
-
-        private void assertNoBlockOnSinglePermitOps() {
-            // When a single permit operation is executed on primary/replica shard we must be sure that the block is not here,
-            // otherwise something went wrong.
-            if (acquireAllPermits == false) {
-                final ClusterState clusterState = clusterService.state();
-                assertFalse("Global block must not exist", clusterState.blocks().hasGlobalBlock(block));
-                assertFalse("Index block must not exist", clusterState.blocks().hasIndexBlock(shardId.getIndexName(), block));
-            }
+            assertEquals("All permits must be acquired", 0, shard.getActiveOperationsCount());
+            return super.shardOperationOnReplica(shardRequest, shard);
         }
     }
 

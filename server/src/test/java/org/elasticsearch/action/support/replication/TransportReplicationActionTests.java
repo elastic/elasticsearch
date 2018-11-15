@@ -784,7 +784,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             new TestAction(Settings.EMPTY, "internal:testSeqNoIsSetOnPrimary", transportService, clusterService, shardStateAction,
                 threadPool) {
                 @Override
-                protected IndexShard getIndexShard(ShardId shardId, String targetAllocationId) {
+                protected IndexShard getIndexShard(ShardId shardId) {
                     return shard;
                 }
             };

@@ -2348,7 +2348,58 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         termUpdated.countDown();
     }
 
-    private void updatePrimaryTermIfNeeded(final long opPrimaryTerm, final long globalCheckpoint) {
+    /**
+     * Acquire a replica operation permit whenever the shard is ready for indexing (see
+     * {@link #acquirePrimaryOperationPermit(ActionListener, String, Object)}). If the given primary term is lower than then one in
+     * {@link #shardRouting}, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with an
+     * {@link IllegalStateException}. If permit acquisition is delayed, the listener will be invoked on the executor with the specified
+     * name.
+     *
+     * @param opPrimaryTerm              the operation primary term
+     * @param globalCheckpoint           the global checkpoint associated with the request
+     * @param maxSeqNoOfUpdatesOrDeletes the max seq_no of updates (index operations overwrite Lucene) or deletes captured on the primary
+     *                                   after this replication request was executed on it (see {@link #getMaxSeqNoOfUpdatesOrDeletes()}
+     * @param onPermitAcquired           the listener for permit acquisition
+     * @param executorOnDelay            the name of the executor to invoke the listener on if permit acquisition is delayed
+     * @param debugInfo                  an extra information that can be useful when tracing an unreleased permit. When assertions are
+     *                                   enabled the tracing will capture the supplied object's {@link Object#toString()} value.
+     *                                   Otherwise the object isn't used
+     */
+    public void acquireReplicaOperationPermit(final long opPrimaryTerm, final long globalCheckpoint, final long maxSeqNoOfUpdatesOrDeletes,
+                                              final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay,
+                                              final Object debugInfo) {
+        innerAcquireReplicaOperationPermit(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onPermitAcquired,
+            (listener) -> indexShardOperationPermits.acquire(listener, executorOnDelay, true, debugInfo));
+    }
+
+    /**
+     * Acquire all replica operation permits whenever the shard is ready for indexing (see
+     * {@link #acquireAllPrimaryOperationsPermits(ActionListener, TimeValue)}. If the given primary term is lower than then one in
+     * {@link #shardRouting}, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with an
+     * {@link IllegalStateException}.
+     *
+     * @param opPrimaryTerm              the operation primary term
+     * @param globalCheckpoint           the global checkpoint associated with the request
+     * @param maxSeqNoOfUpdatesOrDeletes the max seq_no of updates (index operations overwrite Lucene) or deletes captured on the primary
+     *                                   after this replication request was executed on it (see {@link #getMaxSeqNoOfUpdatesOrDeletes()}
+     * @param onPermitAcquired           the listener for permit acquisition
+     * @param timeout                    the maximum time to wait for the in-flight operations block
+     */
+    public void acquireAllReplicaOperationsPermits(final long opPrimaryTerm,
+                                                   final long globalCheckpoint,
+                                                   final long maxSeqNoOfUpdatesOrDeletes,
+                                                   final ActionListener<Releasable> onPermitAcquired,
+                                                   final TimeValue timeout) {
+        innerAcquireReplicaOperationPermit(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onPermitAcquired,
+            (listener) -> indexShardOperationPermits.asyncBlockOperations(listener, timeout.duration(), timeout.timeUnit()));
+    }
+
+    private void innerAcquireReplicaOperationPermit(final long opPrimaryTerm,
+                                                    final long globalCheckpoint,
+                                                    final long maxSeqNoOfUpdatesOrDeletes,
+                                                    final ActionListener<Releasable> onPermitAcquired,
+                                                    final Consumer<ActionListener<Releasable>> consumer) {
+        verifyNotClosed();
         if (opPrimaryTerm > pendingPrimaryTerm) {
             synchronized (mutex) {
                 if (opPrimaryTerm > pendingPrimaryTerm) {
@@ -2381,19 +2432,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         assert opPrimaryTerm <= pendingPrimaryTerm
             : "operation primary term [" + opPrimaryTerm + "] should be at most [" + pendingPrimaryTerm + "]";
-    }
-
-    /**
-     * Creates a new action listener which verifies that the operation primary term is not too old. If the given primary
-     * term is lower than the current one, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with
-     * an {@link IllegalStateException}. Otherwise the global checkpoint and the max_seq_no_of_updates marker of the replica are updated
-     * before the invocation of the {@link ActionListener#onResponse(Object)}} method of the provided listener.
-     */
-    private ActionListener<Releasable> createListener(final ActionListener<Releasable> listener,
-                                                      final long opPrimaryTerm,
-                                                      final long globalCheckpoint,
-                                                      final long maxSeqNoOfUpdatesOrDeletes) {
-        return new ActionListener<Releasable>() {
+        consumer.accept(new ActionListener<Releasable>() {
             @Override
             public void onResponse(final Releasable releasable) {
                 if (opPrimaryTerm < operationPrimaryTerm) {
@@ -2404,81 +2443,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         shardId,
                         opPrimaryTerm,
                         operationPrimaryTerm);
-                    listener.onFailure(new IllegalStateException(message));
+                    onPermitAcquired.onFailure(new IllegalStateException(message));
                 } else {
                     assert assertReplicationTarget();
                     try {
                         updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
                         advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes);
-                    } catch (final Exception e) {
+                    } catch (Exception e) {
                         releasable.close();
-                        listener.onFailure(e);
+                        onPermitAcquired.onFailure(e);
                         return;
                     }
-                    listener.onResponse(releasable);
+                    onPermitAcquired.onResponse(releasable);
                 }
             }
 
             @Override
             public void onFailure(final Exception e) {
-                listener.onFailure(e);
+                onPermitAcquired.onFailure(e);
             }
-        };
-    }
-
-    /**
-     * Acquire a replica operation permit whenever the shard is ready for indexing (see
-     * {@link #acquirePrimaryOperationPermit(ActionListener, String, Object)}). If the given primary term is lower than then one in
-     * {@link #shardRouting}, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with an
-     * {@link IllegalStateException}. If permit acquisition is delayed, the listener will be invoked on the executor with the specified
-     * name.
-     *
-     * @param opPrimaryTerm              the operation primary term
-     * @param globalCheckpoint           the global checkpoint associated with the request
-     * @param maxSeqNoOfUpdatesOrDeletes the max seq_no of updates (index operations overwrite Lucene) or deletes captured on the primary
-     *                                   after this replication request was executed on it (see {@link #getMaxSeqNoOfUpdatesOrDeletes()}
-     * @param onPermitAcquired           the listener for permit acquisition
-     * @param executorOnDelay            the name of the executor to invoke the listener on if permit acquisition is delayed
-     * @param debugInfo                  an extra information that can be useful when tracing an unreleased permit. When assertions are
-     *                                   enabled the tracing will capture the supplied object's {@link Object#toString()} value.
-     *                                   Otherwise the object isn't used
-     */
-    public void acquireReplicaOperationPermit(final long opPrimaryTerm,
-                                              final long globalCheckpoint,
-                                              final long maxSeqNoOfUpdatesOrDeletes,
-                                              final ActionListener<Releasable> onPermitAcquired,
-                                              final String executorOnDelay,
-                                              final Object debugInfo) {
-        verifyNotClosed();
-        updatePrimaryTermIfNeeded(opPrimaryTerm, globalCheckpoint);
-
-        ActionListener<Releasable> listener = createListener(onPermitAcquired, opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes);
-        indexShardOperationPermits.acquire(listener, executorOnDelay, true, debugInfo);
-    }
-
-    /**
-     * Acquire all replica operation permits whenever the shard is ready for indexing (see
-     * {@link #acquireAllPrimaryOperationsPermits(ActionListener, TimeValue)}. If the given primary term is lower than then one in
-     * {@link #shardRouting}, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with an
-     * {@link IllegalStateException}.
-     *
-     * @param opPrimaryTerm              the operation primary term
-     * @param globalCheckpoint           the global checkpoint associated with the request
-     * @param maxSeqNoOfUpdatesOrDeletes the max seq_no of updates (index operations overwrite Lucene) or deletes captured on the primary
-     *                                   after this replication request was executed on it (see {@link #getMaxSeqNoOfUpdatesOrDeletes()}
-     * @param onPermitAcquired           the listener for permit acquisition
-     * @param timeout                    the maximum time to wait for the in-flight operations block
-     */
-    public void acquireReplicaAllOperationsPermits(final long opPrimaryTerm,
-                                                   final long globalCheckpoint,
-                                                   final long maxSeqNoOfUpdatesOrDeletes,
-                                                   final ActionListener<Releasable> onPermitAcquired,
-                                                   final TimeValue timeout) {
-        verifyNotClosed();
-        updatePrimaryTermIfNeeded(opPrimaryTerm, globalCheckpoint);
-
-        ActionListener<Releasable> listener = createListener(onPermitAcquired, opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes);
-        indexShardOperationPermits.asyncBlockOperations(listener, timeout.duration(), timeout.timeUnit());
+        });
     }
 
     public int getActiveOperationsCount() {

@@ -29,6 +29,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -70,7 +71,7 @@ public class TaskResultsService extends AbstractComponent {
 
     @Inject
     public TaskResultsService(Client client, ClusterService clusterService) {
-        this.client = client;
+        this.client = new OriginSettingClient(client, "tasks");
         this.clusterService = clusterService;
     }
 

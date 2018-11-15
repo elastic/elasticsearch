@@ -66,7 +66,7 @@ class BuildPlugin implements Plugin<Project> {
     void apply(Project project) {
         if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
               throw new InvalidUserDataException('elasticsearch.standalone-test, '
-                + 'elasticearch.standalone-rest-test, and elasticsearch.build '
+                + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
         }
         final String minimumGradleVersion
@@ -442,7 +442,7 @@ class BuildPlugin implements Plugin<Project> {
             // such that we don't have to pass hardcoded files to gradle
             repos.mavenLocal()
         }
-        repos.mavenCentral()
+        repos.jcenter()
         repos.maven {
             name "elastic"
             url "https://artifacts.elastic.co/maven"
@@ -699,7 +699,7 @@ class BuildPlugin implements Plugin<Project> {
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 jarTask.manifest.attributes(
-                        'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch.replace("-SNAPSHOT", ""),
+                        'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
                         'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),

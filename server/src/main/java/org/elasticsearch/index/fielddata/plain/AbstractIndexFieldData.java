@@ -86,7 +86,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
      * A {@code PerValueEstimator} is a sub-class that can be used to estimate
      * the memory overhead for loading the data. Each field data
      * implementation should implement its own {@code PerValueEstimator} if it
-     * intends to take advantage of the MemoryCircuitBreaker.
+     * intends to take advantage of the CircuitBreaker.
      * <p>
      * Note that the .beforeLoad(...) and .afterLoad(...) methods must be
      * manually called.

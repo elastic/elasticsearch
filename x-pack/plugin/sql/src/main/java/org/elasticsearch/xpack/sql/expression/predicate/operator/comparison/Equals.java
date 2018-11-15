@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
-public class Equals extends BinaryComparison implements BinaryOperator.Negateable {
+public class Equals extends BinaryComparison implements Negatable<BinaryComparison> {
 
     public Equals(Location location, Expression left, Expression right) {
         super(location, left, right, BinaryComparisonOperation.EQ);
@@ -33,7 +33,7 @@ public class Equals extends BinaryComparison implements BinaryOperator.Negateabl
     }
 
     @Override
-    public BinaryOperator<?, ?, ?, ?> negate() {
+    public BinaryComparison negate() {
         return new NotEquals(location(), left(), right());
     }
 }

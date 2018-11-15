@@ -58,7 +58,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -485,10 +484,6 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         @Override
         public void sendResponse(TransportResponse response) throws IOException {
             capturedResponse = response;
-        }
-
-        @Override
-        public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
         }
 
         @Override

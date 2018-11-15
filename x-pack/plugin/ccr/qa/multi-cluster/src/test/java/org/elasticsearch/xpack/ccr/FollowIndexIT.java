@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,7 +59,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
                 index(leaderClient, leaderIndexName, Integer.toString(id + 2), "field", id + 2, "filtered_field", "true");
             }
             assertBusy(() -> verifyDocuments(followIndexName, numDocs + 3, "filtered_field:true"));
-            assertBusy(() -> verifyCcrMonitoring(leaderIndexName, followIndexName));
+            assertBusy(() -> verifyCcrMonitoring(leaderIndexName, followIndexName), 30, TimeUnit.SECONDS);
 
             pauseFollow(followIndexName);
             assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_close")));
@@ -113,7 +114,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         assertBusy(() -> {
             verifyCcrMonitoring("logs-20190101", "logs-20190101");
             verifyAutoFollowMonitoring();
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
 }

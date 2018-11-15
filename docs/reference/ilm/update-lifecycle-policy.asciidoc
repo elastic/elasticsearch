@@ -1,9 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
 [[update-lifecycle-policy]]
-== Update lifecycle policy
+== Update Lifecycle Policy
+++++
+<titleabbrev>Update Policy</titleabbrev>
+++++
 
-Updating existing ILM policies is useful to fix mistakes or change
+You can update an existing lifecycle policy to fix mistakes or change
 strategies for newly created indices. It is possible to update policy definitions
 and an index's `index.lifecycle.name` settings independently. To prevent the situation
 that phase definitions are modified while currently being executed on an index, each index
@@ -173,7 +176,7 @@ PUT my_index
 // TEST[continued]
 ////
 
-The <<ilm-explain,Explain API>> is useful to introspect managed indices to see which phase definition they are currently executing.
+The <<ilm-explain-lifecycle,Explain API>> is useful to introspect managed indices to see which phase definition they are currently executing.
 Using this API, we can find out that `my_index` is currently attempting to be rolled over.
 
 [source,js]
@@ -216,11 +219,7 @@ GET my_index/_ilm/explain
 }
 --------------------------------------------------
 // CONSOLE
-// TESTRESPONSE[s/"lifecycle_date_millis": 1538475653281/"lifecycle_date_millis": $body.indices.my_index.lifecycle_date_millis/]
-// TESTRESPONSE[s/"phase_time_millis": 1538475653317/"phase_time_millis": $body.indices.my_index.phase_time_millis/]
-// TESTRESPONSE[s/"action_time_millis": 1538475653317/"action_time_millis": $body.indices.my_index.action_time_millis/]
-// TESTRESPONSE[s/"step_time_millis": 1538475653317/"step_time_millis": $body.indices.my_index.step_time_millis/]
-// TESTRESPONSE[s/"modified_date_in_millis": 1538475653317/"modified_date_in_millis": $body.indices.my_index.phase_execution.modified_date_in_millis/]
+// TESTRESPONSE[skip:no way to know if we will get this response immediately]
 
 Updating `my_executing_policy` to have no rollover action and, instead, go directly into a newly introduced `warm` phase.
 

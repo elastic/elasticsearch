@@ -27,7 +27,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 include-tagged::{doc-tests-file}[get-all-application-privileges-request]
 --------------------------------------------------
 
-===== All privileges of a all applications
+===== All privileges of all applications
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

@@ -112,7 +112,8 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             reindexRequest.setDestIndex(destinationIndex);
             reindexRequest.setRefresh(true);
 
-            TaskSubmissionResponse reindexSubmission = highLevelClient().submitReindexTask(reindexRequest, RequestOptions.DEFAULT); // <2>
+            TaskSubmissionResponse reindexSubmission = highLevelClient()
+                .submitReindexTask(reindexRequest, RequestOptions.DEFAULT); // <2>
 
             String taskId = reindexSubmission.getTask(); // <3>
             // end::submit-reindex-task

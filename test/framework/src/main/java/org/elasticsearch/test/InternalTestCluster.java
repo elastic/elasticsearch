@@ -1082,7 +1082,7 @@ public final class InternalTestCluster extends TestCluster {
             settings.put(Node.NODE_MASTER_SETTING.getKey(), true);
             settings.put(Node.NODE_DATA_SETTING.getKey(), false);
             if (prevNodeCount == 0 && autoManageMinMasterNodes) {
-                settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDedicatedMasterNodes + numSharedDataNodes);
+                settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDedicatedMasterNodes);
             }
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes,
                 onTransportServiceStarted);
@@ -1095,7 +1095,7 @@ public final class InternalTestCluster extends TestCluster {
                 settings.put(Node.NODE_MASTER_SETTING.getKey(), false).build();
                 settings.put(Node.NODE_DATA_SETTING.getKey(), true).build();
             } else if (prevNodeCount == 0 && autoManageMinMasterNodes) {
-                settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDedicatedMasterNodes + numSharedDataNodes);
+                settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDataNodes);
             }
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes,
                 onTransportServiceStarted);

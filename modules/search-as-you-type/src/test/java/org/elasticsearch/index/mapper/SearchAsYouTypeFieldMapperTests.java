@@ -62,65 +62,127 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        final Mapper fieldMapper = defaultMapper.mappers().getMapper("a_field");
-        assertThat(fieldMapper, instanceOf(SearchAsYouTypeFieldMapper.class));
-        final SearchAsYouTypeFieldMapper searchAsYouTypeFieldMapper = (SearchAsYouTypeFieldMapper) fieldMapper;
+        assertTopLevelFieldMapper(defaultMapper.mappers().getMapper("a_field"), "default");
+
+        assertEdgeNGramsFieldMapper(defaultMapper.mappers().getMapper("a_field._with_edge_ngrams"), "default");
+
+        assertShinglesAndEdgeNGramsFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_2_shingles"), "default", 2, false);
+
+        assertShinglesAndEdgeNGramsFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_2_shingles_and_edge_ngrams"), "default", 2, true);
+
+        assertShinglesAndEdgeNGramsFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_3_shingles"), "default", 3, false);
+
+        assertShinglesAndEdgeNGramsFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_3_shingles_and_edge_ngrams"), "default", 3, true);
+    }
+
+    public void testConfiguration() throws IOException {
+        final String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("a_field")
+            .field("type", "search_as_you_type")
+            .field("analyzer", "simple")
+            .field("max_shingle_size", 5)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject());
+
+        final DocumentMapper defaultMapper = createIndex("test")
+            .mapperService()
+            .documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        assertTopLevelFieldMapper(defaultMapper.mappers().getMapper("a_field"), "simple");
+
+        assertEdgeNGramsFieldMapper(defaultMapper.mappers().getMapper("a_field._with_edge_ngrams"), "simple");
+
+        assertShinglesAndEdgeNGramsFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_2_shingles"), "simple", 2, false);
+
+        assertShinglesAndEdgeNGramsFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_2_shingles_and_edge_ngrams"), "simple", 2, true);
+
+        assertShinglesAndEdgeNGramsFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_3_shingles"), "simple", 3, false);
+
+        assertShinglesAndEdgeNGramsFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_3_shingles_and_edge_ngrams"), "simple", 3, true);
+
+        assertShinglesAndEdgeNGramsFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_4_shingles"), "simple", 4, false);
+
+        assertShinglesAndEdgeNGramsFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_4_shingles_and_edge_ngrams"), "simple", 4, true);
+
+        assertShinglesAndEdgeNGramsFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_5_shingles"), "simple", 5, false);
+
+        assertShinglesAndEdgeNGramsFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_5_shingles_and_edge_ngrams"), "simple", 5, true);
+    }
+
+    private static void assertTopLevelFieldMapper(Mapper mapper, String analyzerName) {
+        assertThat(mapper, instanceOf(SearchAsYouTypeFieldMapper.class));
+        final SearchAsYouTypeFieldMapper searchAsYouTypeFieldMapper = (SearchAsYouTypeFieldMapper) mapper;
 
         final SearchAsYouTypeFieldType fieldType = searchAsYouTypeFieldMapper.fieldType();
         for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.searchAnalyzer())) {
-            assertThat(analyzer.name(), equalTo("default"));
+            assertThat(analyzer.name(), equalTo(analyzerName));
         }
-
-        {
-
-            final Mapper withEdgeNGramsSubfieldMapper = defaultMapper.mappers().getMapper("a_field._with_edge_ngrams");
-            assertThat(withEdgeNGramsSubfieldMapper, instanceOf(SuggesterizedFieldMapper.class));
-            final SuggesterizedFieldMapper withEdgeNGramsMapper = (SuggesterizedFieldMapper) withEdgeNGramsSubfieldMapper;
-
-            final SuggesterizedFieldType withEdgeNGramsFieldType = withEdgeNGramsMapper.fieldType();
-            assertThat(withEdgeNGramsFieldType.indexAnalyzer().analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
-            assertThat(withEdgeNGramsFieldType.searchAnalyzer().analyzer(), not(instanceOf(SearchAsYouTypeAnalyzer.class)));
-            final SearchAsYouTypeAnalyzer withEdgeNGramsIndexAnalyzer =
-                (SearchAsYouTypeAnalyzer) withEdgeNGramsFieldType.indexAnalyzer().analyzer();
-            final NamedAnalyzer withEdgeNGramsSearchAnalyzer = withEdgeNGramsFieldType.searchAnalyzer();
-
-            assertFalse(withEdgeNGramsIndexAnalyzer.isWithShingles());
-            assertTrue(withEdgeNGramsIndexAnalyzer.isWithEdgeNGrams());
-
-            assertThat(withEdgeNGramsSearchAnalyzer.name(), equalTo("default"));
-        }
-
-        assertSuggesterizedFieldMapper(
-            defaultMapper.mappers().getMapper("a_field._with_2_shingles"), true, 2, false);
-
-        assertSuggesterizedFieldMapper(
-            defaultMapper.mappers().getMapper("a_field._with_2_shingles_and_edge_ngrams"), true, 2, true);
-
-        assertSuggesterizedFieldMapper(
-            defaultMapper.mappers().getMapper("a_field._with_3_shingles"), true, 3, false);
-
-        assertSuggesterizedFieldMapper(
-            defaultMapper.mappers().getMapper("a_field._with_3_shingles_and_edge_ngrams"), true, 3, true);
     }
 
-    private static void assertSuggesterizedFieldMapper(Mapper mapper, boolean shingles, int numberOfShingles, boolean withEdgeNGrams) {
+    private static void assertEdgeNGramsFieldMapper(Mapper mapper, String analyzerName) {
         assertThat(mapper, instanceOf(SuggesterizedFieldMapper.class));
         final SuggesterizedFieldMapper suggesterizedFieldMapper = (SuggesterizedFieldMapper) mapper;
 
         final SuggesterizedFieldType fieldType = suggesterizedFieldMapper.fieldType();
-        assertThat(fieldType.indexAnalyzer().analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
-        assertThat(fieldType.searchAnalyzer().analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
+        final NamedAnalyzer namedIndexAnalyzer = fieldType.indexAnalyzer();
+        final NamedAnalyzer namedSearchAnalyzer = fieldType.searchAnalyzer();
+        assertThat(namedIndexAnalyzer.analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
+        assertThat(namedSearchAnalyzer.analyzer(), not(instanceOf(SearchAsYouTypeAnalyzer.class)));
+        final SearchAsYouTypeAnalyzer indexAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.indexAnalyzer().analyzer();
+
+        for (NamedAnalyzer analyzer : asList(namedIndexAnalyzer, namedSearchAnalyzer)) {
+            assertThat(analyzer.name(), equalTo(analyzerName));
+        }
+
+        assertFalse(indexAnalyzer.isWithShingles());
+        assertTrue(indexAnalyzer.isWithEdgeNGrams());
+
+        assertThat(namedSearchAnalyzer.name(), equalTo(analyzerName));
+    }
+
+    private static void assertShinglesAndEdgeNGramsFieldMapper(Mapper mapper,
+                                                               String analyzerName,
+                                                               int numberOfShingles,
+                                                               boolean withEdgeNGrams) {
+
+        assertThat(mapper, instanceOf(SuggesterizedFieldMapper.class));
+        final SuggesterizedFieldMapper suggesterizedFieldMapper = (SuggesterizedFieldMapper) mapper;
+
+        final SuggesterizedFieldType fieldType = suggesterizedFieldMapper.fieldType();
+        final NamedAnalyzer namedIndexAnalyzer = fieldType.indexAnalyzer();
+        final NamedAnalyzer namedSearchAnalyzer = fieldType.searchAnalyzer();
+        assertThat(namedIndexAnalyzer.analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
+        assertThat(namedSearchAnalyzer.analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
         final SearchAsYouTypeAnalyzer indexAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.indexAnalyzer().analyzer();
         final SearchAsYouTypeAnalyzer searchAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.searchAnalyzer().analyzer();
 
-        for (SearchAsYouTypeAnalyzer analyzer : asList(indexAnalyzer, searchAnalyzer)) {
-
-            assertThat(shingles, equalTo(analyzer.isWithShingles()));
-            if (shingles) {
-                assertThat(analyzer.getShingleSize(), equalTo(numberOfShingles));
-            }
+        for (NamedAnalyzer analyzer : asList(namedIndexAnalyzer, namedSearchAnalyzer)) {
+            assertThat(analyzer.name(), equalTo(analyzerName));
         }
 
-        assertThat(withEdgeNGrams, equalTo(indexAnalyzer.isWithEdgeNGrams()));
+        for (SearchAsYouTypeAnalyzer analyzer : asList(indexAnalyzer, searchAnalyzer)) {
+            assertTrue(analyzer.isWithShingles());
+            assertThat(analyzer.getShingleSize(), equalTo(numberOfShingles));
+        }
+
+        assertThat(indexAnalyzer.isWithEdgeNGrams(), equalTo(withEdgeNGrams));
     }
 }

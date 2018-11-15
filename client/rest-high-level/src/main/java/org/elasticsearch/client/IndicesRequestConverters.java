@@ -403,4 +403,20 @@ final class IndicesRequestConverters {
         req.setEntity(RequestConverters.createEntity(request, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return req;
     }
+
+    static Request freezeIndex(FreezeIndexRequest freezeIndexRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPart(freezeIndexRequest.getIndices())
+            .addPathPartAsIs("_freeze")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
+    static Request unFreezeIndex(UnfreezeIndexRequest unFreezeIndexRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPart(unFreezeIndexRequest.getIndices())
+            .addPathPartAsIs("_unfreeze")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -297,6 +298,41 @@ public class JobManager {
                 },
                 jobsListener::onFailure
         ));
+    }
+
+    /**
+     * Mark the job as being deleted. First looks in the cluster state for the
+     * job configuration then the index
+     *
+     * @param jobId     To to mark
+     * @param force     Allows an open job to be marked
+     * @param listener  listener
+     */
+    public void markJobAsDeleting(String jobId, boolean force, ActionListener<Boolean> listener) {
+        if (ClusterStateJobUpdate.jobIsInClusterState(clusterService.state(), jobId)) {
+            ClusterStateJobUpdate.markJobAsDeleting(jobId, force, clusterService, listener);
+        } else {
+            jobConfigProvider.markJobAsDeleting(jobId, listener);
+        }
+    }
+
+    /**
+     * First try to delete the job from the cluster state, if it does not exist
+     * there try to  delete the index job.
+     *
+     * @param request   The delete job request
+     * @param listener  Delete listener
+     */
+    public void deleteJob(DeleteJobAction.Request request, ActionListener<Boolean> listener) {
+
+        if (ClusterStateJobUpdate.jobIsInClusterState(clusterService.state(), request.getJobId())) {
+            ClusterStateJobUpdate.deleteJob(request, clusterService, listener);
+        } else {
+            jobConfigProvider.deleteJob(request.getJobId(), false, ActionListener.wrap(
+                    deleteResponse -> listener.onResponse(Boolean.TRUE),
+                    listener::onFailure
+            ));
+        }
     }
 
     /**

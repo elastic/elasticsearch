@@ -5,10 +5,16 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 /**
@@ -43,5 +49,56 @@ public final class ClusterStateJobUpdate {
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build());
         return newState.build();
+    }
+
+    public static void markJobAsDeleting(String jobId, boolean force, ClusterService clusterService, ActionListener<Boolean> listener) {
+        clusterService.submitStateUpdateTask("mark-job-as-deleted", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                PersistentTasksCustomMetaData tasks = currentState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+                MlMetadata.Builder builder = new MlMetadata.Builder(MlMetadata.getMlMetadata(currentState));
+                builder.markJobAsDeleting(jobId, tasks, force);
+                return buildNewClusterState(currentState, builder);
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                listener.onResponse(true);
+            }
+        });
+    }
+
+    public static void deleteJob(DeleteJobAction.Request request, ClusterService clusterService, ActionListener<Boolean> listener) {
+        String jobId = request.getJobId();
+
+        clusterService.submitStateUpdateTask(
+                "delete-job-" + jobId,
+                new AckedClusterStateUpdateTask<Boolean>(request, listener) {
+
+                    @Override
+                    protected Boolean newResponse(boolean acknowledged) {
+                        return acknowledged;
+                    }
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(currentState);
+                        if (currentMlMetadata.getJobs().containsKey(jobId) == false) {
+                            // We wouldn't have got here if the job never existed so
+                            // the Job must have been deleted by another action.
+                            // Don't error in this case
+                            return currentState;
+                        }
+
+                        MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
+                        builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
+                        return buildNewClusterState(currentState, builder);
+                    }
+                });
     }
 }

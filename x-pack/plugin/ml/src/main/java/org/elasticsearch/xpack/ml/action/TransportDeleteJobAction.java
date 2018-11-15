@@ -65,7 +65,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
@@ -93,7 +93,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     private final PersistentTasksService persistentTasksService;
     private final Auditor auditor;
     private final JobResultsProvider jobResultsProvider;
-    private final JobConfigProvider jobConfigProvider;
+    private final JobManager jobManager;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final MlMemoryTracker memoryTracker;
 
@@ -110,7 +110,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                                     ThreadPool threadPool, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver, PersistentTasksService persistentTasksService,
                                     Client client, Auditor auditor, JobResultsProvider jobResultsProvider,
-                                    JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider,
+                                    JobManager jobManager, DatafeedConfigProvider datafeedConfigProvider,
                                     MlMemoryTracker memoryTracker) {
         super(settings, DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, DeleteJobAction.Request::new);
@@ -118,7 +118,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         this.persistentTasksService = persistentTasksService;
         this.auditor = auditor;
         this.jobResultsProvider = jobResultsProvider;
-        this.jobConfigProvider = jobConfigProvider;
+        this.jobManager = jobManager;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.memoryTracker = memoryTracker;
         this.listenersByJobId = new HashMap<>();
@@ -189,7 +189,15 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                     finalListener.onFailure(e);
                 });
 
-        markJobAsDeletingIfNotUsed(request.getJobId(), markAsDeletingListener);
+        ActionListener<Boolean> checkForDatafeedsListener = ActionListener.wrap(
+                ok -> jobManager.markJobAsDeleting(request.getJobId(), request.isForce(), markAsDeletingListener),
+                finalListener::onFailure
+        );
+
+        // This check only applies to index configurations.
+        // ClusterState config makes the same check against the
+        // job being used by a datafeed in MlMetadata.markJobAsDeleting()
+        checkJobNotUsedByDatafeed(request.getJobId(), checkForDatafeedsListener);
     }
 
     private void notifyListeners(String jobId, @Nullable AcknowledgedResponse ack, @Nullable Exception error) {
@@ -231,7 +239,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         // Step 3. When the physical storage has been deleted, delete the job config document
         // -------
         // Don't report an error if the document has already been deleted
-        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> jobConfigProvider.deleteJob(jobId, false,
+        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> jobManager.deleteJob(request,
                 ActionListener.wrap(
                         deleteResponse -> apiResponseHandler.accept(Boolean.TRUE),
                         listener::onFailure
@@ -332,9 +340,8 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         );
 
         // Step 5. Determine if we are on a shared index by looking at `.ml-anomalies-shared` or the custom index's aliases
-        ActionListener<Job.Builder> getJobHandler = ActionListener.wrap(
-                builder -> {
-                    Job job = builder.build();
+        ActionListener<Job> getJobHandler = ActionListener.wrap(
+                job -> {
                     indexName.set(job.getResultsIndexName());
                     if (indexName.get().equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX +
                             AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT)) {
@@ -357,7 +364,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         // Step 4. Get the job as the result index name is required
         ActionListener<Boolean> deleteCategorizerStateHandler = ActionListener.wrap(
                 response -> {
-                    jobConfigProvider.getJob(jobId, getJobHandler);
+                    jobManager.getJob(jobId, getJobHandler);
                 },
                 failureHandler
         );
@@ -574,8 +581,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         }
     }
 
-    private void markJobAsDeletingIfNotUsed(String jobId, ActionListener<Boolean> listener) {
-
+    private void checkJobNotUsedByDatafeed(String jobId, ActionListener<Boolean> listener) {
         datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
                 datafeedIds -> {
                     if (datafeedIds.isEmpty() == false) {
@@ -583,7 +589,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                                 + datafeedIds.iterator().next() + "] refers to it"));
                         return;
                     }
-                    jobConfigProvider.markJobAsDeleting(jobId, listener);
+                    listener.onResponse(Boolean.TRUE);
                 },
                 listener::onFailure
         ));

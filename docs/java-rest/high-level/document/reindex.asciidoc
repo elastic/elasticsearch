@@ -166,7 +166,6 @@ with wait_for_completion flag set to false.
 --------------------------------------------------
 include-tagged::{hlrc-tests}/ReindexIT.java[submit-reindex-task]
 --------------------------------------------------
-
 <1> A +{request}+ is constructed the same way as for the synchronous method
 <2> A submit method returns a `TaskSubmissionResponse` which contains a task identifier.
 <3> The task identifier can be used to get `response` from a completed task.

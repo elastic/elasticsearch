@@ -137,7 +137,7 @@ class ClusterFormationTasks {
             } else {
                 dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
                 writeConfigSetup = { Map esConfig ->
-                    String unicastTransportUri = node.config.unicastTransportUri(nodes.get(0), node, project.ant)
+                    String unicastTransportUri = node.config.unicastTransportUri(nodes.get(0), node, project.createAntBuilder())
                     if (unicastTransportUri == null) {
                         esConfig['discovery.zen.ping.unicast.hosts'] = []
                     } else {
@@ -705,7 +705,7 @@ class ClusterFormationTasks {
             Collection<String> unicastHosts = new HashSet<>()
             nodes.forEach { node ->
                 unicastHosts.addAll(node.config.otherUnicastHostAddresses.call())
-                String unicastHost = node.config.unicastTransportUri(node, null, project.ant)
+                String unicastHost = node.config.unicastTransportUri(node, null, project.createAntBuilder())
                 if (unicastHost != null) {
                     unicastHosts.addAll(Arrays.asList(unicastHost.split(",")))
                 }
@@ -901,9 +901,10 @@ class ClusterFormationTasks {
                 outputPrintStream: outputStream,
                 messageOutputLevel: org.apache.tools.ant.Project.MSG_INFO)
 
-        project.ant.project.addBuildListener(listener)
-        Object retVal = command(project.ant)
-        project.ant.project.removeBuildListener(listener)
+        AntBuilder ant = project.createAntBuilder()
+        ant.project.addBuildListener(listener)
+        Object retVal = command(ant)
+        ant.project.removeBuildListener(listener)
         return retVal
     }
 

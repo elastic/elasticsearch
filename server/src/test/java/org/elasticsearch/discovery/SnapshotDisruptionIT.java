@@ -68,6 +68,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(AbstractDisruptionTestCase.DEFAULT_SETTINGS)
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // requires more work
             .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s")
             .build();
     }

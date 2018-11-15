@@ -129,6 +129,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -1441,7 +1442,7 @@ public final class InternalTestCluster extends TestCluster {
      * in the cluster.
      */
     public synchronized <T> Iterable<T> getDataOrMasterNodeInstances(Class<T> clazz) {
-        return getInstances(clazz, new DataOrMasterNodePredicate());
+        return getInstances(clazz, new DataNodePredicate().or(new MasterNodePredicate()));
     }
 
     private synchronized <T> Iterable<T> getInstances(Class<T> clazz, Predicate<NodeAndClient> predicate) {
@@ -1462,6 +1463,10 @@ public final class InternalTestCluster extends TestCluster {
 
     public synchronized <T> T getDataNodeInstance(Class<T> clazz) {
         return getInstance(clazz, new DataNodePredicate());
+    }
+
+    public synchronized <T> T getMasterNodeInstance(Class<T> clazz) {
+        return getInstance(clazz, new MasterNodePredicate());
     }
 
     private synchronized <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
@@ -2091,7 +2096,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized Collection<NodeAndClient> dataAndMasterNodes() {
-        return filterNodes(nodes, new DataOrMasterNodePredicate());
+        return filterNodes(nodes, new DataNodePredicate().or(new MasterNodePredicate()));
     }
 
     private synchronized Collection<NodeAndClient> filterNodes(Map<String, InternalTestCluster.NodeAndClient> map,
@@ -2110,24 +2115,23 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private static final class DataOrMasterNodePredicate implements Predicate<NodeAndClient> {
-        @Override
-        public boolean test(NodeAndClient nodeAndClient) {
-            return DiscoveryNode.isDataNode(nodeAndClient.node.settings()) ||
-                DiscoveryNode.isMasterNode(nodeAndClient.node.settings());
-        }
-    }
-
     private static final class MasterNodePredicate implements Predicate<NodeAndClient> {
-        private final String masterNodeName;
+        private final Optional<String> masterNodeName;
 
         MasterNodePredicate(String masterNodeName) {
-            this.masterNodeName = masterNodeName;
+            this.masterNodeName = Optional.of(masterNodeName);
+        }
+
+        MasterNodePredicate() {
+            this.masterNodeName = Optional.empty();
         }
 
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
-            return masterNodeName.equals(nodeAndClient.name);
+            if (DiscoveryNode.isMasterNode(nodeAndClient.node.settings()) == false) {
+                return false;
+            }
+            return masterNodeName.isPresent() == false || masterNodeName.get().equals(nodeAndClient.name);
         }
     }
 

@@ -63,6 +63,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(DEFAULT_SETTINGS)
+                .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // requires more work
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
     }
 

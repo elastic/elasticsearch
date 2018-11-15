@@ -22,7 +22,7 @@ execution on a per shard level. Depending on the data in an index, a frozen inde
 
 Since frozen indices provide a much higher disk to heap ratio at the expense of search latency,  it is advisable to allocate frozen indices to
 dedicated nodes to prevent searches on frozen indices influencing traffic on low latency nodes. There is significant overhead in loading
-data-structures on demand which can cause page-faults and garbage collections further slowing down query execution.
+data-structures on demand which can cause page-faults and garbage collections, which further slow down query execution.
 
 Since indices that are eligible for freezing are likely to not change in the future disk space can be optimized. Many strategies are
 outlined in <<tune-for-disk-usage>>.

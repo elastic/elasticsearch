@@ -36,7 +36,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportShardMultiTermsVectorAction extends TransportSingleShardAction<MultiTermVectorsShardRequest, MultiTermVectorsShardResponse> {
+public class TransportShardMultiTermsVectorAction extends TransportSingleShardAction<MultiTermVectorsShardRequest,
+        MultiTermVectorsShardResponse> {
 
     private final IndicesService indicesService;
 
@@ -86,7 +87,8 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
                 if (TransportActions.isShardNotAvailableException(e)) {
                     throw e;
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]/[{}]", shardId, termVectorsRequest.type(), termVectorsRequest.id()), e);
+                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]/[{}]",
+                        shardId, termVectorsRequest.type(), termVectorsRequest.id()), e);
                     response.add(request.locations.get(i),
                             new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), e));
                 }

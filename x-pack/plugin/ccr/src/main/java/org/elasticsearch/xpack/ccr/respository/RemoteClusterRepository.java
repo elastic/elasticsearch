@@ -87,6 +87,7 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
     public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
         assert snapshotId.equals(SNAPSHOT_ID) : "RemoteClusterRepository only supports the SNAPSHOT_ID SnapshotId";
         ClusterStateResponse response = client.admin().cluster().prepareState().clear().setMetaData(true).get();
+        // TODO: Perhaps add version
         return new SnapshotInfo(snapshotId, Arrays.asList(response.getState().metaData().getConcreteAllIndices()), SnapshotState.SUCCESS);
     }
 

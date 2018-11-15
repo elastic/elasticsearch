@@ -164,6 +164,72 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
         this.cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor(logger);
     }
 
+    public void restoreSnapshot(String string, final RestoreRequest request, final ActionListener<RestoreCompletionResponse> listener,
+                                boolean apiRestore) {
+        try {
+            // Read snapshot info and metadata from the repository
+            Repository repository = repositoriesService.repository(request.repositoryName);
+            final RepositoryData repositoryData = repository.getRepositoryData();
+            final Optional<SnapshotId> incompatibleSnapshotId =
+                repositoryData.getIncompatibleSnapshotIds().stream().filter(s -> request.snapshotName.equals(s.getName())).findFirst();
+            if (incompatibleSnapshotId.isPresent()) {
+                throw new SnapshotRestoreException(request.repositoryName, request.snapshotName, "cannot restore incompatible snapshot");
+            }
+            final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
+                .filter(s -> request.snapshotName.equals(s.getName())).findFirst();
+            if (matchingSnapshotId.isPresent() == false) {
+                throw new SnapshotRestoreException(request.repositoryName, request.snapshotName, "snapshot does not exist");
+            }
+
+            final SnapshotId snapshotId = matchingSnapshotId.get();
+            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+            final Snapshot snapshot = new Snapshot(request.repositoryName, snapshotId);
+
+            // Make sure that we can restore from this snapshot
+            validateSnapshotRestorable(request.repositoryName, snapshotInfo);
+
+            // Resolve the indices from the snapshot that need to be restored
+            final List<String> indicesInSnapshot = filterIndices(snapshotInfo.indices(), request.indices(), request.indicesOptions());
+
+            final MetaData.Builder metaDataBuilder;
+            if (request.includeGlobalState()) {
+                metaDataBuilder = MetaData.builder(repository.getSnapshotGlobalMetaData(snapshotId));
+            } else {
+                metaDataBuilder = MetaData.builder();
+            }
+
+            final List<IndexId> indexIdsInSnapshot = repositoryData.resolveIndices(indicesInSnapshot);
+            for (IndexId indexId : indexIdsInSnapshot) {
+                metaDataBuilder.put(repository.getSnapshotIndexMetaData(snapshotId, indexId), false);
+            }
+
+            final MetaData metaData = metaDataBuilder.build();
+
+            // Apply renaming on index names, returning a map of names where
+            // the key is the renamed index and the value is the original name
+            final Map<String, String> indices = renamedIndices(request, indicesInSnapshot);
+
+
+            clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
+
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    return null;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+
+                }
+            });
+
+        } catch (Exception e) {
+            logger.warn(() ->
+                new ParameterizedMessage("[{}] failed to restore snapshot", request.repositoryName + ":" + request.snapshotName), e);
+            listener.onFailure(e);
+        }
+    }
+
     /**
      * Restores snapshot specified in the restore request.
      *

@@ -18,7 +18,10 @@ import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,11 +33,15 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,33 +59,36 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class TransportPutFollowAction
-        extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
+    extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
     private final Client client;
     private final AllocationService allocationService;
+    private final RestoreService restoreService;
     private final ActiveShardsObserver activeShardsObserver;
     private final CcrLicenseChecker ccrLicenseChecker;
 
     @Inject
     public TransportPutFollowAction(
-            final ThreadPool threadPool,
-            final TransportService transportService,
-            final ClusterService clusterService,
-            final ActionFilters actionFilters,
-            final IndexNameExpressionResolver indexNameExpressionResolver,
-            final Client client,
-            final AllocationService allocationService,
-            final CcrLicenseChecker ccrLicenseChecker) {
+        final ThreadPool threadPool,
+        final TransportService transportService,
+        final ClusterService clusterService,
+        final ActionFilters actionFilters,
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final Client client,
+        final AllocationService allocationService,
+        final RestoreService restoreService,
+        final CcrLicenseChecker ccrLicenseChecker) {
         super(
-                PutFollowAction.NAME,
-                transportService,
-                clusterService,
-                threadPool,
-                actionFilters,
-                PutFollowAction.Request::new,
-                indexNameExpressionResolver);
+            PutFollowAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutFollowAction.Request::new,
+            indexNameExpressionResolver);
         this.client = client;
         this.allocationService = allocationService;
+        this.restoreService = restoreService;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
@@ -100,9 +110,9 @@ public final class TransportPutFollowAction
 
     @Override
     protected void masterOperation(
-            final PutFollowAction.Request request,
-            final ClusterState state,
-            final ActionListener<PutFollowAction.Response> listener) throws Exception {
+        final PutFollowAction.Request request,
+        final ClusterState state,
+        final ActionListener<PutFollowAction.Response> listener) throws Exception {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -121,10 +131,10 @@ public final class TransportPutFollowAction
     }
 
     private void createFollowerIndex(
-            final IndexMetaData leaderIndexMetaData,
-            final String[] historyUUIDs,
-            final PutFollowAction.Request request,
-            final ActionListener<PutFollowAction.Response> listener) {
+        final IndexMetaData leaderIndexMetaData,
+        final String[] historyUUIDs,
+        final PutFollowAction.Request request,
+        final ActionListener<PutFollowAction.Response> listener) {
         if (leaderIndexMetaData == null) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
@@ -135,39 +145,80 @@ public final class TransportPutFollowAction
             return;
         }
 
-        ActionListener<Boolean> handler = ActionListener.wrap(
-                result -> {
-                    if (result) {
-                        initiateFollowing(request, listener);
-                    } else {
-                        listener.onResponse(new PutFollowAction.Response(true, false, false));
-                    }
-                },
-                listener::onFailure);
+        ActionListener<Boolean> handler2 = ActionListener.wrap(
+            result -> {
+                if (result) {
+                    initiateFollowing(request, listener);
+                } else {
+                    listener.onResponse(new PutFollowAction.Response(true, false, false));
+                }
+            },
+            listener::onFailure);
 
-        ActionListener<RestoreSnapshotResponse> handler2 = ActionListener.wrap(
-                result -> {
-                    if (result != null) {
-                        initiateFollowing(request, listener);
-                    } else {
-                        listener.onResponse(new PutFollowAction.Response(true, false, false));
-                    }
-                },
-                listener::onFailure);
+        ActionListener<RestoreSnapshotResponse> handler = ActionListener.wrap(result -> {
+                if (result != null) {
+                    initiateFollowing(request, listener);
+                } else {
+                    listener.onResponse(new PutFollowAction.Response(true, false, false));
+                }
+            },
+            listener::onFailure);
 
-//        Settings.Builder settings = Settings.builder()
-//            .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-//        client.admin().cluster().prepareRestoreSnapshot("_ccr_repository_", RemoteClusterRepository.SNAPSHOT_ID.getName())
-//            .setWaitForCompletion(true)
-//            .setIndices(request.getLeaderIndex())
-//            .setRenamePattern("^(.*)$")
-//            .setRenameReplacement(request.getFollowRequest().getFollowerIndex())
-//            .setIndexSettings(settings)
-//            .execute(handler2);
+        Settings.Builder settings = Settings.builder()
+            .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
+
+        String remoteCluster = request.getRemoteCluster();
+        RestoreService.RestoreRequest restoreRequest = restoreRequest = new RestoreService.RestoreRequest("_ccr_repository_",
+            remoteCluster, request.indices(), request.indicesOptions(), "^(.*)$", request.getFollowRequest().getFollowerIndex(),
+            Settings.EMPTY, request.masterNodeTimeout(), false, false, true, settings.build(), new String[0],
+            "restore_snapshot[" + remoteCluster + "]");
+
+
+        restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
+            @Override
+            public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
+                final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
+
+                ClusterStateListener clusterStateListener = new ClusterStateListener() {
+                    @Override
+                    public void clusterChanged(ClusterChangedEvent changedEvent) {
+                        final RestoreInProgress.Entry prevEntry = RestoreService.restoreInProgress(changedEvent.previousState(), snapshot);
+                        final RestoreInProgress.Entry newEntry = RestoreService.restoreInProgress(changedEvent.state(), snapshot);
+                        if (prevEntry == null) {
+                            // When there is a master failure after a restore has been started, this listener might not be registered
+                            // on the current master and as such it might miss some intermediary cluster states due to batching.
+                            // Clean up listener in that case and acknowledge completion of restore operation to client.
+                            clusterService.removeListener(this);
+                            handler.onResponse(null);
+                        } else if (newEntry == null) {
+                            clusterService.removeListener(this);
+                            ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
+                            assert prevEntry.state().completed() : "expected completed snapshot state but was " + prevEntry.state();
+                            assert RestoreService.completed(shards) : "expected all restore entries to be completed";
+                            RestoreInfo restoreInfo = new RestoreInfo(prevEntry.snapshot().getSnapshotId().getName(), prevEntry.indices(),
+                                shards.size(), shards.size() - RestoreService.failedShards(shards));
+                            RestoreSnapshotResponse response = null;
+                            logger.debug("restore of [{}] completed", snapshot);
+                            handler.onResponse(response);
+                        } else {
+                            // restore not completed yet, wait for next cluster state update
+                        }
+                    }
+                };
+
+                clusterService.addListener(clusterStateListener);
+            }
+
+            @Override
+            public void onFailure(Exception t) {
+                listener.onFailure(t);
+            }
+        });
+
 
 //         Can't use create index api here, because then index templates can alter the mappings / settings.
 //         And index templates could introduce settings / mappings that are incompatible with the leader index.
-        clusterService.submitStateUpdateTask("create_following_index", new AckedClusterStateUpdateTask<Boolean>(request, handler) {
+        clusterService.submitStateUpdateTask("create_following_index", new AckedClusterStateUpdateTask<Boolean>(request, handler2) {
 
             @Override
             protected Boolean newResponse(final boolean acknowledged) {
@@ -208,28 +259,17 @@ public final class TransportPutFollowAction
                     imdBuilder.putMapping(cursor.value);
                 }
                 imdBuilder.setRoutingNumShards(leaderIndexMetaData.getRoutingNumShards());
-
-//                for (int i = 0; i < leaderIndexMetaData.getNumberOfShards(); ++i) {
-//                    imdBuilder.putInSyncAllocationIds(i, Collections.singleton(UUIDs.randomBase64UUID()));
-//                }
-                IndexMetaData followIMD = imdBuilder.state(IndexMetaData.State.OPEN).build();
+                IndexMetaData followIMD = imdBuilder.build();
                 mdBuilder.put(followIMD, false);
 
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.metaData(mdBuilder.build());
                 ClusterState updatedState = builder.build();
 
-                SnapshotId snapshotId = new SnapshotId(request.getRemoteCluster(), "_latest)");
-                Snapshot snapshot = new Snapshot("_ccr_repository_", snapshotId);
-                RoutingTable.Builder newRoutingTableBuilder = RoutingTable.builder(updatedState.routingTable())
-                    .addAsNewRestore(updatedState.metaData().index(request.getFollowRequest().getFollowerIndex()),
-                            new RecoverySource.SnapshotRecoverySource(snapshot, Version.CURRENT, leaderIndexMetaData.getIndex().getName()),
-                        new IntHashSet());
-
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
                         .addAsNew(updatedState.metaData().index(request.getFollowRequest().getFollowerIndex()));
                 updatedState = allocationService.reroute(
-                        ClusterState.builder(updatedState).routingTable(newRoutingTableBuilder.build()).build(),
+                        ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
                         "follow index [" + request.getFollowRequest().getFollowerIndex() + "] created");
 
                 logger.info("[{}] creating index, cause [ccr_create_and_follow], shards [{}]/[{}]",
@@ -241,19 +281,19 @@ public final class TransportPutFollowAction
     }
 
     private void initiateFollowing(
-            final PutFollowAction.Request request,
-            final ActionListener<PutFollowAction.Response> listener) {
+        final PutFollowAction.Request request,
+        final ActionListener<PutFollowAction.Response> listener) {
         activeShardsObserver.waitForActiveShards(new String[]{request.getFollowRequest().getFollowerIndex()},
-                ActiveShardCount.DEFAULT, request.timeout(), result -> {
-                    if (result) {
-                        client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
-                                r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
-                                listener::onFailure
-                        ));
-                    } else {
-                        listener.onResponse(new PutFollowAction.Response(true, false, false));
-                    }
-                }, listener::onFailure);
+            ActiveShardCount.DEFAULT, request.timeout(), result -> {
+                if (result) {
+                    client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
+                        r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
+                        listener::onFailure
+                    ));
+                } else {
+                    listener.onResponse(new PutFollowAction.Response(true, false, false));
+                }
+            }, listener::onFailure);
     }
 
     @Override

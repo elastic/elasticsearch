@@ -10,9 +10,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -20,9 +22,9 @@ import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigReader;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.JobManager;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -35,29 +37,30 @@ import java.util.stream.Collectors;
 public class TransportPreviewDatafeedAction extends HandledTransportAction<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response> {
 
     private final Client client;
-    private final JobConfigProvider jobConfigProvider;
-    private final DatafeedConfigProvider datafeedConfigProvider;
+    private final ClusterService clusterService;
+    private final JobManager jobManager;
+    private final DatafeedConfigReader datafeedConfigReader;
 
     @Inject
     public TransportPreviewDatafeedAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          Client client, JobConfigProvider jobConfigProvider,
-                                          DatafeedConfigProvider datafeedConfigProvider) {
+                                          Client client, JobManager jobManager, NamedXContentRegistry xContentRegistry,
+                                          ClusterService clusterService) {
         super(settings, PreviewDatafeedAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 PreviewDatafeedAction.Request::new);
         this.client = client;
-        this.jobConfigProvider = jobConfigProvider;
-        this.datafeedConfigProvider = datafeedConfigProvider;
+        this.clusterService = clusterService;
+        this.jobManager = jobManager;
+        this.datafeedConfigReader = new DatafeedConfigReader(client, xContentRegistry);
     }
 
     @Override
     protected void doExecute(PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
 
-        datafeedConfigProvider.getDatafeedConfig(request.getDatafeedId(), ActionListener.wrap(
-                datafeedConfigBuilder -> {
-                    DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
-                    jobConfigProvider.getJob(datafeedConfig.getJobId(), ActionListener.wrap(
-                            jobBuilder -> {
+        datafeedConfigReader.datafeedConfig(request.getDatafeedId(), clusterService.state(), ActionListener.wrap(
+                datafeedConfig -> {
+                    jobManager.getJob(datafeedConfig.getJobId(), ActionListener.wrap(
+                            job -> {
                                 DatafeedConfig.Builder previewDatafeed = buildPreviewDatafeed(datafeedConfig);
                                 Map<String, String> headers = threadPool.getThreadContext().getHeaders().entrySet().stream()
                                         .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
@@ -66,7 +69,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                                 // NB: this is using the client from the transport layer, NOT the internal client.
                                 // This is important because it means the datafeed search will fail if the user
                                 // requesting the preview doesn't have permission to search the relevant indices.
-                                DataExtractorFactory.create(client, previewDatafeed.build(), jobBuilder.build(),
+                                DataExtractorFactory.create(client, previewDatafeed.build(), job,
                                         new ActionListener<DataExtractorFactory>() {
                                     @Override
                                     public void onResponse(DataExtractorFactory dataExtractorFactory) {

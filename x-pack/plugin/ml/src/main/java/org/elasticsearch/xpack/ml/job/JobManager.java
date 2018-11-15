@@ -138,7 +138,7 @@ public class JobManager {
     }
 
     public void jobExists(String jobId, ActionListener<Boolean> listener) {
-        jobConfigProvider.jobExists(jobId, true, ActionListener.wrap(
+        jobConfigProvider.jobExists(jobId, false, ActionListener.wrap(
                 jobFound -> {
                     if (jobFound) {
                         listener.onResponse(Boolean.TRUE);

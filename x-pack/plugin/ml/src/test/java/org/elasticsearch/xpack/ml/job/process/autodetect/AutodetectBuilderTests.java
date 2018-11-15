@@ -54,8 +54,8 @@ public class AutodetectBuilderTests extends ESTestCase {
         acBuilder.setBucketSpan(TimeValue.timeValueSeconds(120));
         acBuilder.setLatency(TimeValue.timeValueSeconds(360));
         acBuilder.setSummaryCountFieldName("summaryField");
-        acBuilder.setOverlappingBuckets(true);
         acBuilder.setMultivariateByFields(true);
+
         job.setAnalysisConfig(acBuilder);
 
         DataDescription.Builder dd = new DataDescription.Builder();
@@ -70,7 +70,6 @@ public class AutodetectBuilderTests extends ESTestCase {
         assertTrue(command.contains(AutodetectBuilder.BUCKET_SPAN_ARG + "120"));
         assertTrue(command.contains(AutodetectBuilder.LATENCY_ARG + "360"));
         assertTrue(command.contains(AutodetectBuilder.SUMMARY_COUNT_FIELD_ARG + "summaryField"));
-        assertTrue(command.contains(AutodetectBuilder.RESULT_FINALIZATION_WINDOW_ARG + "2"));
         assertTrue(command.contains(AutodetectBuilder.MULTIVARIATE_BY_FIELDS_ARG));
 
         assertTrue(command.contains(AutodetectBuilder.LENGTH_ENCODED_INPUT_ARG));

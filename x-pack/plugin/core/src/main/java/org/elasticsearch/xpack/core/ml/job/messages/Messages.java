@@ -140,8 +140,6 @@ public final class Messages {
     public static final String JOB_CONFIG_NO_DETECTORS = "No detectors configured";
     public static final String JOB_CONFIG_OVERFIELD_INCOMPATIBLE_FUNCTION =
             "over_field_name cannot be used with function ''{0}''";
-    public static final String JOB_CONFIG_OVERLAPPING_BUCKETS_INCOMPATIBLE_FUNCTION =
-            "Overlapping buckets cannot be used with function ''{0}''";
     public static final String JOB_CONFIG_UNKNOWN_FUNCTION = "Unknown function ''{0}''";
     public static final String JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED =
             "Invalid update value for analysis_limits: model_memory_limit cannot be decreased below current usage; " +

@@ -70,6 +70,7 @@ import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
@@ -102,6 +103,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -926,6 +928,28 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(getFiltersResponse.filters().stream().map(MlFilter::getId).collect(Collectors.toList()),
                 containsInAnyOrder("get-filter-test-2", "get-filter-test-3"));
         }
+    }
+
+    public void testUpdateFilter() throws Exception {
+        String filterId = "update-filter-test";
+        MlFilter mlFilter = MlFilter.builder(filterId)
+            .setDescription("old description")
+            .setItems(Arrays.asList("olditem1", "olditem2"))
+            .build();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putFilter(new PutFilterRequest(mlFilter), RequestOptions.DEFAULT);
+
+        UpdateFilterRequest updateFilterRequest = new UpdateFilterRequest(filterId);
+
+        updateFilterRequest.setAddItems(Arrays.asList("newItem1", "newItem2"));
+        updateFilterRequest.setRemoveItems(Collections.singletonList("olditem1"));
+        updateFilterRequest.setDescription("new description");
+        MlFilter filter = execute(updateFilterRequest,
+            machineLearningClient::updateFilter,
+            machineLearningClient::updateFilterAsync).getResponse();
+
+        assertThat(filter.getDescription(), equalTo(updateFilterRequest.getDescription()));
+        assertThat(filter.getItems(), contains("newItem1", "newItem2", "olditem2"));
     }
 
     public static String randomValidJobId() {

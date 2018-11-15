@@ -34,21 +34,23 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     private final AnalyzerScope scope;
     private final Analyzer analyzer;
     private final int positionIncrementGap;
+    private boolean isUpdateable = false;
 
     public NamedAnalyzer(NamedAnalyzer analyzer, int positionIncrementGap) {
-        this(analyzer.name(), analyzer.scope(), analyzer.analyzer(), positionIncrementGap);
+        this(analyzer.name(), analyzer.scope(), analyzer.analyzer(), positionIncrementGap, false);
     }
 
     public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer) {
-        this(name, scope, analyzer, Integer.MIN_VALUE);
+        this(name, scope, analyzer, Integer.MIN_VALUE, false);
     }
 
-    public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionIncrementGap) {
+    public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionIncrementGap, boolean isUpdateable) {
         super(ERROR_STRATEGY);
         this.name = name;
         this.scope = scope;
         this.analyzer = analyzer;
         this.positionIncrementGap = positionIncrementGap;
+        this.isUpdateable = isUpdateable;
     }
 
     /**
@@ -63,6 +65,13 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
      */
     public AnalyzerScope scope() {
         return this.scope;
+    }
+
+    /**
+     * Returns whether this analyzer can be updated
+     */
+    public boolean isUpdateable() {
+        return this.isUpdateable;
     }
 
     /**
@@ -87,7 +96,7 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
 
     @Override
     public String toString() {
-        return "analyzer name[" + name + "], analyzer [" + analyzer + "]";
+        return "analyzer name[" + name + "], analyzer [" + analyzer + "], updateable [" + isUpdateable + "]";
     }
 
     /** It is an error if this is ever used, it means we screwed up! */

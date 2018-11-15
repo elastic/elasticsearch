@@ -1,0 +1,95 @@
+setup: 
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  syns_updateable:
+                    type: synonym
+                    synonyms: [ "quick,fast" ]
+                    updateable: true
+                  syns_non_updateable:
+                    type: synonym
+                    synonyms: [ "quick,fast" ]
+                    updateable: false
+                analyzer:
+                  syns_updateable:
+                    tokenizer: standard
+                    filter: [ "syns_updateable" ]
+                  syns_non_updateable:
+                    tokenizer: standard
+                    filter: [ "syns_non_updateable" ]
+---
+"Test using non-updateable analyzer at index time works":
+
+  - do:
+      indices.put_mapping:
+        index: test
+        type: doc
+        body:
+          properties:
+            text1:
+              type:     text
+              analyzer: syns_non_updateable
+
+  - do:
+      index:
+        index:  test
+        type:   doc
+        id:     1
+        body:   { "text1": "quick"}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { query: { match: { "text1" : "fast" }}}
+
+  - length:   { hits.hits: 1  }
+
+---
+"Test using updateable analyzer at index time throws error":
+
+  - do:
+      catch: /\[syns_updateable\] contains updateable components. This is only allowed in search_analyzers./
+      indices.put_mapping:
+        index: test
+        type: doc
+        body:
+          properties:
+            text1:
+              type:     text
+              analyzer: syns_updateable
+
+---
+"Test using updateable analyzer as search_analyzer is okay":
+
+  - do:
+      indices.put_mapping:
+        index: test
+        type: doc
+        body:
+          properties:
+            text1:
+              type:     text
+              analyzer: standard
+              search_analyzer: syns_updateable
+
+  - do:
+      index:
+        index:  test
+        type:   doc
+        id:     1
+        body:   { "text1": "quick"}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { query: { match: { "text1" : "fast" }}}
+
+  - length:   { hits.hits: 1  }

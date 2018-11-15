@@ -36,6 +36,7 @@ public final class CustomAnalyzer extends Analyzer {
 
     private final int positionIncrementGap;
     private final int offsetGap;
+    private boolean isUpdateable;
 
     public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
             TokenFilterFactory[] tokenFilters) {
@@ -50,6 +51,12 @@ public final class CustomAnalyzer extends Analyzer {
         this.tokenFilters = tokenFilters;
         this.positionIncrementGap = positionIncrementGap;
         this.offsetGap = offsetGap;
+        // check if analyzer contains updateable Filter
+        for (TokenFilterFactory f : tokenFilters) {
+            if (f.isUpdateable()) {
+                this.isUpdateable = true;
+            }
+        }
     }
 
     /**
@@ -82,6 +89,10 @@ public final class CustomAnalyzer extends Analyzer {
             return super.getOffsetGap(field);
         }
         return this.offsetGap;
+    }
+
+    public boolean isUpdateable() {
+        return this.isUpdateable;
     }
 
     @Override

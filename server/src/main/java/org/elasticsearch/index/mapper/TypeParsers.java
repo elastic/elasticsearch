@@ -73,6 +73,10 @@ public class TypeParsers {
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
+                if (analyzer.isUpdateable()) {
+                    throw new MapperParsingException("analyzer [" + propNode.toString()
+                            + "] contains updateable components. This is only allowed in search_analyzers.");
+                }
                 indexAnalyzer = analyzer;
                 iterator.remove();
             } else if (propName.equals("search_analyzer")) {

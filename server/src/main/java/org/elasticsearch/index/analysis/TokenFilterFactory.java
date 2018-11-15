@@ -75,6 +75,13 @@ public interface TokenFilterFactory {
     }
 
     /**
+     * indicate that it is okay to update this filter
+     */
+    default boolean isUpdateable() {
+        return false;
+    }
+
+    /**
      * A TokenFilterFactory that does no filtering to its TokenStream
      */
     TokenFilterFactory IDENTITY_FILTER = new TokenFilterFactory() {

@@ -20,11 +20,11 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.Version;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -496,6 +496,10 @@ public final class AnalysisRegistry implements Closeable {
             overridePositionIncrementGap = Integer.MIN_VALUE;
         }
         Analyzer analyzerF = analyzerFactory.get();
+        boolean isUpdateable = false;
+        if (analyzerF instanceof org.elasticsearch.index.analysis.CustomAnalyzer) {
+            isUpdateable = ((org.elasticsearch.index.analysis.CustomAnalyzer) analyzerF).isUpdateable();
+        }
         if (analyzerF == null) {
             throw new IllegalArgumentException("analyzer [" + analyzerFactory.name() + "] created null analyzer");
         }
@@ -505,10 +509,10 @@ public final class AnalysisRegistry implements Closeable {
             analyzer = (NamedAnalyzer) analyzerF;
             if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
                 // unless the positionIncrementGap needs to be overridden
-                analyzer = new NamedAnalyzer(analyzer, overridePositionIncrementGap);
+                analyzer = new NamedAnalyzer(analyzer.name(), analyzer.scope(), analyzer.analyzer(), overridePositionIncrementGap, isUpdateable);
             }
         } else {
-            analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
+            analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap, isUpdateable);
         }
         if (analyzers.containsKey(name)) {
             throw new IllegalStateException("already registered analyzer with name: " + name);

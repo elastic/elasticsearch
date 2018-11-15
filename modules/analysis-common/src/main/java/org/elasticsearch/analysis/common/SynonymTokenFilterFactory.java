@@ -50,6 +50,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean lenient;
     protected final Settings settings;
     protected final Environment environment;
+    private final boolean updateable;
 
     SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env,
                                       String name, Settings settings) {
@@ -65,7 +66,13 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.expand = settings.getAsBoolean("expand", true);
         this.lenient = settings.getAsBoolean("lenient", false);
         this.format = settings.get("format", "");
+        this.updateable = settings.getAsBoolean("updateable", false);
         this.environment = env;
+    }
+
+    @Override
+    public boolean isUpdateable() {
+        return this.updateable;
     }
 
     @Override
@@ -80,6 +87,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters, allFilters);
         final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
         final String name = name();
+        final boolean updateable = isUpdateable();
         return new TokenFilterFactory() {
             @Override
             public String name() {
@@ -97,6 +105,11 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 // ensure that synonyms don't get applied to the synonym map itself,
                 // which doesn't support stacked input tokens
                 return IDENTITY_FILTER;
+            }
+
+            @Override
+            public boolean isUpdateable() {
+                return updateable;
             }
         };
     }

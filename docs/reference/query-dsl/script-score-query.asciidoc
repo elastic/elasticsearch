@@ -79,15 +79,14 @@ latexmath:[sigmoid(value, k, a) = value^a/ (k^a + value^a)]
 ===== Random functions
 There are two predefined ways to produce random values:
 
-1. `randomNotReproducible(long seed)` uses `java.util.Random` class
+1. `randomNotReproducible()` uses `java.util.Random` class
 to generate a random value of the type `long`.
-The generated values are designed to be different across different
-shards, and not reproducible between requests' invocations.
+The generated values are not reproducible between requests' invocations.
 
     [source,js]
     --------------------------------------------------
     "script" : {
-        "source" : "randomNotReproducible(100)"
+        "source" : "randomNotReproducible()"
     }
     --------------------------------------------------
     // NOTCONSOLE
@@ -97,10 +96,10 @@ shards, and not reproducible between requests' invocations.
 reproducible random values of type `long`. This function requires
 more computational time and memory than the non-reproducible version.
 
-A good candidate for the `seedValue` is a document field that has
-unique values and is already pre-calculated and preloaded
-in the memory. For example,  document's `_seq_no` field is a good
-candidate, as documents on the same shard have unique values
+A good candidate for the `seedValue` is document field values that
+are unique across documents and already pre-calculated and preloaded
+in the memory. For example, values of the document's `_seq_no` field
+is a good candidate, as documents on the same shard have unique values
 for the `_seq_no` field.
 
     [source,js]
@@ -118,9 +117,9 @@ documents from different shards with the same sequence numbers
 generate the same random values.
 
 If you need random values to be distinct across different shards,
-you can use a field with unique values, such as  `_id`, but watch out
-for the memory usage as all these unique values need to be loaded into
-memory.
+you can use a field with unique values across shards,
+such as  `_id`, but watch out for the memory usage as all
+these unique values need to be loaded into memory.
 
     [source,js]
     --------------------------------------------------

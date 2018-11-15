@@ -23,7 +23,7 @@ static_import {
     double rational(double, double) from_class org.elasticsearch.script.ScoreScriptUtils
     double sigmoid(double, double, double) from_class org.elasticsearch.script.ScoreScriptUtils
     double randomReproducible(String, int) from_class org.elasticsearch.script.ScoreScriptUtils
-    double randomNotReproducible(long)  bound_to org.elasticsearch.script.ScoreScriptUtils$RandomNotReproducible
+    double randomNotReproducible()  bound_to org.elasticsearch.script.ScoreScriptUtils$RandomNotReproducible
     double decayGeoLinear(String, String, String, double, GeoPoint)  bound_to org.elasticsearch.script.ScoreScriptUtils$DecayGeoLinear
     double decayGeoExp(String, String, String, double, GeoPoint)  bound_to org.elasticsearch.script.ScoreScriptUtils$DecayGeoExp
     double decayGeoGauss(String, String, String, double, GeoPoint)  bound_to org.elasticsearch.script.ScoreScriptUtils$DecayGeoGauss

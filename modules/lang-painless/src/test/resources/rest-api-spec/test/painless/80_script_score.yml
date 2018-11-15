@@ -59,7 +59,7 @@ setup:
                     script_score:
                         query: {match_all: {} }
                         script:
-                            source: "randomNotReproducible(100)"
+                            source: "randomNotReproducible()"
     - match: { hits.total: 3 }
 
 ---

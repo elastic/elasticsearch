@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -63,12 +64,8 @@ public final class ScoreScriptUtils {
     public static final class RandomNotReproducible {
         private final Random rnd;
 
-        public RandomNotReproducible(long seed) {
-           this.rnd = new Random();
-           // to make different values for different shards
-           // incorporate a hashcode of the Random object, as each shard has its separate instance
-           long seed2 = rnd.hashCode() + seed;
-           rnd.setSeed(seed2);
+        public RandomNotReproducible() {
+           this.rnd = Randomness.get();
         }
 
         public double randomNotReproducible() {

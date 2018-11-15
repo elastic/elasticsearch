@@ -25,6 +25,7 @@ import java.util.Objects;
 public class DelayedDataCheckConfig implements ToXContentObject, Writeable {
 
     public static final TimeValue MAX_DELAYED_DATA_WINDOW = TimeValue.timeValueHours(24);
+    public static final int MAX_NUMBER_SPANABLE_BUCKETS = 10_000;
 
     public static final ParseField ENABLED = new ParseField("enabled");
     public static final ParseField CHECK_WINDOW = new ParseField("check_window");

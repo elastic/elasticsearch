@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.Intervals;
 
 public final class DatafeedJobValidator {
 
@@ -49,7 +48,7 @@ public final class DatafeedJobValidator {
                         delayedDataCheckWindow,
                         bucketSpan));
             }
-            if (Intervals.alignToFloor(delayedDataCheckWindow.millis()/bucketSpan.millis(), bucketSpan.millis()) >= 10_000) {
+            if (delayedDataCheckWindow.millis() > bucketSpan.millis() * DelayedDataCheckConfig.MAX_NUMBER_SPANABLE_BUCKETS) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS,
                         delayedDataCheckWindow,

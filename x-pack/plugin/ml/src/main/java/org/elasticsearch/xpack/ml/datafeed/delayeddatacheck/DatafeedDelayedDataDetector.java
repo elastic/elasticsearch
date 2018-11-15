@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -60,12 +59,12 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
     }
 
     /**
-     * This method looks at the {@link DatafeedConfig} from {@code latestFinalizedBucket - window} to {@code latestFinalizedBucket}.
+     * This method looks at the {@link DatafeedDelayedDataDetector#datafeedIndices}
+     * from {@code latestFinalizedBucket - window} to {@code latestFinalizedBucket} and compares the document counts with the
+     * {@link DatafeedDelayedDataDetector#jobId}'s finalized buckets' event counts.
      *
      * It is done synchronously, and can block for a considerable amount of time, it should only be executed within the appropriate
      * thread pool.
-     *
-     * If {@link DatafeedConfig#getDelayedDataCheckConfig()} is not enabled, then no action is taken and an empty list is returned.
      *
      * @param latestFinalizedBucketMs The latest finalized bucket timestamp in milliseconds, signifies the end of the time window check
      * @return A List of {@link BucketWithMissingData} objects that contain each bucket with the current number of missing docs

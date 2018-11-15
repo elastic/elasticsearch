@@ -8,18 +8,33 @@ package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 
 import java.util.Objects;
 
+/**
+ * Builds the appropriate {@link DelayedDataDetector} implementation, with the appropriate settings, given the parameters.
+ */
 public class DelayedDataDetectorFactory {
 
     // There are eight 15min buckets in a two hour span, so matching that number as the fallback for very long buckets
     private static final int FALLBACK_NUMBER_OF_BUCKETS_TO_SPAN = 8;
     private static final TimeValue DEFAULT_CHECK_WINDOW = TimeValue.timeValueHours(2);
 
+    /**
+     * This will build the appropriate detector given the parameters.
+     *
+     * If {@link DatafeedConfig#getDelayedDataCheckConfig()} is not `isEnabled()`, then a {@link NullDelayedDataDetector} is returned, which
+     * does not do any checks, and only supplies an empty collection.
+     *
+     * @param job The {@link Job} object for the given `datafeedConfig`
+     * @param datafeedConfig The {@link DatafeedConfig} for which to create the {@link DelayedDataDetector}
+     * @param client The {@link Client} capable of taking action against the ES Cluster.
+     * @return A new {@link DelayedDataDetector}
+     */
     public static DelayedDataDetector buildDetector(Job job, DatafeedConfig datafeedConfig, Client client) {
         if (datafeedConfig.getDelayedDataCheckConfig().isEnabled()) {
             long window = validateAndCalculateWindowLength(job.getAnalysisConfig().getBucketSpan(),
@@ -41,7 +56,7 @@ public class DelayedDataDetectorFactory {
         if (bucketSpan == null) {
             return 0;
         }
-        if (currentWindow == null) { // we should provide a good default
+        if (currentWindow == null) { // we should provide a good default as the user did not specify a window
             if(bucketSpan.compareTo(DEFAULT_CHECK_WINDOW) >= 0) {
                 return FALLBACK_NUMBER_OF_BUCKETS_TO_SPAN * bucketSpan.millis();
             } else {
@@ -49,11 +64,10 @@ public class DelayedDataDetectorFactory {
             }
         }
         if (currentWindow.compareTo(bucketSpan) < 0) {
-            // If it is the default value, we assume the user did not set it and the bucket span is very large
             throw new IllegalArgumentException(
                 Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL, currentWindow.getStringRep(),
                     bucketSpan.getStringRep()));
-        } else if (currentWindow.millis() > bucketSpan.millis() * 10_000) {
+        } else if (currentWindow.millis() > bucketSpan.millis() * DelayedDataCheckConfig.MAX_NUMBER_SPANABLE_BUCKETS) {
             throw new IllegalArgumentException(
                 Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, currentWindow.getStringRep(),
                     bucketSpan.getStringRep()));

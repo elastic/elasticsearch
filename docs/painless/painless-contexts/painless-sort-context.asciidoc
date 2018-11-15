@@ -24,3 +24,35 @@ Use a Painless script to
 *API*
 
 The standard <<painless-api-reference, Painless API>> is available.
+
+*Example*
+
+To run this example, first follow the steps in
+<<painless-context-examples, context examples>>.
+
+To sort results by the length of the `theatre` field, submit the following query:
+
+[source,js]
+----
+GET /_search
+{
+    "query" : {
+        "term" : { "sold" : "true" }
+    },
+    "sort" : {
+        "_script" : {
+            "type" : "number",
+            "script" : {
+                "lang": "painless",
+                "source": "doc['theatre'].value.length() * params.factor",
+                "params" : {
+                    "factor" : 1.1
+                }
+            },
+            "order" : "asc"
+        }
+    }
+}
+
+----
+// CONSOLE

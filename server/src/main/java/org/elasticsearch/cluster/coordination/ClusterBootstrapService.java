@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapClusterAction;
 import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapClusterRequest;
 import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapClusterResponse;

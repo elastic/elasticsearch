@@ -25,6 +25,7 @@ import java.util.List;
 
 import static java.sql.JDBCType.INTEGER;
 import static java.sql.JDBCType.SMALLINT;
+import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 
 /**
  * Implementation of {@link DatabaseMetaData} for Elasticsearch. Draws inspiration
@@ -175,7 +176,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public String getSQLKeywords() throws SQLException {
         // TODO: sync this with the grammar
-        return "";
+        return EMPTY;
     }
 
     @Override
@@ -212,7 +213,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public String getSystemFunctions() throws SQLException {
         // TODO: sync this with the grammar
-        return "";
+        return EMPTY;
     }
 
     @Override
@@ -235,7 +236,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getExtraNameCharacters() throws SQLException {
-        return "";
+        return EMPTY;
     }
 
     @Override
@@ -716,15 +717,15 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     private boolean isDefaultCatalog(String catalog) throws SQLException {
         // null means catalog info is irrelevant
         // % means return all catalogs
-        // "" means return those without a catalog
-        return catalog == null || catalog.equals("") || catalog.equals("%") || catalog.equals(defaultCatalog());
+        // EMPTY means return those without a catalog
+        return catalog == null || catalog.equals(EMPTY) || catalog.equals("%") || catalog.equals(defaultCatalog());
     }
 
     private boolean isDefaultSchema(String schema) {
         // null means schema info is irrelevant
         // % means return all schemas`
-        // "" means return those without a schema
-        return schema == null || schema.equals("") || schema.equals("%");
+        // EMPTY means return those without a schema
+        return schema == null || schema.equals(EMPTY) || schema.equals("%");
     }
 
     @Override
@@ -756,7 +757,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getSchemas() throws SQLException {
-        Object[][] data = { { "", defaultCatalog() } };
+        Object[][] data = { { EMPTY, defaultCatalog() } };
         return memorySet(con.cfg, columnInfo("SCHEMATA",
                                     "TABLE_SCHEM",
                                     "TABLE_CATALOG"), data);
@@ -770,7 +771,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         if (!isDefaultCatalog(catalog) || !isDefaultSchema(schemaPattern)) {
             return emptySet(con.cfg, info);
         }
-        Object[][] data = { { "", defaultCatalog() } };
+        Object[][] data = { { EMPTY, defaultCatalog() } };
         return memorySet(con.cfg, info, data);
     }
 
@@ -789,7 +790,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             throws SQLException {
         PreparedStatement ps = con.prepareStatement("SYS COLUMNS CATALOG ? TABLE LIKE ? LIKE ?");
         // TODO: until passing null works, pass an empty string
-        ps.setString(1, catalog != null ? catalog.trim() : "");
+        ps.setString(1, catalog != null ? catalog.trim() : EMPTY);
         ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : "%");
         ps.setString(3, columnNamePattern != null ? columnNamePattern.trim() : "%");
         return ps.executeQuery();
@@ -1138,7 +1139,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                     }
                     // it's not, use the default and move on
                 }
-                columns.add(new JdbcColumnInfo(name, type, tableName, "INFORMATION_SCHEMA", "", "", 0));
+                columns.add(new JdbcColumnInfo(name, type, tableName, "INFORMATION_SCHEMA", EMPTY, EMPTY, 0));
             }
             else {
                 throw new JdbcSQLException("Invalid metadata schema definition");

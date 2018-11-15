@@ -63,7 +63,7 @@ public final class IntervalUtils {
                     throw new ParsingException(source, "Cannot parse duration [{}]", unit);
             }
         } catch (ArithmeticException ae) {
-            throw new ParsingException(source, "Value [{}] cannot be used as it is too large to convert into " + unit.name() + "s");
+            throw new ParsingException(source, "Value [{}] cannot be used as it is too large to convert into [{}]s", duration, unit);
         }
     }
 
@@ -186,7 +186,7 @@ public final class IntervalUtils {
 
             boolean negate = false;
 
-            // first take check if there's a sign
+            // first check if there's a sign
             char maybeSign = string.charAt(0);
             if (PLUS == maybeSign) {
                 startToken = 1;
@@ -195,7 +195,7 @@ public final class IntervalUtils {
                 negate = true;
             }
 
-            // take each token and use it consume a part of the string
+            // take each token and use it to consume a part of the string
             // validate each token and that the whole string is consumed
             for (Token token : tokens) {
                 endToken = startToken;

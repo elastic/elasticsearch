@@ -89,7 +89,7 @@ public class JdbcHttpClient {
     /**
      * Converts REST column metadata into JDBC column metadata
      */
-    private List<JdbcColumnInfo> toJdbcColumnInfo(List<org.elasticsearch.xpack.sql.proto.ColumnInfo> columns) throws SQLException {
+    private List<JdbcColumnInfo> toJdbcColumnInfo(List<ColumnInfo> columns) throws SQLException {
         List<JdbcColumnInfo> cols = new ArrayList<>(columns.size());
         for (ColumnInfo info : columns) {
             cols.add(new JdbcColumnInfo(info.name(), TypeUtils.of(info.esType()), EMPTY, EMPTY, EMPTY, EMPTY, info.displaySize()));

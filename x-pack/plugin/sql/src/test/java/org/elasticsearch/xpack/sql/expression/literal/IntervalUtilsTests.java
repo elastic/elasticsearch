@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.literal;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalUtils.TimeUnit;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 
 import java.time.Duration;
@@ -15,6 +16,8 @@ import java.time.temporal.TemporalAmount;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.expression.literal.IntervalUtils.intervalType;
+import static org.elasticsearch.xpack.sql.expression.literal.IntervalUtils.of;
 import static org.elasticsearch.xpack.sql.expression.literal.IntervalUtils.parseInterval;
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY;
@@ -205,6 +208,16 @@ public class IntervalUtilsTests extends ESTestCase {
         String value = "123^456";
         ParsingException pe = expectThrows(ParsingException.class, () -> parseInterval(EMPTY, value, INTERVAL_SECOND));
         assertEquals("line -1:0: Invalid [INTERVAL SECOND] value [123^456]: expected [.] (at [3]) but found [^]", pe.getMessage());
+    }
+
+    public void testOfValueTooLarge() throws Exception {
+        ParsingException pe = expectThrows(ParsingException.class, () -> of(EMPTY, Long.MAX_VALUE, TimeUnit.YEAR));
+        assertEquals("line -1:0: Value [9223372036854775807] cannot be used as it is too large to convert into [YEAR]s", pe.getMessage());
+    }
+
+    public void testIntervalType() throws Exception {
+        ParsingException pe = expectThrows(ParsingException.class, () -> intervalType(EMPTY, TimeUnit.DAY, TimeUnit.YEAR));
+        assertEquals("line -1:0: Cannot determine datatype for combination [DAY] [YEAR]", pe.getMessage());
     }
 
     private static int randomNonNegativeInt() {

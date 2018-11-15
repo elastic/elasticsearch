@@ -1,3 +1,4 @@
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -358,6 +359,42 @@ public class ContextExampleTests extends ScriptTestCase {
                 "return rtn;",
             singletonMap("_source", source), true)
         );
+    }
+
+    // Use script query request to filter documents
+    /*
+    GET localhost:9200/evening/_search
+    {
+        "query": {
+            "bool" : {
+                "filter" : {
+                    "script" : {
+                        "script" : {
+                            "source" : "doc['sold'].value == false && doc['cost'].value < params.cost",
+                            "params" : {
+                                "cost" : 18
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    */
+
+    public void testFilterScript() {
+        Map<String, Object> source = new HashMap<>();
+        source.put("sold", false);
+        source.put("cost", 15);
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("_source", source);
+        params.put("cost", 18);
+
+        boolean result = (boolean) exec(
+            " params['_source']['sold'] == false && params['_source']['cost'] < params.cost;",
+            params, true);
+        assertTrue(result);
     }
 }
 

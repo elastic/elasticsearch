@@ -55,7 +55,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertThat(steps.size(), equalTo(8));
         StepKey expectedFirstKey = new StepKey(phase, ShrinkAction.NAME, ReadOnlyAction.NAME);
         StepKey expectedSecondKey = new StepKey(phase, ShrinkAction.NAME, SetSingleNodeAllocateStep.NAME);
-        StepKey expectedThirdKey = new StepKey(phase, ShrinkAction.NAME, AllocationRoutedStep.NAME);
+        StepKey expectedThirdKey = new StepKey(phase, ShrinkAction.NAME, CheckShrinkReadyStep.NAME);
         StepKey expectedFourthKey = new StepKey(phase, ShrinkAction.NAME, ShrinkStep.NAME);
         StepKey expectedFifthKey = new StepKey(phase, ShrinkAction.NAME, ShrunkShardsAllocatedStep.NAME);
         StepKey expectedSixthKey = new StepKey(phase, ShrinkAction.NAME, CopyExecutionStateStep.NAME);
@@ -71,10 +71,9 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertThat(steps.get(1).getKey(), equalTo(expectedSecondKey));
         assertThat(steps.get(1).getNextStepKey(), equalTo(expectedThirdKey));
 
-        assertTrue(steps.get(2) instanceof AllocationRoutedStep);
+        assertTrue(steps.get(2) instanceof CheckShrinkReadyStep);
         assertThat(steps.get(2).getKey(), equalTo(expectedThirdKey));
         assertThat(steps.get(2).getNextStepKey(), equalTo(expectedFourthKey));
-        assertThat(((AllocationRoutedStep) steps.get(2)).getWaitOnAllShardCopies(), equalTo(false));
 
         assertTrue(steps.get(3) instanceof ShrinkStep);
         assertThat(steps.get(3).getKey(), equalTo(expectedFourthKey));

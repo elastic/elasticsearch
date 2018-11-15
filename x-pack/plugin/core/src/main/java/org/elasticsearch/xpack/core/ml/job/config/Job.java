@@ -197,7 +197,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         createTime = new Date(in.readVLong());
         finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
         // for removed last_data_time field
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             if (in.readBoolean()) {
                 in.readVLong();
             }
@@ -218,7 +218,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         Map<String, Object> readCustomSettings = in.readMap();
         customSettings = readCustomSettings == null ? null : Collections.unmodifiableMap(readCustomSettings);
         modelSnapshotId = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1) && in.readBoolean()) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0) && in.readBoolean()) {
             modelSnapshotMinVersion = Version.readVersion(in);
         } else {
             modelSnapshotMinVersion = null;
@@ -464,7 +464,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeBoolean(false);
         }
         // for removed last_data_time field
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeBoolean(false);
         }
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
@@ -480,7 +480,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeOptionalLong(resultsRetentionDays);
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             if (modelSnapshotMinVersion != null) {
                 out.writeBoolean(true);
                 Version.writeVersion(modelSnapshotMinVersion, out);
@@ -693,7 +693,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             createTime = in.readBoolean() ? new Date(in.readVLong()) : null;
             finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
             // for removed last_data_time field
-            if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().before(Version.V_7_0_0)) {
                 if (in.readBoolean()) {
                     in.readVLong();
                 }
@@ -711,7 +711,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             resultsRetentionDays = in.readOptionalLong();
             customSettings = in.readMap();
             modelSnapshotId = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1) && in.readBoolean()) {
+            if (in.getVersion().onOrAfter(Version.V_7_0_0) && in.readBoolean()) {
                 modelSnapshotMinVersion = Version.readVersion(in);
             } else {
                 modelSnapshotMinVersion = null;
@@ -886,7 +886,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 out.writeBoolean(false);
             }
             // for removed last_data_time field
-            if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().before(Version.V_7_0_0)) {
                 out.writeBoolean(false);
             }
             if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
@@ -902,7 +902,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeOptionalLong(resultsRetentionDays);
             out.writeMap(customSettings);
             out.writeOptionalString(modelSnapshotId);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 if (modelSnapshotMinVersion != null) {
                     out.writeBoolean(true);
                     Version.writeVersion(modelSnapshotMinVersion, out);

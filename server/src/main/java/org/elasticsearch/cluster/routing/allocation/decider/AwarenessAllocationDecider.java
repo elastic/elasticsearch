@@ -207,10 +207,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                         currentNodeCount,
                         requiredCountPerAttribute + leftoverPerAttribute);
             }
-            // all is well, we are below or same as average
-            if (currentNodeCount <= requiredCountPerAttribute) {
-                continue;
-            }
         }
 
         return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements");

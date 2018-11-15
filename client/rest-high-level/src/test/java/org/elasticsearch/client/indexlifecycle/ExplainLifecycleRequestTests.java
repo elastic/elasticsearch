@@ -38,7 +38,7 @@ public class ExplainLifecycleRequestTests extends ESTestCase {
         }
         if (randomBoolean()) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean());
+                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
             request.indicesOptions(indicesOptions);
         }
         return request;
@@ -54,7 +54,7 @@ public class ExplainLifecycleRequestTests extends ESTestCase {
             break;
         case 1:
             indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

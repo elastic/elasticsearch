@@ -610,7 +610,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         return getDirs(nodeId, shardId, dirSuffix);
     }
 
-    private Set<Path> getDirs(String nodeId, ShardId shardId, String dirSuffix) {
+    public static Set<Path> getDirs(String nodeId, ShardId shardId, String dirSuffix) {
         final NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
         final Set<Path> translogDirs = new TreeSet<>();
         final NodeStats nodeStats = nodeStatses.getNodes().get(0);

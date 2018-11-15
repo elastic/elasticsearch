@@ -20,11 +20,14 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.client.migration.IndexUpgradeRequest;
 
 final class MigrationRequestConverters {
 
-    private MigrationRequestConverters() {}
+    private MigrationRequestConverters() {
+    }
 
     static Request getMigrationAssistance(IndexUpgradeInfoRequest indexUpgradeInfoRequest) {
         RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()
@@ -34,6 +37,28 @@ final class MigrationRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params(request);
         parameters.withIndicesOptions(indexUpgradeInfoRequest.indicesOptions());
+        return request;
+    }
+
+    static Request migrate(IndexUpgradeRequest indexUpgradeRequest) {
+        return prepareMigrateRequest(indexUpgradeRequest, true);
+    }
+
+    static Request submitMigrateTask(IndexUpgradeRequest indexUpgradeRequest) {
+        return prepareMigrateRequest(indexUpgradeRequest, false);
+    }
+
+    private static Request prepareMigrateRequest(IndexUpgradeRequest indexUpgradeRequest, boolean waitForCompletion) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack", "migration", "upgrade")
+            .addPathPart(indexUpgradeRequest.index())
+            .build();
+
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params(request)
+            .withWaitForCompletion(waitForCompletion);
+
         return request;
     }
 }

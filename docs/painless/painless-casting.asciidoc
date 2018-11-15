@@ -501,7 +501,7 @@ indicates whether a cast to the specified target type is implicit (I), explicit
 |====
 |                  | o | b | s | c | i | j | f | d | O | B | S | C | I | L | F | D | T | R | def
 | def as boolean   | I | - | - | - | - | - | - | - | I | - | - | - | - | - | - | - | - | - |
-| def as byte      | - | I | I | I | I | I | I | I | - | I | I | I | I | I | I | I | - | - |
+| def as byte      | - | I | I | E | I | I | I | I | - | I | I | E | I | I | I | I | - | - |
 | def as short     | - | E | I | E | I | I | I | I | - | E | I | E | I | I | I | I | - | - |
 | def as char      | - | E | E | I | I | I | I | I | - | E | E | I | I | I | I | I | E | - |
 | def as int       | - | E | E | E | I | I | I | I | - | E | E | E | I | I | I | I | - | - |
@@ -509,7 +509,7 @@ indicates whether a cast to the specified target type is implicit (I), explicit
 | def as float     | - | E | E | E | E | E | I | I | - | E | E | E | E | E | I | I | - | - |
 | def as double    | - | E | E | E | E | E | E | I | - | E | E | E | E | E | E | I | - | - |
 | def as Boolean   | I | - | - | - | - | - | - | - | I | - | - | - |   | - | - | - | - | - |
-| def as Byte      | - | I | I | I | I | I | I | I | - | I | I | I | I | I | I | I | - | - |
+| def as Byte      | - | I | I | E | I | I | I | I | - | I | I | E | I | I | I | I | - | - |
 | def as Short     | - | E | I | E | I | I | I | I | - | E | I | E | I | I | I | I | - | - |
 | def as Character | - | E | E | I | I | I | I | I | - | E | E | I | I | I | I | I | - | - |
 | def as Integer   | - | E | E | E | I | I | I | I | - | E | E | E | I | I | I | I | - | - |

@@ -639,11 +639,7 @@ public final class Def {
     }
 
     public static char defTocharImplicit(final Object value) {
-        if (value instanceof Byte) {
-            return (char)(byte)value;
-        } else {
-            return (char)value;
-        }
+        return (char)value;
     }
 
     public static int defTointImplicit(final Object value) {
@@ -777,8 +773,6 @@ public final class Def {
     public static Character defToCharacterImplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Byte) {
-            return (char)(byte)value;
         } else {
             return (Character)value;
         }

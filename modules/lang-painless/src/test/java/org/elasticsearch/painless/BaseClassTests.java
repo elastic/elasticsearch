@@ -689,7 +689,7 @@ public class BaseClassTests extends ScriptTestCase {
                 scriptEngine.compile("testReturnsBoxedDouble13", "int i; i = 0", ReturnsBoxedDouble.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
         assertNull(
-                scriptEngine.compile("testReturnsBoxedDouble13", "def x; x = null", ReturnsBoxedDouble.CONTEXT, emptyMap())
+                scriptEngine.compile("testReturnsBoxedDouble13", "null", ReturnsBoxedDouble.CONTEXT, emptyMap())
                         .newInstance().execute());
     }
 

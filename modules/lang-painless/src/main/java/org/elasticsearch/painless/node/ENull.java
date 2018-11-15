@@ -24,6 +24,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Opcodes;
 
 import java.util.Set;
@@ -58,7 +59,7 @@ public final class ENull extends AExpression {
 
             actual = expected;
         } else {
-            actual = Object.class;
+            actual = def.class;
         }
     }
 

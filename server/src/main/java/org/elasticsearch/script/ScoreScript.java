@@ -1,3 +1,4 @@
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -20,7 +21,6 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -35,7 +35,7 @@ import java.util.function.DoubleSupplier;
 /**
  * A script used for adjusting the score on a per document basis.
  */
-public abstract class ScoreScript implements ScorerAware {
+public abstract class ScoreScript {
 
     private static final Map<String, String> DEPRECATIONS;
     static {
@@ -83,11 +83,6 @@ public abstract class ScoreScript implements ScorerAware {
     /** Return the parameters for this script. */
     public Map<String, Object> getParams() {
         return params;
-    }
-
-    /** The leaf lookup for the Lucene segment this script was created for. */
-    protected final LeafSearchLookup getLeafLookup() {
-        return leafLookup;
     }
 
     /** The doc lookup for the Lucene segment this script was created for. */

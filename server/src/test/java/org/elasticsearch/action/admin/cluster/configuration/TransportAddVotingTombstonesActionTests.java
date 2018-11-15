@@ -24,10 +24,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateObserver.Listener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -116,7 +117,8 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
         setState(clusterService, builder(new ClusterName("cluster"))
             .nodes(new Builder().add(localNode).add(otherNode1).add(otherNode2).add(otherDataNode)
                 .localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
-            .lastAcceptedConfiguration(allNodesConfig).lastCommittedConfiguration(allNodesConfig));
+            .coordinationMetaData(CoordinationMetaData.builder().lastAcceptedConfiguration(allNodesConfig)
+                .lastCommittedConfiguration(allNodesConfig).build()));
 
         clusterStateObserver = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
     }
@@ -204,8 +206,10 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
 
     public void testReturnsImmediatelyIfVoteAlreadyWithdrawn() throws InterruptedException {
         setState(clusterService, builder(clusterService.state())
-            .lastCommittedConfiguration(VotingConfiguration.of(localNode, otherNode2))
-            .lastAcceptedConfiguration(VotingConfiguration.of(localNode, otherNode2)));
+            .coordinationMetaData(CoordinationMetaData.builder()
+                .lastCommittedConfiguration(VotingConfiguration.of(localNode, otherNode2))
+                .lastAcceptedConfiguration(VotingConfiguration.of(localNode, otherNode2))
+                .build()));
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
 
@@ -261,7 +265,8 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
 
     public void testSucceedsEvenIfAllTombstonesAlreadyAdded() throws InterruptedException {
         final ClusterState.Builder builder = builder(clusterService.state());
-        builder.addVotingTombstone(otherNode1);
+        builder.coordinationMetaData(CoordinationMetaData.builder(clusterService.state().coordinationMetaData())
+            .addVotingTombstone(otherNode1).build());
         setState(clusterService, builder);
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -283,10 +288,12 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
             .metaData(MetaData.builder(clusterService.state().metaData()).persistentSettings(
                 Settings.builder().put(clusterService.state().metaData().persistentSettings())
                     .put(MAXIMUM_VOTING_TOMBSTONES_SETTING.getKey(), 2).build()));
-        builder.addVotingTombstone(localNode);
+        builder.coordinationMetaData(CoordinationMetaData.builder(clusterService.state().coordinationMetaData())
+            .addVotingTombstone(localNode).build());
         final int existingCount, newCount;
         if (randomBoolean()) {
-            builder.addVotingTombstone(otherNode1);
+            builder.coordinationMetaData(CoordinationMetaData.builder(clusterService.state().coordinationMetaData())
+                .addVotingTombstone(otherNode1).build());
             existingCount = 2;
             newCount = 1;
         } else {
@@ -381,8 +388,11 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
                     currentState.getVotingTombstones().forEach(t -> votingNodeIds.remove(t.getId()));
                     final VotingConfiguration votingConfiguration = new VotingConfiguration(votingNodeIds);
                     return builder(currentState)
-                        .lastAcceptedConfiguration(votingConfiguration)
-                        .lastCommittedConfiguration(votingConfiguration).build();
+                        .coordinationMetaData(CoordinationMetaData.builder(currentState.coordinationMetaData())
+                            .lastAcceptedConfiguration(votingConfiguration)
+                            .lastCommittedConfiguration(votingConfiguration)
+                            .build())
+                        .build();
                 }
 
                 @Override

@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
@@ -114,13 +115,13 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         builder = randomMetaDataChanges(clusterState);
                         break;
                     case 5:
-                        builder = randomVotingConfiguration(clusterState);
+                        builder = randomCoordinationMetaData(clusterState);
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
                 }
             }
-            clusterState = builder.incrementVersion().term(randomLong()).build();
+            clusterState = builder.incrementVersion().build();
 
             if (randomIntBetween(0, 10) < 1) {
                 // Update cluster state via full serialization from time to time
@@ -199,17 +200,18 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
     }
 
-    private ClusterState.Builder randomVotingConfiguration(ClusterState clusterState) {
+    private ClusterState.Builder randomCoordinationMetaData(ClusterState clusterState) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
+        CoordinationMetaData.Builder metaBuilder = CoordinationMetaData.builder();
+        metaBuilder.term(randomNonNegativeLong());
         if (randomBoolean()) {
-            builder.lastCommittedConfiguration(
-                new ClusterState.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
+            metaBuilder.lastCommittedConfiguration(
+                new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
         }
         if (randomBoolean()) {
-            builder.lastAcceptedConfiguration(
-                new ClusterState.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
+            metaBuilder.lastAcceptedConfiguration(
+                new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
         }
-
         return builder;
     }
 

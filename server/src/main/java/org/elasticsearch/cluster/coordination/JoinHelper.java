@@ -96,7 +96,9 @@ public class JoinHelper {
 
                 final long currentTerm = currentTermSupplier.getAsLong();
                 if (currentState.term() != currentTerm) {
-                    currentState = ClusterState.builder(currentState).term(currentTerm).build();
+                    currentState = ClusterState.builder(currentState).coordinationMetaData(
+                        CoordinationMetaData.builder(currentState.coordinationMetaData()).term(currentTerm).build())
+                        .build();
                 }
                 return super.execute(currentState, joiningTasks);
             }

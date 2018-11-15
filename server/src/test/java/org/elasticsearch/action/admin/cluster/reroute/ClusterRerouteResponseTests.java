@@ -70,11 +70,13 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "  \"acknowledged\" : true,\n" +
                     "  \"state\" : {\n" +
                     "    \"cluster_uuid\" : \"_na_\",\n" +
-                    "    \"term\" : 0,\n" +
                     "    \"version\" : 0,\n" +
                     "    \"state_uuid\" : \"" + clusterState.stateUUID() + "\",\n" +
-                    "    \"last_committed_config\" : [ ],\n" +
-                    "    \"last_accepted_config\" : [ ],\n" +
+                    "    \"coordination\" : {\n" +
+                    "      \"term\" : 0,\n" +
+                    "      \"last_committed_config\" : [ ],\n" +
+                    "      \"last_accepted_config\" : [ ],\n" +
+                    "    },\n" +
                     "    \"master_node\" : \"node0\",\n" +
                     "    \"blocks\" : { },\n" +
                     "    \"nodes\" : {\n" +
@@ -141,11 +143,13 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "  \"acknowledged\" : true,\n" +
                     "  \"state\" : {\n" +
                     "    \"cluster_uuid\" : \"_na_\",\n" +
-                    "    \"term\" : 0,\n" +
                     "    \"version\" : 0,\n" +
                     "    \"state_uuid\" : \"" + clusterState.stateUUID() + "\",\n" +
-                    "    \"last_committed_config\" : [ ],\n" +
-                    "    \"last_accepted_config\" : [ ],\n" +
+                    "    \"coordination\" : {\n" +
+                    "      \"term\" : 0,\n" +
+                    "      \"last_committed_config\" : [ ],\n" +
+                    "      \"last_accepted_config\" : [ ],\n" +
+                    "    },\n" +
                     "    \"master_node\" : \"node0\"\n" +
                     "  },\n" +
                     "  \"explanations\" : [\n" +

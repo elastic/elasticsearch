@@ -24,12 +24,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateObserver.Listener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -90,9 +90,9 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
                 assert resolvedNodes == null : resolvedNodes;
                 resolvedNodes = resolveNodesAndCheckMaximum(request, currentState);
 
-                final Builder builder = ClusterState.builder(currentState);
+                CoordinationMetaData.Builder builder = CoordinationMetaData.builder(currentState.coordinationMetaData());
                 resolvedNodes.forEach(builder::addVotingTombstone);
-                final ClusterState newState = builder.build();
+                final ClusterState newState = ClusterState.builder(currentState).coordinationMetaData(builder.build()).build();
                 assert newState.getVotingTombstones().size() <= MAXIMUM_VOTING_TOMBSTONES_SETTING.get(currentState.metaData().settings());
                 return newState;
             }

@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -97,8 +98,10 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
         final ClusterState.Builder builder = builder(new ClusterName("cluster"))
             .nodes(new Builder().add(localNode).add(otherNode1).add(otherNode2)
                 .localNodeId(localNode.getId()).masterNodeId(localNode.getId()));
-        builder.addVotingTombstone(otherNode1);
-        builder.addVotingTombstone(otherNode2);
+        builder.coordinationMetaData(CoordinationMetaData.builder()
+            .addVotingTombstone(otherNode1)
+            .addVotingTombstone(otherNode2)
+            .build());
         setState(clusterService, builder);
     }
 

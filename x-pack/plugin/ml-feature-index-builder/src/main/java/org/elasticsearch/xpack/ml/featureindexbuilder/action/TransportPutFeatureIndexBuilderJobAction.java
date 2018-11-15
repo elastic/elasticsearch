@@ -7,11 +7,9 @@
 package org.elasticsearch.xpack.ml.featureindexbuilder.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -19,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -31,8 +28,8 @@ import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutFeatureIndexBuil
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutFeatureIndexBuilderJobAction.Response;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfig;
-
-import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
+import org.elasticsearch.xpack.ml.featureindexbuilder.persistence.DataframeIndex;
+import org.elasticsearch.xpack.ml.featureindexbuilder.support.JobValidator;
 
 public class TransportPutFeatureIndexBuilderJobAction
         extends TransportMasterNodeAction<PutFeatureIndexBuilderJobAction.Request, PutFeatureIndexBuilderJobAction.Response> {
@@ -72,9 +69,22 @@ public class TransportPutFeatureIndexBuilderJobAction
 
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        FeatureIndexBuilderJob job = createFeatureIndexBuilderJob(request.getConfig(), threadPool);
-        createIndex(client, job.getConfig().getDestinationIndex());
-        startPersistentTask(job, listener, persistentTasksService);
+        JobValidator jobCreator = new JobValidator(request.getConfig(), client);
+
+        jobCreator.validate(ActionListener.wrap(validationResult -> {
+            jobCreator.deduceMappings(ActionListener.wrap(mappings -> {
+                FeatureIndexBuilderJob job = createFeatureIndexBuilderJob(request.getConfig(), threadPool);
+                DataframeIndex.createDestinationIndex(client, job, mappings, ActionListener.wrap(createIndexResult -> {
+                    startPersistentTask(job, listener, persistentTasksService);
+                }, e3 -> {
+                    listener.onFailure(new RuntimeException("Failed to create index", e3));
+                }));
+            }, e2 -> {
+                listener.onFailure(new RuntimeException("Failed to deduce targe mappings", e2));
+            }));
+        }, e -> {
+            listener.onFailure(new RuntimeException("Failed to validate", e));
+        }));
     }
 
     private static FeatureIndexBuilderJob createFeatureIndexBuilderJob(FeatureIndexBuilderJobConfig config, ThreadPool threadPool) {
@@ -95,34 +105,5 @@ public class TransportPutFeatureIndexBuilderJobAction
     @Override
     protected ClusterBlockException checkBlock(PutFeatureIndexBuilderJobAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-    }
-
-    /*
-     * Mocked demo case
-     *
-     * TODO: everything below will be replaced with proper implementation read from job configuration 
-     */
-    private static void createIndex(Client client, String indexName) {
-
-        CreateIndexRequest request = new CreateIndexRequest(indexName);
-
-        request.settings(Settings.builder() // <1>
-                .put("index.number_of_shards", 1).put("index.number_of_replicas", 0));
-        request.mapping(DOC_TYPE, // <1>
-                "{\n" +
-                "  \"" + DOC_TYPE + "\": {\n" +
-                "    \"properties\": {\n" +
-                "      \"reviewerId\": {\n" +
-                "        \"type\": \"keyword\"\n" +
-                "      },\n" +
-                "      \"avg_rating\": {\n" +
-                "        \"type\": \"integer\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}", // <2>
-                XContentType.JSON);
-        IndicesAdminClient adminClient = client.admin().indices();
-        adminClient.create(request).actionGet();
     }
 }

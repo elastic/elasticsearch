@@ -24,7 +24,6 @@ import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ElasticsearchException;

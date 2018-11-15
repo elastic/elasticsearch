@@ -37,7 +37,7 @@ public abstract class NotificationService<Account> extends AbstractComponent {
     // using the new "reloaded" secure settings
     private volatile Settings cachedClusterSettings;
     // cached secure settings, required when recreating the notification clients
-    // using the new updated cluster settings  
+    // using the new updated cluster settings
     private volatile SecureSettings cachedSecureSettings;
 
     public NotificationService(String type, ClusterSettings clusterSettings, List<Setting<?>> pluginClusterSettings) {
@@ -87,7 +87,7 @@ public abstract class NotificationService<Account> extends AbstractComponent {
     }
 
     protected abstract Account createAccount(String name, Settings accountSettings);
-    
+
     public Account getAccount(String name) {
         // note this is not final since we mock it in tests and that causes
         // trouble since final methods can't be mocked...

@@ -88,8 +88,8 @@ public class MetaStateService {
         }
 
         for (Map.Entry<Index, Long> entry : manifest.getIndexGenerations().entrySet()) {
-            Index index = entry.getKey();
-            long generation = entry.getValue();
+            final Index index = entry.getKey();
+            final long generation = entry.getValue();
             final String indexFolderName = index.getUUID();
             final IndexMetaData indexMetaData = INDEX_META_DATA_FORMAT.loadGeneration(logger, namedXContentRegistry, generation,
                     nodeEnv.resolveIndexFolder(indexFolderName));

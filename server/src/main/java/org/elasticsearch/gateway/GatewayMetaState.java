@@ -137,7 +137,7 @@ public class GatewayMetaState implements ClusterStateApplier {
                 final Manifest newManifest = new Manifest(globalStateGeneration, indices);
                 writer.writeManifestAndCleanup("startup", newManifest);
             } catch (Exception e) {
-                logger.error("failed to read or re-write local state, exiting...", e);
+                logger.error("failed to read or upgrade local state, exiting...", e);
                 throw e;
             }
         }

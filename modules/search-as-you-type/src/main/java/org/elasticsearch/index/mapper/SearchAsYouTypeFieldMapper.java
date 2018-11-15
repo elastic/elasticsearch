@@ -131,6 +131,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
                 throw new MapperParsingException("[max_shingle_size] must be at least 2, got [" + maxShingleSize + "]");
             }
 
+            if (maxShingleSize > 5) {
+                throw new MapperParsingException("[max_shingle_size] must be at most 5, got [" + maxShingleSize + "]");
+            }
+
             this.maxShingleSize = maxShingleSize;
 
             return builder;

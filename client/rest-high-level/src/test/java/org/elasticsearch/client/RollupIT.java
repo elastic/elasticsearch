@@ -234,8 +234,14 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
         // stop the job
         StopRollupJobRequest stopRequest = new StopRollupJobRequest(id);
+        stopRequest.waitForCompletion(randomBoolean());
         StopRollupJobResponse stopResponse = execute(stopRequest, rollupClient::stopRollupJob, rollupClient::stopRollupJobAsync);
         assertTrue(stopResponse.isAcknowledged());
+        if (stopRequest.waitForCompletion()) {
+            getResponse = execute(new GetRollupJobRequest(id), rollupClient::getRollupJob, rollupClient::getRollupJobAsync);
+            assertThat(getResponse.getJobs(), hasSize(1));
+            assertThat(getResponse.getJobs().get(0).getStatus().getState(), equalTo(IndexerState.STOPPED));
+        }
     }
 
     public void testGetMissingRollupJob() throws Exception {

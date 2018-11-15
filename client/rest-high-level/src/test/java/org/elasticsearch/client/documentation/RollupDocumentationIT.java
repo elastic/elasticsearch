@@ -287,6 +287,8 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         String id = "job_1";
         // tag::rollup-stop-job-request
         StopRollupJobRequest request = new StopRollupJobRequest(id); // <1>
+        request.waitForCompletion(true);                             // <2>
+        request.timeout(TimeValue.timeValueSeconds(10));             // <3>
         // end::rollup-stop-job-request
 
 

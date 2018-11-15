@@ -25,7 +25,10 @@ import org.elasticsearch.common.Strings;
 
 import java.util.Objects;
 
-public class GetPrivilegesRequest implements Validatable {
+/**
+ * Request object to get application privilege(s)
+ */
+public final class GetPrivilegesRequest implements Validatable {
     private final String applicationName;
     private final String privilegeName;
 
@@ -35,6 +38,25 @@ public class GetPrivilegesRequest implements Validatable {
         }
         this.applicationName = applicationName;
         this.privilegeName = privilegeNames;
+    }
+
+    /**
+     * Constructs a {@link GetPrivilegesRequest} to request all the privileges defined for all applications
+     */
+    public static GetPrivilegesRequest getAllPrivileges() {
+        return new GetPrivilegesRequest(null, null);
+    }
+
+    /**
+     * Constructs a {@link GetPrivilegesRequest} to request all the privileges defined for the specified {@code applicationName}
+     *
+     * @param applicationName the name of the application for which the privileges are requested
+     */
+    public static GetPrivilegesRequest getApplicationPrivileges(String applicationName) {
+        if (Strings.isNullOrEmpty(applicationName)) {
+            throw new IllegalArgumentException("application name is required");
+        }
+        return new GetPrivilegesRequest(applicationName, null);
     }
 
     public String getApplicationName() {

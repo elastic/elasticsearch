@@ -25,20 +25,26 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
-public class GetPrivilegesResponse {
+/**
+ * Get application privileges response
+ */
+public final class GetPrivilegesResponse {
 
-    private List<ApplicationPrivilege> privileges;
+    private Set<ApplicationPrivilege> privileges;
 
-    public List<ApplicationPrivilege> getPrivileges() {
+    public Set<ApplicationPrivilege> getPrivileges() {
         return privileges;
     }
 
-    public GetPrivilegesResponse(List<ApplicationPrivilege> privileges) {
-        this.privileges = Collections.unmodifiableList(privileges);
+    public GetPrivilegesResponse(Collection<ApplicationPrivilege> privileges) {
+        this.privileges = Collections.unmodifiableSet(new HashSet<>(privileges));
     }
 
     public static GetPrivilegesResponse fromXContent(XContentParser parser) throws IOException {
@@ -53,7 +59,7 @@ public class GetPrivilegesResponse {
                 }
             }
         }
-        return new GetPrivilegesResponse(privileges);
+        return new GetPrivilegesResponse(new HashSet<>(privileges));
     }
 
     @Override

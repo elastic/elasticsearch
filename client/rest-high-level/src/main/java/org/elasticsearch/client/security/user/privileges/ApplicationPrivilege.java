@@ -27,16 +27,24 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class ApplicationPrivilege {
+/**
+ * Represents an application specific privilege. The application name, privilege name,
+ * actions and metadata are completely managed by the client and can contain arbitrary
+ * string values.
+ */
+public final class ApplicationPrivilege {
 
     private static final ParseField APPLICATION = new ParseField("application");
     private static final ParseField NAME = new ParseField("name");
@@ -45,7 +53,7 @@ public class ApplicationPrivilege {
 
     private final String application;
     private final String name;
-    private final Collection<String> actions;
+    private final Set<String> actions;
     private final Map<String, Object> metadata;
 
     public ApplicationPrivilege(String application, String name, Collection<String> actions, @Nullable Map<String, Object> metadata) {
@@ -62,7 +70,7 @@ public class ApplicationPrivilege {
         if (actions == null || actions.isEmpty()) {
             throw new IllegalArgumentException("actions must be provided");
         } else {
-            this.actions = Collections.unmodifiableCollection(actions);
+            this.actions = Collections.unmodifiableSet(new HashSet<>(actions));
         }
         if (metadata == null || metadata.isEmpty()) {
             this.metadata = Collections.emptyMap();
@@ -79,7 +87,7 @@ public class ApplicationPrivilege {
         return name;
     }
 
-    public Collection<String> getActions() {
+    public Set<String> getActions() {
         return actions;
     }
 
@@ -107,7 +115,7 @@ public class ApplicationPrivilege {
         ApplicationPrivilege that = (ApplicationPrivilege) o;
         return Objects.equals(application, that.application) &&
             Objects.equals(name, that.name) &&
-            Arrays.equals(actions.toArray(), that.actions.toArray()) &&
+            Objects.equals(actions, that.actions) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -118,6 +126,49 @@ public class ApplicationPrivilege {
 
     static ApplicationPrivilege fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static final class Builder {
+        private String applicationName = null;
+        private String privilegeName = null;
+        private Collection<String> actions = null;
+        private Map<String, Object> metadata = null;
+
+        private Builder() {
+        }
+
+        public Builder application(String applicationName) {
+            this.applicationName = Objects.requireNonNull(applicationName, "application name must be provided");
+            return this;
+        }
+
+        public Builder privilege(String privilegeName) {
+            this.privilegeName = Objects.requireNonNull(privilegeName, "privilege name must be provided");
+            return this;
+        }
+
+        public Builder actions(String... actions) {
+            this.actions = Arrays.asList(Objects.requireNonNull(actions));
+            return this;
+        }
+
+        public Builder actions(Collection<String> actions) {
+            this.actions = Objects.requireNonNull(actions);
+            return this;
+        }
+
+        public Builder metadata(Map<String, Object> metadata) {
+            this.metadata = metadata;
+            return this;
+        }
+
+        public ApplicationPrivilege build() {
+            return new ApplicationPrivilege(applicationName, privilegeName, actions, metadata);
+        }
     }
 
 }

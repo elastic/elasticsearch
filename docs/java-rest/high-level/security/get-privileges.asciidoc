@@ -11,29 +11,30 @@
 [id="{upid}-{api}-request"]
 ==== Get Privileges Request
 
-Application privileges can be retrieved using the `security().getPrivileges()`
-method and by setting the application name and the privilege name on +{request}+:
+The +{request}+ supports getting privilege(s) for all or for specific applications.
+
+===== Specific privilege of a specific application
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 
-All application privileges can be retrieved using the `security().getPrivileges()`
-method and setting only the application name on +{request}+:
+===== All privileges of a specific application
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[get-all-application-privileges-request]
 --------------------------------------------------
 
-All privileges for all applications can be retrieved using the `security().getPrivileges()`
-method without setting either the application or the privilege name on +{request}+:
+===== All privileges of a all applications
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[get-all-privileges-request]
 --------------------------------------------------
+
+include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
 ==== Get Privileges Response
@@ -44,29 +45,3 @@ The returned +{response}+ allows to get information about the retrieved privileg
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-
-==== Get Privileges Async Execution
-This request can be executed asynchronously using the `security().getPrivilegesAsync()`
-method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-execute-async]
---------------------------------------------------
-<1> The `+{request}+` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once the request
-has completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for a `+{response}+` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument

@@ -49,7 +49,7 @@ public class GetPrivilegesRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 return new GetPrivilegesRequest(applicationName, randomAlphaOfLength(6));
             } else {
-                return new GetPrivilegesRequest(randomAlphaOfLength(6), null);
+                return GetPrivilegesRequest.getApplicationPrivileges(randomAlphaOfLength(6));
             }
         };
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(getPrivilegesRequest,

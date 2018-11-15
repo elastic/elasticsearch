@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -113,14 +114,20 @@ public class GetPrivilegesResponseTests extends ESTestCase {
 
     public void testEqualsHashCode() {
         final List<ApplicationPrivilege> privileges = new ArrayList<>();
+        final List<ApplicationPrivilege> privileges2 = new ArrayList<>();
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put("key1", "value1");
-        final ApplicationPrivilege privilege =
+        final ApplicationPrivilege writePrivilege =
             new ApplicationPrivilege("testapp", "write", Arrays.asList("action:login", "data:write/*"),
                 metadata);
-        privileges.add(privilege);
+        final ApplicationPrivilege readPrivilege =
+            new ApplicationPrivilege("testapp", "read", Arrays.asList("data:read/*", "action:login"),
+                metadata);
+        privileges.add(readPrivilege);
+        privileges.add(writePrivilege);
+        privileges2.add(writePrivilege);
+        privileges2.add(readPrivilege);
         final GetPrivilegesResponse response = new GetPrivilegesResponse(privileges);
-        assertNotNull(response);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(response, (original) -> {
             return new GetPrivilegesResponse(original.getPrivileges());
         });
@@ -131,15 +138,15 @@ public class GetPrivilegesResponseTests extends ESTestCase {
 
     private static GetPrivilegesResponse mutateTestItem(GetPrivilegesResponse original) {
         if (randomBoolean()) {
-            List<ApplicationPrivilege> originalPrivileges = original.getPrivileges();
+            Set<ApplicationPrivilege> originalPrivileges = original.getPrivileges();
             List<ApplicationPrivilege> privileges = new ArrayList<>();
             privileges.addAll(originalPrivileges);
-            privileges.add(new ApplicationPrivilege("testapp", "read", Arrays.asList("action:login", "data:read/*"), null));
+            privileges.add(new ApplicationPrivilege("testapp", "all", Arrays.asList("action:login", "data:read/*", "manage:*"), null));
             return new GetPrivilegesResponse(privileges);
         } else {
             final List<ApplicationPrivilege> privileges = new ArrayList<>();
             final ApplicationPrivilege privilege =
-                new ApplicationPrivilege("testapp", "read", Arrays.asList("action:login", "data:read/*"), null);
+                new ApplicationPrivilege("testapp", "all", Arrays.asList("action:login", "data:write/*", "manage:*"), null);
             privileges.add(privilege);
             return new GetPrivilegesResponse(privileges);
         }

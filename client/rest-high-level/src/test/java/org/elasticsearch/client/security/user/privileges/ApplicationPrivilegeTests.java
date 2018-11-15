@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ApplicationPrivilegeTests extends ESTestCase {
@@ -90,5 +91,20 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             new ApplicationPrivilege("myapp", "read", actions, metadata));
         assertThat(e.getMessage(), equalTo("actions must be provided"));
+    }
+
+    public void testBuilder() {
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put("description", "Read access to myapp");
+        ApplicationPrivilege privilege = ApplicationPrivilege.builder()
+            .application("myapp")
+            .privilege("read")
+            .actions("data:read/*", "action:login")
+            .metadata(metadata)
+            .build();
+        assertThat(privilege.getApplication(), equalTo("myapp"));
+        assertThat(privilege.getName(), equalTo("read"));
+        assertThat(privilege.getActions(), containsInAnyOrder("data:read/*", "action:login"));
+        assertThat(privilege.getMetadata(), equalTo(metadata));
     }
 }

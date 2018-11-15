@@ -81,7 +81,6 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     private volatile int concurrentOutgoingRecoveries;
 
     public ThrottlingAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         this.primariesInitialRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.get(settings);
         concurrentIncomingRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.get(settings);
         concurrentOutgoingRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(settings);

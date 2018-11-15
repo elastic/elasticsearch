@@ -48,7 +48,6 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
     private volatile int clusterConcurrentRebalance;
 
     public ConcurrentRebalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         this.clusterConcurrentRebalance = CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.get(settings);
         logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRebalance);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,

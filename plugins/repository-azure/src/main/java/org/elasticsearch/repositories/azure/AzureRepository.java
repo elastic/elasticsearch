@@ -125,7 +125,7 @@ public class AzureRepository extends BlobStoreRepository {
      */
     @Override
     protected AzureBlobStore createBlobStore() throws URISyntaxException, StorageException {
-        final AzureBlobStore blobStore = new AzureBlobStore(metadata, environment.settings(), storageService);
+        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService);
 
         logger.debug((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
             "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",

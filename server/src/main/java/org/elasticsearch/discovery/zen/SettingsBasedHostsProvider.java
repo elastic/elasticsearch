@@ -52,8 +52,6 @@ public class SettingsBasedHostsProvider extends AbstractComponent implements Uni
     private final int limitPortCounts;
 
     public SettingsBasedHostsProvider(Settings settings, TransportService transportService) {
-        super(settings);
-
         if (DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.exists(settings)) {
             configuredHosts = DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
             // we only limit to 1 address, makes no sense to ping 100 ports

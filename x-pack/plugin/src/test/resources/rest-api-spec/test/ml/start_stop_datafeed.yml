@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: headers
   - do:
       indices.create:
         index: airline-data
@@ -229,7 +231,7 @@ setup:
         job_id: "start-stop-datafeed-job-field-without-mappings"
 
   - do:
-      catch: /datafeed \[start-stop-datafeed-job-field-without-mappings-feed] cannot retrieve field \[airline2\] because it has no mappings/
+      catch: /\[start-stop-datafeed-job-field-without-mappings-feed] cannot retrieve field \[airline2\] because it has no mappings/
       xpack.ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-job-field-without-mappings-feed"
 

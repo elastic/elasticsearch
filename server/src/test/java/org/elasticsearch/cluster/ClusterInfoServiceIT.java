@@ -74,8 +74,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         private final BlockingActionFilter blockingActionFilter;
 
-        public TestPlugin(Settings settings) {
-            blockingActionFilter = new BlockingActionFilter(settings);
+        public TestPlugin() {
+            blockingActionFilter = new BlockingActionFilter();
         }
 
         @Override
@@ -86,10 +86,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
     public static class BlockingActionFilter extends org.elasticsearch.action.support.ActionFilter.Simple {
         private Set<String> blockedActions = emptySet();
-
-        public BlockingActionFilter(Settings settings) {
-            super(settings);
-        }
 
         @Override
         protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {

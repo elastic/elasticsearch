@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -68,8 +67,7 @@ public class JobResultsPersister extends AbstractComponent {
 
     private final Client client;
 
-    public JobResultsPersister(Settings settings, Client client) {
-        super(settings);
+    public JobResultsPersister(Client client) {
         this.client = client;
     }
 

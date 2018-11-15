@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -670,6 +669,29 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
         assertEquals(rewrite.filterFunctionBuilders()[0].getFilter(), new TermQueryBuilder("tq", "1"));
         assertSame(rewrite.filterFunctionBuilders()[1].getFilter(), secondFunction);
+    }
+
+    /**
+     * Please see https://github.com/elastic/elasticsearch/issues/35123 for context.
+     */
+    public void testSingleScriptFunction() throws IOException {
+        QueryBuilder queryBuilder = RandomQueryBuilder.createQuery(random());
+        ScoreFunctionBuilder functionBuilder = new ScriptScoreFunctionBuilder(
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap()));
+
+        FunctionScoreQueryBuilder builder = functionScoreQuery(queryBuilder, functionBuilder);
+        if (randomBoolean()) {
+            builder.boostMode(randomFrom(CombineFunction.values()));
+        }
+
+        Query query = builder.toQuery(createShardContext());
+        assertThat(query, instanceOf(FunctionScoreQuery.class));
+
+        CombineFunction expectedBoostMode = builder.boostMode() != null
+            ? builder.boostMode()
+            : FunctionScoreQueryBuilder.DEFAULT_BOOST_MODE;
+        CombineFunction actualBoostMode = ((FunctionScoreQuery) query).getCombineFunction();
+        assertEquals(expectedBoostMode, actualBoostMode);
     }
 
     public void testQueryMalformedArrayNotSupported() throws IOException {

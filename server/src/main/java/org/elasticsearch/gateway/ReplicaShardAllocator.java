@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -55,11 +54,6 @@ import java.util.Objects;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
 public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
-
-    public ReplicaShardAllocator(Settings settings) {
-        super(settings);
-    }
-
     /**
      * Process existing recoveries of replicas and see if we need to cancel them if we find a better
      * match. Today, a better match is one that has full sync id match compared to not having one in

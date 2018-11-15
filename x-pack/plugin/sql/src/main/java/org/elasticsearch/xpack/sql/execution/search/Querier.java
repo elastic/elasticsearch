@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -13,7 +14,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -61,7 +61,7 @@ import static java.util.Collections.singletonList;
 // TODO: add retry/back-off
 public class Querier {
 
-    private final Logger log = Loggers.getLogger(getClass());
+    private final Logger log = LogManager.getLogger(getClass());
 
     private final TimeValue keepAlive, timeout;
     private final int size;
@@ -318,19 +318,20 @@ public class Querier {
             // there are some results
             if (hits.length > 0) {
                 String scrollId = response.getScrollId();
-
+                SchemaSearchHitRowSet hitRowSet = new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), scrollId);
+                
                 // if there's an id, try to setup next scroll
                 if (scrollId != null &&
                         // is all the content already retrieved?
-                        (Boolean.TRUE.equals(response.isTerminatedEarly()) || response.getHits().getTotalHits() == hits.length
-                        // or maybe the limit has been reached
-                        || (hits.length >= query.limit() && query.limit() > -1))) {
+                        (Boolean.TRUE.equals(response.isTerminatedEarly()) 
+                                || response.getHits().getTotalHits() == hits.length
+                                || hitRowSet.isLimitReached())) {
                     // if so, clear the scroll
                     clear(response.getScrollId(), ActionListener.wrap(
                             succeeded -> listener.onResponse(new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), null)),
                             listener::onFailure));
                 } else {
-                    listener.onResponse(new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), scrollId));
+                    listener.onResponse(hitRowSet);
                 }
             }
             // no hits

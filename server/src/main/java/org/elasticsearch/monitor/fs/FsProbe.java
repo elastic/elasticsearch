@@ -28,7 +28,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
 
@@ -45,8 +44,7 @@ public class FsProbe extends AbstractComponent {
 
     private final NodeEnvironment nodeEnv;
 
-    public FsProbe(Settings settings, NodeEnvironment nodeEnv) {
-        super(settings);
+    public FsProbe(NodeEnvironment nodeEnv) {
         this.nodeEnv = nodeEnv;
     }
 

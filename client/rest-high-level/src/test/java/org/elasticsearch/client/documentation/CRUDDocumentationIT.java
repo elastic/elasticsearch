@@ -708,14 +708,15 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             for (BulkItemResponse bulkItemResponse : bulkResponse) { // <1>
                 DocWriteResponse itemResponse = bulkItemResponse.getResponse(); // <2>
 
-                if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.INDEX
-                        || bulkItemResponse.getOpType() == DocWriteRequest.OpType.CREATE) { // <3>
+                switch (bulkItemResponse.getOpType()) {
+                case INDEX:    // <3>
+                case CREATE:
                     IndexResponse indexResponse = (IndexResponse) itemResponse;
-
-                } else if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.UPDATE) { // <4>
+                    break;
+                case UPDATE:   // <4>
                     UpdateResponse updateResponse = (UpdateResponse) itemResponse;
-
-                } else if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.DELETE) { // <5>
+                    break;
+                case DELETE:   // <5>
                     DeleteResponse deleteResponse = (DeleteResponse) itemResponse;
                 }
             }
@@ -728,8 +729,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::bulk-errors
             for (BulkItemResponse bulkItemResponse : bulkResponse) {
                 if (bulkItemResponse.isFailed()) { // <1>
-                    BulkItemResponse.Failure failure = bulkItemResponse.getFailure(); // <2>
-
+                    BulkItemResponse.Failure failure =
+                            bulkItemResponse.getFailure(); // <2>
                 }
             }
             // end::bulk-errors
@@ -748,6 +749,16 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.waitForActiveShards(2); // <1>
             request.waitForActiveShards(ActiveShardCount.ALL); // <2>
             // end::bulk-request-active-shards
+            // tag::bulk-request-pipeline
+            request.pipeline("pipelineId"); // <1>
+            // end::bulk-request-pipeline
+            // tag::bulk-request-routing
+            request.routing("routingId"); // <1>
+            // end::bulk-request-routing
+
+            // tag::bulk-request-index-type
+            BulkRequest defaulted = new BulkRequest("posts","_doc"); // <1>
+            // end::bulk-request-index-type
 
             // tag::bulk-execute-listener
             ActionListener<BulkResponse> listener = new ActionListener<BulkResponse>() {
@@ -839,8 +850,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::reindex-request-remote
             request.setRemoteInfo(
                 new RemoteInfo(
-                    "https", "localhost", 9002, null, new BytesArray(new MatchAllQueryBuilder().toString()),
-                    "user", "pass", Collections.emptyMap(), new TimeValue(100, TimeUnit.MILLISECONDS),
+                    "https", "localhost", 9002, null,
+                    new BytesArray(new MatchAllQueryBuilder().toString()),
+                    "user", "pass", Collections.emptyMap(),
+                    new TimeValue(100, TimeUnit.MILLISECONDS),
                     new TimeValue(100, TimeUnit.SECONDS)
                 )
             ); // <1>
@@ -861,7 +874,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
 
             // tag::reindex-execute
-            BulkByScrollResponse bulkResponse = client.reindex(request, RequestOptions.DEFAULT);
+            BulkByScrollResponse bulkResponse =
+                    client.reindex(request, RequestOptions.DEFAULT);
             // end::reindex-execute
             assertSame(0, bulkResponse.getSearchFailures().size());
             assertSame(0, bulkResponse.getBulkFailures().size());
@@ -878,9 +892,12 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             long bulkRetries = bulkResponse.getBulkRetries(); // <10>
             long searchRetries = bulkResponse.getSearchRetries(); // <11>
             TimeValue throttledMillis = bulkResponse.getStatus().getThrottled(); // <12>
-            TimeValue throttledUntilMillis = bulkResponse.getStatus().getThrottledUntil(); // <13>
-            List<ScrollableHitSource.SearchFailure> searchFailures = bulkResponse.getSearchFailures(); // <14>
-            List<BulkItemResponse.Failure> bulkFailures = bulkResponse.getBulkFailures(); // <15>
+            TimeValue throttledUntilMillis =
+                    bulkResponse.getStatus().getThrottledUntil(); // <13>
+            List<ScrollableHitSource.SearchFailure> searchFailures =
+                    bulkResponse.getSearchFailures(); // <14>
+            List<BulkItemResponse.Failure> bulkFailures =
+                    bulkResponse.getBulkFailures(); // <15>
             // end::reindex-response
         }
         {
@@ -888,8 +905,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setSourceIndices("source1");
             request.setDestIndex("dest");
 
+            ActionListener<BulkByScrollResponse> listener;
             // tag::reindex-execute-listener
-            ActionListener<BulkByScrollResponse> listener = new ActionListener<BulkByScrollResponse>() {
+            listener = new ActionListener<BulkByScrollResponse>() {
                 @Override
                 public void onResponse(BulkByScrollResponse bulkResponse) {
                     // <1>
@@ -939,8 +957,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::rethrottle-request-execution
         }
 
+        ActionListener<ListTasksResponse> listener;
         // tag::rethrottle-request-async-listener
-        ActionListener<ListTasksResponse> listener = new ActionListener<ListTasksResponse>() {
+        listener = new ActionListener<ListTasksResponse>() {
             @Override
             public void onResponse(ListTasksResponse response) {
                 // <1>
@@ -959,9 +978,12 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
         RethrottleRequest request = new RethrottleRequest(taskId);
         // tag::rethrottle-execute-async
-        client.reindexRethrottleAsync(request, RequestOptions.DEFAULT, listener);       // <1>
-        client.updateByQueryRethrottleAsync(request, RequestOptions.DEFAULT, listener); // <2>
-        client.deleteByQueryRethrottleAsync(request, RequestOptions.DEFAULT, listener); // <3>
+        client.reindexRethrottleAsync(request,
+                RequestOptions.DEFAULT, listener); // <1>
+        client.updateByQueryRethrottleAsync(request,
+                RequestOptions.DEFAULT, listener); // <2>
+        client.deleteByQueryRethrottleAsync(request,
+                RequestOptions.DEFAULT, listener); // <3>
         // end::rethrottle-execute-async
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
@@ -990,7 +1012,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // tag::update-by-query-request
-            UpdateByQueryRequest request = new UpdateByQueryRequest("source1", "source2"); // <1>
+            UpdateByQueryRequest request =
+                    new UpdateByQueryRequest("source1", "source2"); // <1>
             // end::update-by-query-request
             // tag::update-by-query-request-conflicts
             request.setConflicts("proceed"); // <1>
@@ -1034,7 +1057,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::update-by-query-request-indicesOptions
 
             // tag::update-by-query-execute
-            BulkByScrollResponse bulkResponse = client.updateByQuery(request, RequestOptions.DEFAULT);
+            BulkByScrollResponse bulkResponse =
+                    client.updateByQuery(request, RequestOptions.DEFAULT);
             // end::update-by-query-execute
             assertSame(0, bulkResponse.getSearchFailures().size());
             assertSame(0, bulkResponse.getBulkFailures().size());
@@ -1050,17 +1074,21 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             long bulkRetries = bulkResponse.getBulkRetries(); // <9>
             long searchRetries = bulkResponse.getSearchRetries(); // <10>
             TimeValue throttledMillis = bulkResponse.getStatus().getThrottled(); // <11>
-            TimeValue throttledUntilMillis = bulkResponse.getStatus().getThrottledUntil(); // <12>
-            List<ScrollableHitSource.SearchFailure> searchFailures = bulkResponse.getSearchFailures(); // <13>
-            List<BulkItemResponse.Failure> bulkFailures = bulkResponse.getBulkFailures(); // <14>
+            TimeValue throttledUntilMillis =
+                    bulkResponse.getStatus().getThrottledUntil(); // <12>
+            List<ScrollableHitSource.SearchFailure> searchFailures =
+                    bulkResponse.getSearchFailures(); // <13>
+            List<BulkItemResponse.Failure> bulkFailures =
+                    bulkResponse.getBulkFailures(); // <14>
             // end::update-by-query-response
         }
         {
             UpdateByQueryRequest request = new UpdateByQueryRequest();
             request.indices("source1");
 
+            ActionListener<BulkByScrollResponse> listener;
             // tag::update-by-query-execute-listener
-            ActionListener<BulkByScrollResponse> listener = new ActionListener<BulkByScrollResponse>() {
+            listener = new ActionListener<BulkByScrollResponse>() {
                 @Override
                 public void onResponse(BulkByScrollResponse bulkResponse) {
                     // <1>
@@ -1108,7 +1136,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // tag::delete-by-query-request
-            DeleteByQueryRequest request = new DeleteByQueryRequest("source1", "source2"); // <1>
+            DeleteByQueryRequest request =
+                    new DeleteByQueryRequest("source1", "source2"); // <1>
             // end::delete-by-query-request
             // tag::delete-by-query-request-conflicts
             request.setConflicts("proceed"); // <1>
@@ -1142,7 +1171,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::delete-by-query-request-indicesOptions
 
             // tag::delete-by-query-execute
-            BulkByScrollResponse bulkResponse = client.deleteByQuery(request, RequestOptions.DEFAULT);
+            BulkByScrollResponse bulkResponse =
+                    client.deleteByQuery(request, RequestOptions.DEFAULT);
             // end::delete-by-query-execute
             assertSame(0, bulkResponse.getSearchFailures().size());
             assertSame(0, bulkResponse.getBulkFailures().size());
@@ -1157,17 +1187,21 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             long bulkRetries = bulkResponse.getBulkRetries(); // <8>
             long searchRetries = bulkResponse.getSearchRetries(); // <9>
             TimeValue throttledMillis = bulkResponse.getStatus().getThrottled(); // <10>
-            TimeValue throttledUntilMillis = bulkResponse.getStatus().getThrottledUntil(); // <11>
-            List<ScrollableHitSource.SearchFailure> searchFailures = bulkResponse.getSearchFailures(); // <12>
-            List<BulkItemResponse.Failure> bulkFailures = bulkResponse.getBulkFailures(); // <13>
+            TimeValue throttledUntilMillis =
+                    bulkResponse.getStatus().getThrottledUntil(); // <11>
+            List<ScrollableHitSource.SearchFailure> searchFailures =
+                    bulkResponse.getSearchFailures(); // <12>
+            List<BulkItemResponse.Failure> bulkFailures =
+                    bulkResponse.getBulkFailures(); // <13>
             // end::delete-by-query-response
         }
         {
             DeleteByQueryRequest request = new DeleteByQueryRequest();
             request.indices("source1");
 
+            ActionListener<BulkByScrollResponse> listener;
             // tag::delete-by-query-execute-listener
-            ActionListener<BulkByScrollResponse> listener = new ActionListener<BulkByScrollResponse>() {
+            listener = new ActionListener<BulkByScrollResponse>() {
                 @Override
                 public void onResponse(BulkByScrollResponse bulkResponse) {
                     // <1>
@@ -1430,14 +1464,16 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
 
                 @Override
-                public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                public void afterBulk(long executionId, BulkRequest request,
+                        Throwable failure) {
                     // <4>
                 }
             };
 
             BulkProcessor bulkProcessor = BulkProcessor.builder(
-                            (request, bulkListener) -> client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
-                            listener).build(); // <5>
+                    (request, bulkListener) ->
+                        client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
+                    listener).build(); // <5>
             // end::bulk-processor-init
             assertNotNull(bulkProcessor);
 
@@ -1488,7 +1524,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
 
                 @Override
-                public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                public void afterBulk(long executionId, BulkRequest request,
+                        Throwable failure) {
                     logger.error("Failed to execute bulk", failure); // <3>
                 }
             };
@@ -1496,7 +1533,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::bulk-processor-options
             BulkProcessor.Builder builder = BulkProcessor.builder(
-                    (request, bulkListener) -> client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener);
+                    (request, bulkListener) ->
+                        client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
+                    listener);
             builder.setBulkActions(500); // <1>
             builder.setBulkSize(new ByteSizeValue(1L, ByteSizeUnit.MB)); // <2>
             builder.setConcurrentRequests(0); // <3>
@@ -1510,23 +1549,23 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
     public void testTermVectors() throws Exception {
         RestHighLevelClient client = highLevelClient();
-        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping("doc", "user", "type=keyword");
+        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping("_doc", "user", "type=keyword");
         CreateIndexResponse authorsResponse = client.indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
-        client.index(new IndexRequest("index", "doc", "1").source("user", "kimchy"), RequestOptions.DEFAULT);
+        client.index(new IndexRequest("index", "_doc", "1").source("user", "kimchy"), RequestOptions.DEFAULT);
         Response refreshResponse = client().performRequest(new Request("POST", "/authors/_refresh"));
         assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
 
         {
             // tag::term-vectors-request
-            TermVectorsRequest request = new TermVectorsRequest("authors", "doc", "1");
+            TermVectorsRequest request = new TermVectorsRequest("authors", "_doc", "1");
             request.setFields("user");
             // end::term-vectors-request
         }
 
         {
             // tag::term-vectors-request-artificial
-            TermVectorsRequest request = new TermVectorsRequest("authors", "doc");
+            TermVectorsRequest request = new TermVectorsRequest("authors", "_doc");
             XContentBuilder docBuilder = XContentFactory.jsonBuilder();
             docBuilder.startObject().field("user", "guest-user").endObject();
             request.setDoc(docBuilder); // <1>
@@ -1559,11 +1598,12 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::term-vectors-request-optional-arguments
         }
 
-        TermVectorsRequest request = new TermVectorsRequest("authors", "doc", "1");
+        TermVectorsRequest request = new TermVectorsRequest("authors", "_doc", "1");
         request.setFields("user");
 
         // tag::term-vectors-execute
-        TermVectorsResponse response = client.termvectors(request, RequestOptions.DEFAULT);
+        TermVectorsResponse response =
+                client.termvectors(request, RequestOptions.DEFAULT);
         // end::term-vectors-execute
 
 
@@ -1574,16 +1614,17 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         boolean found = response.getFound(); // <4>
         // end::term-vectors-response
 
-        // tag::term-vectors-term-vectors
         if (response.getTermVectorsList() != null) {
-            List<TermVectorsResponse.TermVector> tvList = response.getTermVectorsList();
-            for (TermVectorsResponse.TermVector tv : tvList) {
+            // tag::term-vectors-term-vectors
+            for (TermVectorsResponse.TermVector tv : response.getTermVectorsList()) {
                 String fieldname = tv.getFieldName(); // <1>
                 int docCount = tv.getFieldStatistics().getDocCount(); // <2>
-                long sumTotalTermFreq = tv.getFieldStatistics().getSumTotalTermFreq(); // <3>
+                long sumTotalTermFreq =
+                        tv.getFieldStatistics().getSumTotalTermFreq(); // <3>
                 long sumDocFreq = tv.getFieldStatistics().getSumDocFreq(); // <4>
                 if (tv.getTerms() != null) {
-                    List<TermVectorsResponse.TermVector.Term> terms = tv.getTerms(); // <5>
+                    List<TermVectorsResponse.TermVector.Term> terms =
+                            tv.getTerms(); // <5>
                     for (TermVectorsResponse.TermVector.Term term : terms) {
                         String termStr = term.getTerm(); // <6>
                         int termFreq = term.getTermFreq(); // <7>
@@ -1591,7 +1632,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                         long totalTermFreq = term.getTotalTermFreq(); // <9>
                         float score = term.getScore(); // <10>
                         if (term.getTokens() != null) {
-                            List<TermVectorsResponse.TermVector.Token> tokens = term.getTokens(); // <11>
+                            List<TermVectorsResponse.TermVector.Token> tokens =
+                                    term.getTokens(); // <11>
                             for (TermVectorsResponse.TermVector.Token token : tokens) {
                                 int position = token.getPosition(); // <12>
                                 int startOffset = token.getStartOffset(); // <13>
@@ -1602,11 +1644,12 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     }
                 }
             }
+            // end::term-vectors-term-vectors
         }
-        // end::term-vectors-term-vectors
 
+        ActionListener<TermVectorsResponse> listener;
         // tag::term-vectors-execute-listener
-        ActionListener<TermVectorsResponse> listener = new ActionListener<TermVectorsResponse>() {
+        listener = new ActionListener<TermVectorsResponse>() {
             @Override
             public void onResponse(TermVectorsResponse termVectorsResponse) {
                 // <1>
@@ -1664,7 +1707,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 "index",         // <1>
                 "type",          // <2>
                 "example_id"));  // <3>
-            request.add(new MultiGetRequest.Item("index", "type", "another_id"));  // <4>
+            request.add(new MultiGetRequest.Item("index", "type", "another_id")); // <4>
             // end::multi-get-request
 
             // Add a missing index so we can test it.
@@ -1715,11 +1758,12 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // TODO status is broken! fix in a followup
             // assertEquals(RestStatus.NOT_FOUND, ee.status());        // <4>
             assertThat(e.getMessage(),
-                containsString("reason=no such index [missing_index]"));               // <5>
+                containsString("reason=no such index [missing_index]")); // <5>
             // end::multi-get-indexnotfound
 
+            ActionListener<MultiGetResponse> listener;
             // tag::multi-get-execute-listener
-            ActionListener<MultiGetResponse> listener = new ActionListener<MultiGetResponse>() {
+            listener = new ActionListener<MultiGetResponse>() {
                 @Override
                 public void onResponse(MultiGetResponse response) {
                     // <1>

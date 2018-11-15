@@ -124,7 +124,7 @@ public class FindFileStructureActionRequestTests extends AbstractStreamableTestC
     public void testValidateNonSemiStructuredText() {
 
         FindFileStructureAction.Request request = new FindFileStructureAction.Request();
-        request.setFormat(randomFrom(FileStructure.Format.JSON, FileStructure.Format.XML, FileStructure.Format.DELIMITED));
+        request.setFormat(randomFrom(FileStructure.Format.NDJSON, FileStructure.Format.XML, FileStructure.Format.DELIMITED));
         request.setGrokPattern(randomAlphaOfLength(80));
         request.setSample(new BytesArray("foo\n"));
 

@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.rule;
 
 import java.util.function.UnaryOperator;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.sql.util.ReflectionUtils;
  */
 public abstract class Rule<E extends T, T extends Node<T>> implements UnaryOperator<T> {
 
-    protected Logger log = Loggers.getLogger(getClass());
+    protected Logger log = LogManager.getLogger(getClass());
 
     private final String name;
     private final Class<E> typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());

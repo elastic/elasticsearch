@@ -5,12 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Collections;
-
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
@@ -18,8 +12,15 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
 import org.junit.Before;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -27,7 +28,9 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
 
-    private static final String ROLE_MAPPING_FILE_SETTING = DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING.getKey();
+    private static final RealmConfig.RealmIdentifier REALM_ID = new RealmConfig.RealmIdentifier("ldap", "ldap-realm-name");
+    private static final String ROLE_MAPPING_FILE_SETTING = RealmSettings.getFullSettingKey(
+            REALM_ID, DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING);
 
     protected Settings settings;
 
@@ -42,30 +45,34 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
     public void testBootstrapCheckOfValidFile() {
         Path file = getDataPath("role_mapping.yml");
         Settings ldapSettings = Settings.builder()
+                .put(settings)
                 .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
-        RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings, TestEnvironment.newEnvironment(settings),
-                new ThreadContext(Settings.EMPTY));
+        RealmConfig config = getRealmConfig(ldapSettings);
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
         assertFalse(check.check(new BootstrapContext(settings, null)).isFailure());
     }
 
+    private static RealmConfig getRealmConfig(Settings settings) {
+        return new RealmConfig(REALM_ID, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
+    }
+
     public void testBootstrapCheckOfMissingFile() {
         final String fileName = randomAlphaOfLength(10);
         Path file = createTempDir().resolve(fileName);
         Settings ldapSettings = Settings.builder()
+                .put(settings)
                 .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
-        RealmConfig config = new RealmConfig("the-realm-name", ldapSettings, settings, TestEnvironment.newEnvironment(settings),
-                new ThreadContext(Settings.EMPTY));
+        RealmConfig config = getRealmConfig(ldapSettings);
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
         final BootstrapCheck.BootstrapCheckResult result = check.check(new BootstrapContext(settings, null));
         assertTrue(result.isFailure());
-        assertThat(result.getMessage(), containsString("the-realm-name"));
+        assertThat(result.getMessage(), containsString(REALM_ID.getName()));
         assertThat(result.getMessage(), containsString(fileName));
         assertThat(result.getMessage(), containsString("does not exist"));
     }
@@ -76,16 +83,16 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         Files.write(file, Collections.singletonList("junk"), StandardCharsets.UTF_16);
 
         Settings ldapSettings = Settings.builder()
+                .put(settings)
                 .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
-        RealmConfig config = new RealmConfig("the-realm-name", ldapSettings, settings, TestEnvironment.newEnvironment(settings),
-                new ThreadContext(Settings.EMPTY));
+        RealmConfig config = getRealmConfig(ldapSettings);
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
         final BootstrapCheck.BootstrapCheckResult result = check.check(new BootstrapContext(settings, null));
         assertTrue(result.isFailure());
-        assertThat(result.getMessage(), containsString("the-realm-name"));
+        assertThat(result.getMessage(), containsString(REALM_ID.getName()));
         assertThat(result.getMessage(), containsString(file.toString()));
         assertThat(result.getMessage(), containsString("could not read"));
     }
@@ -96,18 +103,19 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         Files.write(file, Collections.singletonList("role: not-a-dn"));
 
         Settings ldapSettings = Settings.builder()
+                .put(settings)
                 .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
-        RealmConfig config = new RealmConfig("the-realm-name", ldapSettings, settings, TestEnvironment.newEnvironment(settings),
-                new ThreadContext(Settings.EMPTY));
+        RealmConfig config = getRealmConfig(ldapSettings);
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
         final BootstrapCheck.BootstrapCheckResult result = check.check(new BootstrapContext(settings, null));
         assertTrue(result.isFailure());
-        assertThat(result.getMessage(), containsString("the-realm-name"));
+        assertThat(result.getMessage(), containsString(REALM_ID.getName()));
         assertThat(result.getMessage(), containsString(file.toString()));
         assertThat(result.getMessage(), containsString("invalid DN"));
         assertThat(result.getMessage(), containsString("not-a-dn"));
     }
+
 }

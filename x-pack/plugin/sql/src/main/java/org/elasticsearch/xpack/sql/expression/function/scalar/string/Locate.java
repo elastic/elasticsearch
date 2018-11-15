@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -47,17 +48,19 @@ public class Locate extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution patternResolution = StringFunctionUtils.resolveStringInputType(pattern.dataType(), functionName());
-        if (patternResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution patternResolution = Expressions.typeMustBeString(pattern, functionName(), ParamOrdinal.FIRST);
+        if (patternResolution.unresolved()) {
             return patternResolution;
         }
         
-        TypeResolution sourceResolution = StringFunctionUtils.resolveStringInputType(source.dataType(), functionName());
-        if (sourceResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution sourceResolution = Expressions.typeMustBeString(source, functionName(), ParamOrdinal.SECOND);
+        if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
         
-        return start == null ? TypeResolution.TYPE_RESOLVED : StringFunctionUtils.resolveNumericInputType(start.dataType(), functionName());
+        return start == null ?
+            TypeResolution.TYPE_RESOLVED :
+            Expressions.typeMustBeNumeric(start, functionName(), ParamOrdinal.THIRD);
     }
 
     @Override

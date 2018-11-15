@@ -294,4 +294,14 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         }
         return operations;
     }
+
+    public void testOverFlow() throws Exception {
+        long fromSeqNo = randomLongBetween(0, 5);
+        long toSeqNo = randomLongBetween(Long.MAX_VALUE - 5, Long.MAX_VALUE);
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true)) {
+            IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
+            assertThat(error.getMessage(),
+                containsString("Not all operations between from_seqno [" + fromSeqNo + "] and to_seqno [" + toSeqNo + "] found"));
+        }
+    }
 }

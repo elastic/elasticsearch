@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -35,12 +36,12 @@ public class Concat extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = StringFunctionUtils.resolveStringInputType(left().dataType(), functionName());
-        if (sourceResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution sourceResolution = Expressions.typeMustBeString(left(), functionName(), ParamOrdinal.FIRST);
+        if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        return StringFunctionUtils.resolveStringInputType(right().dataType(), functionName());
+        return Expressions.typeMustBeString(right(), functionName(), ParamOrdinal.SECOND);
     }
 
     @Override
@@ -48,6 +49,11 @@ public class Concat extends BinaryScalarFunction {
         return new ConcatFunctionPipe(location(), this, Expressions.pipe(left()), Expressions.pipe(right()));
     }
     
+    @Override
+    public boolean nullable() {
+        return left().nullable() && right().nullable();
+    }
+
     @Override
     public boolean foldable() {
         return left().foldable() && right().foldable();

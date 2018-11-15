@@ -29,7 +29,7 @@ Since indices that are eligible for freezing are unlikely to change in the futur
 == Freezing and unfreezing an index
 
 The freeze and unfreeze index APIs are used to freeze and unfreeze an index.
-unfreeze it. A frozen index has almost no overhead on the cluster (except
+A frozen index has almost no overhead on the cluster (except
 for maintaining its metadata in memory), and is blocked for write operations.
 A frozen index can be unfrozen which will then go through the normal recovery process.
 

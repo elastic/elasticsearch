@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -103,6 +104,8 @@ public class GroupOrJobLookupTests extends ESTestCase {
         assertThat(groupOrJobLookup.expandGroupIds("foo*"), contains("foo-group"));
         assertThat(groupOrJobLookup.expandGroupIds("bar-group,nogroup"), contains("bar-group"));
         assertThat(groupOrJobLookup.expandGroupIds("*"), contains("bar-group", "foo-group"));
+        assertThat(groupOrJobLookup.expandGroupIds("foo-group"), contains("foo-group"));
+        assertThat(groupOrJobLookup.expandGroupIds("no-group"), empty());
     }
 
     private static Job mockJob(String jobId, List<String> groups) {

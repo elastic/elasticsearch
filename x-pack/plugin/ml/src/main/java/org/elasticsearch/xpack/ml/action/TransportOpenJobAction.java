@@ -20,12 +20,14 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -52,6 +54,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -66,6 +69,8 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.ClusterStateJobUpdate;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -102,8 +107,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
-    private final JobResultsProvider jobResultsProvider;
     private final JobConfigProvider jobConfigProvider;
+    private final JobResultsProvider jobResultsProvider;
+    private final JobManager jobManager;
     private final MlMemoryTracker memoryTracker;
 
     @Inject
@@ -111,8 +117,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                                   XPackLicenseState licenseState, ClusterService clusterService,
                                   PersistentTasksService persistentTasksService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver, Client client,
-                                  JobResultsProvider jobResultsProvider, JobConfigProvider jobConfigProvider,
-                                  MlMemoryTracker memoryTracker) {
+                                  JobResultsProvider jobResultsProvider, JobManager jobManager,
+                                  JobConfigProvider jobConfigProvider, MlMemoryTracker memoryTracker) {
         super(settings, OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, OpenJobAction.Request::new);
         this.licenseState = licenseState;
@@ -120,6 +126,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         this.client = client;
         this.jobResultsProvider = jobResultsProvider;
         this.jobConfigProvider = jobConfigProvider;
+        this.jobManager = jobManager;
         this.memoryTracker = memoryTracker;
     }
 
@@ -618,10 +625,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             );
 
             // Get the job config
-            jobConfigProvider.getJob(jobParams.getJobId(), ActionListener.wrap(
-                    builder -> {
+            jobManager.getJob(jobParams.getJobId(), ActionListener.wrap(
+                    job -> {
                         try {
-                            jobParams.setJob(builder.build());
+                            jobParams.setJob(job);
 
                             // Try adding results doc mapping
                             addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobParams.getJobId()),
@@ -670,16 +677,48 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     private void clearJobFinishedTime(String jobId, ActionListener<AcknowledgedResponse> listener) {
-        JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
 
-        jobConfigProvider.updateJob(jobId, update, null, ActionListener.wrap(
-                job -> listener.onResponse(new AcknowledgedResponse(true)),
-                e  -> {
-                    logger.error("[" + jobId + "] Failed to clear finished_time", e);
-                    // Not a critical error so continue
+        boolean jobIsInClusterState = ClusterStateJobUpdate.jobIsInClusterState(clusterService.state(), jobId);
+        if (jobIsInClusterState) {
+            clusterService.submitStateUpdateTask("clearing-job-finish-time-for-" + jobId, new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    MlMetadata mlMetadata = MlMetadata.getMlMetadata(currentState);
+                    MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder(mlMetadata);
+                    Job.Builder jobBuilder = new Job.Builder(mlMetadata.getJobs().get(jobId));
+                    jobBuilder.setFinishedTime(null);
+
+                    mlMetadataBuilder.putJob(jobBuilder.build(), true);
+                    ClusterState.Builder builder = ClusterState.builder(currentState);
+                    return builder.metaData(new MetaData.Builder(currentState.metaData())
+                            .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
+                            .build();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.error("[" + jobId + "] Failed to clear finished_time; source [" + source + "]", e);
                     listener.onResponse(new AcknowledgedResponse(true));
                 }
-        ));
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState,
+                                                  ClusterState newState) {
+                    listener.onResponse(new AcknowledgedResponse(true));
+                }
+            });
+        } else {
+            JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
+
+            jobConfigProvider.updateJob(jobId, update, null, ActionListener.wrap(
+                    job -> listener.onResponse(new AcknowledgedResponse(true)),
+                    e -> {
+                        logger.error("[" + jobId + "] Failed to clear finished_time", e);
+                        // Not a critical error so continue
+                        listener.onResponse(new AcknowledgedResponse(true));
+                    }
+            ));
+        }
     }
 
     private void cancelJobStart(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask, Exception exception,

@@ -9,10 +9,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
@@ -21,10 +23,13 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -63,6 +68,18 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
     @Override
     protected void masterOperation(UpdateDatafeedAction.Request request, ClusterState state,
                                    ActionListener<PutDatafeedAction.Response> listener) throws Exception {
+
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
+        boolean datafeedConfigIsInClusterState = mlMetadata.getDatafeed(request.getUpdate().getId()) != null;
+        if (datafeedConfigIsInClusterState) {
+            updateDatafeedInClusterState(request, listener);
+        } else {
+            updateDatafeedInIndex(request, state, listener);
+        }
+    }
+
+    private void updateDatafeedInIndex(UpdateDatafeedAction.Request request, ClusterState state,
+                                       ActionListener<PutDatafeedAction.Response> listener) throws Exception {
         final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
 
         // Check datafeed is stopped
@@ -116,6 +133,37 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
                 },
                 listener::onFailure
         ));
+    }
+
+    private void updateDatafeedInClusterState(UpdateDatafeedAction.Request request,
+                                              ActionListener<PutDatafeedAction.Response> listener) {
+        final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
+
+        clusterService.submitStateUpdateTask("update-datafeed-" + request.getUpdate().getId(),
+                new AckedClusterStateUpdateTask<PutDatafeedAction.Response>(request, listener) {
+                    private volatile DatafeedConfig updatedDatafeed;
+
+                    @Override
+                    protected PutDatafeedAction.Response newResponse(boolean acknowledged) {
+                        if (acknowledged) {
+                            logger.info("Updated datafeed [{}]", request.getUpdate().getId());
+                        }
+                        return new PutDatafeedAction.Response(updatedDatafeed);
+                    }
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        DatafeedUpdate update = request.getUpdate();
+                        MlMetadata currentMetadata = MlMetadata.getMlMetadata(currentState);
+                        PersistentTasksCustomMetaData persistentTasks =
+                                currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                        MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
+                                .updateDatafeed(update, persistentTasks, headers).build();
+                        updatedDatafeed = newMetadata.getDatafeed(update.getId());
+                        return ClusterState.builder(currentState).metaData(
+                                MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, newMetadata).build()).build();
+                    }
+                });
     }
 
     @Override

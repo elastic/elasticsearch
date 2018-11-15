@@ -118,7 +118,9 @@ public class TestClustersPlugin implements Plugin<Project> {
             ElasticsearchNode.class,
             name -> new ElasticsearchNode(
                 name,
-                GradleServicesAdapter.getInstance(project)
+                GradleServicesAdapter.getInstance(project),
+                SyncTestClustersConfiguration.getTestClustersConfigurationExtractDir(project),
+                getTestClustersBuildDir(project)
             )
         );
         project.getExtensions().add(NODE_EXTENSION_NAME, container);

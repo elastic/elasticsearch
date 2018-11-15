@@ -16,27 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle;
+package org.elasticsearch.gradle.testclusters;
 
-public enum Distribution {
+import java.io.IOException;
 
-    INTEG_TEST("integ-test", "zip"),
-    ZIP("elasticsearch", "zip"),
-    ZIP_OSS("elasticsearch-oss", "zip");
-
-    private final String fileName;
-    private final String fileExtension;
-
-    Distribution(String name, String fileExtension) {
-        this.fileName = name;
-        this.fileExtension = fileExtension;
+class TestClustersException extends RuntimeException {
+    TestClustersException(String message) {
+        super(message);
     }
 
-    public String getFileName() {
-        return fileName;
-    }
-
-    public String getFileExtension() {
-        return fileExtension;
+    public TestClustersException(String message, Throwable cause) {
+        super(message, cause);
     }
 }

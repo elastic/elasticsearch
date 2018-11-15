@@ -177,6 +177,16 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
             "} else {" +
             "  exit 1;" +
             "}");
+        Result result = sh.run("tasklist");
+        System.out.println(result.stdout);
+        assertCommand("$p = Get-Process -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
+            "echo \"$p\";" +
+            "if ($p -eq $Null) {" +
+            "  exit 0;" +
+            "} else {" +
+            "  exit 1;" +
+            "}");
+
     }
 
     public void test31StartNotInstalled() throws IOException {

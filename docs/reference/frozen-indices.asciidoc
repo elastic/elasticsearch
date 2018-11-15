@@ -31,7 +31,7 @@ Since indices that are eligible for freezing are unlikely to change in the futur
 The freeze and unfreeze index APIs are used to freeze and unfreeze an index.
 A frozen index has almost no overhead on the cluster (except
 for maintaining its metadata in memory), and is blocked for write operations.
-A frozen index can be unfrozen which will then go through the normal recovery process.
+When a frozen index is unfrozen, then index will go through the normal recovery process and become writeable again.
 
 The REST endpoint is `/{index}/_freeze` and `/{index}/_unfreeze`. For
 example:

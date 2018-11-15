@@ -24,7 +24,9 @@ import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -32,6 +34,7 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -42,15 +45,12 @@ import java.util.concurrent.ExecutionException;
  */
 final class CachedSoftDeletesCountMergePolicy extends FilterMergePolicy {
     private final Cache<SegmentCommitInfo, Integer> cacheOfNumDeletesToMerge;
-    private final Cache<SegmentCommitInfo, Long> cacheOfSegmentSizes;
 
     CachedSoftDeletesCountMergePolicy(MergePolicy in, TimeValue timeToLive) {
         super(in);
         this.cacheOfNumDeletesToMerge = CacheBuilder.<SegmentCommitInfo, Integer>builder()
-            .setExpireAfterWrite(timeToLive).setMaximumWeight(5000)
-            .build();
-        this.cacheOfSegmentSizes = CacheBuilder.<SegmentCommitInfo, Long>builder()
-            .setExpireAfterWrite(timeToLive).setMaximumWeight(5000)
+            .setExpireAfterWrite(timeToLive)
+            .setMaximumWeight(200) // we cache at most 200 segments - that's plenty
             .build();
     }
 
@@ -70,7 +70,6 @@ final class CachedSoftDeletesCountMergePolicy extends FilterMergePolicy {
 
     private void invalidateCaches() {
         cacheOfNumDeletesToMerge.invalidateAll();
-        cacheOfSegmentSizes.invalidateAll();
     }
 
     @Override
@@ -83,11 +82,32 @@ final class CachedSoftDeletesCountMergePolicy extends FilterMergePolicy {
     }
 
     @Override
-    protected long size(SegmentCommitInfo info, MergeContext context) {
-        try {
-            return cacheOfSegmentSizes.computeIfAbsent(info, key -> super.size(info, context));
-        } catch (ExecutionException ex) {
-            throw new ElasticsearchException("failed to calculate segment size", ex);
-        }
+    protected long size(SegmentCommitInfo info, MergeContext context) throws IOException {
+       return super.size(info, new MergeContext() {
+           @Override
+           public int numDeletesToMerge(SegmentCommitInfo info) throws IOException {
+               Integer deletesToMerge = cacheOfNumDeletesToMerge.get(info); // let see if we have this segments cached
+               if (deletesToMerge != null) {
+                   return deletesToMerge.intValue();
+               } else {
+                   return context.numDeletesToMerge(info);
+               }
+           }
+
+           @Override
+           public int numDeletedDocs(SegmentCommitInfo info) {
+               return context.numDeletedDocs(info);
+           }
+
+           @Override
+           public InfoStream getInfoStream() {
+               return context.getInfoStream();
+           }
+
+           @Override
+           public Set<SegmentCommitInfo> getMergingSegments() {
+               return context.getMergingSegments();
+           }
+       });
     }
 }

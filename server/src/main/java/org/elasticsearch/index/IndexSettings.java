@@ -257,7 +257,7 @@ public final class IndexSettings {
      * expensive than with hard-deletes; thus caching some values deciding merge specs might reduce load that each refresh has to execute.
      */
     public static final Setting<TimeValue> INDEX_SOFT_DELETES_RECLAIM_DELAY_SETTING =
-        Setting.timeSetting("index.soft_deletes.reclaim.delay", TimeValue.timeValueMinutes(10), TimeValue.timeValueMillis(-1),
+        Setting.timeSetting("index.soft_deletes.reclaim.delay", TimeValue.timeValueMinutes(1), TimeValue.timeValueMillis(-1),
             Property.IndexScope);
 
     /**

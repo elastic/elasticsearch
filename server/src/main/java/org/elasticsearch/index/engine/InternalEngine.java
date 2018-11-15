@@ -252,7 +252,7 @@ public class InternalEngine extends Engine {
             logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
             final LocalCheckpointTracker tracker = localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
             // Operations that are optimized using max_seq_no_of_updates optimization must not be processed twice; otherwise, they will
-            // create duplicates in Lucene. To avoid this we check the LocalCheckpointTracker to see if an operation was already processed.
+            // create duplicates in Lucene. To avoid this we check the LocalCheckpointCachedSoftDeletesCountMergePolicyTracker to see if an operation was already processed.
             // Thus, we need to restore the LocalCheckpointTracker bit by bit to ensure the consistency between LocalCheckpointTracker and
             // Lucene index. This is not the only solution since we can bootstrap max_seq_no_of_updates with max_seq_no of the commit to
             // disable the MSU optimization during recovery. Here we prefer to maintain the consistency of LocalCheckpointTracker.

@@ -58,7 +58,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -118,10 +117,10 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             extends TransportBroadcastByNodeAction<Request, Response, TransportBroadcastByNodeAction.EmptyResult> {
         private final Map<ShardRouting, Object> shards = new HashMap<>();
 
-        TestTransportBroadcastByNodeAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+        TestTransportBroadcastByNodeAction(TransportService transportService, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
                                            String executor) {
-            super(settings, "indices:admin/test", TransportBroadcastByNodeActionTests.this.clusterService, transportService,
+            super("indices:admin/test", TransportBroadcastByNodeActionTests.this.clusterService, transportService,
                 actionFilters, indexNameExpressionResolver, request, executor);
         }
 
@@ -199,7 +198,6 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         transportService.acceptIncomingRequests();
         setClusterState(clusterService, TEST_INDEX);
         action = new TestTransportBroadcastByNodeAction(
-                Settings.EMPTY,
                 transportService,
                 new ActionFilters(new HashSet<>()),
                 new MyResolver(),
@@ -486,10 +484,6 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         @Override
         public void sendResponse(TransportResponse response) throws IOException {
             capturedResponse = response;
-        }
-
-        @Override
-        public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
         }
 
         @Override

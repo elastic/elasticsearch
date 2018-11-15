@@ -44,7 +44,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
@@ -72,11 +71,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     private final NodeClient client;
 
     @Inject
-    public TransportUpdateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+    public TransportUpdateAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                  UpdateHelper updateHelper, ActionFilters actionFilters,
                                  IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService,
                                  AutoCreateIndex autoCreateIndex, NodeClient client) {
-        super(settings, UpdateAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, UpdateRequest::new);
+        super(UpdateAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, UpdateRequest::new);
         this.updateHelper = updateHelper;
         this.indicesService = indicesService;
         this.autoCreateIndex = autoCreateIndex;

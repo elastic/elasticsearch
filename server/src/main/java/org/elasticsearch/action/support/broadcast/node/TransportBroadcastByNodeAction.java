@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
@@ -86,7 +85,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
     final String transportNodeBroadcastAction;
 
     public TransportBroadcastByNodeAction(
-        Settings settings,
         String actionName,
         ClusterService clusterService,
         TransportService transportService,
@@ -94,11 +92,10 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<Request> request,
         String executor) {
-        this(settings, actionName, clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor, true);
+        this(actionName, clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor, true);
     }
 
     public TransportBroadcastByNodeAction(
-            Settings settings,
             String actionName,
             ClusterService clusterService,
             TransportService transportService,
@@ -107,7 +104,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             Supplier<Request> request,
             String executor,
             boolean canTripCircuitBreaker) {
-        super(settings, actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
 
         this.clusterService = clusterService;
         this.transportService = transportService;

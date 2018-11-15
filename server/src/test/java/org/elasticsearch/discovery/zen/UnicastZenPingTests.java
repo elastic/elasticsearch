@@ -377,8 +377,7 @@ public class UnicastZenPingTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService,
-            Version.CURRENT) {
+            networkService) {
 
             @Override
             public BoundTransportAddress boundAddress() {
@@ -419,8 +418,7 @@ public class UnicastZenPingTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService,
-            Version.CURRENT) {
+            networkService) {
 
             @Override
             public BoundTransportAddress boundAddress() {
@@ -465,8 +463,7 @@ public class UnicastZenPingTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService,
-            Version.CURRENT) {
+            networkService) {
 
             @Override
             public BoundTransportAddress boundAddress() {
@@ -512,8 +509,7 @@ public class UnicastZenPingTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService,
-            Version.CURRENT) {
+            networkService) {
 
             @Override
             public BoundTransportAddress boundAddress() {
@@ -578,8 +574,7 @@ public class UnicastZenPingTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
-            networkService,
-            v);
+            networkService);
 
         NetworkHandle handleA = startServices(settings, threadPool, "UZP_A", Version.CURRENT, supplier, EnumSet.allOf(Role.class));
         closeables.push(handleA.transportService);

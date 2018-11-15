@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -35,10 +34,9 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
     private final ClusterService clusterService;
 
     @Inject
-    public TransportGetCalendarEventsAction(Settings settings, TransportService transportService,
-                                            ActionFilters actionFilters, ClusterService clusterService,
+    public TransportGetCalendarEventsAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService,
                                             JobResultsProvider jobResultsProvider) {
-        super(settings, GetCalendarEventsAction.NAME, transportService, actionFilters,
+        super(GetCalendarEventsAction.NAME, transportService, actionFilters,
             (Supplier<GetCalendarEventsAction.Request>) GetCalendarEventsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.clusterService = clusterService;

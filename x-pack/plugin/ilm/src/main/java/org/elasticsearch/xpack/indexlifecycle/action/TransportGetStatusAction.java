@@ -15,11 +15,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction.Response;
@@ -27,10 +26,9 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction.Respon
 public class TransportGetStatusAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
-    public TransportGetStatusAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                    ThreadPool threadPool, ActionFilters actionFilters,
-                                    IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
+    public TransportGetStatusAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(GetStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver, Request::new);
     }
 

@@ -107,7 +107,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     class TestTransportGetIndexAction extends TransportGetIndexAction {
 
         TestTransportGetIndexAction() {
-            super(Settings.EMPTY, GetIndexActionTests.this.transportService, GetIndexActionTests.this.clusterService,
+            super(GetIndexActionTests.this.transportService, GetIndexActionTests.this.clusterService,
                 GetIndexActionTests.this.threadPool, settingsFilter, new ActionFilters(emptySet()),
                 new GetIndexActionTests.Resolver(), indicesService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         }

@@ -40,15 +40,8 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
     private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(Collections.singletonList(
             new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
 
-    private boolean waitOnAllShardCopies;
-
-    AllocationRoutedStep(StepKey key, StepKey nextStepKey, boolean waitOnAllShardCopies) {
+    AllocationRoutedStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
-        this.waitOnAllShardCopies = waitOnAllShardCopies;
-    }
-
-    public boolean getWaitOnAllShardCopies() {
-        return waitOnAllShardCopies;
     }
 
     @Override
@@ -68,42 +61,35 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
         // if the allocation has happened
         RoutingAllocation allocation = new RoutingAllocation(ALLOCATION_DECIDERS, clusterState.getRoutingNodes(), clusterState, null,
                 System.nanoTime());
+
         int allocationPendingAllShards = 0;
 
         ImmutableOpenIntMap<IndexShardRoutingTable> allShards = clusterState.getRoutingTable().index(index).getShards();
         for (ObjectCursor<IndexShardRoutingTable> shardRoutingTable : allShards.values()) {
-            int allocationPendingThisShard = 0;
-            int shardCopiesThisShard = shardRoutingTable.value.size();
             for (ShardRouting shardRouting : shardRoutingTable.value.shards()) {
                 String currentNodeId = shardRouting.currentNodeId();
                 boolean canRemainOnCurrentNode = ALLOCATION_DECIDERS
                         .canRemain(shardRouting, clusterState.getRoutingNodes().node(currentNodeId), allocation)
                         .type() == Decision.Type.YES;
-                if (canRemainOnCurrentNode == false) {
-                    allocationPendingThisShard++;
+                if (canRemainOnCurrentNode == false || shardRouting.started() == false) {
+                    allocationPendingAllShards++;
                 }
             }
-
-            if (waitOnAllShardCopies) {
-                allocationPendingAllShards += allocationPendingThisShard;
-            } else if (shardCopiesThisShard - allocationPendingThisShard == 0) {
-                allocationPendingAllShards++;
-            }
         }
+
         if (allocationPendingAllShards > 0) {
-            logger.debug(
-                    "[{}] lifecycle action for index [{}] waiting for [{}] shards " + "to be allocated to nodes matching the given filters",
-                    getKey().getAction(), index, allocationPendingAllShards);
+            logger.debug("{} lifecycle action [{}] waiting for [{}] shards to be allocated to nodes matching the given filters",
+                index, getKey().getAction(), allocationPendingAllShards);
             return new Result(false, new Info(idxMeta.getNumberOfReplicas(), allocationPendingAllShards, true));
         } else {
-            logger.debug("[{}] lifecycle action for index [{}] complete", getKey().getAction(), index);
+            logger.debug("{} lifecycle action for [{}] complete", index, getKey().getAction());
             return new Result(true, null);
         }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), waitOnAllShardCopies);
+        return 611;
     }
 
     @Override
@@ -114,9 +100,7 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        AllocationRoutedStep other = (AllocationRoutedStep) obj;
-        return super.equals(obj) &&
-                Objects.equals(waitOnAllShardCopies, other.waitOnAllShardCopies);
+        return super.equals(obj);
     }
 
     public static final class Info implements ToXContentObject {

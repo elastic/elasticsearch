@@ -14,7 +14,7 @@ frozen, it is made read-only and drops its transient data structures from memory
 one or more frozen shards will be executed on a throttled threadpool that ensures that we never search more than
 `N` (`1` by default) searches concurrently (see <<search-throttled>>). This protects nodes from exceeding the available memory due to incoming search requests.
 
-In contrast to ordinary open indices, frozen indices are expected to execute slow and are not designed for high query load. Parallelism is
+In contrast to ordinary open indices, frozen indices are expected to execute slowly and are not designed for high query load. Parallelism is
 gained only on a per-node level and loading data-structures on demand is expected to be one or more orders of a magnitude slower than query
 execution on a per shard level. Depending on the index and it's data executing a search on a frozen index is expected to be in the seconds
 or even minutes range compared to milliseconds on a non-frozen index.

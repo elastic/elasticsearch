@@ -55,7 +55,7 @@ POST /my_index/_unfreeze
 == Searching a frozen index
 
 Frozen indices are throttled in order limit memory consumptions per node. The number of concurrently loaded frozen indices per node is
-limited by the number of threads in the `search_throttled` <<modules-threadpool,threadpool>> which is `1` by default. At the same time,
+limited by the number of threads in the <<search-throttled>> threadpool,  which is `1` by default. 
 search requests hitting may indices on a cluster due to concrete lists, expanded wildcards or a date pattern exclude frozen indices by
 default to prevent accidental slowdowns when a frozen index is hit. To include frozen indices a search request must be executed with
 the query parameter `ignore_throttled=false`.

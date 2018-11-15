@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
@@ -464,7 +463,8 @@ public class ApiKeyService {
             }
             final RoleDescriptor rd = new RoleDescriptor(subsetRD.getName(), subsetRD.getClusterPrivileges(),
                     updates.toArray(new IndicesPrivileges[0]), subsetRD.getApplicationPrivileges(),
-                    subsetRD.getConditionalClusterPrivileges(), subsetRD.getRunAs(), subsetRD.getMetadata(), subsetRD.getTransientMetadata());
+                    subsetRD.getConditionalClusterPrivileges(), subsetRD.getRunAs(), subsetRD.getMetadata(),
+                    subsetRD.getTransientMetadata());
             modifiedSubsetDescriptors.add(rd);
         }
         return modifiedSubsetDescriptors;

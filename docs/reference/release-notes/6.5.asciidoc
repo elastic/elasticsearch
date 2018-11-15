@@ -557,7 +557,6 @@ Logging::
 * Logging: Configure the node name when we have it {pull}32983[#32983] (issue: {issue}32793[#32793])
 
 Machine Learning::
-* [ML] Prevent notifications being created on deletion of a non existent job {pull}35337[#35337] (issues: {issue}34058[#34058], {issue}35336[#35336])
 * [ML] Prevent default job values overwriting nulled fields {pull}34804[#34804]
 * Handle pre-6.x time fields {pull}34373[#34373]
 * [ML] Get job stats request should filter non-ML job tasks {pull}33516[#33516] (issue: {issue}33515[#33515])

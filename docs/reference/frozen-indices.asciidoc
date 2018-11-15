@@ -4,7 +4,7 @@
 = Frozen Indices
 
 Elasticsearch indices can require a significant amount of memory available in order to be open and searchable. Yet, not all indices need
-to be writable at the same time and have different access patters over time. For example indices in the time-series or logging use-case
+to be writable at the same time and have different access patterns over time. For example indices in the time-series or logging use-case
 are unlikely to be queried once they age out but still need to be kept around for retention policy purposes.
 
 In order to keep indices around for a longer time period but at the same time reducing their hardware requirements they can be transitioned

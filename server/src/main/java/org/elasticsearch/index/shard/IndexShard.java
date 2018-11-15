@@ -2306,9 +2306,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Acquire all primary operation permits. Once all permits are acquired, the provided ActionListener is called.
      * It is the responsibility of the caller to close the {@link Releasable}.
      */
-    public void acquirePrimaryAllOperationsPermits(final ActionListener<Releasable> onPermitAcquired, final TimeValue timeout) {
+    public void acquireAllPrimaryOperationsPermits(final ActionListener<Releasable> onPermitAcquired, final TimeValue timeout) {
         verifyNotClosed();
-        assert shardRouting.primary() : "acquirePrimaryAllOperationsPermits should only be called on primary shard: " + shardRouting;
+        assert shardRouting.primary() : "acquireAllPrimaryOperationsPermits should only be called on primary shard: " + shardRouting;
 
         indexShardOperationPermits.asyncBlockOperations(onPermitAcquired, timeout.duration(), timeout.timeUnit());
     }
@@ -2458,7 +2458,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Acquire all replica operation permits whenever the shard is ready for indexing (see
-     * {@link #acquirePrimaryAllOperationsPermits(ActionListener, TimeValue)}. If the given primary term is lower than then one in
+     * {@link #acquireAllPrimaryOperationsPermits(ActionListener, TimeValue)}. If the given primary term is lower than then one in
      * {@link #shardRouting}, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with an
      * {@link IllegalStateException}.
      *

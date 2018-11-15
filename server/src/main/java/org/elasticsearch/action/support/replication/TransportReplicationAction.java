@@ -355,12 +355,12 @@ public abstract class TransportReplicationAction<
             }
 
             acquirePrimaryOperationPermit(indexShard, request, ActionListener.wrap(
-                releasable -> runWithReleasable(new PrimaryShardReference(indexShard, releasable)),
+                releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)),
                 this::onFailure
             ));
         }
 
-        void runWithReleasable(final PrimaryShardReference primaryShardReference) {
+        void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
             try {
                 final ClusterState clusterState = clusterService.state();
                 final IndexMetaData indexMetaData = clusterState.metaData().getIndexSafe(primaryShardReference.routingEntry().index());

@@ -313,7 +313,7 @@ public class IndexShardTests extends IndexShardTestCase {
         expectThrows(IndexShardClosedException.class,
             () -> indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.WRITE, ""));
         expectThrows(IndexShardClosedException.class,
-            () -> indexShard.acquirePrimaryAllOperationsPermits(null, TimeValue.timeValueSeconds(30L)));
+            () -> indexShard.acquireAllPrimaryOperationsPermits(null, TimeValue.timeValueSeconds(30L)));
         expectThrows(IndexShardClosedException.class,
             () -> indexShard.acquireReplicaOperationPermit(indexShard.getPendingPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO,
                 randomNonNegativeLong(), null, ThreadPool.Names.WRITE, ""));
@@ -665,7 +665,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 if (singlePermit) {
                     indexShard.acquirePrimaryOperationPermit(future, ThreadPool.Names.WRITE, "");
                 } else {
-                    indexShard.acquirePrimaryAllOperationsPermits(future, TimeValue.timeValueHours(1L));
+                    indexShard.acquireAllPrimaryOperationsPermits(future, TimeValue.timeValueHours(1L));
                 }
                 assertEquals(0, indexShard.getActiveOperationsCount());
             });
@@ -688,7 +688,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             }
         };
-        indexShard.acquirePrimaryAllOperationsPermits(futureAllPermits, TimeValue.timeValueSeconds(30L));
+        indexShard.acquireAllPrimaryOperationsPermits(futureAllPermits, TimeValue.timeValueSeconds(30L));
         allPermitsAcquired.await();
         assertTrue(blocked.get());
         assertEquals(0, indexShard.getActiveOperationsCount());
@@ -781,7 +781,7 @@ public class IndexShardTests extends IndexShardTestCase {
             assertThat(e, hasToString(containsString("acquirePrimaryOperationPermit should only be called on primary shard")));
 
             e = expectThrows(AssertionError.class,
-                    () -> indexShard.acquirePrimaryAllOperationsPermits(null, TimeValue.timeValueSeconds(30L)));
+                    () -> indexShard.acquireAllPrimaryOperationsPermits(null, TimeValue.timeValueSeconds(30L)));
             assertThat(e, hasToString(containsString("acquirePrimaryAllOperationsPermits should only be called on primary shard")));
         }
 

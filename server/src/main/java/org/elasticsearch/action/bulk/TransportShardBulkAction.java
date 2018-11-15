@@ -307,6 +307,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     final Tuple<XContentType, Map<String, Object>> sourceAndContent =
                         XContentHelper.convertToMap(indexSourceAsBytes, true, updateIndexRequest.getContentType());
                     updateResponse.setGetResult(UpdateHelper.extractGetResult(updateRequest, concreteIndex,
+                        indexResponse.getSeqNo(), indexResponse.getPrimaryTerm(),
                         indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
                 }
             } else if (translatedResult == DocWriteResponse.Result.DELETED) {
@@ -315,7 +316,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     deleteResponse.getType(), deleteResponse.getId(), deleteResponse.getSeqNo(), deleteResponse.getPrimaryTerm(),
                     deleteResponse.getVersion(), deleteResponse.getResult());
 
-                final GetResult getResult = UpdateHelper.extractGetResult(updateRequest, concreteIndex, deleteResponse.getVersion(),
+                final GetResult getResult = UpdateHelper.extractGetResult(updateRequest, concreteIndex,
+                    deleteResponse.getPrimaryTerm(), deleteResponse.getSeqNo(), deleteResponse.getVersion(),
                     translate.updatedSourceAsMap(), translate.updateSourceContentType(), null);
 
                 updateResponse.setGetResult(getResult);

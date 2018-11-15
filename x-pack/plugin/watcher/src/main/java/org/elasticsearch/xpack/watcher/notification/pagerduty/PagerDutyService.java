@@ -40,11 +40,10 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
     private final HttpClient httpClient;
 
     public PagerDutyService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
-        super("pagerduty", clusterSettings, PagerDutyService.getSettings());
+        super("pagerduty", clusterSettings, Arrays.asList(SETTING_DEFAULT_ACCOUNT, SETTING_SERVICE_API_KEY, SETTING_DEFAULTS));
         this.httpClient = httpClient;
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SERVICE_API_KEY, (s, o) -> {}, (s, o) -> {});
-        clusterSettings.addAffixUpdateConsumer(SETTING_SECURE_SERVICE_API_KEY, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_DEFAULTS, (s, o) -> {}, (s, o) -> {});
         reload(settings);
     }

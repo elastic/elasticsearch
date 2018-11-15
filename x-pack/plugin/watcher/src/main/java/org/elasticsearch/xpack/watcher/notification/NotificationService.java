@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.watcher.notification;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -25,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.stream.Collectors;
 
 /**
  * Basic notification service
@@ -36,18 +33,21 @@ public abstract class NotificationService<Account> extends AbstractComponent {
     // all are guarded by this
     private volatile Map<String, Account> accounts;
     private volatile Account defaultAccount;
-    private volatile Settings cachedClusterSettings = null;
-    private volatile SecureSettings cachedSecureSettings = null;
+    // cached cluster setting, required when recreating the notification clients
+    // using the new "reloaded" secure settings
+    private volatile Settings cachedClusterSettings;
+    // cached secure settings, required when recreating the notification clients
+    // using the new updated cluster settings  
+    private volatile SecureSettings cachedSecureSettings;
 
-    public NotificationService(String type, ClusterSettings clusterSettings, List<Setting<?>> pluginSettings) {
+    public NotificationService(String type, ClusterSettings clusterSettings, List<Setting<?>> pluginClusterSettings) {
         this.type = type;
-        clusterSettings.addSettingsUpdateConsumer(this::clusterSettingsConsumer, pluginSettings);
+        clusterSettings.addSettingsUpdateConsumer(this::clusterSettingsConsumer, pluginClusterSettings);
     }
 
     private synchronized void clusterSettingsConsumer(Settings settings) {
-        // update cached settings
+        // update cached cluster settings
         this.cachedClusterSettings = settings;
-        final Set<String> accountNames = getAccountNames(settings);
         // build new settings from the previously cached secure settings
         final Settings.Builder completeSettingsBuilder = Settings.builder().put(settings, false);
         if (cachedSecureSettings != null) {
@@ -55,6 +55,7 @@ public abstract class NotificationService<Account> extends AbstractComponent {
         }
         final Settings completeSettings = completeSettingsBuilder.build();
         // create new accounts from the latest
+        final Set<String> accountNames = getAccountNames(completeSettings);
         this.accounts = createAccounts(completeSettings, accountNames, this::createAccount);
         this.defaultAccount = selectDefaultAccount(completeSettings, this.accounts);
     }
@@ -65,13 +66,28 @@ public abstract class NotificationService<Account> extends AbstractComponent {
     }
 
     public synchronized void reload(Settings settings) {
-        Tuple<Map<String, Account>, Account> accounts = buildAccounts(settings, type, this::createAccount);
-        this.accounts = accounts.v1();
-        this.defaultAccount = accounts.v2();
+        // `SecureSettings` are available here!
+        // cache the `SecureSettings`
+        try {
+            this.cachedSecureSettings = cacheSecureSettings(settings);
+        } catch (GeneralSecurityException e) {
+            logger.error("Keystore exception while reloading watcher notification service", e);
+            return;
+        }
+        // build new settings from the previously cached cluster settings
+        final Settings.Builder completeSettingsBuilder = Settings.builder().put(settings, true);
+        if (cachedClusterSettings != null) {
+            completeSettingsBuilder.put(cachedClusterSettings);
+        }
+        final Settings completeSettings = completeSettingsBuilder.build();
+        // create new accounts from the latest
+        final Set<String> accountNames = getAccountNames(completeSettings);
+        this.accounts = createAccounts(completeSettings, accountNames, this::createAccount);
+        this.defaultAccount = selectDefaultAccount(completeSettings, this.accounts);
     }
 
     protected abstract Account createAccount(String name, Settings accountSettings);
-
+    
     public Account getAccount(String name) {
         // note this is not final since we mock it in tests and that causes
         // trouble since final methods can't be mocked...
@@ -97,7 +113,9 @@ public abstract class NotificationService<Account> extends AbstractComponent {
     }
 
     private Set<String> getAccountNames(Settings settings) {
-        return settings.getByPrefix(getNotificationsAccountPrefix()).names();
+        // secure settings don't account for the client names
+        final Settings noSecureSettings = Settings.builder().put(settings, false).build();
+        return noSecureSettings.getByPrefix(getNotificationsAccountPrefix()).names();
     }
 
     private @Nullable String getDefaultAccountName(Settings settings) {
@@ -132,46 +150,14 @@ public abstract class NotificationService<Account> extends AbstractComponent {
         }
     }
 
-    private static <A> Tuple<Map<String, A>, A> buildAccounts(Settings settings, String type,
-            BiFunction<String, Settings, A> accountFactory) {
-        Settings accountsSettings = settings.getByPrefix("xpack.notification." + type + ".account.");
-        Map<String, A> accounts = new HashMap<>();
-        for (String name : accountsSettings.names()) {
-            Settings accountSettings = accountsSettings.getAsSettings(name);
-            A account = accountFactory.apply(name, accountSettings);
-            accounts.put(name, account);
+    private SecureSettings cacheSecureSettings(Settings source) throws GeneralSecurityException {
+        // get the secure settings out
+        final SecureSettings sourceSecureSettings = Settings.builder().put(source, true).getSecureSettings();
+        // cache them...
+        final Map<String, SecureString> cache = new HashMap<>();
+        for (final String settingKey : sourceSecureSettings.getSettingNames()) {
+            cache.put(settingKey, sourceSecureSettings.getString(settingKey));
         }
-        final String defaultAccountName = settings.get("xpack.notification." + type + ".default_account");
-        A defaultAccount;
-        if (defaultAccountName == null) {
-            if (accounts.isEmpty()) {
-                defaultAccount = null;
-            } else {
-                A account = accounts.values().iterator().next();
-                defaultAccount = account;
-            }
-        } else {
-            defaultAccount = accounts.get(defaultAccountName);
-            if (defaultAccount == null) {
-                throw new SettingsException("could not find default account [" + defaultAccountName + "]");
-            }
-        }
-        return new Tuple<>(Collections.unmodifiableMap(accounts), defaultAccount);
-    }
-
-    private SecureSettings cacheSecureSettings(Settings source, List<SecureSetting<?>> secureSettingsList) {
-        for (final SecureSetting<?> secureSetting : secureSettingsList) {
-            secureSetting.getA
-        }
-        source.get("a");
-        source.filter(settingKey -> {
-            for (final SecureSetting secureSetting : secureSettingsList) {
-                if (secureSetting.match(settingKey)) {
-                    return true;
-                }
-            }
-            return false;
-        });
         return new SecureSettings() {
 
             @Override
@@ -181,17 +167,17 @@ public abstract class NotificationService<Account> extends AbstractComponent {
 
             @Override
             public SecureString getString(String setting) throws GeneralSecurityException {
-                return null;
+                return cache.get(setting);
             }
 
             @Override
             public Set<String> getSettingNames() {
-                return null;
+                return cache.keySet();
             }
 
             @Override
             public InputStream getFile(String setting) throws GeneralSecurityException {
-                return null;
+                throw new IllegalStateException("A NotificationService setting cannot be File.");
             }
 
             @Override

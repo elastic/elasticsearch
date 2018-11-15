@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQueryBuilder> {
@@ -157,7 +158,8 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
             );
         } else {
             return new GetResponse(
-                    new GetResult(indexedDocumentIndex, indexedDocumentType, indexedDocumentId, 0, 1, -1, false, null, Collections.emptyMap())
+                    new GetResult(indexedDocumentIndex, indexedDocumentType, indexedDocumentId, UNASSIGNED_SEQ_NO, 0, -1,
+                        false, null, Collections.emptyMap())
             );
         }
     }

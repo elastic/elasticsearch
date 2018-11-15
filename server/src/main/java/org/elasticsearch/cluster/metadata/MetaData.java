@@ -26,6 +26,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.FeatureAware;
@@ -36,6 +37,7 @@ import org.elasticsearch.cluster.NamedDiffable;
 import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -159,6 +161,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     private final String clusterUUID;
     private final long version;
 
+    private final CoordinationMetaData coordinationMetaData;
+
     private final Settings transientSettings;
     private final Settings persistentSettings;
     private final Settings settings;
@@ -176,12 +180,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
     private final SortedMap<String, AliasOrIndex> aliasAndIndexLookup;
 
-    MetaData(String clusterUUID, long version, Settings transientSettings, Settings persistentSettings,
+    MetaData(String clusterUUID, long version, CoordinationMetaData coordinationMetaData,
+             Settings transientSettings, Settings persistentSettings,
              ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates,
              ImmutableOpenMap<String, Custom> customs, String[] allIndices, String[] allOpenIndices, String[] allClosedIndices,
              SortedMap<String, AliasOrIndex> aliasAndIndexLookup) {
         this.clusterUUID = clusterUUID;
         this.version = version;
+        this.coordinationMetaData = coordinationMetaData;
         this.transientSettings = transientSettings;
         this.persistentSettings = persistentSettings;
         this.settings = Settings.builder().put(persistentSettings).put(transientSettings).build();
@@ -229,6 +235,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
     public Settings persistentSettings() {
         return this.persistentSettings;
+    }
+
+    public CoordinationMetaData coordinationMetaData() {
+        return this.coordinationMetaData;
     }
 
     public boolean hasAlias(String alias) {
@@ -798,9 +808,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     private static class MetaDataDiff implements Diff<MetaData> {
 
         private long version;
-
         private String clusterUUID;
-
+        private CoordinationMetaData coordinationMetaData;
         private Settings transientSettings;
         private Settings persistentSettings;
         private Diff<ImmutableOpenMap<String, IndexMetaData>> indices;
@@ -810,6 +819,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         MetaDataDiff(MetaData before, MetaData after) {
             clusterUUID = after.clusterUUID;
             version = after.version;
+            coordinationMetaData = after.coordinationMetaData;
             transientSettings = after.transientSettings;
             persistentSettings = after.persistentSettings;
             indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
@@ -820,6 +830,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         MetaDataDiff(StreamInput in) throws IOException {
             clusterUUID = in.readString();
             version = in.readLong();
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+                coordinationMetaData = new CoordinationMetaData(in);
+            } else {
+                coordinationMetaData = CoordinationMetaData.EMPTY_META_DATA;
+            }
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexMetaData::readFrom,
@@ -833,6 +848,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(clusterUUID);
             out.writeLong(version);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                coordinationMetaData.writeTo(out);
+            }
             Settings.writeSettingsToStream(transientSettings, out);
             Settings.writeSettingsToStream(persistentSettings, out);
             indices.writeTo(out);
@@ -845,6 +863,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             Builder builder = builder();
             builder.clusterUUID(clusterUUID);
             builder.version(version);
+            builder.coordinationMetaData(coordinationMetaData);
             builder.transientSettings(transientSettings);
             builder.persistentSettings(persistentSettings);
             builder.indices(indices.apply(part.indices));
@@ -858,6 +877,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         Builder builder = new Builder();
         builder.version = in.readLong();
         builder.clusterUUID = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            builder.coordinationMetaData(new CoordinationMetaData(in));
+        }
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
         int size = in.readVInt();
@@ -880,6 +902,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(version);
         out.writeString(clusterUUID);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            coordinationMetaData.writeTo(out);
+        }
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
         out.writeVInt(indices.size());
@@ -918,6 +943,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         private String clusterUUID;
         private long version;
 
+        private CoordinationMetaData coordinationMetaData = CoordinationMetaData.EMPTY_META_DATA;
         private Settings transientSettings = Settings.Builder.EMPTY_SETTINGS;
         private Settings persistentSettings = Settings.Builder.EMPTY_SETTINGS;
 
@@ -935,6 +961,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
         public Builder(MetaData metaData) {
             this.clusterUUID = metaData.clusterUUID;
+            this.coordinationMetaData = metaData.coordinationMetaData;
             this.transientSettings = metaData.transientSettings;
             this.persistentSettings = metaData.persistentSettings;
             this.version = metaData.version;
@@ -1076,6 +1103,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return this;
         }
 
+        public Builder coordinationMetaData(CoordinationMetaData coordinationMetaData) {
+            this.coordinationMetaData = coordinationMetaData;
+            return this;
+        }
+
         public Settings transientSettings() {
             return this.transientSettings;
         }
@@ -1161,8 +1193,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             String[] allOpenIndicesArray = allOpenIndices.toArray(new String[allOpenIndices.size()]);
             String[] allClosedIndicesArray = allClosedIndices.toArray(new String[allClosedIndices.size()]);
 
-            return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(),
-                                customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray, aliasAndIndexLookup);
+            return new MetaData(clusterUUID, version, coordinationMetaData, transientSettings, persistentSettings, indices.build(),
+                    templates.build(), customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray, aliasAndIndexLookup);
         }
 
         private SortedMap<String, AliasOrIndex> buildAliasAndIndexLookup() {

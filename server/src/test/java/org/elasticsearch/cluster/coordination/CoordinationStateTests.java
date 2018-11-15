@@ -785,14 +785,14 @@ public class CoordinationStateTests extends ESTestCase {
                                             VotingConfiguration lastAcceptedConfig, long value) {
         return setValue(ClusterState.builder(ClusterName.DEFAULT)
             .version(version)
-            .coordinationMetaData(CoordinationMetaData.builder()
-                .term(term)
-                .lastCommittedConfiguration(lastCommittedConfig)
-                .lastAcceptedConfiguration(lastAcceptedConfig)
-                .build())
             .nodes(discoveryNodes)
             .metaData(MetaData.builder()
-                .clusterUUID(UUIDs.randomBase64UUID(random()))) // generate cluster UUID deterministically for repeatable tests
+                .clusterUUID(UUIDs.randomBase64UUID(random())) // generate cluster UUID deterministically for repeatable tests
+                .coordinationMetaData(CoordinationMetaData.builder()
+                        .term(term)
+                        .lastCommittedConfiguration(lastCommittedConfig)
+                        .lastAcceptedConfiguration(lastAcceptedConfig)
+                        .build()))
             .stateUUID(UUIDs.randomBase64UUID(random())) // generate cluster state UUID deterministically for repeatable tests
             .build(), value);
     }
@@ -831,10 +831,11 @@ public class CoordinationStateTests extends ESTestCase {
 
         void setInitialState(VotingConfiguration initialConfig, long initialValue) {
             final ClusterState.Builder builder = ClusterState.builder(state.getLastAcceptedState()).incrementVersion();
-            builder.coordinationMetaData(CoordinationMetaData.builder()
-                .lastAcceptedConfiguration(initialConfig)
-                .lastCommittedConfiguration(initialConfig)
-                .build());
+            builder.metaData(MetaData.builder()
+                    .coordinationMetaData(CoordinationMetaData.builder()
+                        .lastAcceptedConfiguration(initialConfig)
+                        .lastCommittedConfiguration(initialConfig)
+                    .build()));
             state.setInitialState(setValue(builder.build(), initialValue));
         }
     }

@@ -117,8 +117,9 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
         setState(clusterService, builder(new ClusterName("cluster"))
             .nodes(new Builder().add(localNode).add(otherNode1).add(otherNode2).add(otherDataNode)
                 .localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
-            .coordinationMetaData(CoordinationMetaData.builder().lastAcceptedConfiguration(allNodesConfig)
-                .lastCommittedConfiguration(allNodesConfig).build()));
+            .metaData(MetaData.builder()
+                .coordinationMetaData(CoordinationMetaData.builder().lastAcceptedConfiguration(allNodesConfig)
+                    .lastCommittedConfiguration(allNodesConfig).build())));
 
         clusterStateObserver = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
     }
@@ -206,10 +207,11 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
 
     public void testReturnsImmediatelyIfVoteAlreadyWithdrawn() throws InterruptedException {
         setState(clusterService, builder(clusterService.state())
-            .coordinationMetaData(CoordinationMetaData.builder()
-                .lastCommittedConfiguration(VotingConfiguration.of(localNode, otherNode2))
-                .lastAcceptedConfiguration(VotingConfiguration.of(localNode, otherNode2))
-                .build()));
+            .metaData(MetaData.builder()
+                .coordinationMetaData(CoordinationMetaData.builder()
+                    .lastCommittedConfiguration(VotingConfiguration.of(localNode, otherNode2))
+                    .lastAcceptedConfiguration(VotingConfiguration.of(localNode, otherNode2))
+                .build())));
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
 
@@ -265,8 +267,11 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
 
     public void testSucceedsEvenIfAllTombstonesAlreadyAdded() throws InterruptedException {
         final ClusterState.Builder builder = builder(clusterService.state());
-        builder.coordinationMetaData(CoordinationMetaData.builder(clusterService.state().coordinationMetaData())
-            .addVotingTombstone(otherNode1).build());
+        builder.metaData(MetaData.builder().
+                coordinationMetaData(
+                        CoordinationMetaData.builder(clusterService.state().coordinationMetaData())
+                        .addVotingTombstone(otherNode1).
+                build()));
         setState(clusterService, builder);
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -284,22 +289,25 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
     }
 
     public void testReturnsErrorIfMaximumTombstoneCountExceeded() throws InterruptedException {
-        final ClusterState.Builder builder = builder(clusterService.state())
-            .metaData(MetaData.builder(clusterService.state().metaData()).persistentSettings(
+        final MetaData.Builder metaDataBuilder = MetaData.builder(clusterService.state().metaData()).persistentSettings(
                 Settings.builder().put(clusterService.state().metaData().persistentSettings())
-                    .put(MAXIMUM_VOTING_TOMBSTONES_SETTING.getKey(), 2).build()));
-        builder.coordinationMetaData(CoordinationMetaData.builder(clusterService.state().coordinationMetaData())
-            .addVotingTombstone(localNode).build());
+                        .put(MAXIMUM_VOTING_TOMBSTONES_SETTING.getKey(), 2).build());
+        CoordinationMetaData.Builder cmdb =
+                CoordinationMetaData.builder(clusterService.state().coordinationMetaData()).addVotingTombstone(localNode);
+
         final int existingCount, newCount;
         if (randomBoolean()) {
-            builder.coordinationMetaData(CoordinationMetaData.builder(clusterService.state().coordinationMetaData())
-                .addVotingTombstone(otherNode1).build());
+            cmdb.addVotingTombstone(otherNode1);
             existingCount = 2;
             newCount = 1;
         } else {
             existingCount = 1;
             newCount = 2;
         }
+
+        metaDataBuilder.coordinationMetaData(cmdb.build());
+
+        final ClusterState.Builder builder = builder(clusterService.state()).metaData(metaDataBuilder);
         setState(clusterService, builder);
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -388,11 +396,12 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
                     currentState.getVotingTombstones().forEach(t -> votingNodeIds.remove(t.getId()));
                     final VotingConfiguration votingConfiguration = new VotingConfiguration(votingNodeIds);
                     return builder(currentState)
-                        .coordinationMetaData(CoordinationMetaData.builder(currentState.coordinationMetaData())
-                            .lastAcceptedConfiguration(votingConfiguration)
-                            .lastCommittedConfiguration(votingConfiguration)
-                            .build())
-                        .build();
+                        .metaData(MetaData.builder()
+                            .coordinationMetaData(CoordinationMetaData.builder(currentState.coordinationMetaData())
+                                .lastAcceptedConfiguration(votingConfiguration)
+                                .lastCommittedConfiguration(votingConfiguration)
+                                .build()))
+                           .build();
                 }
 
                 @Override

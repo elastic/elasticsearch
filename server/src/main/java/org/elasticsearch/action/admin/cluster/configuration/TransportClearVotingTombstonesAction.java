@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -119,10 +120,11 @@ public class TransportClearVotingTombstonesAction
         clusterService.submitStateUpdateTask("clear-voting-tombstones", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return ClusterState.builder(currentState)
-                    .coordinationMetaData(CoordinationMetaData.builder(
-                        currentState.coordinationMetaData()).clearVotingTombstones().build())
-                    .build();
+                final CoordinationMetaData newCoordinationMetaData =
+                        CoordinationMetaData.builder(currentState.coordinationMetaData()).clearVotingTombstones().build();
+                final MetaData newMetaData = MetaData.builder(currentState.metaData()).
+                        coordinationMetaData(newCoordinationMetaData).build();
+                return ClusterState.builder(currentState).metaData(newMetaData).build();
             }
 
             @Override

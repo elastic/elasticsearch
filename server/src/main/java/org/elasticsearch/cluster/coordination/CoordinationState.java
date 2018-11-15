@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 
@@ -457,11 +458,11 @@ public class CoordinationState {
          */
         default void markLastAcceptedConfigAsCommitted() {
             final ClusterState lastAcceptedState = getLastAcceptedState();
-            setLastAcceptedState(ClusterState.builder(lastAcceptedState)
-                .coordinationMetaData(CoordinationMetaData.builder(lastAcceptedState.coordinationMetaData())
+            final CoordinationMetaData cmd = CoordinationMetaData.builder(lastAcceptedState.coordinationMetaData())
                     .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
-                    .build())
-                .build());
+                    .build();
+            final MetaData metaData = MetaData.builder(lastAcceptedState.metaData()).coordinationMetaData(cmd).build();
+            setLastAcceptedState(ClusterState.builder(lastAcceptedState).metaData(metaData).build());
         }
     }
 

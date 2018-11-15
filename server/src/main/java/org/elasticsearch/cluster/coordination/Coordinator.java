@@ -630,7 +630,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             MetaData.Builder metaDataBuilder = MetaData.builder();
             // automatically generate a UID for the metadata if we need to
             metaDataBuilder.generateClusterUuidIfNeeded(); // TODO generate UUID in bootstrapping tool?
-            builder.coordinationMetaData(coordinationMetaData);
+            metaDataBuilder.coordinationMetaData(coordinationMetaData);
             builder.metaData(metaDataBuilder);
             coordinationState.get().setInitialState(builder.build());
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
@@ -650,9 +650,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             clusterState.getLastAcceptedConfiguration());
         if (newConfig.equals(clusterState.getLastAcceptedConfiguration()) == false) {
             assert coordinationState.get().joinVotesHaveQuorumFor(newConfig);
-            return ClusterState.builder(clusterState)
+            return ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())
                 .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData())
-                    .lastAcceptedConfiguration(newConfig).build()).build();
+                    .lastAcceptedConfiguration(newConfig).build())).build();
         }
         return clusterState;
     }

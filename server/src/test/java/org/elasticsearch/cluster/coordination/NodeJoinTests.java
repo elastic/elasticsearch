@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.MasterService;
@@ -106,12 +107,13 @@ public class NodeJoinTests extends ESTestCase {
                 .add(localNode)
                 .localNodeId(localNode.getId())
                 .masterNodeId(withMaster ? localNode.getId() : null))
-            .coordinationMetaData(
-                CoordinationMetaData.builder()
-                    .term(term)
-                    .lastAcceptedConfiguration(config)
-                    .lastCommittedConfiguration(config)
-                    .build())
+            .metaData(MetaData.builder()
+                    .coordinationMetaData(
+                        CoordinationMetaData.builder()
+                        .term(term)
+                        .lastAcceptedConfiguration(config)
+                        .lastCommittedConfiguration(config)
+                    .build()))
             .version(version)
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
         return initialClusterState;

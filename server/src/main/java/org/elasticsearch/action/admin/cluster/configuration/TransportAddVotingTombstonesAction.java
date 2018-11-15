@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -92,7 +93,8 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
 
                 CoordinationMetaData.Builder builder = CoordinationMetaData.builder(currentState.coordinationMetaData());
                 resolvedNodes.forEach(builder::addVotingTombstone);
-                final ClusterState newState = ClusterState.builder(currentState).coordinationMetaData(builder.build()).build();
+                final MetaData newMetaData = MetaData.builder(currentState.metaData()).coordinationMetaData(builder.build()).build();
+                final ClusterState newState = ClusterState.builder(currentState).metaData(newMetaData).build();
                 assert newState.getVotingTombstones().size() <= MAXIMUM_VOTING_TOMBSTONES_SETTING.get(currentState.metaData().settings());
                 return newState;
             }

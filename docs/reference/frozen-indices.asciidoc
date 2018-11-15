@@ -60,7 +60,7 @@ Frozen indices are throttled in order limit memory consumptions per node. The nu
 limited by the number of threads in the `search_throttled` <<modules-threadpool,threadpool>> which is `1` by default. At the same time,
 search requests hitting may indices on a cluster due to concrete lists, expanded wildcards or a date pattern exclude frozen indices by
 default to prevent accidental slowdowns when a frozen index is hit. To include frozen indices a search request must be executed with
-`ignore_throttled=false`.
+the query parameter `ignore_throttled=false`.
 
 [source,js]
 --------------------------------------------------

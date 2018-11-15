@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -23,12 +26,42 @@ import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.assertNoSearch
 public class FetchSizeTestCase extends JdbcIntegrationTestCase {
     @Before
     public void createTestIndex() throws IOException {
-        Request request = new Request("PUT", "/test/doc/_bulk");
+        Request request = new Request("PUT", "/test");
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("doc");
+            {
+                createIndex.startObject("properties");
+                {
+                    createIndex.startObject("nested").field("type", "nested");
+                    createIndex.startObject("properties");
+                    createIndex.startObject("inner_field").field("type", "integer").endObject();
+                    createIndex.endObject();
+                    createIndex.endObject();
+                }
+                createIndex.endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+        request.setJsonEntity(Strings.toString(createIndex));
+        client().performRequest(request);
+        
+        request = new Request("PUT", "/test/doc/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
+        StringBuilder bulkLine;
         for (int i = 0; i < 20; i++) {
             bulk.append("{\"index\":{}}\n");
-            bulk.append("{\"test_field\":" + i + "}\n");
+            bulkLine = new StringBuilder("{\"test_field\":" + i);
+            bulkLine.append(", \"nested\":[");
+            // each document will have a nested field with 1 - 5 values
+            for (int j = 0; j <= i % 5; j++) {
+                bulkLine.append("{\"inner_field\":" + j + "}" + ((j == i % 5) ? "" : ","));
+            }
+            bulkLine.append("]");
+            bulk.append(bulkLine).append("}\n");
         }
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);
@@ -90,6 +123,34 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
                 }
                 assertFalse(rs.next());
             }
+        }
+    }
+    
+    /**
+     * Test for nested documents.
+     */
+    public void testNestedDocuments() throws Exception {
+        try (Connection c = esJdbc();
+                Statement s = c.createStatement()) {
+            s.setFetchSize(5);
+            try (ResultSet rs = s.executeQuery("SELECT test_field, nested.* FROM test ORDER BY test_field ASC")) {
+                assertTrue("Empty result set!", rs.next());
+                for (int i = 0; i < 20; i++) {
+                    assertEquals(15, rs.getFetchSize());
+                    assertNestedDocuments(rs, i);
+                }
+                assertFalse(rs.next());
+            }
+        }
+        assertNoSearchContexts();
+    }
+
+    private void assertNestedDocuments(ResultSet rs, int i) throws SQLException {
+        for (int j = 0; j <= i % 5; j++) {
+            assertEquals(i, rs.getInt(1));
+            assertEquals(j, rs.getInt(2));
+            // don't check the very last row in the result set
+            assertTrue("No more entries left after row " + rs.getRow(), (i+j == 23 || rs.next()));
         }
     }
 }

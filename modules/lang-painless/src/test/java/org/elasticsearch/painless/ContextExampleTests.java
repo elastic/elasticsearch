@@ -1,4 +1,5 @@
 
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -395,6 +396,35 @@ public class ContextExampleTests extends ScriptTestCase {
             " params['_source']['sold'] == false && params['_source']['cost'] < params.cost;",
             params, true);
         assertTrue(result);
+    }
+
+
+    // Use script_fields API to add two extra fields to the hits
+    /*
+    curl -X GET localhost:9200/seats/_search
+    {
+        "query" : {
+            "terms_set": {
+                "actors" : {
+                    "terms" : ["smith", "earns", "black"],
+                    "minimum_should_match_script": {
+                    "source": "Math.min(params['num_terms'], params['min_actors_to_see'])",
+                         "params" : {
+                                "min_actors_to_see" : 2
+                            }
+                    }
+                }
+            }
+        }
+    }
+    */
+    public void testMinShouldMatchScript() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("num_terms", 3);
+        params.put("min_actors_to_see", 2);
+
+        double result = (double) exec("Math.min(params['num_terms'], params['min_actors_to_see']);", params, true);
+        assertEquals(2, result, 0);
     }
 }
 

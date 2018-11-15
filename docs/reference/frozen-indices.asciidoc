@@ -9,7 +9,7 @@ are unlikely to be queried once they age out but still need to be kept around fo
 
 In order to keep indices available and queryable for a longer period but at the same time reduce their hardware requirements they can be transitioned
 into a frozen state. Once an index is frozen, all of it's transient shard memory (aside from mappings and analyzers)
-analysis is moved to persistent storage. This allows for a much higher disk to heap storage ratio on individual nodes. Once an index is
+is moved to persistent storage. This allows for a much higher disk to heap storage ratio on individual nodes. Once an index is
 frozen their are read-only and require their data-structures required for query execution to be loaded on demand. A search request that hits
 one or more shards from frozen indices will execute it's search through a throttling component that ensures that we never search more than
 `N` (`1` by default) searches concurrently. This protects nodes from exceeding the available memory due to incoming search requests.

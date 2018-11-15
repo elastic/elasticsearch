@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.AsyncBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -44,14 +45,15 @@ public class TransportKeepAliveTests extends ESTestCase {
 
     private final ConnectionProfile defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
     private BytesReference expectedPingMessage;
-    private TransportKeepAlive.PingSender pingSender;
+    private AsyncBiConsumer<TcpChannel, BytesReference, Void> pingSender;
     private TransportKeepAlive keepAlive;
     private CapturingThreadPool threadPool;
 
     @Override
+    @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         super.setUp();
-        pingSender = mock(TransportKeepAlive.PingSender.class);
+        pingSender = mock(AsyncBiConsumer.class);
         threadPool = new CapturingThreadPool();
         keepAlive = new TransportKeepAlive(threadPool, pingSender);
 
@@ -90,8 +92,8 @@ public class TransportKeepAliveTests extends ESTestCase {
         assertEquals(0, threadPool.scheduledTasks.size());
         keepAliveTask.run();
 
-        verify(pingSender, times(1)).send(same(channel1), eq(expectedPingMessage), any());
-        verify(pingSender, times(1)).send(same(channel2), eq(expectedPingMessage), any());
+        verify(pingSender, times(1)).accept(same(channel1), eq(expectedPingMessage), any());
+        verify(pingSender, times(1)).accept(same(channel2), eq(expectedPingMessage), any());
 
         // Test that the task has rescheduled itself
         assertEquals(1, threadPool.scheduledTasks.size());
@@ -148,8 +150,8 @@ public class TransportKeepAliveTests extends ESTestCase {
         Runnable task = threadPool.scheduledTasks.poll().v2();
         task.run();
 
-        verify(pingSender, times(0)).send(same(channel1), eq(expectedPingMessage), any());
-        verify(pingSender, times(1)).send(same(channel2), eq(expectedPingMessage), any());
+        verify(pingSender, times(0)).accept(same(channel1), eq(expectedPingMessage), any());
+        verify(pingSender, times(1)).accept(same(channel2), eq(expectedPingMessage), any());
     }
 
     public void testKeepAliveResponseIfServer() {
@@ -157,7 +159,7 @@ public class TransportKeepAliveTests extends ESTestCase {
 
         keepAlive.receiveKeepAlive(channel);
 
-        verify(pingSender, times(1)).send(same(channel), eq(expectedPingMessage), any());
+        verify(pingSender, times(1)).accept(same(channel), eq(expectedPingMessage), any());
     }
 
     public void testNoKeepAliveResponseIfClient() {
@@ -165,7 +167,7 @@ public class TransportKeepAliveTests extends ESTestCase {
 
         keepAlive.receiveKeepAlive(channel);
 
-        verify(pingSender, times(0)).send(same(channel), eq(expectedPingMessage), any());
+        verify(pingSender, times(0)).accept(same(channel), eq(expectedPingMessage), any());
     }
 
     public void testOnlySendPingIfWeHaveNotWrittenAndReadSinceLastPing() {
@@ -188,8 +190,8 @@ public class TransportKeepAliveTests extends ESTestCase {
         taskTuple = threadPool.scheduledTasks.poll();
         taskTuple.v2().run();
 
-        verify(pingSender, times(1)).send(same(channel1), eq(expectedPingMessage), any());
-        verify(pingSender, times(2)).send(same(channel2), eq(expectedPingMessage), any());
+        verify(pingSender, times(1)).accept(same(channel1), eq(expectedPingMessage), any());
+        verify(pingSender, times(2)).accept(same(channel2), eq(expectedPingMessage), any());
     }
 
     public void testNeedBothReadAndWriteToPreventPing() {
@@ -217,8 +219,8 @@ public class TransportKeepAliveTests extends ESTestCase {
         taskTuple = threadPool.scheduledTasks.poll();
         taskTuple.v2().run();
 
-        verify(pingSender, times(2)).send(same(channel1), eq(expectedPingMessage), any());
-        verify(pingSender, times(2)).send(same(channel2), eq(expectedPingMessage), any());
+        verify(pingSender, times(2)).accept(same(channel1), eq(expectedPingMessage), any());
+        verify(pingSender, times(2)).accept(same(channel2), eq(expectedPingMessage), any());
     }
 
     private class CapturingThreadPool extends TestThreadPool {

@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.AsyncBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -54,10 +55,10 @@ final class TransportKeepAlive implements Closeable {
     private final ConcurrentMap<TimeValue, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
     private final Lifecycle lifecycle = new Lifecycle();
     private final ThreadPool threadPool;
-    private final PingSender pingSender;
+    private final AsyncBiConsumer<TcpChannel, BytesReference, Void> pingSender;
     private final BytesReference pingMessage;
 
-    TransportKeepAlive(ThreadPool threadPool, PingSender pingSender) {
+    TransportKeepAlive(ThreadPool threadPool, AsyncBiConsumer<TcpChannel, BytesReference, Void> pingSender) {
         this.threadPool = threadPool;
         this.pingSender = pingSender;
 
@@ -115,7 +116,7 @@ final class TransportKeepAlive implements Closeable {
     }
 
     private void sendPing(TcpChannel channel) {
-        pingSender.send(channel, pingMessage, new ActionListener<Void>() {
+        pingSender.accept(channel, pingMessage, new ActionListener<Void>() {
 
             @Override
             public void onResponse(Void v) {
@@ -206,11 +207,5 @@ final class TransportKeepAlive implements Closeable {
             long readDelta = stats.lastRelativeReadTime() - lastPingRelativeMillis;
             return writeDelta <= 0 || readDelta <= 0;
         }
-    }
-
-    @FunctionalInterface
-    interface PingSender {
-
-        void send(TcpChannel channel, BytesReference message, ActionListener<Void> listener);
     }
 }

@@ -86,57 +86,41 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
 
             assertFalse(withEdgeNGramsIndexAnalyzer.isWithShingles());
             assertTrue(withEdgeNGramsIndexAnalyzer.isWithEdgeNGrams());
-            assertThat(withEdgeNGramsIndexAnalyzer.getMinGram(), equalTo(1));
-            assertThat(withEdgeNGramsIndexAnalyzer.getMaxGram(), equalTo(20));
 
             assertThat(withEdgeNGramsSearchAnalyzer.name(), equalTo("default"));
         }
 
-        {
+        assertSuggesterizedFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_2_shingles"), true, 2, false);
 
-            final Mapper with2ShinglesSubfieldMapper = defaultMapper.mappers().getMapper("a_field._with_2_shingles");
-            assertThat(with2ShinglesSubfieldMapper, instanceOf(SuggesterizedFieldMapper.class));
-            final SuggesterizedFieldMapper with2ShinglesMapper = (SuggesterizedFieldMapper) with2ShinglesSubfieldMapper;
+        assertSuggesterizedFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_2_shingles_and_edge_ngrams"), true, 2, true);
 
-            final SuggesterizedFieldType with2ShinglesFieldType = with2ShinglesMapper.fieldType();
-            assertThat(with2ShinglesFieldType.indexAnalyzer().analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
-            assertThat(with2ShinglesFieldType.searchAnalyzer().analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
-            final SearchAsYouTypeAnalyzer with2ShinglesIndexAnalyzer =
-                (SearchAsYouTypeAnalyzer) with2ShinglesFieldType.indexAnalyzer().analyzer();
-            final SearchAsYouTypeAnalyzer with2ShinglesSearchAnalyzer =
-                (SearchAsYouTypeAnalyzer) with2ShinglesFieldType.searchAnalyzer().analyzer();
+        assertSuggesterizedFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_3_shingles"), true, 3, false);
 
-            for (SearchAsYouTypeAnalyzer analyzer : asList(with2ShinglesIndexAnalyzer, with2ShinglesSearchAnalyzer)) {
-                assertTrue(analyzer.isWithShingles());
-                assertThat(analyzer.getShingleSize(), equalTo(2));
-                assertFalse(analyzer.isWithEdgeNGrams());
+        assertSuggesterizedFieldMapper(
+            defaultMapper.mappers().getMapper("a_field._with_3_shingles_and_edge_ngrams"), true, 3, true);
+    }
+
+    private static void assertSuggesterizedFieldMapper(Mapper mapper, boolean shingles, int numberOfShingles, boolean withEdgeNGrams) {
+        assertThat(mapper, instanceOf(SuggesterizedFieldMapper.class));
+        final SuggesterizedFieldMapper suggesterizedFieldMapper = (SuggesterizedFieldMapper) mapper;
+
+        final SuggesterizedFieldType fieldType = suggesterizedFieldMapper.fieldType();
+        assertThat(fieldType.indexAnalyzer().analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
+        assertThat(fieldType.searchAnalyzer().analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
+        final SearchAsYouTypeAnalyzer indexAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.indexAnalyzer().analyzer();
+        final SearchAsYouTypeAnalyzer searchAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.searchAnalyzer().analyzer();
+
+        for (SearchAsYouTypeAnalyzer analyzer : asList(indexAnalyzer, searchAnalyzer)) {
+
+            assertThat(shingles, equalTo(analyzer.isWithShingles()));
+            if (shingles) {
+                assertThat(analyzer.getShingleSize(), equalTo(numberOfShingles));
             }
-
         }
 
-        {
-
-            final Mapper with2ShinglesEdgeNGramsSubfieldMapper = defaultMapper.mappers().getMapper("a_field._with_2_shingles_and_edge_ngrams");
-            assertThat(with2ShinglesEdgeNGramsSubfieldMapper, instanceOf(SuggesterizedFieldMapper.class));
-            final SuggesterizedFieldMapper with2ShinglesEdgeNGramsMapper = (SuggesterizedFieldMapper) with2ShinglesEdgeNGramsSubfieldMapper;
-
-            final SuggesterizedFieldType with2ShinglesEdgeNGramsFieldType = with2ShinglesEdgeNGramsMapper.fieldType();
-            assertThat(with2ShinglesEdgeNGramsFieldType.indexAnalyzer().analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
-            assertThat(with2ShinglesEdgeNGramsFieldType.searchAnalyzer().analyzer(), instanceOf(SearchAsYouTypeAnalyzer.class));
-            final SearchAsYouTypeAnalyzer with2ShinglesEdgeNGramsIndexAnalyzer =
-                (SearchAsYouTypeAnalyzer) with2ShinglesEdgeNGramsFieldType.indexAnalyzer().analyzer();
-            final SearchAsYouTypeAnalyzer with2ShinglesEdgeNGramsSearchAnalyzer =
-                (SearchAsYouTypeAnalyzer) with2ShinglesEdgeNGramsFieldType.searchAnalyzer().analyzer();
-
-            for (SearchAsYouTypeAnalyzer analyzer : asList(with2ShinglesEdgeNGramsIndexAnalyzer, with2ShinglesEdgeNGramsSearchAnalyzer)) {
-                assertTrue(analyzer.isWithShingles());
-                assertThat(analyzer.getShingleSize(), equalTo(2));
-            }
-
-            assertTrue(with2ShinglesEdgeNGramsIndexAnalyzer.isWithEdgeNGrams());
-            assertThat(with2ShinglesEdgeNGramsIndexAnalyzer.getMinGram(), equalTo(1));
-            assertThat(with2ShinglesEdgeNGramsIndexAnalyzer.getMaxGram(), equalTo(20));
-        }
-
+        assertThat(withEdgeNGrams, equalTo(indexAnalyzer.isWithEdgeNGrams()));
     }
 }

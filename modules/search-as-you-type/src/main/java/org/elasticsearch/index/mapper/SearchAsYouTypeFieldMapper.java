@@ -60,7 +60,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
 
         public static final int MIN_GRAM = 1;
         public static final int MAX_GRAM = 20;
-        public static final int MAX_SHINGLE_SIZE = 2;
+        public static final int MAX_SHINGLE_SIZE = 3;
 
         public static final MappedFieldType FIELD_TYPE = new SearchAsYouTypeFieldType();
 
@@ -81,8 +81,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
             final SearchAsYouTypeFieldMapper.Builder builder = new SearchAsYouTypeFieldMapper.Builder(name);
 
             NamedAnalyzer analyzer = parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer();
-            int minGram = Defaults.MIN_GRAM;
-            int maxGram = Defaults.MAX_GRAM;
             int maxShingleSize = Defaults.MAX_SHINGLE_SIZE;
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -104,12 +102,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
                         throw new MapperParsingException("Analyzer [" + analyzerName + "] not found for field  [" + name + "]");
                     }
                     iterator.remove();
-                } else if (fieldName.equals("min_gram")) {
-                    minGram = XContentMapValues.nodeIntegerValue(fieldNode);
-                    iterator.remove();
-                } else if (fieldName.equals("max_gram")) {
-                    maxGram = XContentMapValues.nodeIntegerValue(fieldNode);
-                    iterator.remove();
                 } else if (fieldName.equals("max_shingle_size")) {
                     maxShingleSize = XContentMapValues.nodeIntegerValue(fieldNode);
                     iterator.remove();
@@ -118,7 +110,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
 
             builder.indexAnalyzer(analyzer);
             builder.searchAnalyzer(analyzer);
-            builder.edgeNGrams(minGram, maxGram);
             builder.maxShingleSize(maxShingleSize);
 
             return builder;
@@ -127,30 +118,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
 
     public static class Builder extends FieldMapper.Builder<Builder, SearchAsYouTypeFieldMapper> {
 
-        private int minGram;
-        private int maxGram;
         private int maxShingleSize;
 
         public Builder(String name) {
 
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             this.builder = this;
-        }
-
-        public Builder edgeNGrams(int minGram, int maxGram) {
-            if (minGram < 1) {
-                throw new MapperParsingException("[min_gram] must be at least 1, got [" + minGram + "]");
-            }
-
-            if (minGram > maxGram) {
-                throw new MapperParsingException("[min_gram] value [" + minGram + "] must not be greater than [max_gram] value " +
-                    "[" + maxGram + "]");
-            }
-
-            this.minGram = minGram;
-            this.maxGram = maxGram;
-
-            return builder;
         }
 
         public Builder maxShingleSize(int maxShingleSize) {
@@ -181,7 +154,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
             final Set<SuggesterizedFieldType> suggesterizedFieldTypes = new HashSet<>();
 
             final SuggesterizedFieldType withEdgeNgrams = new SuggesterizedFieldType(name() + "._with_edge_ngrams");
-            final SearchAsYouTypeAnalyzer wrappedWithEdgeNGrams = SearchAsYouTypeAnalyzer.withEdgeNGrams(indexAnalyzer, minGram, maxGram);
+            final SearchAsYouTypeAnalyzer wrappedWithEdgeNGrams = SearchAsYouTypeAnalyzer.withEdgeNGrams(indexAnalyzer);
             withEdgeNgrams.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, wrappedWithEdgeNGrams));
             withEdgeNgrams.setSearchAnalyzer(indexAnalyzer);
             suggesterizedFieldTypes.add(withEdgeNgrams);
@@ -194,7 +167,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
 
                 final SearchAsYouTypeAnalyzer withShinglesAnalyzer = SearchAsYouTypeAnalyzer.withShingles(indexAnalyzer, numberOfShingles);
                 final SearchAsYouTypeAnalyzer withShinglesAndEdgeNGramsAnalyzer =
-                    SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(indexAnalyzer, numberOfShingles, minGram, maxGram);
+                    SearchAsYouTypeAnalyzer.withShinglesAndEdgeNGrams(indexAnalyzer, numberOfShingles);
 
                 withShingles.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
                 withShingles.setSearchAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, withShinglesAnalyzer));
@@ -246,35 +219,29 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
         private final boolean withShingles;
         private final int shingleSize;
         private final boolean withEdgeNGrams;
-        private final int minGram;
-        private final int maxGram;
 
         private SearchAsYouTypeAnalyzer(Analyzer delegate,
                                         boolean withShingles,
                                         int shingleSize,
-                                        boolean withEdgeNGrams,
-                                        int minGram,
-                                        int maxGram) {
+                                        boolean withEdgeNGrams) {
 
             super(delegate.getReuseStrategy());
             this.delegate = delegate;
             this.withShingles = withShingles;
             this.shingleSize = shingleSize;
             this.withEdgeNGrams = withEdgeNGrams;
-            this.minGram = minGram;
-            this.maxGram = maxGram;
         }
 
         public static SearchAsYouTypeAnalyzer withShingles(Analyzer delegate, int shingleSize) {
-            return new SearchAsYouTypeAnalyzer(delegate, true, shingleSize, false, -1, -1);
+            return new SearchAsYouTypeAnalyzer(delegate, true, shingleSize, false);
         }
 
-        public static SearchAsYouTypeAnalyzer withEdgeNGrams(Analyzer delegate, int minGram, int maxGram) {
-            return new SearchAsYouTypeAnalyzer(delegate, false, -1, true, minGram, maxGram);
+        public static SearchAsYouTypeAnalyzer withEdgeNGrams(Analyzer delegate) {
+            return new SearchAsYouTypeAnalyzer(delegate, false, -1, true);
         }
 
-        public static SearchAsYouTypeAnalyzer withShinglesAndEdgeNGrams(Analyzer delegate, int shingleSize, int minGram, int maxGram) {
-            return new SearchAsYouTypeAnalyzer(delegate, true, shingleSize, true, minGram, maxGram);
+        public static SearchAsYouTypeAnalyzer withShinglesAndEdgeNGrams(Analyzer delegate, int shingleSize) {
+            return new SearchAsYouTypeAnalyzer(delegate, true, shingleSize, true);
         }
 
         @Override
@@ -290,7 +257,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
                 tokenStream = new FixedShingleFilter(tokenStream, shingleSize);
             }
             if (withEdgeNGrams) {
-                tokenStream = new EdgeNGramTokenFilter(tokenStream, minGram, maxGram, true);
+                tokenStream = new EdgeNGramTokenFilter(tokenStream, Defaults.MIN_GRAM, Defaults.MAX_GRAM, true);
             }
             return new TokenStreamComponents(components.getTokenizer(), tokenStream);
         }
@@ -305,14 +272,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
 
         public boolean isWithShingles() {
             return withShingles;
-        }
-
-        public int getMinGram() {
-            return minGram;
-        }
-
-        public int getMaxGram() {
-            return maxGram;
         }
     }
 

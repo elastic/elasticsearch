@@ -2,6 +2,7 @@
 :api: multi-term-vectors
 :request: MultiTermVectorsRequest
 :response: MultiTermVectorsResponse
+:tvrequest: TermVectorsRequest
 --
 
 [id="{upid}-{api}"]
@@ -21,13 +22,13 @@ The first way is to create an empty +{request}+, and then add individual
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Create an empty +{request}+.
-<2> Add the first `TermVectorsRequest` to the +{request}+.
-<3> Add the second `TermVectorsRequest` for an artificial doc to the +{request}+.
+<2> Add the first +{tvrequest}+ to the +{request}+.
+<3> Add the second +{tvrequest}+ for an artificial doc to the +{request}+.
 
 
 The second way can be used when all term vectors requests share the same
 arguments, such as index, type, and other settings. In this case, a template
-`TermVectorsRequest` can be created with all necessary settings set, and
++{tvrequest}+ can be created with all necessary settings set, and
 this template request can be passed to +{request}+ along with all
 documents' ids for which to execute these requests.
 
@@ -35,7 +36,7 @@ documents' ids for which to execute these requests.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-template]
 --------------------------------------------------
-<1> Create a template `TermVectorsRequest`.
+<1> Create a template +{tvrequest}+.
 <2> Pass documents' ids and the template to the +{request}+.
 
 

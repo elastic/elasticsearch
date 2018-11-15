@@ -29,11 +29,9 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
     public static final String NAME = "check-rollover-ready";
 
-    private static final Logger logger = LogManager.getLogger(WaitForRolloverReadyStep.class);
-
-    private ByteSizeValue maxSize;
-    private TimeValue maxAge;
-    private Long maxDocs;
+    private final ByteSizeValue maxSize;
+    private final TimeValue maxAge;
+    private final Long maxDocs;
 
     public WaitForRolloverReadyStep(StepKey key, StepKey nextStepKey, Client client, ByteSizeValue maxSize, TimeValue maxAge,
                                     Long maxDocs) {

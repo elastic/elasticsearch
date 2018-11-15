@@ -22,9 +22,7 @@ import java.util.Objects;
  */
 public class RolloverStep extends AsyncActionStep {
     public static final String NAME = "attempt_rollover";
-
-    private static final Logger logger = LogManager.getLogger(RolloverStep.class);
-
+    
     public RolloverStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
     }

@@ -172,6 +172,7 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
     @Override
     public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
                              RecoveryState recoveryState) {
+        int i = 0;
 
     }
 

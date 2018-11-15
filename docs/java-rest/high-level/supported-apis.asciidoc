@@ -220,12 +220,16 @@ The Java High Level REST Client supports the following Licensing APIs:
 * <<java-rest-high-delete-license>>
 * <<java-rest-high-start-trial>>
 * <<java-rest-high-start-basic>>
+* <<java-rest-high-get-trial-status>>
+* <<java-rest-high-get-basic-status>>
 
 include::licensing/put-license.asciidoc[]
 include::licensing/get-license.asciidoc[]
 include::licensing/delete-license.asciidoc[]
 include::licensing/start-trial.asciidoc[]
 include::licensing/start-basic.asciidoc[]
+include::licensing/get-trial-status.asciidoc[]
+include::licensing/get-basic-status.asciidoc[]
 
 == Machine Learning APIs
 :upid: {mainid}-x-pack-ml
@@ -261,7 +265,10 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-put-calendar>>
 * <<{upid}-delete-calendar>>
 * <<{upid}-put-filter>>
+* <<{upid}-get-model-snapshots>>
 * <<{upid}-get-filters>>
+* <<{upid}-delete-model-snapshot>>
+* <<{upid}-update-filter>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -291,15 +298,20 @@ include::ml/get-calendars.asciidoc[]
 include::ml/put-calendar.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
 include::ml/put-filter.asciidoc[]
+include::ml/get-model-snapshots.asciidoc[]
 include::ml/get-filters.asciidoc[]
+include::ml/delete-model-snapshot.asciidoc[]
+include::ml/update-filter.asciidoc[]
 
 == Migration APIs
 
 The Java High Level REST Client supports the following Migration APIs:
 
 * <<java-rest-high-migration-get-assistance>>
+* <<java-rest-high-migration-upgrade>>
 
 include::migration/get-assistance.asciidoc[]
+include::migration/upgrade.asciidoc[]
 
 == Rollup APIs
 :upid: {mainid}-rollup
@@ -344,12 +356,14 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-delete-role-mapping>>
 * <<java-rest-high-security-create-token>>
 * <<{upid}-invalidate-token>>
+* <<{upid}-delete-privileges>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
 include::security/disable-user.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/delete-role.asciidoc[]
+include::security/delete-privileges.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/clear-realm-cache.asciidoc[]
 include::security/authenticate.asciidoc[]

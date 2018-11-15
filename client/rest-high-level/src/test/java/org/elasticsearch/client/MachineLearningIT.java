@@ -34,6 +34,7 @@ import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
+import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -69,6 +70,7 @@ import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
@@ -101,6 +103,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -927,6 +930,28 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testUpdateFilter() throws Exception {
+        String filterId = "update-filter-test";
+        MlFilter mlFilter = MlFilter.builder(filterId)
+            .setDescription("old description")
+            .setItems(Arrays.asList("olditem1", "olditem2"))
+            .build();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putFilter(new PutFilterRequest(mlFilter), RequestOptions.DEFAULT);
+
+        UpdateFilterRequest updateFilterRequest = new UpdateFilterRequest(filterId);
+
+        updateFilterRequest.setAddItems(Arrays.asList("newItem1", "newItem2"));
+        updateFilterRequest.setRemoveItems(Collections.singletonList("olditem1"));
+        updateFilterRequest.setDescription("new description");
+        MlFilter filter = execute(updateFilterRequest,
+            machineLearningClient::updateFilter,
+            machineLearningClient::updateFilterAsync).getResponse();
+
+        assertThat(filter.getDescription(), equalTo(updateFilterRequest.getDescription()));
+        assertThat(filter.getItems(), contains("newItem1", "newItem2", "olditem2"));
+    }
+
     public static String randomValidJobId() {
         CodepointSetGenerator generator = new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz0123456789".toCharArray());
         return generator.ofCodePointsLength(random(), 10, 10);
@@ -971,5 +996,39 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setFrequency(TimeValue.timeValueSeconds(1)).build();
         highLevelClient().machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
         return datafeedId;
+    }
+
+    public void createModelSnapshot(String jobId, String snapshotId) throws IOException {
+        Job job = MachineLearningIT.buildJob(jobId);
+        highLevelClient().machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"" + snapshotId + "\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"" + jobId + "\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+
+        highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
+    }
+
+    public void testDeleteModelSnapshot() throws IOException {
+        String jobId = "test-delete-model-snapshot";
+        String snapshotId = "1541587919";
+
+        createModelSnapshot(jobId, snapshotId);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        DeleteModelSnapshotRequest request = new DeleteModelSnapshotRequest(jobId, snapshotId);
+
+        AcknowledgedResponse response = execute(request, machineLearningClient::deleteModelSnapshot,
+                machineLearningClient::deleteModelSnapshotAsync);
+
+        assertTrue(response.isAcknowledged());
     }
 }

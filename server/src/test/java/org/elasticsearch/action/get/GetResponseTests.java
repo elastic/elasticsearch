@@ -97,11 +97,11 @@ public class GetResponseTests extends ESTestCase {
                     Collections.singletonList("value1")))));
             String output = Strings.toString(getResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_seq_no\":0,\"_primary_term\":1,\"_version\":1," +
-                "\"found\":true,\"_source\":{ \"field1\": \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}",
+                "\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}",
                 output);
         }
         {
-            GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", 0, 1, 1, false, null, null));
+            GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null));
             String output = Strings.toString(getResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
         }
@@ -112,7 +112,7 @@ public class GetResponseTests extends ESTestCase {
                 new GetResult("index", "type", "id", 0, 1, 1, true, new BytesArray("{ \"field1\" : " + "\"value1\", \"field2\":\"value2\"}"),
                         Collections.singletonMap("field1", new DocumentField("field1", Collections.singletonList("value1")))));
         assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_seq_no\":0,\"_primary_term\":1,\"_version\":1," +
-            "\"found\":true,\"_source\":{ \"field1\": \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}",
+            "\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}",
             getResponse.toString());
     }
 

@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
@@ -134,13 +135,27 @@ public class AllocationService extends AbstractComponent {
             .routingTable(newRoutingTable)
             .metaData(newMetaData);
         final RestoreInProgress restoreInProgress = allocation.custom(RestoreInProgress.TYPE);
+        ImmutableOpenMap.Builder<String, ClusterState.Custom> customsBuilder = null;
         if (restoreInProgress != null) {
             RestoreInProgress updatedRestoreInProgress = allocation.updateRestoreInfoWithRoutingChanges(restoreInProgress);
             if (updatedRestoreInProgress != restoreInProgress) {
-                ImmutableOpenMap.Builder<String, ClusterState.Custom> customsBuilder = ImmutableOpenMap.builder(allocation.getCustoms());
+                customsBuilder = ImmutableOpenMap.builder(allocation.getCustoms());
                 customsBuilder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
-                newStateBuilder.customs(customsBuilder.build());
             }
+        }
+        final SnapshotsInProgress snapshotsInProgress = allocation.custom(SnapshotsInProgress.TYPE);
+        if (snapshotsInProgress != null) {
+            SnapshotsInProgress updatedSnapshotsInProgress =
+                allocation.updateSnapshotsWithRoutingChanges(snapshotsInProgress, newRoutingTable);
+            if (updatedSnapshotsInProgress != snapshotsInProgress) {
+                if (customsBuilder == null) {
+                    customsBuilder = ImmutableOpenMap.builder(allocation.getCustoms());
+                }
+                customsBuilder.put(SnapshotsInProgress.TYPE, updatedSnapshotsInProgress);
+            }
+        }
+        if (customsBuilder != null) {
+            newStateBuilder.customs(customsBuilder.build());
         }
         return newStateBuilder.build();
     }

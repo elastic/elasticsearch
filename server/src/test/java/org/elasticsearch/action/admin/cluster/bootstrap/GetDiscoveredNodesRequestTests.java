@@ -25,6 +25,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.Is.is;
 
@@ -56,6 +57,9 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
             () -> getDiscoveredNodesRequest.setTimeout(TimeValue.timeValueNanos(randomLongBetween(-10, -1))));
         assertThat(exception.getMessage(), startsWith("negative timeout of "));
         assertThat(exception.getMessage(), endsWith(" is not allowed"));
+
+        getDiscoveredNodesRequest.setTimeout(null);
+        assertThat("value updated", getDiscoveredNodesRequest.getTimeout(), nullValue());
     }
 
     public void testSerialization() throws IOException {
@@ -67,6 +71,8 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
 
         if (randomBoolean()) {
             originalRequest.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
+        } else if (randomBoolean()) {
+            originalRequest.setTimeout(null);
         }
 
         final GetDiscoveredNodesRequest deserialized = copyWriteable(originalRequest, writableRegistry(), GetDiscoveredNodesRequest::new);

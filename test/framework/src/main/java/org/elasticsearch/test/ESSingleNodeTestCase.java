@@ -62,6 +62,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -200,6 +201,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // turn it off for these tests.
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
+            .put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
@@ -215,14 +217,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
-        bootstrapNodes(true,
-            () -> {
-                try {
-                    node.start();
-                } catch (NodeValidationException e) {
-                    throw new RuntimeException(e);
-                }
-            }, Collections.singletonList(node), logger, this::wrapClient);
+        try {
+            node.start();
+        } catch (NodeValidationException e) {
+            throw new RuntimeException(e);
+        }
         return node;
     }
 

@@ -171,34 +171,53 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
     }
 
-    public void testFailsQuicklyWithZeroTimeout() throws InterruptedException {
+    public void testFailsQuicklyWithZeroTimeoutAndAcceptsNullTimeout() throws InterruptedException {
         new TransportGetDiscoveredNodesAction(Settings.EMPTY, EMPTY_FILTERS, transportService, coordinator); // registers action
         transportService.start();
         transportService.acceptIncomingRequests();
         coordinator.start();
         coordinator.startInitialJoin();
 
-        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequest.setWaitForNodes(2);
-        getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+        {
+            final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+            getDiscoveredNodesRequest.setWaitForNodes(2);
+            getDiscoveredNodesRequest.setTimeout(null);
+            transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+                @Override
+                public void handleResponse(GetDiscoveredNodesResponse response) {
+                    throw new AssertionError("should not be called");
+                }
 
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
-            @Override
-            public void handleResponse(GetDiscoveredNodesResponse response) {
-                throw new AssertionError("should not be called");
-            }
+                @Override
+                public void handleException(TransportException exp) {
+                    throw new AssertionError("should not be called", exp);
+                }
+            });
+        }
 
-            @Override
-            public void handleException(TransportException exp) {
-                final Throwable rootCause = exp.getRootCause();
-                assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
-                assertThat(rootCause.getMessage(), startsWith("timed out while waiting for GetDiscoveredNodesRequest{"));
-                countDownLatch.countDown();
-            }
-        });
+        {
+            final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+            getDiscoveredNodesRequest.setWaitForNodes(2);
+            getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
 
-        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+            final CountDownLatch countDownLatch = new CountDownLatch(1);
+            transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+                @Override
+                public void handleResponse(GetDiscoveredNodesResponse response) {
+                    throw new AssertionError("should not be called");
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    final Throwable rootCause = exp.getRootCause();
+                    assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
+                    assertThat(rootCause.getMessage(), startsWith("timed out while waiting for GetDiscoveredNodesRequest{"));
+                    countDownLatch.countDown();
+                }
+            });
+
+            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        }
     }
 
     public void testGetsDiscoveredNodes() throws InterruptedException {

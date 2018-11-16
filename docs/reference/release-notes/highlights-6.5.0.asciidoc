@@ -113,3 +113,8 @@ LDAP realm for role information. The realms that support this feature have a
 new `authorization_realms` setting that you can configure in the 
 `elasticsearch.yml` file. For more information, see 
 {stack-ov}/realm-chains.html#authorization_realms[Realm chains] and <<realm-settings>>.  
+
+^*^ This functionality is in beta and is subject to change. The design and code 
+is less mature than official GA features and is being provided as-is with no 
+warranties. Please try this functionality in your test and development environments 
+and provide feedback in the https://discuss.elastic.co/[Elastic community forums].

@@ -27,6 +27,7 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -55,12 +56,10 @@ public class OsProbeTests extends ESTestCase {
             List<String> readOsRelease() throws IOException {
                 assert Constants.LINUX : Constants.OS_NAME;
                 if (prettyName != null) {
-                    final String quote = randomFrom("\"", "'", null);
-                    if (quote == null) {
-                        return Arrays.asList("NAME=" + randomAlphaOfLength(16), "PRETTY_NAME=" + prettyName);
-                    } else {
-                        return Arrays.asList("NAME=" + randomAlphaOfLength(16), "PRETTY_NAME=" + quote + prettyName + quote);
-                    }
+                    final String quote = randomFrom("\"", "'", "");
+                    final String space = randomFrom(" ", "");
+                    final String prettyNameLine = String.format(Locale.ROOT, "PRETTY_NAME=%s%s%s%s", quote, prettyName, quote, space);
+                    return Arrays.asList("NAME=" + randomAlphaOfLength(16), prettyNameLine);
                 } else {
                     return Collections.singletonList("NAME=" + randomAlphaOfLength(16));
                 }

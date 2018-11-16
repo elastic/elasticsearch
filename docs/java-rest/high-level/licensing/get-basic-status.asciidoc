@@ -1,0 +1,23 @@
+[[java-rest-high-get-basic-status]]
+=== Get Basic Status
+
+[[java-rest-high-get-basic-status-execution]]
+==== Execution
+
+The basic status of the license can be retrieved as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[get-basic-status-execute]
+--------------------------------------------------
+
+[[java-rest-high-get-basic-status-response]]
+==== Response
+
+The returned `GetTrialStatusResponse` holds only a `boolean` flag:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[get-basic-status-response]
+--------------------------------------------------
+<1> Whether the license is eligible to start basic or not

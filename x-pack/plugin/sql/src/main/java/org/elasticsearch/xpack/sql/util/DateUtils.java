@@ -26,14 +26,23 @@ public class DateUtils {
     private DateUtils() {}
 
 
+    /**
+     * Creates a date from the millis since epoch (thus the time-zone is UTC).
+     */
     public static ZonedDateTime of(long millis) {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
     }
-    
+
+    /**
+     * Creates a date from the millis since epoch then translates the date into the given timezone.
+     */
     public static ZonedDateTime of(long millis, ZoneId id) {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), id);
     }
 
+    /**
+     * Parses the given string into a DateTime using UTC as a default timezone.
+     */
     public static ZonedDateTime of(String dateFormat) {
         return of(UTC_DATE_FORMATTER.parseDateTime(dateFormat));
     }

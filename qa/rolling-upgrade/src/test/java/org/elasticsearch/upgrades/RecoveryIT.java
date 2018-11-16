@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
@@ -46,6 +47,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * In depth testing of the recovery mechanism during a rolling restart.
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35597")
 public class RecoveryIT extends AbstractRollingTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31291")

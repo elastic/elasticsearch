@@ -32,7 +32,6 @@ import joptsimple.OptionSpec;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SuppressForbidden;
@@ -158,7 +157,7 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
         final boolean batch = options.has(batchSpec);
 
         final RealmConfig realm = findRealm(terminal, options, env);
-        final Settings realmSettings = realm.globalSettings().getByPrefix(RealmSettings.realmSettingPrefix(realm.identifier()));
+        final Settings realmSettings = realm.settings().getByPrefix(RealmSettings.realmSettingPrefix(realm.identifier()));
         terminal.println(Terminal.Verbosity.VERBOSE,
                 "Using realm configuration\n=====\n" + realmSettings.toDelimitedString('\n') + "=====");
         final Locale locale = findLocale(options);
@@ -399,7 +398,7 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
             attributes.put(a, null);
         }
         final String prefix = RealmSettings.realmSettingPrefix(realm.identifier()) + SamlRealmSettings.AttributeSetting.ATTRIBUTES_PREFIX;
-        final Settings attributeSettings = realm.globalSettings().getByPrefix(prefix);
+        final Settings attributeSettings = realm.settings().getByPrefix(prefix);
         for (String key : sorted(attributeSettings.keySet())) {
             final String attr = attributeSettings.get(key);
             attributes.put(attr, key);

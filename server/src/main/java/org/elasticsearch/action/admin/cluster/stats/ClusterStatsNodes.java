@@ -226,6 +226,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         final int availableProcessors;
         final int allocatedProcessors;
         final ObjectIntHashMap<String> names;
+        final ObjectIntHashMap<String> prettyNames;
         final org.elasticsearch.monitor.os.OsStats.Mem mem;
 
         /**
@@ -233,6 +234,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
          */
         private OsStats(List<NodeInfo> nodeInfos, List<NodeStats> nodeStatsList) {
             this.names = new ObjectIntHashMap<>();
+            this.prettyNames = new ObjectIntHashMap<>();
             int availableProcessors = 0;
             int allocatedProcessors = 0;
             for (NodeInfo nodeInfo : nodeInfos) {
@@ -241,6 +243,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
                 if (nodeInfo.getOs().getName() != null) {
                     names.addTo(nodeInfo.getOs().getName(), 1);
+                }
+                if (nodeInfo.getOs().getPrettyName() != null) {
+                    prettyNames.addTo(nodeInfo.getOs().getPrettyName(), 1);
                 }
             }
             this.availableProcessors = availableProcessors;
@@ -280,6 +285,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
             static final String ALLOCATED_PROCESSORS = "allocated_processors";
             static final String NAME = "name";
             static final String NAMES = "names";
+            static final String PRETTY_NAME = "pretty_name";
+            static final String PRETTY_NAMES = "pretty_names";
             static final String COUNT = "count";
         }
 
@@ -289,11 +296,27 @@ public class ClusterStatsNodes implements ToXContentFragment {
             builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
             builder.field(Fields.ALLOCATED_PROCESSORS, allocatedProcessors);
             builder.startArray(Fields.NAMES);
-            for (ObjectIntCursor<String> name : names) {
-                builder.startObject();
-                builder.field(Fields.NAME, name.key);
-                builder.field(Fields.COUNT, name.value);
-                builder.endObject();
+            {
+                for (ObjectIntCursor<String> name : names) {
+                    builder.startObject();
+                    {
+                        builder.field(Fields.NAME, name.key);
+                        builder.field(Fields.COUNT, name.value);
+                    }
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+            builder.startArray(Fields.PRETTY_NAMES);
+            {
+                for (final ObjectIntCursor<String> prettyName : prettyNames) {
+                    builder.startObject();
+                    {
+                        builder.field(Fields.PRETTY_NAME, prettyName.key);
+                        builder.field(Fields.COUNT, prettyName.value);
+                    }
+                    builder.endObject();
+                }
             }
             builder.endArray();
             mem.toXContent(builder, params);

@@ -30,12 +30,15 @@ import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ShrinkStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.indexlifecycle.WaitForRolloverReadyStep;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +48,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
@@ -176,6 +180,41 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
     }
 
+    public void testRetryFailedShrinkAction() throws Exception {
+        int numShards = 6;
+        int divisor = randomFrom(2, 3, 6);
+        int expectedFinalShards = numShards / divisor;
+        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        createNewSingletonPolicy("warm", new ShrinkAction(numShards + randomIntBetween(1, numShards)));
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            String failedStep = getFailedStepForIndex(index);
+            assertThat(failedStep, equalTo(ShrinkStep.NAME));
+        });
+
+        // update policy to be correct
+        createNewSingletonPolicy("warm", new ShrinkAction(expectedFinalShards));
+        updatePolicy(index, policy);
+
+        // retry step
+        Request retryRequest = new Request("POST", index + "/_ilm/retry");
+        assertOK(client().performRequest(retryRequest));
+
+        // assert corrected policy is picked up and index is shrunken
+        assertBusy(() -> {
+            logger.error(explainIndex(index));
+            assertTrue(indexExists(shrunkenIndex));
+            assertTrue(aliasExists(shrunkenIndex, index));
+            Map<String, Object> settings = getOnlyIndexSettings(shrunkenIndex);
+            assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
+        });
+        expectThrows(ResponseException.class, this::indexDocument);
+    }
+
     public void testRolloverAction() throws Exception {
         String originalIndex = index + "-000001";
         String secondIndex = index + "-000002";
@@ -199,12 +238,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
-
         // create policy
         createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
         // update policy on index
         updatePolicy(originalIndex, policy);
-
         // Manually create the new index
         Request request = new Request("PUT", "/" + secondIndex);
         request.setJsonEntity("{\n \"settings\": " + Strings.toString(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -212,17 +249,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         client().performRequest(request);
         // wait for the shards to initialize
         ensureGreen(secondIndex);
-
         // index another doc to trigger the policy
         index(client(), originalIndex, "_id", "foo", "bar");
-
         assertBusy(() -> {
             logger.info(originalIndex + ": " + getStepKeyForIndex(originalIndex));
             logger.info(secondIndex + ": " + getStepKeyForIndex(secondIndex));
             assertThat(getStepKeyForIndex(originalIndex), equalTo(new StepKey("hot", RolloverAction.NAME, ErrorStep.NAME)));
-            assertThat(getFailedStepForIndex(originalIndex), equalTo("update-rollover-lifecycle-date"));
-            assertThat(getReasonForIndex(originalIndex), equalTo("no rollover info found for [" + originalIndex + "], either the index " +
-                "has not yet rolled over or a subsequent index was created outside of Index Lifecycle Management"));
+            assertThat(getFailedStepForIndex(originalIndex), equalTo(WaitForRolloverReadyStep.NAME));
+            assertThat(getReasonForIndex(originalIndex), containsString("already exists"));
         });
     }
 
@@ -397,6 +431,26 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertEquals("illegal_argument_exception", stepInfo.get("type"));
         });
 
+    }
+
+    public void testInvalidPolicyNames() throws UnsupportedEncodingException {
+        ResponseException ex;
+
+        policy = randomAlphaOfLengthBetween(0,10) + "," + randomAlphaOfLengthBetween(0,10);
+        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
+        assertThat(ex.getCause().getMessage(), containsString("invalid policy name"));
+        
+        policy = randomAlphaOfLengthBetween(0,10) + "%20" + randomAlphaOfLengthBetween(0,10);
+        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
+        assertThat(ex.getCause().getMessage(), containsString("invalid policy name"));
+
+        policy = "_" + randomAlphaOfLengthBetween(1, 20);
+        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
+        assertThat(ex.getMessage(), containsString("invalid policy name"));
+
+        policy = randomAlphaOfLengthBetween(256, 1000);
+        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
+        assertThat(ex.getMessage(), containsString("invalid policy name"));
     }
 
     private void createFullPolicy(TimeValue hotTime) throws IOException {

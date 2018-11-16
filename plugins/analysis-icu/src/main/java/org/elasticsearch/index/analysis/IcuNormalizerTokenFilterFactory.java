@@ -65,7 +65,7 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
                                                 final Normalizer2 normalizer,
                                                 final Settings settings) {
         String unicodeSetFilter = settings.get("unicodeSetFilter");
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
             if (unicodeSetFilter != null) {
                 deprecationLogger.deprecated("[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]");
             } else {

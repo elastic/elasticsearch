@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.job.results;
 
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -251,6 +252,9 @@ public final class ReservedFieldNames {
             DatafeedConfig.SCRIPT_FIELDS.getPreferredName(),
             DatafeedConfig.CHUNKING_CONFIG.getPreferredName(),
             DatafeedConfig.HEADERS.getPreferredName(),
+            DatafeedConfig.DELAYED_DATA_CHECK_CONFIG.getPreferredName(),
+            DelayedDataCheckConfig.ENABLED.getPreferredName(),
+            DelayedDataCheckConfig.CHECK_WINDOW.getPreferredName(),
 
             ChunkingConfig.MODE_FIELD.getPreferredName(),
             ChunkingConfig.TIME_SPAN_FIELD.getPreferredName(),

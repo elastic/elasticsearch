@@ -9,6 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -354,6 +355,16 @@ public class ElasticsearchMappings {
                     .field(TYPE, KEYWORD)
                 .endObject()
                 .startObject(ChunkingConfig.TIME_SPAN_FIELD.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+            .endObject()
+        .endObject()
+        .startObject(DatafeedConfig.DELAYED_DATA_CHECK_CONFIG.getPreferredName())
+            .startObject(PROPERTIES)
+                .startObject(DelayedDataCheckConfig.ENABLED.getPreferredName())
+                    .field(TYPE, BOOLEAN)
+                .endObject()
+                .startObject(DelayedDataCheckConfig.CHECK_WINDOW.getPreferredName())
                     .field(TYPE, KEYWORD)
                 .endObject()
             .endObject()

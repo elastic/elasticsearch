@@ -53,10 +53,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 public class RestSearchAction extends BaseRestHandler {
-
     public static final String TYPED_KEYS_PARAM = "typed_keys";
     private static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
+
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSearchAction.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+        " Specifying types in search requests is deprecated.";
 
     public RestSearchAction(RestController controller) {
         controller.registerHandler(GET, "/_search", this);
@@ -148,11 +150,10 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
 
-        String types = request.param("type");
-        if (types != null) {
-            deprecationLogger.deprecated("The {index}/{type}/_search endpoint is deprecated, use {index}/_search instead");
+        if (request.hasParam("type")) {
+            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
-        searchRequest.types(Strings.splitStringByCommaToArray(types));
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));

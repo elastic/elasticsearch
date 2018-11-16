@@ -6,6 +6,8 @@
 <titleabbrev>Explain Lifecycle</titleabbrev>
 ++++
 
+beta[]
+
 Shows an index's current lifecycle status.
 
 ==== Request

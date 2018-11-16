@@ -675,6 +675,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     public static class OpenJobPersistentTasksExecutor extends PersistentTasksExecutor<OpenJobAction.JobParams> {
 
+        private static final Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutor.class);
+
         private final AutodetectProcessManager autodetectProcessManager;
 
         /**

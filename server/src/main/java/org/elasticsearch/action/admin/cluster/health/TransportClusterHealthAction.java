@@ -170,7 +170,8 @@ public class TransportClusterHealthAction
         }
 
         final ClusterState state = clusterService.state();
-        final ClusterStateObserver observer = new ClusterStateObserver(state, clusterService, null, logger, threadPool.getThreadContext());
+        final ClusterStateObserver observer = new ClusterStateObserver(state, clusterService,
+            null, logger, threadPool.getThreadContext());
         if (request.timeout().millis() == 0) {
             listener.onResponse(getResponse(request, state, waitFor, request.timeout().millis() == 0));
             return;
@@ -209,8 +210,8 @@ public class TransportClusterHealthAction
         return readyCounter == waitFor;
     }
 
-    private ClusterHealthResponse getResponse(final ClusterHealthRequest request, ClusterState clusterState, final int waitFor,
-                                              boolean timedOut) {
+    private ClusterHealthResponse getResponse(final ClusterHealthRequest request, ClusterState clusterState,
+                                              final int waitFor, boolean timedOut) {
         ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.getMasterService().numberOfPendingTasks(),
                 gatewayAllocator.getNumberOfInFlightFetch(), clusterService.getMasterService().getMaxTaskWaitTime());
         int readyCounter = prepareResponse(request, response, clusterState, indexNameExpressionResolver);
@@ -325,7 +326,7 @@ public class TransportClusterHealthAction
             // one of the specified indices is not there - treat it as RED.
             ClusterHealthResponse response = new ClusterHealthResponse(clusterState.getClusterName().value(), Strings.EMPTY_ARRAY,
                 clusterState, numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
-                    pendingTaskTimeInQueue);
+                pendingTaskTimeInQueue);
             response.setStatus(ClusterHealthStatus.RED);
             return response;
         }

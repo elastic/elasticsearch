@@ -3,6 +3,8 @@
 [[start-stop-ilm]]
 == Start And Stop {ilm}
 
+beta[]
+
 All indices that are managed by ILM will continue to execute
 their policies. There may be times when this is not desired on certain
 indices, or maybe even all the indices in a cluster. For example,
@@ -77,7 +79,8 @@ The operating modes of ILM:
 |STOPPED |This represents a state where no policies are executed
 |===
 
-=== Stopping ILM
+[float]
+=== Stopping ILM=
 
 The ILM service can be paused such that no further steps will be executed
 using the <<ilm-stop,Stop API>>.
@@ -134,6 +137,7 @@ GET _ilm/status
 // CONSOLE
 // TESTRESPONSE
 
+[float]
 === Starting ILM
 
 To start ILM and continue executing policies, use the <<ilm-start, Start API>>.

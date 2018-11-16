@@ -16,36 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.rollup;
+package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
-import org.junit.Before;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-import java.io.IOException;
+/**
+ * Runnable that can only be run one time.
+ */
+public class RunOnce implements Runnable {
 
-public class DeleteRollupJobResponseTests extends AbstractXContentTestCase<DeleteRollupJobResponse> {
+    private final Runnable delegate;
+    private final AtomicBoolean hasRun;
 
-    private boolean acknowledged;
-
-    @Before
-    public void setupJobID() {
-        acknowledged = randomBoolean();
+    public RunOnce(final Runnable delegate) {
+        this.delegate = Objects.requireNonNull(delegate);
+        this.hasRun = new AtomicBoolean(false);
     }
 
     @Override
-    protected DeleteRollupJobResponse createTestInstance() {
-        return new DeleteRollupJobResponse(acknowledged);
+    public void run() {
+        if (hasRun.compareAndSet(false, true)) {
+            delegate.run();
+        }
     }
 
-    @Override
-    protected  DeleteRollupJobResponse doParseInstance(XContentParser parser) throws IOException {
-        return DeleteRollupJobResponse.fromXContent(parser);
+    /**
+     * {@code true} if the {@link RunOnce} has been executed once.
+     */
+    public boolean hasRun() {
+        return hasRun.get();
     }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
 }

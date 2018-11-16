@@ -1,0 +1,86 @@
+--
+:api: has-privileges
+:request: HasPrivilegesRequest
+:response: HasPrivilegesResponse
+--
+
+[id="{upid}-{api}"]
+=== Has Privileges API
+
+[id="{upid}-{api}-request"]
+==== Has Privileges Request
+The +{request}+ supports checking for any or all of the following privilege types:
+
+* Cluster Privileges
+* Index Privileges
+* Application Privileges
+
+Privileges types that you do not wish to check my be passed in as +null+, but as least
+one privilege must be specified.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Has Privileges Response
+
+The returned +{response}+ contains the following properties
+
+`username`::
+The username (userid) of the current user (for whom the "has privileges"
+check was executed)
+
+`hasAllRequested`::
+`true` if the user has all of the privileges that were specified in the
++{request}+. Otherwise `false`.
+
+`clusterPrivileges`::
+A `Map<String,Boolean>` where each key is the name of one of the cluster
+privileges specified in the request, and the value is `true` if the user
+has that privilege, and `false` otherwise.
++
+The method `hasClusterPrivilege` can be used to retrieve this information
+in a more fluent manner. This method throws an `IllegalArgumentException`
+if the privilege was not included in the response (which will be the case
+if the privilege was not part of the request).
+
+`indexPrivileges`::
+A `Map<String, Map<String, Boolean>>` where each key is the name of an
+index (as specified in the +{request}+) and the value is a `Map` from
+privilege name to a `Boolean`. The `Boolean` value is `true` if the user
+has that privilege on that index, and `false` otherwise.
++
+The method `hasIndexPrivilege` can be used to retrieve this information
+in a more fluent manner. This method throws an `IllegalArgumentException`
+if the privilege was not included in the response (which will be the case
+if the privilege was not part of the request).
+
+`applicationPrivileges`::
+A `Map<String, Map<String, Map<String, Boolean>>>>` where each key is the
+name of an application (as specified in the +{request}+).
+For each application, the value is a `Map` keyed by resource name, with
+each value  being another `Map` from privilege name to a `Boolean`.
+The `Boolean` value is `true` if the user has that privilege on that 
+resource for that application, and `false` otherwise.
++
+The method `hasApplicationPrivilege` can be used to retrieve this 
+information in a more fluent manner. This method throws an
+`IllegalArgumentException` if the privilege was not included in the
+response (which will be the case if the privilege was not part of the
+request).
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `hasMonitor` will be `true` if the user has the `"monitor"`
+    cluster privilege.
+<2> `hasWrite` will be `true` if the user has the `"write"`
+    privilege on the `"logstash-2018-10-05"` index.
+<3> `hasRead` will be `true` if the user has the `"read"`
+    privilege on all possible indices that would match
+    the `"logstash-2018-*"` pattern.
+

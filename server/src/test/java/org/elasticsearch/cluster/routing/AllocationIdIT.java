@@ -224,15 +224,17 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     private void checkNoValidShardCopy(String indexName, ShardId shardId) throws Exception {
-        final ClusterAllocationExplanation explanation =
-            client().admin().cluster().prepareAllocationExplain()
-                .setIndex(indexName).setShard(shardId.id()).setPrimary(true)
-                .get().getExplanation();
+        assertBusy(() -> {
+            final ClusterAllocationExplanation explanation =
+                client().admin().cluster().prepareAllocationExplain()
+                    .setIndex(indexName).setShard(shardId.id()).setPrimary(true)
+                    .get().getExplanation();
 
-        final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
-        assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
-        assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
-            equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+            final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
+            assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
+            assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
+                equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+        });
     }
 
 }

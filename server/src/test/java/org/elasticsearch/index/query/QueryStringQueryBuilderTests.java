@@ -1431,6 +1431,45 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
     }
 
+    public void testPhraseSlop() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        Query query = new QueryStringQueryBuilder("quick fox")
+            .field(STRING_FIELD_NAME)
+            .type(MultiMatchQueryBuilder.Type.PHRASE)
+            .toQuery(createShardContext());
+
+        PhraseQuery expected = new PhraseQuery.Builder()
+            .add(new Term(STRING_FIELD_NAME, "quick"))
+            .add(new Term(STRING_FIELD_NAME, "fox"))
+            .build();
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("quick fox")
+            .field(STRING_FIELD_NAME)
+            .type(MultiMatchQueryBuilder.Type.PHRASE)
+            .phraseSlop(2)
+            .toQuery(createShardContext());
+
+        expected = new PhraseQuery.Builder()
+            .add(new Term(STRING_FIELD_NAME, "quick"))
+            .add(new Term(STRING_FIELD_NAME, "fox"))
+            .setSlop(2)
+            .build();
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("\"quick fox\"")
+            .field(STRING_FIELD_NAME)
+            .phraseSlop(2)
+            .toQuery(createShardContext());
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("\"quick fox\"~2")
+            .field(STRING_FIELD_NAME)
+            .phraseSlop(10)
+            .toQuery(createShardContext());
+        assertEquals(expected, query);
+    }
+
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings)
             .put(indexSettings)

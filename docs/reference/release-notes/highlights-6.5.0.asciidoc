@@ -79,6 +79,17 @@ currently the same as JDBC. An alpha version of the ODBC client is now
 available for download.
 
 [float]
+=== Delegate authorization to other realms
+
+If you enable the {es} {security-features}, some realms now have the 
+ability to perform _authentication_ internally then delegate _authorization_ to 
+another realm. For example, you could authenticate using PKI then delegate to an 
+LDAP realm for role information. The realms that support this feature have a 
+new `authorization_realms` setting that you can configure in the 
+`elasticsearch.yml` file. For more information, see 
+{stack-ov}/realm-chains.html#authorization_realms[Realm chains] and <<realm-settings>>. 
+
+[float]
 === Cross-cluster replication (beta^*^)
 
 Cross-cluster replication enables you to replicate indices that exist in remote 
@@ -102,17 +113,7 @@ in 6.5, you can also use {metricbeat} to collect and ship data about {es}. If
 you are monitoring {ls} or Beats, at this time you must still use exporters to 
 route the data. See <<configuring-metricbeat>> and 
 {stack-ov}/how-monitoring-works.html[How monitoring works]. 
-
-[float]
-=== Delegate authorization to other realms
-
-If you enable the {es} {security-features}, some realms now have the 
-ability to perform _authentication_ internally then delegate _authorization_ to 
-another realm. For example, you could authenticate using PKI then delegate to an 
-LDAP realm for role information. The realms that support this feature have a 
-new `authorization_realms` setting that you can configure in the 
-`elasticsearch.yml` file. For more information, see 
-{stack-ov}/realm-chains.html#authorization_realms[Realm chains] and <<realm-settings>>.  
+ 
 
 ^*^ This functionality is in beta and is subject to change. The design and code 
 is less mature than official GA features and is being provided as-is with no 

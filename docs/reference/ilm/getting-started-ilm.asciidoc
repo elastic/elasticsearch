@@ -171,7 +171,7 @@ managed indices.
       "phase_time_millis": 1538475653317,
       "action": "rollover",                      <4>
       "action_time_millis": 1538475653317,
-      "step": "attempt_rollover",                <5>
+      "step": "attempt-rollover",                <5>
       "step_time_millis": 1538475653317,
       "phase_execution": {
         "policy": "datastream_policy",

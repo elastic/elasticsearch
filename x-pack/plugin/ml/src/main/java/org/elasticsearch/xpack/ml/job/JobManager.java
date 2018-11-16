@@ -139,9 +139,9 @@ public class JobManager {
 
     public void groupExists(String groupId, ActionListener<Boolean> listener) {
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
-        if (mlMetadata.expandGroupIds(groupId).isEmpty() == false) {
+        boolean groupExistsInMlMetadata = mlMetadata.expandGroupIds(groupId).isEmpty() == false;
+        if (groupExistsInMlMetadata) {
             listener.onResponse(Boolean.TRUE);
-            return;
         } else {
             jobConfigProvider.groupExists(groupId, listener);
         }

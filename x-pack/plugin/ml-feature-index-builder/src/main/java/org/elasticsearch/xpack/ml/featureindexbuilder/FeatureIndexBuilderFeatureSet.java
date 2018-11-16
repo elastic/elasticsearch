@@ -13,6 +13,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
+
 import java.util.Map;
 
 public class FeatureIndexBuilderFeatureSet implements XPackFeatureSet {
@@ -55,6 +57,6 @@ public class FeatureIndexBuilderFeatureSet implements XPackFeatureSet {
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         // TODO expose the currently running rollup tasks on this node? Unclear the best
         // way to do that
-        listener.onResponse(new FeatureIndexBuilderFeatureSetUsage(available(), enabled()));
+        listener.onResponse(new DataFrameFeatureSetUsage(available(), enabled()));
     }
 }

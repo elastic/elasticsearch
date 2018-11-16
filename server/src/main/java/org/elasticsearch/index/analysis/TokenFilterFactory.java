@@ -58,12 +58,10 @@ public interface TokenFilterFactory {
      * Return a version of this TokenFilterFactory appropriate for synonym parsing
      *
      * Filters that should not be applied to synonyms (for example, those that produce
-     * multiple tokens) can return {@link #IDENTITY_FILTER}
+     * multiple tokens) should throw an exception
      *
-     * @param lenient if {@code true} then attempt a best-effort parsing, even if errors
-     *                may be thrown as a result
      */
-    default TokenFilterFactory getSynonymFilter(boolean lenient) {
+    default TokenFilterFactory getSynonymFilter() {
         return this;
     }
 

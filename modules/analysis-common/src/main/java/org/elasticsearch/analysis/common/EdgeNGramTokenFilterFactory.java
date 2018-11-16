@@ -86,18 +86,14 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override
-    public TokenFilterFactory getSynonymFilter(boolean lenient) {
-        if (lenient) {
-            return IDENTITY_FILTER;
-        }
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
-            throw new IllegalArgumentException("Token filter [" + name() +
-                "] cannot be used to parse synonyms unless [lenient] is set to true");
+    public TokenFilterFactory getSynonymFilter() {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+            throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
         }
         else {
             DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
-                + "] will not be usable to parse synonyms after v7.0 unless [lenient] is set to true");
-            return IDENTITY_FILTER;
+                + "] will not be usable to parse synonyms after v7.0");
+            return this;
         }
     }
 }

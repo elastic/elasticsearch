@@ -186,5 +186,4 @@ positions, some token filters may cause issues here.  Token filters that produce
 multiple versions of a token may choose which version of the token to emit when
 parsing synonyms, e.g. `asciifolding` will only produce the folded version of the
 token.  Others, e.g. `multiplexer`, `word_delimiter_graph` or `ngram` will throw an
-error, unless `lenient` has been set to `true`, in which case a best-effort attempt
-at applying the filter will be used.
+error.

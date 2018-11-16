@@ -118,7 +118,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                 }
 
                 @Override
-                public TokenFilterFactory getSynonymFilter(boolean lenient) {
+                public TokenFilterFactory getSynonymFilter() {
                     if (useFilterForParsingSynonyms) {
                         return this;
                     }
@@ -138,7 +138,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
             }
 
             @Override
-            public TokenFilterFactory getSynonymFilter(boolean lenient) {
+            public TokenFilterFactory getSynonymFilter() {
                 if (useFilterForParsingSynonyms) {
                     return this;
                 }

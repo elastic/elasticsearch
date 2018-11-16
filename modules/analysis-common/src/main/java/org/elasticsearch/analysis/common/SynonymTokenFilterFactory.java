@@ -93,14 +93,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             }
 
             @Override
-            public TokenFilterFactory getSynonymFilter(boolean lenient) {
-                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+            public TokenFilterFactory getSynonymFilter() {
+                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
                     throw new IllegalArgumentException("Token filter [" + name() +
-                        "] cannot be used to parse synonyms unless [lenient] is set to true");
+                        "] cannot be used to parse synonyms");
                 }
                 else {
                     DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter " + name()
-                        + "] will not be usable to parse synonym after v7.0 unless [lenient] is set to true");
+                        + "] will not be usable to parse synonym after v7.0");
                 }
                 return this;
             }
@@ -111,7 +111,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                                   List<TokenFilterFactory> tokenFilters, Function<String, TokenFilterFactory> allFilters) {
         return new CustomAnalyzer("synonyms", tokenizer, charFilters.toArray(new CharFilterFactory[0]),
             tokenFilters.stream()
-                .map(ts -> ts.getSynonymFilter(lenient))
+                .map(TokenFilterFactory::getSynonymFilter)
                 .toArray(TokenFilterFactory[]::new));
     }
 

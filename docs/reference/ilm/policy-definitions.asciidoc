@@ -460,7 +460,7 @@ succeeds.
 
 [source,js]
 --------------------------------------------------
-PUT /_ilm/rollover_policy
+PUT /_ilm/policy/rollover_policy
 {
   "policy": {
     "phases": {

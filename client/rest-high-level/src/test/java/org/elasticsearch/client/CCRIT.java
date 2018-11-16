@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
+import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -63,7 +64,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));
     }
 
-    public void testCCR() throws Exception {
+    public void testIndexFollowing() throws Exception {
         CcrClient ccrClient = highLevelClient().ccr();
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
@@ -94,6 +95,23 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
         PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
         AcknowledgedResponse pauseFollowResponse = execute(pauseFollowRequest, ccrClient::pauseFollow, ccrClient::pauseFollowAsync);
+        assertThat(pauseFollowResponse.isAcknowledged(), is(true));
+
+        highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
+
+        ResumeFollowRequest resumeFollowRequest = new ResumeFollowRequest("follower");
+        AcknowledgedResponse resumeFollowResponse = execute(resumeFollowRequest, ccrClient::resumeFollow, ccrClient::resumeFollowAsync);
+        assertThat(resumeFollowResponse.isAcknowledged(), is(true));
+
+        assertBusy(() -> {
+            SearchRequest followerSearchRequest = new SearchRequest("follower");
+            SearchResponse followerSearchResponse = highLevelClient().search(followerSearchRequest, RequestOptions.DEFAULT);
+            assertThat(followerSearchResponse.getHits().getTotalHits(), equalTo(2L));
+        });
+
+        // To avoid keeping shard follow tasks running after this test has finished:
+        pauseFollowRequest = new PauseFollowRequest("follower");
+        pauseFollowResponse = execute(pauseFollowRequest, ccrClient::pauseFollow, ccrClient::pauseFollowAsync);
         assertThat(pauseFollowResponse.isAcknowledged(), is(true));
     }
 

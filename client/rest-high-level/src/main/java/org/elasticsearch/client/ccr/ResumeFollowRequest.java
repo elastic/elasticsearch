@@ -20,46 +20,29 @@
 package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public final class PutFollowRequest extends FollowConfig implements Validatable, ToXContentObject {
+import static org.elasticsearch.client.ccr.PutFollowRequest.FOLLOWER_INDEX_FIELD;
 
-    static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
-    static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
-    static final ParseField FOLLOWER_INDEX_FIELD = new ParseField("follower_index");
+public final class ResumeFollowRequest extends FollowConfig implements Validatable, ToXContentObject {
 
-    private final String remoteCluster;
-    private final String leaderIndex;
     private final String followerIndex;
 
-    public PutFollowRequest(String remoteCluster, String leaderIndex, String followerIndex) {
-        this.remoteCluster = Objects.requireNonNull(remoteCluster, "remoteCluster");
-        this.leaderIndex = Objects.requireNonNull(leaderIndex, "leaderIndex");
+    public ResumeFollowRequest(String followerIndex) {
         this.followerIndex = Objects.requireNonNull(followerIndex, "followerIndex");
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
-        builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
         builder.field(FOLLOWER_INDEX_FIELD.getPreferredName(), followerIndex);
         toXContentFragment(builder, params);
         builder.endObject();
         return builder;
-    }
-
-    public String getRemoteCluster() {
-        return remoteCluster;
-    }
-
-    public String getLeaderIndex() {
-        return leaderIndex;
     }
 
     public String getFollowerIndex() {
@@ -71,19 +54,12 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
-        PutFollowRequest that = (PutFollowRequest) o;
-        return Objects.equals(remoteCluster, that.remoteCluster) &&
-            Objects.equals(leaderIndex, that.leaderIndex) &&
-            Objects.equals(followerIndex, that.followerIndex);
+        ResumeFollowRequest that = (ResumeFollowRequest) o;
+        return Objects.equals(followerIndex, that.followerIndex);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            super.hashCode(),
-            remoteCluster,
-            leaderIndex,
-            followerIndex
-        );
+        return Objects.hash(super.hashCode(), followerIndex);
     }
 }

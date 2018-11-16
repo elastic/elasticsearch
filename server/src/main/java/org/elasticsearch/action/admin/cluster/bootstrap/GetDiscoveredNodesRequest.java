@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.cluster.bootstrap;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -33,6 +34,8 @@ import java.io.IOException;
 public class GetDiscoveredNodesRequest extends ActionRequest {
 
     private int waitForNodes = 1;
+
+    @Nullable // if the request should wait indefinitely
     private TimeValue timeout = TimeValue.timeValueSeconds(30);
 
     public GetDiscoveredNodesRequest() {
@@ -41,7 +44,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
     public GetDiscoveredNodesRequest(StreamInput in) throws IOException {
         super(in);
         waitForNodes = in.readInt();
-        timeout = in.readTimeValue();
+        timeout = in.readOptionalTimeValue();
     }
 
     /**
@@ -74,8 +77,8 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
      *
      * @param timeout how long to wait to discover sufficiently many nodes to respond successfully.
      */
-    public void setTimeout(TimeValue timeout) {
-        if (timeout.compareTo(TimeValue.ZERO) < 0) {
+    public void setTimeout(@Nullable TimeValue timeout) {
+        if (timeout != null && timeout.compareTo(TimeValue.ZERO) < 0) {
             throw new IllegalArgumentException("negative timeout of [" + timeout + "] is not allowed");
         }
         this.timeout = timeout;
@@ -87,6 +90,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
      *
      * @return how long to wait to discover sufficiently many nodes to respond successfully.
      */
+    @Nullable
     public TimeValue getTimeout() {
         return timeout;
     }
@@ -105,7 +109,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeInt(waitForNodes);
-        out.writeTimeValue(timeout);
+        out.writeOptionalTimeValue(timeout);
     }
 
     @Override

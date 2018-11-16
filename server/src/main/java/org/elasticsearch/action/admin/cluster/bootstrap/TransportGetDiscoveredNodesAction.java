@@ -108,18 +108,20 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
         listenableFuture.addListener(ActionListener.wrap(releasable::close), directExecutor, threadPool.getThreadContext());
         respondIfRequestSatisfied.accept(coordinator.getFoundPeers());
 
-        threadPool.schedule(request.getTimeout(), Names.SAME, new Runnable() {
-            @Override
-            public void run() {
-                if (listenerNotified.compareAndSet(false, true)) {
-                    listenableFuture.onFailure(new ElasticsearchTimeoutException("timed out while waiting for " + request));
+        if (request.getTimeout() != null) {
+            threadPool.schedule(request.getTimeout(), Names.SAME, new Runnable() {
+                @Override
+                public void run() {
+                    if (listenerNotified.compareAndSet(false, true)) {
+                        listenableFuture.onFailure(new ElasticsearchTimeoutException("timed out while waiting for " + request));
+                    }
                 }
-            }
 
-            @Override
-            public String toString() {
-                return "timeout handler for " + request;
-            }
-        });
+                @Override
+                public String toString() {
+                    return "timeout handler for " + request;
+                }
+            });
+        }
     }
 }

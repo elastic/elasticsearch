@@ -177,17 +177,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
             "} else {" +
             "  exit 1;" +
             "}");
-        assertCommand("$n = 0;" +
-            "do {" +
-            "  $p = Get-Process -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
-            "  echo \"$p\";" +
-            "  if ($n -eq 10) {" +
-            "    exit 1;" +
-            "  }" +
-            "  $n += 1;" +
-            "  Start-Sleep -Seconds 1;" +
-            "} while ($p -ne $Null)");
-
+        sh.run("Start-Sleep -s 10");
     }
 
     public void test31StartNotInstalled() throws IOException {

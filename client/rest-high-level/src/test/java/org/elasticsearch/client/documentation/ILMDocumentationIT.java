@@ -29,11 +29,15 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.indexlifecycle.DeleteAction;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyResponse;
 import org.elasticsearch.client.indexlifecycle.LifecycleAction;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.client.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.client.indexlifecycle.Phase;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -117,6 +121,92 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
 
+    }
+
+    public void testGetLifecyclePolicy() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        // Set up some policies so we have something to get
+        {
+            Map<String, Phase> phases = new HashMap<>();
+            Map<String, LifecycleAction> hotActions = new HashMap<>();
+            hotActions.put(RolloverAction.NAME, new RolloverAction(
+                new ByteSizeValue(50, ByteSizeUnit.GB), null, null));
+            phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
+
+            Map<String, LifecycleAction> deleteActions =
+                Collections.singletonMap(DeleteAction.NAME,
+                    new DeleteAction());
+            phases.put("delete",
+                new Phase("delete",
+                    new TimeValue(90, TimeUnit.DAYS), deleteActions));
+
+            LifecyclePolicy policy = new LifecyclePolicy("my_policy",
+                phases);
+            PutLifecyclePolicyRequest putRequest =
+                new PutLifecyclePolicyRequest(policy);
+            LifecyclePolicy policy2 = new LifecyclePolicy("other_policy",
+                phases);
+            PutLifecyclePolicyRequest putRequest2 =
+                new PutLifecyclePolicyRequest(policy2);
+
+            AcknowledgedResponse putResponse = client.indexLifecycle().
+                putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
+            assertTrue(putResponse.isAcknowledged());
+            AcknowledgedResponse putResponse2 = client.indexLifecycle().
+                putLifecyclePolicy(putRequest2, RequestOptions.DEFAULT);
+            assertTrue(putResponse2.isAcknowledged());
+        }
+
+        // tag::ilm-get-lifecycle-policy-request
+        GetLifecyclePolicyRequest allRequest =
+            new GetLifecyclePolicyRequest(); // <1>
+        GetLifecyclePolicyRequest request =
+            new GetLifecyclePolicyRequest("my_policy", "other_policy"); // <2>
+        // end::ilm-get-lifecycle-policy-request
+
+        // tag::ilm-get-lifecycle-policy-execute
+        GetLifecyclePolicyResponse response = client.indexLifecycle()
+            .getLifecyclePolicy(request, RequestOptions.DEFAULT);
+        // end::ilm-get-lifecycle-policy-execute
+
+        // tag::ilm-get-lifecycle-policy-response
+        ImmutableOpenMap<String, LifecyclePolicyMetadata> policies =
+            response.getPolicies();
+        LifecyclePolicyMetadata myPolicyMetadata =
+            policies.get("my_policy"); // <1>
+        String myPolicyName = myPolicyMetadata.getName();
+        long version = myPolicyMetadata.getVersion();
+        String lastModified = myPolicyMetadata.getModifiedDateString();
+        long lastModifiedDate = myPolicyMetadata.getModifiedDate();
+        LifecyclePolicy myPolicy = myPolicyMetadata.getPolicy(); // <2>
+        // end::ilm-get-lifecycle-policy-response
+
+        // tag::ilm-get-lifecycle-policy-execute-listener
+        ActionListener<GetLifecyclePolicyResponse> listener =
+            new ActionListener<GetLifecyclePolicyResponse>() {
+                @Override
+                public void onResponse(GetLifecyclePolicyResponse response)
+                {
+                    ImmutableOpenMap<String, LifecyclePolicyMetadata>
+                        policies = response.getPolicies(); // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ilm-get-lifecycle-policy-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ilm-get-lifecycle-policy-execute-async
+        client.indexLifecycle().getLifecyclePolicyAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ilm-get-lifecycle-policy-execute-async
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {

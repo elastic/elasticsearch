@@ -442,5 +442,8 @@ The Java High Level REST Client supports the following Index Lifecycle
 Management APIs:
 
 * <<{upid}-ilm-put-lifecycle-policy>>
+* <<{upid}-ilm-get-lifecycle-policy>>
 
 include::ilm/put_lifecycle_policy.asciidoc[]
+include::ilm/get_lifecycle_policy.asciidoc[]
+

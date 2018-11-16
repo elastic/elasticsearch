@@ -68,7 +68,8 @@ public class TransportClusterHealthAction
 
     @Override
     protected ClusterBlockException checkBlock(ClusterHealthRequest request, ClusterState state) {
-        return null; // we want users to be able to call this even when there are global blocks, just to check the health (are there blocks?)
+        // we want users to be able to call this even when there are global blocks, just to check the health (are there blocks?)
+        return null;
     }
 
     @Override
@@ -77,64 +78,69 @@ public class TransportClusterHealthAction
     }
 
     @Override
-    protected final void masterOperation(ClusterHealthRequest request, ClusterState state, ActionListener<ClusterHealthResponse> listener) throws Exception {
+    protected final void masterOperation(ClusterHealthRequest request, ClusterState state,
+                                         ActionListener<ClusterHealthResponse> listener) throws Exception {
         logger.warn("attempt to execute a cluster health operation without a task");
         throw new UnsupportedOperationException("task parameter is required for this operation");
     }
 
     @Override
-    protected void masterOperation(Task task, final ClusterHealthRequest request, final ClusterState unusedState, final ActionListener<ClusterHealthResponse> listener) {
+    protected void masterOperation(Task task, final ClusterHealthRequest request, final ClusterState unusedState,
+                                   final ActionListener<ClusterHealthResponse> listener) {
         if (request.waitForEvents() != null) {
             final long endTimeMS = TimeValue.nsecToMSec(System.nanoTime()) + request.timeout().millis();
             if (request.local()) {
-                clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])", new LocalClusterUpdateTask(request.waitForEvents()) {
-                    @Override
-                    public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
-                        return unchanged();
-                    }
+                clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])",
+                    new LocalClusterUpdateTask(request.waitForEvents()) {
+                        @Override
+                        public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
+                            return unchanged();
+                        }
 
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        final long timeoutInMillis = Math.max(0, endTimeMS - TimeValue.nsecToMSec(System.nanoTime()));
-                        final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
-                        request.timeout(newTimeout);
-                        executeHealth(request, listener);
-                    }
+                        @Override
+                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                            final long timeoutInMillis = Math.max(0, endTimeMS - TimeValue.nsecToMSec(System.nanoTime()));
+                            final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
+                            request.timeout(newTimeout);
+                            executeHealth(request, listener);
+                        }
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-                        listener.onFailure(e);
-                    }
-                });
+                        @Override
+                        public void onFailure(String source, Exception e) {
+                            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                            listener.onFailure(e);
+                        }
+                    });
             } else {
-                clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])", new ClusterStateUpdateTask(request.waitForEvents()) {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return currentState;
-                    }
+                clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])",
+                    new ClusterStateUpdateTask(request.waitForEvents()) {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            return currentState;
+                        }
 
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        final long timeoutInMillis = Math.max(0, endTimeMS - TimeValue.nsecToMSec(System.nanoTime()));
-                        final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
-                        request.timeout(newTimeout);
-                        executeHealth(request, listener);
-                    }
+                        @Override
+                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                            final long timeoutInMillis = Math.max(0, endTimeMS - TimeValue.nsecToMSec(System.nanoTime()));
+                            final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
+                            request.timeout(newTimeout);
+                            executeHealth(request, listener);
+                        }
 
-                    @Override
-                    public void onNoLongerMaster(String source) {
-                        logger.trace("stopped being master while waiting for events with priority [{}]. retrying.", request.waitForEvents());
-                        // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
-                        listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
-                    }
+                        @Override
+                        public void onNoLongerMaster(String source) {
+                            logger.trace("stopped being master while waiting for events with priority [{}]. retrying.",
+                                request.waitForEvents());
+                            // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
+                            listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
+                        }
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-                        listener.onFailure(e);
-                    }
-                });
+                        @Override
+                        public void onFailure(String source, Exception e) {
+                            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                            listener.onFailure(e);
+                        }
+                    });
             }
         } else {
             executeHealth(request, listener);
@@ -203,7 +209,8 @@ public class TransportClusterHealthAction
         return readyCounter == waitFor;
     }
 
-    private ClusterHealthResponse getResponse(final ClusterHealthRequest request, ClusterState clusterState, final int waitFor, boolean timedOut) {
+    private ClusterHealthResponse getResponse(final ClusterHealthRequest request, ClusterState clusterState, final int waitFor,
+                                              boolean timedOut) {
         ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.getMasterService().numberOfPendingTasks(),
                 gatewayAllocator.getNumberOfInFlightFetch(), clusterService.getMasterService().getMaxTaskWaitTime());
         int readyCounter = prepareResponse(request, response, clusterState, indexNameExpressionResolver);
@@ -305,8 +312,8 @@ public class TransportClusterHealthAction
     }
 
 
-    private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState, int numberOfPendingTasks, int numberOfInFlightFetch,
-                                                TimeValue pendingTaskTimeInQueue) {
+    private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState, int numberOfPendingTasks,
+                                                int numberOfInFlightFetch, TimeValue pendingTaskTimeInQueue) {
         if (logger.isTraceEnabled()) {
             logger.trace("Calculating health based on state version [{}]", clusterState.version());
         }
@@ -316,8 +323,8 @@ public class TransportClusterHealthAction
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         } catch (IndexNotFoundException e) {
             // one of the specified indices is not there - treat it as RED.
-            ClusterHealthResponse response = new ClusterHealthResponse(clusterState.getClusterName().value(), Strings.EMPTY_ARRAY, clusterState,
-                    numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
+            ClusterHealthResponse response = new ClusterHealthResponse(clusterState.getClusterName().value(), Strings.EMPTY_ARRAY,
+                clusterState, numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
                     pendingTaskTimeInQueue);
             response.setStatus(ClusterHealthStatus.RED);
             return response;

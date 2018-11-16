@@ -1,8 +1,8 @@
 [role="xpack"]
 [[security-api-invalidate-token]]
-=== Ivaidate token API
+=== Invalidate token API
 
-Invalidates an access or refresh token for access.
+Invalidates an access token or a refresh token.
 
 ==== Request
 

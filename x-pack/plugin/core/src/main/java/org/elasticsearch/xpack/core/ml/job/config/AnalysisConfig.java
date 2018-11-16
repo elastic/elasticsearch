@@ -138,7 +138,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
         // BWC for result_finalization_window and overlapping_buckets
         // TODO Remove in 7.0.0
-        if (in.getVersion().before(Version.V_6_6_0)) {
+        if (in.getVersion().before(Version.CURRENT)) {//setting to current before backport
             in.readOptionalBoolean();
             in.readOptionalLong();
         }
@@ -182,7 +182,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
         // BWC for result_finalization_window and overlapping_buckets
         // TODO Remove in 7.0.0
-        if (out.getVersion().before(Version.V_6_6_0)) {
+        if (out.getVersion().before(Version.CURRENT)) { //setting to current before backport
             out.writeOptionalBoolean(null);
             out.writeOptionalLong(null);
         }

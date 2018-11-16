@@ -1,0 +1,44 @@
+[role="xpack"]
+[testenv="basic"]
+[[freeze-index-api]]
+== Freeze Index API
+++++
+<titleabbrev>Freeze Index</titleabbrev>
+++++
+
+Freezes an index. 
+
+[float]
+=== Request
+
+`POST /<index>/_freeze`
+
+[float]
+=== Description
+
+A frozen index has almost no overhead on the cluster (except
+for maintaining its metadata in memory), and is blocked for write operations.
+See <<frozen-indices>> and <<unfreeze-index-api>>.
+
+[float]
+=== Path Parameters
+
+`index` (required)::
+(string) Identifier for the index
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
+
+The following example freezes and unfreezes an index:
+
+[source,js]
+--------------------------------------------------
+POST /my_index/_freeze
+ POST /my_index/_unfreeze
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT my_index\n/]

@@ -119,6 +119,80 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
     }
 
+    public void testDeletePolicy() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        // Set up a policy so we have something to delete
+        PutLifecyclePolicyRequest putRequest;
+        {
+            Map<String, Phase> phases = new HashMap<>();
+            Map<String, LifecycleAction> hotActions = new HashMap<>();
+            hotActions.put(RolloverAction.NAME, new RolloverAction(
+                new ByteSizeValue(50, ByteSizeUnit.GB), null, null));
+            phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
+            Map<String, LifecycleAction> deleteActions =
+                Collections.singletonMap(DeleteAction.NAME,
+                    new DeleteAction());
+            phases.put("delete",
+                new Phase("delete",
+                    new TimeValue(90, TimeUnit.DAYS), deleteActions));
+            LifecyclePolicy myPolicy = new LifecyclePolicy("my_policy", phases);
+            putRequest = new PutLifecyclePolicyRequest(myPolicy);
+            AcknowledgedResponse putResponse = client.indexLifecycle().
+                putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
+            assertTrue(putResponse.isAcknowledged());
+        }
+
+        // tag::ilm-delete-lifecycle-policy-request
+        DeleteLifecyclePolicyRequest request =
+            new DeleteLifecyclePolicyRequest("my_policy"); // <1>
+        // end::ilm-delete-lifecycle-policy-request
+
+        // tag::ilm-delete-lifecycle-policy-execute
+        AcknowledgedResponse response = client.indexLifecycle()
+            .deleteLifecyclePolicy(request, RequestOptions.DEFAULT);
+        // end::ilm-delete-lifecycle-policy-execute
+
+        // tag::ilm-delete-lifecycle-policy-response
+        boolean acknowledged = response.isAcknowledged(); // <1>
+        // end::ilm-delete-lifecycle-policy-response
+
+        assertTrue(acknowledged);
+
+        // Put the policy again so we can delete it again
+        {
+            AcknowledgedResponse putResponse = client.indexLifecycle().
+                putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
+            assertTrue(putResponse.isAcknowledged());
+        }
+
+        // tag::ilm-delete-lifecycle-policy-execute-listener
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    boolean acknowledged = response.isAcknowledged(); // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ilm-delete-lifecycle-policy-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ilm-delete-lifecycle-policy-execute-async
+        client.indexLifecycle().deleteLifecyclePolicyAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ilm-delete-lifecycle-policy-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
     static Map<String, Object> toMap(Response response) throws IOException {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
     }

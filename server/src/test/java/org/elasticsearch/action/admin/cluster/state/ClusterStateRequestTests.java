@@ -40,7 +40,8 @@ public class ClusterStateRequestTests extends ESTestCase {
             ClusterStateRequest clusterStateRequest = new ClusterStateRequest().routingTable(randomBoolean()).metaData(randomBoolean())
                     .nodes(randomBoolean()).blocks(randomBoolean()).indices("testindex", "testindex2").indicesOptions(indicesOptions);
 
-            Version testVersion = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
+            Version testVersion = VersionUtils.randomVersionBetween(random(),
+                Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
             BytesStreamOutput output = new BytesStreamOutput();
             output.setVersion(testVersion);
             clusterStateRequest.writeTo(output);

@@ -91,19 +91,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             public TokenStream create(TokenStream tokenStream) {
                 return synonyms.fst == null ? tokenStream : new SynonymFilter(tokenStream, synonyms, false);
             }
-
-            @Override
-            public TokenFilterFactory getSynonymFilter() {
-                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-                    throw new IllegalArgumentException("Token filter [" + name() +
-                        "] cannot be used to parse synonyms");
-                }
-                else {
-                    DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter " + name()
-                        + "] will not be usable to parse synonym after v7.0");
-                }
-                return this;
-            }
         };
     }
 

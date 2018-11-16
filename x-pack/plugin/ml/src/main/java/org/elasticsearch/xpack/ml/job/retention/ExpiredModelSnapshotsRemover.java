@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -54,12 +55,10 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
      */
     private static final int MODEL_SNAPSHOT_SEARCH_SIZE = 10000;
 
-    private final Client client;
     private final ThreadPool threadPool;
 
-    public ExpiredModelSnapshotsRemover(Client client, ThreadPool threadPool) {
-        super(client);
-        this.client = Objects.requireNonNull(client);
+    public ExpiredModelSnapshotsRemover(Client client, ClusterService clusterService, ThreadPool threadPool) {
+        super(client, clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
     }
 
@@ -90,7 +89,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
         searchRequest.source(new SearchSourceBuilder().query(query).size(MODEL_SNAPSHOT_SEARCH_SIZE));
 
-        client.execute(SearchAction.INSTANCE, searchRequest, new ThreadedActionListener<>(LOGGER, threadPool,
+        getClient().execute(SearchAction.INSTANCE, searchRequest, new ThreadedActionListener<>(LOGGER, threadPool,
                 MachineLearning.UTILITY_THREAD_POOL_NAME, expiredSnapshotsListener(job.getId(), listener), false));
     }
 
@@ -124,7 +123,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         ModelSnapshot modelSnapshot = modelSnapshotIterator.next();
         DeleteModelSnapshotAction.Request deleteSnapshotRequest = new DeleteModelSnapshotAction.Request(
                 modelSnapshot.getJobId(), modelSnapshot.getSnapshotId());
-        client.execute(DeleteModelSnapshotAction.INSTANCE, deleteSnapshotRequest, new ActionListener<AcknowledgedResponse>() {
+        getClient().execute(DeleteModelSnapshotAction.INSTANCE, deleteSnapshotRequest, new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
                     try {

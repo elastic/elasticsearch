@@ -11,10 +11,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +25,8 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
@@ -67,18 +71,18 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
 
     @Override
     protected void masterOperation(DeleteDatafeedAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+                                   ActionListener<AcknowledgedResponse> listener) {
         if (request.isForce()) {
             forceDeleteDatafeed(request, state, listener);
         } else {
-            deleteDatafeedConfig(request, listener);
+            deleteDatafeedConfig(request, state, listener);
         }
     }
 
     private void forceDeleteDatafeed(DeleteDatafeedAction.Request request, ClusterState state,
                                      ActionListener<AcknowledgedResponse> listener) {
         ActionListener<Boolean> finalListener = ActionListener.wrap(
-                response -> deleteDatafeedConfig(request, listener),
+                response -> deleteDatafeedConfig(request, state, listener),
                 listener::onFailure
         );
 
@@ -117,7 +121,8 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
         }
     }
 
-    private void deleteDatafeedConfig(DeleteDatafeedAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    private void deleteDatafeedConfig(DeleteDatafeedAction.Request request, ClusterState state,
+                                      ActionListener<AcknowledgedResponse> listener) {
         // Check datafeed is stopped
         PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         if (MlTasks.getDatafeedTask(request.getDatafeedId(), tasks) != null) {
@@ -126,10 +131,39 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
             return;
         }
 
-        datafeedConfigProvider.deleteDatafeedConfig(request.getDatafeedId(), ActionListener.wrap(
-                deleteResponse -> listener.onResponse(new AcknowledgedResponse(true)),
-                listener::onFailure
-        ));
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
+        if (mlMetadata.getDatafeed(request.getDatafeedId()) != null) {
+            deleteDatafeedFromMetadata(request, listener);
+        } else {
+            datafeedConfigProvider.deleteDatafeedConfig(request.getDatafeedId(), ActionListener.wrap(
+                    deleteResponse -> listener.onResponse(new AcknowledgedResponse(true)),
+                    listener::onFailure
+            ));
+        }
+    }
+
+    private void deleteDatafeedFromMetadata(DeleteDatafeedAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("delete-datafeed-" + request.getDatafeedId(),
+                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
+
+                    @Override
+                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                        return new AcknowledgedResponse(acknowledged);
+                    }
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
+                        MlMetadata currentMetadata = MlMetadata.getMlMetadata(currentState);
+                        PersistentTasksCustomMetaData persistentTasks =
+                                currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                        MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
+                                .removeDatafeed(request.getDatafeedId(), persistentTasks).build();
+                        return ClusterState.builder(currentState).metaData(
+                                MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, newMetadata).build())
+                                .build();
+                    }
+                });
     }
 
     @Override

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -44,12 +45,11 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
     private static final Logger LOGGER = LogManager.getLogger(ExpiredResultsRemover.class);
 
-    private final Client client;
+
     private final Auditor auditor;
 
-    public ExpiredResultsRemover(Client client, Auditor auditor) {
-        super(client);
-        this.client = Objects.requireNonNull(client);
+    public ExpiredResultsRemover(Client client, ClusterService clusterService, Auditor auditor) {
+        super(client, clusterService);
         this.auditor = Objects.requireNonNull(auditor);
     }
 
@@ -63,7 +63,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         LOGGER.debug("Removing results of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
         DeleteByQueryRequest request = createDBQRequest(job, cutoffEpochMs);
 
-        client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
+        getClient().execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 try {

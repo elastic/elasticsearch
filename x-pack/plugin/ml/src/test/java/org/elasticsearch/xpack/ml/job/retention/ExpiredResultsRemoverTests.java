@@ -9,6 +9,9 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -42,19 +45,26 @@ import static org.mockito.Mockito.when;
 public class ExpiredResultsRemoverTests extends ESTestCase {
 
     private Client client;
+    private ClusterService clusterService;
     private List<DeleteByQueryRequest> capturedDeleteByQueryRequests;
     private ActionListener<Boolean> listener;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUpTests() {
         capturedDeleteByQueryRequests = new ArrayList<>();
         client = mock(Client.class);
+
+        clusterService = mock(ClusterService.class);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        when(clusterService.state()).thenReturn(clusterState);
+
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         doAnswer(new Answer<Void>() {
                  @Override
-                 public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+                 public Void answer(InvocationOnMock invocationOnMock) {
                      capturedDeleteByQueryRequests.add((DeleteByQueryRequest) invocationOnMock.getArguments()[1]);
                      ActionListener<BulkByScrollResponse> listener =
                              (ActionListener<BulkByScrollResponse>) invocationOnMock.getArguments()[2];
@@ -132,10 +142,11 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         givenClientRequests(false);
     }
 
+    @SuppressWarnings("unchecked")
     private void givenClientRequests(boolean shouldSucceed) {
         doAnswer(new Answer<Void>() {
             @Override
-            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+            public Void answer(InvocationOnMock invocationOnMock) {
                 capturedDeleteByQueryRequests.add((DeleteByQueryRequest) invocationOnMock.getArguments()[1]);
                 ActionListener<BulkByScrollResponse> listener =
                         (ActionListener<BulkByScrollResponse>) invocationOnMock.getArguments()[2];
@@ -151,6 +162,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         }).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(), any());
     }
 
+    @SuppressWarnings("unchecked")
     private void givenJobs(List<Job> jobs) throws IOException {
         SearchResponse response = AbstractExpiredJobDataRemoverTests.createSearchResponse(jobs);
 
@@ -160,6 +172,6 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     }
 
     private ExpiredResultsRemover createExpiredResultsRemover() {
-        return new ExpiredResultsRemover(client, mock(Auditor.class));
+        return new ExpiredResultsRemover(client, clusterService, mock(Auditor.class));
     }
 }

@@ -9,6 +9,10 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,6 +20,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.junit.Before;
@@ -43,8 +48,8 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
 
         private int getRetentionDaysCallCount = 0;
 
-        ConcreteExpiredJobDataRemover(Client client) {
-            super(client);
+        ConcreteExpiredJobDataRemover(Client client, ClusterService clusterService) {
+            super(client, clusterService);
         }
 
         @Override
@@ -61,10 +66,12 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
     }
 
     private Client client;
+    private ClusterService clusterService;
 
     @Before
     public void setUpTests() {
         client = mock(Client.class);
+        clusterService = mock(ClusterService.class);
     }
 
     static SearchResponse createSearchResponse(List<? extends ToXContent> toXContents) throws IOException {
@@ -92,8 +99,11 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         when(future.actionGet()).thenReturn(response);
         when(client.search(any())).thenReturn(future);
 
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        when(clusterService.state()).thenReturn(clusterState);
+
         TestListener listener = new TestListener();
-        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(client);
+        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(client, clusterService);
         remover.remove(listener);
 
         listener.waitToCompletion();
@@ -103,6 +113,10 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
 
 
     public void testRemoveGivenMulipleBatches() throws IOException {
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        when(clusterService.state()).thenReturn(clusterState);
+
         // This is testing AbstractExpiredJobDataRemover.WrappedBatchedJobsIterator
         int totalHits = 7;
         List<SearchResponse> responses = new ArrayList<>();
@@ -130,13 +144,40 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         when(client.search(any())).thenReturn(future);
 
         TestListener listener = new TestListener();
-        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(client);
+        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(client, clusterService);
         remover.remove(listener);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
         assertEquals(searchCount.get(), 3);
         assertEquals(remover.getRetentionDaysCallCount, 7);
+    }
+
+    public void testIterateOverClusterStateJobs() throws IOException {
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(JobTests.buildJobBuilder("csjob1").build(), false);
+        mlMetadata.putJob(JobTests.buildJobBuilder("csjob2").build(), false);
+        mlMetadata.putJob(JobTests.buildJobBuilder("csjob3").build(), false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        SearchResponse response = createSearchResponse(Collections.emptyList());
+
+        ActionFuture<SearchResponse> future = mock(ActionFuture.class);
+        when(future.actionGet()).thenReturn(response);
+        when(client.search(any())).thenReturn(future);
+
+        TestListener listener = new TestListener();
+        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(client, clusterService);
+        remover.remove(listener);
+
+        listener.waitToCompletion();
+        assertThat(listener.success, is(true));
+        assertEquals(remover.getRetentionDaysCallCount, 3);
     }
 
     static class TestListener implements ActionListener<Boolean> {

@@ -38,7 +38,7 @@ The following example freezes and unfreezes an index:
 [source,js]
 --------------------------------------------------
 POST /my_index/_freeze
- POST /my_index/_unfreeze
+POST /my_index/_unfreeze
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT my_index\n/]

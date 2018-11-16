@@ -6,6 +6,8 @@
 <titleabbrev>Explain Lifecycle</titleabbrev>
 ++++
 
+beta[]
+
 Shows an index's current lifecycle status.
 
 ==== Request
@@ -107,10 +109,7 @@ that the index is managed and in the `new` phase:
 }
 --------------------------------------------------
 // CONSOLE
-// TESTRESPONSE[s/"lifecycle_date_millis": 1538475653281/"lifecycle_date_millis": $body.indices.my_index.lifecycle_date_millis/]
-// TESTRESPONSE[s/"phase_time_millis": 1538475653317/"phase_time_millis": $body.indices.my_index.phase_time_millis/]
-// TESTRESPONSE[s/"action_time_millis": 1538475653317/"action_time_millis": $body.indices.my_index.action_time_millis/]
-// TESTRESPONSE[s/"step_time_millis": 1538475653317/"step_time_millis": $body.indices.my_index.step_time_millis/]
+// TESTRESPONSE[skip:no way to know if we will get this response immediately]
 <1> Shows if the index is being managed by ILM. If the index is not managed by
 ILM the other fields will not be shown
 <2> The name of the policy which ILM is using for this index

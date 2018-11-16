@@ -23,7 +23,7 @@ import java.util.Map;
 
 public class FeatureIndexBuilderJobPersistentTasksExecutor extends PersistentTasksExecutor<FeatureIndexBuilderJob> {
 
-    private static final Logger logger = LogManager.getLogger(FeatureIndexBuilderJobPersistentTasksExecutor.class.getName());
+    private static final Logger logger = LogManager.getLogger(FeatureIndexBuilderJobPersistentTasksExecutor.class);
 
     private final Client client;
     private final SchedulerEngine schedulerEngine;

@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 final class AggregationResultUtils {
-    private static final Logger logger = LogManager.getLogger(AggregationResultUtils.class.getName());
+    private static final Logger logger = LogManager.getLogger(AggregationResultUtils.class);
 
     /**
      * Extracts aggregation results from a composite aggregation and puts it into a map.

@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.ml.featureindexbuilder.persistence.Datafra
 public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, FeatureIndexBuilderJobStats> {
 
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
-    private static final Logger logger = LogManager.getLogger(FeatureIndexBuilderIndexer.class.getName());
+    private static final Logger logger = LogManager.getLogger(FeatureIndexBuilderIndexer.class);
     private FeatureIndexBuilderJob job;
 
     public FeatureIndexBuilderIndexer(Executor executor, FeatureIndexBuilderJob job, AtomicReference<IndexerState> initialState,

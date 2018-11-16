@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
 
-    private static final Logger logger = LogManager.getLogger(FeatureIndexBuilderJobTask.class.getName());
+    private static final Logger logger = LogManager.getLogger(FeatureIndexBuilderJobTask.class);
 
     private final FeatureIndexBuilderJob job;
     private final ThreadPool threadPool;

@@ -23,7 +23,7 @@ import java.util.Map.Entry;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public final class DataframeIndex {
-    private static final Logger logger = LogManager.getLogger(DataframeIndex.class.getName());
+    private static final Logger logger = LogManager.getLogger(DataframeIndex.class);
 
     public static final String DOC_TYPE = "_doc";
     private static final String PROPERTIES = "properties";

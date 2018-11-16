@@ -33,7 +33,7 @@ public class TransportDeleteFeatureIndexBuilderJobAction
         extends TransportMasterNodeAction<DeleteFeatureIndexBuilderJobAction.Request, AcknowledgedResponse> {
 
     private final PersistentTasksService persistentTasksService;
-    private static final Logger logger = LogManager.getLogger(TransportDeleteFeatureIndexBuilderJobAction.class.getName());
+    private static final Logger logger = LogManager.getLogger(TransportDeleteFeatureIndexBuilderJobAction.class);
 
     @Inject
     public TransportDeleteFeatureIndexBuilderJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,

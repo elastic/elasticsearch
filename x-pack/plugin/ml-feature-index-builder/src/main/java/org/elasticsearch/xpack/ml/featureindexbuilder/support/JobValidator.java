@@ -33,7 +33,7 @@ import java.util.Objects;
 public class JobValidator {
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
 
-    private static final Logger logger = LogManager.getLogger(JobValidator.class.getName());
+    private static final Logger logger = LogManager.getLogger(JobValidator.class);
 
     private final Client client;
     private final FeatureIndexBuilderJobConfig config;

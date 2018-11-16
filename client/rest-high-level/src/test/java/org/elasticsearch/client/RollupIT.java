@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -29,6 +29,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
 import org.elasticsearch.client.rollup.GetRollupCapsRequest;
 import org.elasticsearch.client.rollup.GetRollupCapsResponse;
 import org.elasticsearch.client.rollup.GetRollupIndexCapsRequest;
@@ -37,10 +39,7 @@ import org.elasticsearch.client.rollup.GetRollupJobRequest;
 import org.elasticsearch.client.rollup.GetRollupJobResponse;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.IndexerState;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.JobWrapper;
-import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
-import org.elasticsearch.client.rollup.DeleteRollupJobResponse;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
-import org.elasticsearch.client.rollup.PutRollupJobResponse;
 import org.elasticsearch.client.rollup.RollableIndexCaps;
 import org.elasticsearch.client.rollup.RollupJobCaps;
 import org.elasticsearch.client.rollup.StartRollupJobRequest;
@@ -156,9 +155,9 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         PutRollupJobRequest putRollupJobRequest =
             new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
         final RollupClient rollupClient = highLevelClient().rollup();
-        PutRollupJobResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
+        AcknowledgedResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
         DeleteRollupJobRequest deleteRollupJobRequest = new DeleteRollupJobRequest(id);
-        DeleteRollupJobResponse deleteRollupJobResponse = highLevelClient().rollup()
+        AcknowledgedResponse deleteRollupJobResponse = highLevelClient().rollup()
             .deleteRollupJob(deleteRollupJobRequest, RequestOptions.DEFAULT);
         assertTrue(deleteRollupJobResponse.isAcknowledged());
     }
@@ -181,7 +180,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
                 new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
 
         final RollupClient rollupClient = highLevelClient().rollup();
-        PutRollupJobResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
+        AcknowledgedResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
         assertTrue(response.isAcknowledged());
 
         StartRollupJobRequest startRequest = new StartRollupJobRequest(id);
@@ -314,7 +313,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
                 new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
 
         final RollupClient rollupClient = highLevelClient().rollup();
-        PutRollupJobResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
+        AcknowledgedResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
         assertTrue(response.isAcknowledged());
 
         // wait for the PutJob api to create the index w/ metadata
@@ -426,7 +425,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
 
         final RollupClient rollupClient = highLevelClient().rollup();
-        PutRollupJobResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
+        AcknowledgedResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
         assertTrue(response.isAcknowledged());
 
         // wait for the PutJob api to create the index w/ metadata

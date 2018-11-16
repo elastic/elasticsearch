@@ -32,8 +32,8 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.RollupClient;
+import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
-import org.elasticsearch.client.rollup.DeleteRollupJobResponse;
 import org.elasticsearch.client.rollup.GetRollupCapsRequest;
 import org.elasticsearch.client.rollup.GetRollupCapsResponse;
 import org.elasticsearch.client.rollup.GetRollupIndexCapsRequest;
@@ -44,7 +44,6 @@ import org.elasticsearch.client.rollup.GetRollupJobResponse.JobWrapper;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupIndexerJobStats;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupJobStatus;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
-import org.elasticsearch.client.rollup.PutRollupJobResponse;
 import org.elasticsearch.client.rollup.RollableIndexCaps;
 import org.elasticsearch.client.rollup.RollupJobCaps;
 import org.elasticsearch.client.rollup.StartRollupJobRequest;
@@ -148,7 +147,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::x-pack-rollup-put-rollup-job-request
 
             //tag::x-pack-rollup-put-rollup-job-execute
-            PutRollupJobResponse response = client.rollup().putRollupJob(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse response = client.rollup().putRollupJob(request, RequestOptions.DEFAULT);
             //end::x-pack-rollup-put-rollup-job-execute
 
             //tag::x-pack-rollup-put-rollup-job-response
@@ -161,9 +160,9 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
             RollupJobConfig config = new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout);
             PutRollupJobRequest request = new PutRollupJobRequest(config);
             // tag::x-pack-rollup-put-rollup-job-execute-listener
-            ActionListener<PutRollupJobResponse> listener = new ActionListener<PutRollupJobResponse>() {
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(PutRollupJobResponse response) {
+                public void onResponse(AcknowledgedResponse response) {
                     // <1>
                 }
 
@@ -288,6 +287,8 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         String id = "job_1";
         // tag::rollup-stop-job-request
         StopRollupJobRequest request = new StopRollupJobRequest(id); // <1>
+        request.waitForCompletion(true);                             // <2>
+        request.timeout(TimeValue.timeValueSeconds(10));             // <3>
         // end::rollup-stop-job-request
 
 
@@ -354,7 +355,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
             pageSize, groups, metrics, timeout);
 
         PutRollupJobRequest request = new PutRollupJobRequest(config);
-        PutRollupJobResponse response = client.rollup().putRollupJob(request, RequestOptions.DEFAULT);
+        AcknowledgedResponse response = client.rollup().putRollupJob(request, RequestOptions.DEFAULT);
 
         boolean acknowledged = response.isAcknowledged();
         //end::x-pack-rollup-get-rollup-caps-setup
@@ -470,7 +471,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
             pageSize, groups, metrics, timeout);
 
         PutRollupJobRequest request = new PutRollupJobRequest(config);
-        PutRollupJobResponse response = client.rollup().putRollupJob(request, RequestOptions.DEFAULT);
+        AcknowledgedResponse response = client.rollup().putRollupJob(request, RequestOptions.DEFAULT);
 
         boolean acknowledged = response.isAcknowledged();
         //end::x-pack-rollup-get-rollup-index-caps-setup
@@ -570,7 +571,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::rollup-delete-job-request
         try {
             // tag::rollup-delete-job-execute
-            DeleteRollupJobResponse response = client.rollup().deleteRollupJob(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse response = client.rollup().deleteRollupJob(request, RequestOptions.DEFAULT);
             // end::rollup-delete-job-execute
 
             // tag::rollup-delete-job-response
@@ -581,9 +582,9 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         // tag::rollup-delete-job-execute-listener
-        ActionListener<DeleteRollupJobResponse> listener = new ActionListener<DeleteRollupJobResponse>() {
+        ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
             @Override
-            public void onResponse(DeleteRollupJobResponse response) {
+            public void onResponse(AcknowledgedResponse response) {
                 boolean acknowledged = response.isAcknowledged(); // <1>
             }
 

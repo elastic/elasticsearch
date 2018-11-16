@@ -26,6 +26,10 @@ public class Exceptions {
         return e;
     }
 
+    public static ElasticsearchSecurityException authorizationError(String msg, Object... args) {
+        return new ElasticsearchSecurityException(msg, RestStatus.FORBIDDEN, null, args);
+    }
+
     public static ElasticsearchSecurityException authorizationError(String msg, Exception cause, Object... args) {
         return new ElasticsearchSecurityException(msg, RestStatus.FORBIDDEN, cause, args);
     }

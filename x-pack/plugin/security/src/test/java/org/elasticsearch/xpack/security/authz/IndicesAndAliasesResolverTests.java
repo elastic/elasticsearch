@@ -1366,7 +1366,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private AuthorizedIndices buildAuthorizedIndices(User user, String action) {
         PlainActionFuture<Role> rolesListener = new PlainActionFuture<>();
         authzService.roles(user, rolesListener);
-        return new AuthorizedIndices(user, rolesListener.actionGet(), action, metaData);
+        return new AuthorizedIndices(
+            () -> RBACEngine.resolveAuthorizedIndicesFromRole(rolesListener.actionGet(), action, metaData.getAliasAndIndexLookup()));
     }
 
     public static IndexMetaData.Builder indexBuilder(String index) {

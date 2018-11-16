@@ -121,18 +121,12 @@ public interface ServerTransportFilter {
                     SystemUser.is(authentication.getUser()) == false) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
                         final Authentication replaced = Authentication.getAuthentication(threadContext);
-                        final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                            new AuthorizationUtils.AsyncAuthorizer(replaced, listener, (userRoles, runAsRoles) -> {
-                                authzService.authorize(replaced, securityAction, request, userRoles, runAsRoles);
-                                listener.onResponse(null);
-                            });
-                        asyncAuthorizer.authorize(authzService);
+                        authzService.authorize(replaced, securityAction, request, listener);
                     }, version);
                 } else {
                     final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
                         new AuthorizationUtils.AsyncAuthorizer(authentication, listener, (userRoles, runAsRoles) -> {
-                            authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
-                            listener.onResponse(null);
+                            authzService.authorize(authentication, securityAction, request, listener);
                         });
                     asyncAuthorizer.authorize(authzService);
                 }

@@ -164,21 +164,18 @@ public class SecurityActionFilter implements ActionFilter {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be non null for authorization"));
         } else {
-            final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer = new AuthorizationUtils.AsyncAuthorizer(authentication, listener,
-                    (userRoles, runAsRoles) -> {
-                        authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
-                        /*
-                         * We use a separate concept for code that needs to be run after authentication and authorization that could
-                         * affect the running of the action. This is done to make it more clear of the state of the request.
-                         */
-                        for (RequestInterceptor interceptor : requestInterceptors) {
-                            if (interceptor.supports(request)) {
-                                interceptor.intercept(request, authentication, runAsRoles != null ? runAsRoles : userRoles, securityAction);
-                            }
-                        }
-                        listener.onResponse(null);
-                    });
-            asyncAuthorizer.authorize(authzService);
+            authzService.authorize(authentication, securityAction, request, ActionListener.wrap(ignore -> {
+                /*
+                 * We use a separate concept for code that needs to be run after authentication and authorization that could
+                 * affect the running of the action. This is done to make it more clear of the state of the request.
+                 */
+                for (RequestInterceptor interceptor : requestInterceptors) {
+                    if (interceptor.supports(request)) {
+                        interceptor.intercept(request, authentication, null, securityAction); // nocommit needs permission?
+                    }
+                }
+                listener.onResponse(null);
+            }, listener::onFailure));
         }
     }
 }

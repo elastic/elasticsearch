@@ -10,27 +10,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
-import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.ClearScrollAction;
-import org.elasticsearch.action.search.MultiSearchAction;
-import org.elasticsearch.action.search.SearchScrollAction;
-import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
-import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.update.UpdateAction;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -39,49 +29,39 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.function.Predicate;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.action.support.ContextPreservingActionListener.*;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.security.authz.AuthorizationEngine.*;
@@ -90,16 +70,8 @@ public class AuthorizationService {
     public static final Setting<Boolean> ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING =
             Setting.boolSetting(setting("authc.anonymous.authz_exception"), true, Property.NodeScope);
     public static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
-    public static final String ROLE_NAMES_KEY = "_effective_role_names";
+    static final String ROLE_NAMES_KEY = "_effective_role_names";
 
-    private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
-    private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
-            ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
-
-    private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
-    private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
-    private static final String DELETE_SUB_REQUEST_PRIMARY = DeleteAction.NAME + "[p]";
-    private static final String DELETE_SUB_REQUEST_REPLICA = DeleteAction.NAME + "[r]";
     private static final Logger logger = LogManager.getLogger(AuthorizationService.class);
 
     private final Settings settings;
@@ -137,230 +109,14 @@ public class AuthorizationService {
      * have the appropriate privileges for this action/request, an {@link ElasticsearchSecurityException}
      * will be thrown.
      *
-     * @param authentication The authentication information
-     * @param action         The action
-     * @param request        The request
-     * @throws ElasticsearchSecurityException If the given user is no allowed to execute the given request
-     */
-    public void authorize(Authentication authentication, String action, TransportRequest request, Role userRole,
-                          Role runAsRole) throws ElasticsearchSecurityException {
-        final TransportRequest originalRequest = request;
-        if (request instanceof ConcreteShardRequest) {
-            request = ((ConcreteShardRequest<?>) request).getRequest();
-            assert TransportActionProxy.isProxyRequest(request) == false : "expected non-proxy request for action: " + action;
-        } else {
-            request = TransportActionProxy.unwrapRequest(request);
-            if (TransportActionProxy.isProxyRequest(originalRequest) && TransportActionProxy.isProxyAction(action) == false) {
-                throw new IllegalStateException("originalRequest is a proxy request for: [" + request + "] but action: ["
-                        + action + "] isn't");
-            }
-        }
-        // prior to doing any authorization lets set the originating action in the context only
-        putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
-
-        // first we need to check if the user is the system. If it is, we'll just authorize the system access
-        if (SystemUser.is(authentication.getUser())) {
-            if (SystemUser.isAuthorized(action)) {
-                putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
-                putTransientIfNonExisting(ROLE_NAMES_KEY, new String[] { SystemUser.ROLE_NAME });
-                auditTrail.accessGranted(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
-                return;
-            }
-            throw denial(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
-        }
-
-        // get the roles of the authenticated user, which may be different than the effective
-        Role permission = userRole;
-
-        // check if the request is a run as request
-        final boolean isRunAs = authentication.getUser().isRunAs();
-        if (isRunAs) {
-            // if we are running as a user we looked up then the authentication must contain a lookedUpBy. If it doesn't then this user
-            // doesn't really exist but the authc service allowed it through to avoid leaking users that exist in the system
-            if (authentication.getLookedUpBy() == null) {
-                throw denyRunAs(authentication, action, request, permission.names());
-            } else if (permission.runAs().check(authentication.getUser().principal())) {
-                auditTrail.runAsGranted(authentication, action, request, permission.names());
-                permission = runAsRole;
-            } else {
-                throw denyRunAs(authentication, action, request, permission.names());
-            }
-        }
-        putTransientIfNonExisting(ROLE_NAMES_KEY, permission.names());
-
-        // first, we'll check if the action is a cluster action. If it is, we'll only check it against the cluster permissions
-        if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
-            final ClusterPermission cluster = permission.cluster();
-            if (cluster.check(action, request) || checkSameUserPermissions(action, request, authentication) ) {
-                putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
-                auditTrail.accessGranted(authentication, action, request, permission.names());
-                return;
-            }
-            throw denial(authentication, action, request, permission.names());
-        }
-
-        // ok... this is not a cluster action, let's verify it's an indices action
-        if (!IndexPrivilege.ACTION_MATCHER.test(action)) {
-            throw denial(authentication, action, request, permission.names());
-        }
-
-        //composite actions are explicitly listed and will be authorized at the sub-request / shard level
-        if (isCompositeAction(action)) {
-            if (request instanceof CompositeIndicesRequest == false) {
-                throw new IllegalStateException("Composite actions must implement " + CompositeIndicesRequest.class.getSimpleName()
-                        + ", " + request.getClass().getSimpleName() + " doesn't");
-            }
-            // we check if the user can execute the action, without looking at indices, which will be authorized at the shard level
-            if (permission.indices().check(action)) {
-                auditTrail.accessGranted(authentication, action, request, permission.names());
-                return;
-            }
-            throw denial(authentication, action, request, permission.names());
-        } else if (isTranslatedToBulkAction(action)) {
-            if (request instanceof CompositeIndicesRequest == false) {
-                throw new IllegalStateException("Bulk translated actions must implement " + CompositeIndicesRequest.class.getSimpleName()
-                        + ", " + request.getClass().getSimpleName() + " doesn't");
-            }
-            // we check if the user can execute the action, without looking at indices, which will be authorized at the shard level
-            if (permission.indices().check(action)) {
-                auditTrail.accessGranted(authentication, action, request, permission.names());
-                return;
-            }
-            throw denial(authentication, action, request, permission.names());
-        } else if (TransportActionProxy.isProxyAction(action)) {
-            // we authorize proxied actions once they are "unwrapped" on the next node
-            if (TransportActionProxy.isProxyRequest(originalRequest) == false) {
-                throw new IllegalStateException("originalRequest is not a proxy request: [" + originalRequest + "] but action: ["
-                        + action + "] is a proxy action");
-            }
-            if (permission.indices().check(action)) {
-                auditTrail.accessGranted(authentication, action, request, permission.names());
-                return;
-            } else {
-                // we do this here in addition to the denial below since we might run into an assertion on scroll request below if we
-                // don't have permission to read cross cluster but wrap a scroll request.
-                throw denial(authentication, action, request, permission.names());
-            }
-        }
-
-        // some APIs are indices requests that are not actually associated with indices. For example,
-        // search scroll request, is categorized under the indices context, but doesn't hold indices names
-        // (in this case, the security check on the indices was done on the search request that initialized
-        // the scroll. Given that scroll is implemented using a context on the node holding the shard, we
-        // piggyback on it and enhance the context with the original authentication. This serves as our method
-        // to validate the scroll id only stays with the same user!
-        if (request instanceof IndicesRequest == false && request instanceof IndicesAliasesRequest == false) {
-            //note that clear scroll shard level actions can originate from a clear scroll all, which doesn't require any
-            //indices permission as it's categorized under cluster. This is why the scroll check is performed
-            //even before checking if the user has any indices permission.
-            if (isScrollRelatedAction(action)) {
-                // if the action is a search scroll action, we first authorize that the user can execute the action for some
-                // index and if they cannot, we can fail the request early before we allow the execution of the action and in
-                // turn the shard actions
-                if (SearchScrollAction.NAME.equals(action) && permission.indices().check(action) == false) {
-                    throw denial(authentication, action, request, permission.names());
-                } else {
-                    // we store the request as a transient in the ThreadContext in case of a authorization failure at the shard
-                    // level. If authorization fails we will audit a access_denied message and will use the request to retrieve
-                    // information such as the index and the incoming address of the request
-                    auditTrail.accessGranted(authentication, action, request, permission.names());
-                    return;
-                }
-            } else {
-                assert false :
-                        "only scroll related requests are known indices api that don't support retrieving the indices they relate to";
-                throw denial(authentication, action, request, permission.names());
-            }
-        }
-
-        final boolean allowsRemoteIndices = request instanceof IndicesRequest
-                && IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) request);
-
-        // If this request does not allow remote indices
-        // then the user must have permission to perform this action on at least 1 local index
-        if (allowsRemoteIndices == false && permission.indices().check(action) == false) {
-            throw denial(authentication, action, request, permission.names());
-        }
-
-        final MetaData metaData = clusterService.state().metaData();
-        final AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getUser(), permission, action, metaData);
-        final ResolvedIndices resolvedIndices = resolveIndexNames(authentication, action, request,
-                metaData, authorizedIndices, permission);
-        assert !resolvedIndices.isEmpty()
-                : "every indices request needs to have its indices set thus the resolved indices must not be empty";
-
-        // If this request does reference any remote indices
-        // then the user must have permission to perform this action on at least 1 local index
-        if (resolvedIndices.getRemote().isEmpty() && permission.indices().check(action) == false) {
-            throw denial(authentication, action, request, permission.names());
-        }
-
-        //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
-        //'-*' matches no indices so we allow the request to go through, which will yield an empty response
-        if (resolvedIndices.isNoIndicesPlaceholder()) {
-            putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_NO_INDICES);
-            auditTrail.accessGranted(authentication, action, request, permission.names());
-            return;
-        }
-
-        final Set<String> localIndices = new HashSet<>(resolvedIndices.getLocal());
-        IndicesAccessControl indicesAccessControl = permission.authorize(action, localIndices, metaData.getAliasAndIndexLookup(), fieldPermissionsCache);
-        if (!indicesAccessControl.isGranted()) {
-            throw denial(authentication, action, request, permission.names());
-        } else if (hasSecurityIndexAccess(indicesAccessControl)
-                && MONITOR_INDEX_PREDICATE.test(action) == false
-                && isSuperuser(authentication.getUser()) == false) {
-            // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
-            // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
-            logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
-                    authentication.getUser().principal(), action, SecurityIndexManager.SECURITY_INDEX_NAME);
-            throw denial(authentication, action, request, permission.names());
-        } else {
-            putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
-        }
-
-        //if we are creating an index we need to authorize potential aliases created at the same time
-        if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
-            assert request instanceof CreateIndexRequest;
-            Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
-            if (!aliases.isEmpty()) {
-                Set<String> aliasesAndIndices = Sets.newHashSet(localIndices);
-                for (Alias alias : aliases) {
-                    aliasesAndIndices.add(alias.name());
-                }
-                indicesAccessControl = permission.authorize("indices:admin/aliases", aliasesAndIndices, metaData, fieldPermissionsCache);
-                if (!indicesAccessControl.isGranted()) {
-                    throw denial(authentication, "indices:admin/aliases", request, permission.names());
-                }
-                // no need to re-add the indicesAccessControl in the context,
-                // because the create index call doesn't do anything FLS or DLS
-            }
-        }
-
-        if (action.equals(TransportShardBulkAction.ACTION_NAME)) {
-            // is this is performing multiple actions on the index, then check each of those actions.
-            assert request instanceof BulkShardRequest
-                    : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
-
-            authorizeBulkItems(authentication, (BulkShardRequest) request, permission, metaData, localIndices, authorizedIndices);
-        }
-
-        auditTrail.accessGranted(authentication, action, request, permission.names());
-    }
-
-    /**
-     * Verifies that the given user can execute the given request (and action). If the user doesn't
-     * have the appropriate privileges for this action/request, an {@link ElasticsearchSecurityException}
-     * will be thrown.
-     *
      * @param authentication  The authentication information
      * @param action          The action
      * @param originalRequest The request
+     * @param listener        The listener that gets called. A call to {@link ActionListener#onResponse(Object)} indicates success
      * @throws ElasticsearchSecurityException If the given user is no allowed to execute the given request
      */
-    public void authorizeWithEngine(final Authentication authentication, final String action,
-                                    final TransportRequest originalRequest,
-                                    final ActionListener<Void> listener) throws ElasticsearchSecurityException {
+    public void authorize(final Authentication authentication, final String action, final TransportRequest originalRequest,
+                          final ActionListener<Void> listener) throws ElasticsearchSecurityException {
         // prior to doing any authorization lets set the originating action in the context only
         putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
 
@@ -368,11 +124,12 @@ public class AuthorizationService {
         // requests and concrete shard requests
         final TransportRequest unwrappedRequest = maybeUnwrapRequest(authentication, originalRequest, action);
         if (SystemUser.is(authentication.getUser())) {
-            authorizeSystemUser(authentication, action, unwrappedRequest);
+            // this never goes async so no need to wrap the listener
+            authorizeSystemUser(authentication, action, unwrappedRequest, listener);
         } else {
-            final ActionListener<AuthorizationInfo> authzInfoListener = ActionListener.wrap(
+            final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(
                 authorizationInfo -> maybeAuthorizeRunAs(authentication, action, unwrappedRequest, authorizationInfo, listener),
-                listener::onFailure);
+                listener::onFailure), threadContext);
             getAuthorizationEngine(authentication).resolveAuthorizationInfo(authentication, unwrappedRequest, action, authzInfoListener);
         }
     }
@@ -381,7 +138,7 @@ public class AuthorizationService {
                                      final AuthorizationInfo authzInfo, final ActionListener<Void> listener) {
         final boolean isRunAs = authentication.getUser().isRunAs();
         if (isRunAs) {
-            ActionListener<AuthorizationResult> runAsListener = ActionListener.wrap(result -> {
+            ActionListener<AuthorizationResult> runAsListener = wrapPreservingContext(ActionListener.wrap(result -> {
                 if (result.isGranted()) {
                     if (result.isAuditable()) {
                         // TODO get roles from result as AuthzInfo?
@@ -397,7 +154,7 @@ public class AuthorizationService {
                 // TODO need a failure handler better than this!
                 listener.onFailure(denyRunAs(authentication, action, unwrappedRequest,
                     authentication.getUser().authenticatedUser().roles(), e));
-            });
+            }), threadContext);
             authorizeRunAs(authentication, unwrappedRequest, action, authzInfo, runAsListener);
         } else {
             authorizePostRunAs(authentication, action, unwrappedRequest, authzInfo, listener);
@@ -409,7 +166,7 @@ public class AuthorizationService {
                                     final ActionListener<Void> listener) {
         final AuthorizationEngine authzEngine = getAuthorizationEngine(authentication);
         if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
-            authzEngine.authorizeClusterAction(authentication, unwrappedRequest, action, authzInfo, ActionListener.wrap(result -> {
+            final ActionListener<AuthorizationResult> clusterAuthzListener = wrapPreservingContext(ActionListener.wrap(result -> {
                 if (result.isGranted()) {
                     if (result.isAuditable()) {
                         // TODO authzInfo
@@ -424,7 +181,8 @@ public class AuthorizationService {
                 // TODO need a failure handler better than this!
                 listener.onFailure(denial(authentication, action, unwrappedRequest,
                     authentication.getUser().roles(), e));
-            }));
+            }), threadContext);
+            authzEngine.authorizeClusterAction(authentication, unwrappedRequest, action, authzInfo, clusterAuthzListener);
         } else if (IndexPrivilege.ACTION_MATCHER.test(action)) {
             if (authzEngine.shouldAuthorizeIndexActionNameOnly(action)) {
                 authorizeIndexActionName(authentication, action, unwrappedRequest, authzInfo, authzEngine, listener);
@@ -444,7 +202,8 @@ public class AuthorizationService {
                     auditTrail.accessGranted(authentication, action, unwrappedRequest, authentication.getUser().roles());
                     listener.onResponse(null);
                 } else {
-
+                    authorizeIndexAction(authentication, action, unwrappedRequest, authzInfo, authzEngine, resolvedIndices,
+                        metaData, authorizedIndices, listener);
                 }
             }
         } else {
@@ -455,40 +214,83 @@ public class AuthorizationService {
     private void authorizeIndexActionName(final Authentication authentication, final String action,
                                           final TransportRequest unwrappedRequest, final AuthorizationInfo authzInfo,
                                           final AuthorizationEngine authzEngine, final ActionListener<Void> listener) {
-        authzEngine.authorizeIndexActionName(authentication, unwrappedRequest, action, authzInfo,
-            ActionListener.wrap(result -> {
-                if (result.isGranted()) {
-                    if (result.isAuditable()) {
-                        // TODO authzInfo
-                        auditTrail.accessGranted(authentication, action, unwrappedRequest, authentication.getUser().roles());
-                    }
-                    listener.onResponse(null);
-                } else {
-                    listener.onFailure(denial(authentication, action, unwrappedRequest, authentication.getUser().roles()));
+        final ActionListener<AuthorizationResult> indexActionListener = wrapPreservingContext(ActionListener.wrap(result -> {
+            if (result.isGranted()) {
+                if (result.isAuditable()) {
+                    // TODO authzInfo
+                    auditTrail.accessGranted(authentication, action, unwrappedRequest, authentication.getUser().roles());
                 }
-            }, e -> {
-                // TODO need a failure handler better than this!
-                listener.onFailure(denial(authentication, action, unwrappedRequest,
-                    authentication.getUser().roles(), e));
-            }));
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(denial(authentication, action, unwrappedRequest, authentication.getUser().roles()));
+            }
+        }, e -> {
+            // TODO need a failure handler better than this!
+            listener.onFailure(denial(authentication, action, unwrappedRequest,
+                authentication.getUser().roles(), e));
+        }), threadContext);
+        authzEngine.authorizeIndexActionName(authentication, unwrappedRequest, action, authzInfo, indexActionListener);
     }
 
     private void authorizeIndexAction(final Authentication authentication, final String action,
                                       final TransportRequest unwrappedRequest, final AuthorizationInfo authzInfo,
                                       final AuthorizationEngine authzEngine, final ResolvedIndices resolvedIndices,
-                                      final SortedMap<String, AliasOrIndex> aliasAndIndexLookup,
+                                      final MetaData metaData, final AuthorizedIndices authorizedIndices,
                                       final ActionListener<Void> listener) {
         final Set<String> localIndices = Collections.unmodifiableSet(new HashSet<>(resolvedIndices.getLocal()));
-        authzEngine.buildIndicesAccessControl(authentication, unwrappedRequest, action, authzInfo, localIndices, aliasAndIndexLookup,
-            ActionListener.wrap(indicesAccessControl -> {
+        final ActionListener<IndexAuthorizationResult> indexActionListener = wrapPreservingContext(ActionListener.wrap(indexAuthorizationResult -> {
+            if (indexAuthorizationResult.isGranted()) {
+                putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
+                    indexAuthorizationResult.getIndicesAccessControl());
+                //if we are creating an index we need to authorize potential aliases created at the same time
+                if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
+                    assert unwrappedRequest instanceof CreateIndexRequest;
+                    Set<Alias> aliases = ((CreateIndexRequest) unwrappedRequest).aliases();
+                    if (aliases.isEmpty() == false) {
+                        List<String> aliasesAndIndices = new ArrayList<>(localIndices);
+                        for (Alias alias : aliases) {
+                            aliasesAndIndices.add(alias.name());
+                        }
+                        ResolvedIndices withAliases = new ResolvedIndices(aliasesAndIndices, Collections.emptyList());
+                        authorizeIndexAction(authentication, "indices:admin/aliases", unwrappedRequest, authzInfo, authzEngine,
+                            withAliases, metaData, authorizedIndices, ActionListener.wrap(ignore -> {
+                                if (indexAuthorizationResult.isAuditable()) {
+                                    auditTrail.accessGranted(authentication, action, unwrappedRequest,
+                                        authentication.getUser().roles());
+                                }
+                            }, listener::onFailure));
+                    }
+                } else if (action.equals(TransportShardBulkAction.ACTION_NAME)) {
+                    // is this is performing multiple actions on the index, then check each of those actions.
+                    assert unwrappedRequest instanceof BulkShardRequest
+                        : "Action " + action + " requires " + BulkShardRequest.class + " but was " + unwrappedRequest.getClass();
 
-                }, e -> {
-                    // TODO need a failure handler better than this!
-                    listener.onFailure(denial(authentication, action, unwrappedRequest,
-                        authentication.getUser().roles(), e));
-                }));
+                    authorizeBulkItems(authentication, (BulkShardRequest) unwrappedRequest, authzInfo, authzEngine, localIndices,
+                        authorizedIndices, metaData, ActionListener.wrap(ignore -> {
+                            if (indexAuthorizationResult.isAuditable()) {
+                                auditTrail.accessGranted(authentication, action, unwrappedRequest, authentication.getUser().roles());
+                            }
+                        }, listener::onFailure));
+                } else {
+                    if (indexAuthorizationResult.isAuditable()) {
+                        auditTrail.accessGranted(authentication, action, unwrappedRequest, authentication.getUser().roles());
+                    }
+                    listener.onResponse(null);
+                }
+            } else {
+                listener.onFailure(denial(authentication, action, unwrappedRequest, authentication.getUser().roles()));
+            }
+        }, e -> {
+            // TODO need a failure handler better than this!
+            listener.onFailure(denial(authentication, action, unwrappedRequest,
+                authentication.getUser().roles(), e));
+        }), threadContext);
+
+        authzEngine.buildIndicesAccessControl(authentication, unwrappedRequest, action, authzInfo, localIndices,
+            metaData.getAliasAndIndexLookup(), indexActionListener);
 
     }
+
     private AuthorizationEngine getRunAsAuthorizationEngine(final Authentication authentication) {
         return ClientReservedRealm.isReserved(authentication.getUser().authenticatedUser().principal(), settings) ?
             rbacEngine : rbacEngine;
@@ -499,13 +301,15 @@ public class AuthorizationService {
             rbacEngine : rbacEngine;
     }
 
-    private void authorizeSystemUser(final Authentication authentication, final String action, final TransportRequest request) {
+    private void authorizeSystemUser(final Authentication authentication, final String action, final TransportRequest request,
+                                     final ActionListener<Void> listener) {
         if (SystemUser.isAuthorized(action)) {
             putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
             putTransientIfNonExisting(ROLE_NAMES_KEY, new String[]{SystemUser.ROLE_NAME});
             auditTrail.accessGranted(authentication, action, request, new String[]{SystemUser.ROLE_NAME});
+            listener.onResponse(null);
         } else {
-            throw denial(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
+            listener.onFailure(denial(authentication, action, request, new String[] { SystemUser.ROLE_NAME }));
         }
     }
 
@@ -545,16 +349,6 @@ public class AuthorizationService {
         }
     }
 
-    private boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
-        for (String index : SecurityIndexManager.indexNames()) {
-            final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
-            if (indexPermissions != null && indexPermissions.isGranted()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /**
      * Performs authorization checks on the items within a {@link BulkShardRequest}.
      * This inspects the {@link BulkItemRequest items} within the request, computes
@@ -569,41 +363,80 @@ public class AuthorizationService {
      * is very small, but the results must be cached, to avoid adding a high
      * overhead to each bulk request.
      */
-    private void authorizeBulkItems(Authentication authentication, BulkShardRequest request, Role permission,
-                                    MetaData metaData, Set<String> indices, AuthorizedIndices authorizedIndices) {
+    private void authorizeBulkItems(Authentication authentication, BulkShardRequest request, AuthorizationInfo authzInfo,
+                                    AuthorizationEngine authzEngine, Set<String> localIndices, AuthorizedIndices authorizedIndices,
+                                    MetaData metaData, ActionListener<Void> listener) {
         // Maps original-index -> expanded-index-name (expands date-math, but not aliases)
         final Map<String, String> resolvedIndexNames = new HashMap<>();
-        // Maps (resolved-index , action) -> is-granted
-        final Map<Tuple<String, String>, Boolean> indexActionAuthority = new HashMap<>();
+        // Maps action -> resolved indices set
+        final Map<String, Set<String>> actionToIndicesMap = new HashMap<>();
+
         for (BulkItemRequest item : request.items()) {
             String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
-                final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.resolveIndicesAndAliases(item.request(), metaData,
-                        authorizedIndices);
+                final ResolvedIndices resolvedIndices =
+                    indicesAndAliasesResolver.resolveIndicesAndAliases(item.request(), metaData, authorizedIndices);
                 if (resolvedIndices.getRemote().size() != 0) {
                     throw illegalArgument("Bulk item should not write to remote indices, but request writes to "
-                            + String.join(",", resolvedIndices.getRemote()));
+                        + String.join(",", resolvedIndices.getRemote()));
                 }
                 if (resolvedIndices.getLocal().size() != 1) {
                     throw illegalArgument("Bulk item should write to exactly 1 index, but request writes to "
-                            + String.join(",", resolvedIndices.getLocal()));
+                        + String.join(",", resolvedIndices.getLocal()));
                 }
                 final String resolved = resolvedIndices.getLocal().get(0);
-                if (indices.contains(resolved) == false) {
-                    throw illegalArgument("Found bulk item that writes to index " + resolved + " but the request writes to " + indices);
+                if (localIndices.contains(resolved) == false) {
+                    throw illegalArgument("Found bulk item that writes to index " + resolved + " but the request writes to " +
+                        localIndices);
                 }
                 return resolved;
             });
+
             final String itemAction = getAction(item);
-            final Tuple<String, String> indexAndAction = new Tuple<>(resolvedIndex, itemAction);
-            final boolean granted = indexActionAuthority.computeIfAbsent(indexAndAction, key -> {
-                final IndicesAccessControl itemAccessControl = permission.authorize(itemAction, Collections.singleton(resolvedIndex),
-                        metaData.getAliasAndIndexLookup(), fieldPermissionsCache);
-                return itemAccessControl.isGranted();
+            actionToIndicesMap.compute(itemAction, (key, resolvedIndicesSet) -> {
+                final Set<String> localSet = resolvedIndicesSet != null ? resolvedIndicesSet : new HashSet<>();
+                localSet.add(resolvedIndex);
+                return localSet;
             });
-            if (granted == false) {
-                item.abort(resolvedIndex, denial(authentication, itemAction, request, permission.names()));
-            }
         }
+
+        final ActionListener<Collection<Tuple<String, IndexAuthorizationResult>>> bulkAuthzListener =
+            ActionListener.wrap(collection -> {
+                final Map<String, IndicesAccessControl> actionToIndicesAccessControl = new HashMap<>();
+                final AtomicBoolean audit = new AtomicBoolean(false);
+                collection.forEach(tuple -> {
+                    final IndicesAccessControl existing =
+                        actionToIndicesAccessControl.putIfAbsent(tuple.v1(), tuple.v2().getIndicesAccessControl());
+                    if (existing != null) {
+                        throw new IllegalStateException("a value already exists for action " + tuple.v1());
+                    }
+                    if (tuple.v2().isAuditable()) {
+                        audit.set(true);
+                    }
+                });
+
+                for (BulkItemRequest item : request.items()) {
+                    final String resolvedIndex = resolvedIndexNames.get(item.index());
+                    final String itemAction = getAction(item);
+                    final IndicesAccessControl indicesAccessControl = actionToIndicesAccessControl.get(getAction(item));
+                    final IndicesAccessControl.IndexAccessControl indexAccessControl
+                        = indicesAccessControl.getIndexPermissions(resolvedIndex);
+                    if (indexAccessControl == null || indexAccessControl.isGranted() == false) {
+                        item.abort(resolvedIndex, denial(authentication, itemAction, request, authentication.getUser().roles()));
+                    } else if (audit.get()) {
+                        auditTrail.accessGranted(authentication, itemAction, request, authentication.getUser().roles());
+                    }
+                }
+                listener.onResponse(null);
+            }, listener::onFailure);
+        final ActionListener<Tuple<String, IndexAuthorizationResult>> groupedActionListener = wrapPreservingContext(
+            new GroupedActionListener<>(bulkAuthzListener, actionToIndicesMap.size(), Collections.emptyList()), threadContext);
+
+        actionToIndicesMap.forEach((bulkItemAction, indices) -> {
+            authzEngine.buildIndicesAccessControl(authentication, request, bulkItemAction, authzInfo, indices,
+                metaData.getAliasAndIndexLookup(), ActionListener.wrap(
+                    indexAuthorizationResult -> groupedActionListener.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult)),
+                    groupedActionListener::onFailure));
+        });
     }
 
     private IllegalArgumentException illegalArgument(String message) {
@@ -679,85 +512,6 @@ public class AuthorizationService {
         }
     }
 
-    private static boolean isCompositeAction(String action) {
-        return action.equals(BulkAction.NAME) ||
-                action.equals(MultiGetAction.NAME) ||
-                action.equals(MultiTermVectorsAction.NAME) ||
-                action.equals(MultiSearchAction.NAME) ||
-                action.equals("indices:data/read/mpercolate") ||
-                action.equals("indices:data/read/msearch/template") ||
-                action.equals("indices:data/read/search/template") ||
-                action.equals("indices:data/write/reindex") ||
-                action.equals("indices:data/read/sql") ||
-                action.equals("indices:data/read/sql/translate");
-    }
-
-    private static boolean isTranslatedToBulkAction(String action) {
-        return action.equals(IndexAction.NAME) ||
-                action.equals(DeleteAction.NAME) ||
-                action.equals(INDEX_SUB_REQUEST_PRIMARY) ||
-                action.equals(INDEX_SUB_REQUEST_REPLICA) ||
-                action.equals(DELETE_SUB_REQUEST_PRIMARY) ||
-                action.equals(DELETE_SUB_REQUEST_REPLICA);
-    }
-
-    private static boolean isScrollRelatedAction(String action) {
-        return action.equals(SearchScrollAction.NAME) ||
-                action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME) ||
-                action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME) ||
-                action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME) ||
-                action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
-                action.equals(ClearScrollAction.NAME) ||
-                action.equals("indices:data/read/sql/close_cursor") ||
-                action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
-    }
-
-    static boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
-        final boolean actionAllowed = SAME_USER_PRIVILEGE.test(action);
-        if (actionAllowed) {
-            if (request instanceof UserRequest == false) {
-                assert false : "right now only a user request should be allowed";
-                return false;
-            }
-            UserRequest userRequest = (UserRequest) request;
-            String[] usernames = userRequest.usernames();
-            if (usernames == null || usernames.length != 1 || usernames[0] == null) {
-                assert false : "this role should only be used for actions to apply to a single user";
-                return false;
-            }
-            final String username = usernames[0];
-            final boolean sameUsername = authentication.getUser().principal().equals(username);
-            if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
-                return checkChangePasswordAction(authentication);
-            }
-
-            assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action)
-                || GetUserPrivilegesAction.NAME.equals(action) || sameUsername == false
-                    : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
-            return sameUsername;
-        }
-        return false;
-    }
-
-    private static boolean checkChangePasswordAction(Authentication authentication) {
-        // we need to verify that this user was authenticated by or looked up by a realm type that support password changes
-        // otherwise we open ourselves up to issues where a user in a different realm could be created with the same username
-        // and do malicious things
-        final boolean isRunAs = authentication.getUser().isRunAs();
-        final String realmType;
-        if (isRunAs) {
-            realmType = authentication.getLookedUpBy().getType();
-        } else {
-            realmType = authentication.getAuthenticatedBy().getType();
-        }
-
-        assert realmType != null;
-        // ensure the user was authenticated by a realm that we can change a password for. The native realm is an internal realm and
-        // right now only one can exist in the realm configuration - if this changes we should update this check
-        return ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType);
-    }
-
-
     ElasticsearchSecurityException denial(Authentication authentication, String action, TransportRequest request, String[] roleNames) {
         return denial(authentication, action, request, roleNames, null);
     }
@@ -796,11 +550,6 @@ public class AuthorizationService {
         }
         logger.debug("action [{}] is unauthorized for user [{}]", action, authUser.principal());
         return authorizationError("action [{}] is unauthorized for user [{}]", cause, action, authUser.principal());
-    }
-
-    static boolean isSuperuser(User user) {
-        return Arrays.stream(user.roles())
-                .anyMatch(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()::equals);
     }
 
     public static void addSettings(List<Setting<?>> settings) {

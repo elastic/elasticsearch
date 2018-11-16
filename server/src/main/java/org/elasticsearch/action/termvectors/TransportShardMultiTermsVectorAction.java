@@ -36,8 +36,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportShardMultiTermsVectorAction extends TransportSingleShardAction<MultiTermVectorsShardRequest,
-        MultiTermVectorsShardResponse> {
+public class TransportShardMultiTermsVectorAction extends
+        TransportSingleShardAction<MultiTermVectorsShardRequest, MultiTermVectorsShardResponse> {
 
     private final IndicesService indicesService;
 

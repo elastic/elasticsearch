@@ -1,8 +1,5 @@
 ---
 "Realtime Term Vectors":
- - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
 
  - do:
       indices.create:
@@ -20,13 +17,14 @@
  - do:
       index:
           index:   test_1
-          type:   _doc
+          type:    test
           id:      1
           body:    { foo: bar }
 
  - do:
       termvectors:
           index:    test_1
+          type:     test
           id:       1
           realtime: false
 
@@ -35,6 +33,7 @@
  - do:
       termvectors:
           index:    test_1
+          type:     test
           id:       1
           realtime: true
 

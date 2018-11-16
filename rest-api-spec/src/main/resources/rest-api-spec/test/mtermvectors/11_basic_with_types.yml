@@ -4,7 +4,7 @@ setup:
           index: testidx
           body:
             mappings:
-              _doc:
+              testtype:
                 properties:
                   text:
                     type :         "text"
@@ -12,7 +12,7 @@ setup:
   - do:
       index:
         index: testidx
-        type:  _doc
+        type:  testtype
         id:    testing_document
         body:  {"text" : "The quick brown fox is brown."}
 
@@ -23,12 +23,26 @@ setup:
 "Basic tests for multi termvector get":
 
   - do:
+      mtermvectors:
+        "term_statistics" : true
+        "body" :
+          "docs":
+            -
+                "_index" : "testidx"
+                "_type" : "testtype"
+                "_id" : "testing_document"
+
+  - match: {docs.0.term_vectors.text.terms.brown.term_freq: 2}
+  - match: {docs.0.term_vectors.text.terms.brown.ttf: 2}
+
+  - do:
         mtermvectors:
           "term_statistics" : true
           "body" :
             "docs":
               -
                   "_index" : "testidx"
+                  "_type" : "testtype"
                   "_id" : "testing_document"
 
   - match: {docs.0.term_vectors.text.terms.brown.term_freq: 2}
@@ -41,6 +55,7 @@ setup:
           "body" :
             "docs":
               -
+                  "_type" : "testtype"
                   "_id" : "testing_document"
 
   - match: {docs.0.term_vectors.text.terms.brown.term_freq: 2}
@@ -50,6 +65,20 @@ setup:
         mtermvectors:
           "term_statistics" : true
           "index" : "testidx"
+          "type" : "testtype"
+          "body" :
+            "docs":
+              -
+                  "_id" : "testing_document"
+
+  - match: {docs.0.term_vectors.text.terms.brown.term_freq: 2}
+  - match: {docs.0.term_vectors.text.terms.brown.ttf: 2}
+
+  - do:
+        mtermvectors:
+          "term_statistics" : true
+          "index" : "testidx"
+          "type" : "testtype"
           "ids" : ["testing_document"]
 
   - match: {docs.0.term_vectors.text.terms.brown.term_freq: 2}

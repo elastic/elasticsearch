@@ -12,7 +12,7 @@
            index: testidx
            body:
                mappings:
-                   _doc:
+                   testtype:
                        properties:
                            text:
                                type :         "text"
@@ -21,7 +21,7 @@
    - do:
        index:
            index: testidx
-           type:  _doc
+           type:  testtype
            id:    testing_document
            body:  {"text" : "The quick brown fox is brown."}
 
@@ -33,6 +33,7 @@
                "docs":
                    -
                        "_index" : "testidx"
+                       "_type" : "testtype"
                        "_id" : "testing_document"
                        "version" : 1
                        "versionType" : "external"
@@ -45,7 +46,7 @@
                "docs":
                    -
                        "_index" : "testidx"
-                       "_type" : "_doc"
+                       "_type" : "testtype"
                        "_id" : "testing_document"
                        "version" : 1
                        "_version_type" : "external"

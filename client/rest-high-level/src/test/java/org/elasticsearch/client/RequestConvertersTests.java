@@ -53,11 +53,11 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.client.core.MultiTermVectorsRequest;
-import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.client.core.MultiTermVectorsRequest;
+import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1266,9 +1266,9 @@ public class RequestConvertersTests extends ESTestCase {
 
     public void testTermVectors() throws IOException {
         String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
-        TermVectorsRequest tvRequest = new TermVectorsRequest(index, type, id);
+
+        TermVectorsRequest tvRequest = new TermVectorsRequest(index, id);
         Map<String, String> expectedParams = new HashMap<>();
         String[] fields;
         if (randomBoolean()) {
@@ -1289,7 +1289,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         Request request = RequestConverters.termVectors(tvRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add(index).add(type).add(id).add("_termvectors");
+        endpoint.add(index).add("_termvectors").add(id);
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
@@ -1304,13 +1304,27 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(tvRequest, request.getEntity());
     }
 
+    public void testTermVectorsWithType() throws IOException {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+        TermVectorsRequest tvRequest = new TermVectorsRequest(index, type, id);
+
+        Request request = RequestConverters.termVectors(tvRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add(index).add(type).add(id).add("_termvectors");
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+    }
+
     public void testMultiTermVectors() throws IOException {
         MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest();
 
         int numberOfRequests = randomIntBetween(0, 5);
         for (int i = 0; i < numberOfRequests; i++) {
             String index = randomAlphaOfLengthBetween(3, 10);
-            String type = randomAlphaOfLengthBetween(3, 10);
+            String type = randomFrom(null, randomAlphaOfLengthBetween(3, 10));
             String id = randomAlphaOfLengthBetween(3, 10);
             TermVectorsRequest tvRequest = new TermVectorsRequest(index, type, id);
             String[] fields = generateRandomStringArray(10, 5, false, false);

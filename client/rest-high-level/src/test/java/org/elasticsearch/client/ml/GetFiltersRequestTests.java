@@ -16,25 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.ml;
 
-package org.elasticsearch.client.rollup;
-
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class DeleteRollupJobResponse extends AcknowledgedResponse {
+public class GetFiltersRequestTests extends AbstractXContentTestCase<GetFiltersRequest> {
 
-    public DeleteRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
+    @Override
+    protected GetFiltersRequest createTestInstance() {
+        GetFiltersRequest request = new GetFiltersRequest();
+        if (randomBoolean()) {
+            request.setFilterId(randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            request.setSize(randomInt(100));
+        }
+        if (randomBoolean()) {
+            request.setFrom(randomInt(100));
+        }
+        return request;
     }
 
-    private static final ConstructingObjectParser<DeleteRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("delete_rollup_job_response", DeleteRollupJobResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
+    @Override
+    protected GetFiltersRequest doParseInstance(XContentParser parser) throws IOException {
+        return GetFiltersRequest.PARSER.apply(parser, null);
+    }
 
-    public static DeleteRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 }

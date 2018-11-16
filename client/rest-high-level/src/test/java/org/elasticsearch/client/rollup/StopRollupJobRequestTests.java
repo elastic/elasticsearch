@@ -18,34 +18,25 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
-import org.junit.Before;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.io.IOException;
+public class StopRollupJobRequestTests extends ESTestCase {
 
-public class DeleteRollupJobResponseTests extends AbstractXContentTestCase<DeleteRollupJobResponse> {
-
-    private boolean acknowledged;
-
-    @Before
-    public void setupJobID() {
-        acknowledged = randomBoolean();
+    public void testConstructor() {
+        String jobId = randomAlphaOfLength(5);
+        assertEquals(jobId, new StopRollupJobRequest(jobId).getJobId());
     }
 
-    @Override
-    protected DeleteRollupJobResponse createTestInstance() {
-        return new DeleteRollupJobResponse(acknowledged);
+    public void testEqualsAndHash() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(new StopRollupJobRequest(randomAlphaOfLength(5)),
+                orig -> new StopRollupJobRequest(orig.getJobId()),
+                orig -> new StopRollupJobRequest(orig.getJobId() + "_suffix"));
     }
 
-    @Override
-    protected  DeleteRollupJobResponse doParseInstance(XContentParser parser) throws IOException {
-        return DeleteRollupJobResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    public void testRequireJobId() {
+        final NullPointerException e = expectThrows(NullPointerException.class, ()-> new StopRollupJobRequest(null));
+        assertEquals("id parameter must not be null", e.getMessage());
     }
 
 }

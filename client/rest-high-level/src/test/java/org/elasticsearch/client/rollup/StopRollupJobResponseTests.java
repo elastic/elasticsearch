@@ -18,22 +18,25 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.client.core.AcknowledgedResponseTests;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class PutRollupJobResponse extends AcknowledgedResponse {
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-    public PutRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
+public class StopRollupJobResponseTests extends ESTestCase {
+
+    public void testFromXContent() throws IOException {
+        xContentTester(this::createParser,
+            this::createTestInstance,
+            AcknowledgedResponseTests::toXContent,
+            StopRollupJobResponse::fromXContent)
+            .supportsUnknownFields(false)
+            .test();
+    }
+    private StopRollupJobResponse createTestInstance() {
+        return new StopRollupJobResponse(randomBoolean());
     }
 
-    private static final ConstructingObjectParser<PutRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("delete_rollup_job_response", PutRollupJobResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
-
-    public static PutRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
 }

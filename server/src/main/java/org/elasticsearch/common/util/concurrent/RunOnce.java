@@ -16,29 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.common.util.concurrent;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class LoggingRunnable implements Runnable {
+/**
+ * Runnable that can only be run one time.
+ */
+public class RunOnce implements Runnable {
 
-    private final Runnable runnable;
-    private final Logger logger;
+    private final Runnable delegate;
+    private final AtomicBoolean hasRun;
 
-    public LoggingRunnable(Logger logger, Runnable runnable) {
-        this.runnable = runnable;
-        this.logger = logger;
+    public RunOnce(final Runnable delegate) {
+        this.delegate = Objects.requireNonNull(delegate);
+        this.hasRun = new AtomicBoolean(false);
     }
 
     @Override
     public void run() {
-        try {
-            runnable.run();
-        } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("failed to execute [{}]", runnable.toString()), e);
+        if (hasRun.compareAndSet(false, true)) {
+            delegate.run();
         }
     }
 
+    /**
+     * {@code true} if the {@link RunOnce} has been executed once.
+     */
+    public boolean hasRun() {
+        return hasRun.get();
+    }
 }

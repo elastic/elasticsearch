@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.featureindexbuilder.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -31,6 +33,7 @@ public class TransportDeleteFeatureIndexBuilderJobAction
         extends TransportMasterNodeAction<DeleteFeatureIndexBuilderJobAction.Request, AcknowledgedResponse> {
 
     private final PersistentTasksService persistentTasksService;
+    private static final Logger logger = LogManager.getLogger(TransportDeleteFeatureIndexBuilderJobAction.class.getName());
 
     @Inject
     public TransportDeleteFeatureIndexBuilderJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,

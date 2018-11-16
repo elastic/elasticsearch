@@ -6,7 +6,8 @@
 
 package org.elasticsearch.xpack.ml.featureindexbuilder.persistence;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -22,7 +23,7 @@ import java.util.Map.Entry;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public final class DataframeIndex {
-    private static final Logger logger = Logger.getLogger(DataframeIndex.class.getName());
+    private static final Logger logger = LogManager.getLogger(DataframeIndex.class.getName());
 
     public static final String DOC_TYPE = "_doc";
     private static final String PROPERTIES = "properties";

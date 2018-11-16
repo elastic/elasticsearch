@@ -6,7 +6,8 @@
 
 package org.elasticsearch.xpack.ml.featureindexbuilder.job;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -38,7 +39,7 @@ import static org.elasticsearch.xpack.ml.featureindexbuilder.persistence.Datafra
 public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, FeatureIndexBuilderJobStats> {
 
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
-    private static final Logger logger = Logger.getLogger(FeatureIndexBuilderIndexer.class.getName());
+    private static final Logger logger = LogManager.getLogger(FeatureIndexBuilderIndexer.class.getName());
     private FeatureIndexBuilderJob job;
 
     public FeatureIndexBuilderIndexer(Executor executor, FeatureIndexBuilderJob job, AtomicReference<IndexerState> initialState,

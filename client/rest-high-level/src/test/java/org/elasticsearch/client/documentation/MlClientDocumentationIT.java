@@ -95,6 +95,7 @@ import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.client.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -582,6 +583,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-datafeed-config-set-query-delay
             datafeedBuilder.setQueryDelay(TimeValue.timeValueMinutes(1)); // <1>
             // end::put-datafeed-config-set-query-delay
+
+            // tag::put-datafeed-config-set-delayed-data-check-config
+            datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig
+                .enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1))); // <1>
+            // end::put-datafeed-config-set-delayed-data-check-config
+
+            // no need to accidentally trip internal validations due to job bucket size
+            datafeedBuilder.setDelayedDataCheckConfig(null);
 
             List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
             // tag::put-datafeed-config-set-script-fields

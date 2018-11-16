@@ -25,6 +25,7 @@ the same response objects.
 --
 
 :doc-tests: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation
+:hlrc-tests: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client
 
 include::getting-started.asciidoc[]
 include::supported-apis.asciidoc[]

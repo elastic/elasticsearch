@@ -86,6 +86,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public static final ParseField SOURCE = new ParseField("_source");
     public static final ParseField CHUNKING_CONFIG = new ParseField("chunking_config");
     public static final ParseField HEADERS = new ParseField("headers");
+    public static final ParseField DELAYED_DATA_CHECK_CONFIG = new ParseField("delayed_data_check_config");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -127,7 +128,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             // (For config, headers are explicitly transferred from the auth headers by code in the put/update datafeed actions.)
             parser.declareObject(Builder::setHeaders, (p, c) -> p.mapStrings(), HEADERS);
         }
-
+        parser.declareObject(Builder::setDelayedDataCheckConfig,
+            ignoreUnknownFields ? DelayedDataCheckConfig.LENIENT_PARSER : DelayedDataCheckConfig.STRICT_PARSER,
+            DELAYED_DATA_CHECK_CONFIG);
         return parser;
     }
 
@@ -152,10 +155,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private final Integer scrollSize;
     private final ChunkingConfig chunkingConfig;
     private final Map<String, String> headers;
+    private final DelayedDataCheckConfig delayedDataCheckConfig;
 
     private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, List<String> types,
                            QueryBuilder query, AggregatorFactories.Builder aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
-                           Integer scrollSize, ChunkingConfig chunkingConfig, Map<String, String> headers) {
+                           Integer scrollSize, ChunkingConfig chunkingConfig, Map<String, String> headers,
+                           DelayedDataCheckConfig delayedDataCheckConfig) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -168,6 +173,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
         this.headers = Collections.unmodifiableMap(headers);
+        this.delayedDataCheckConfig = delayedDataCheckConfig;
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {
@@ -202,6 +208,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
         } else {
             this.headers = Collections.emptyMap();
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
+        } else {
+            delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
         }
     }
 
@@ -281,6 +292,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         return headers;
     }
 
+    public DelayedDataCheckConfig getDelayedDataCheckConfig() {
+        return delayedDataCheckConfig;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
@@ -316,6 +331,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         }
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+            out.writeOptionalWriteable(delayedDataCheckConfig);
+        }
     }
 
     @Override
@@ -350,6 +368,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == true) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
+        if (delayedDataCheckConfig != null) {
+            builder.field(DELAYED_DATA_CHECK_CONFIG.getPreferredName(), delayedDataCheckConfig);
+        }
         builder.endObject();
         return builder;
     }
@@ -382,13 +403,14 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 && Objects.equals(this.aggregations, that.aggregations)
                 && Objects.equals(this.scriptFields, that.scriptFields)
                 && Objects.equals(this.chunkingConfig, that.chunkingConfig)
-                && Objects.equals(this.headers, that.headers);
+                && Objects.equals(this.headers, that.headers)
+                && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indices, types, query, scrollSize, aggregations, scriptFields,
-                chunkingConfig, headers);
+                chunkingConfig, headers, delayedDataCheckConfig);
     }
 
     @Override
@@ -461,6 +483,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private Integer scrollSize = DEFAULT_SCROLL_SIZE;
         private ChunkingConfig chunkingConfig;
         private Map<String, String> headers = Collections.emptyMap();
+        private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
 
         public Builder() {
         }
@@ -484,6 +507,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
             this.headers = config.headers;
+            this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();
         }
 
         public void setId(String datafeedId) {
@@ -550,6 +574,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.chunkingConfig = chunkingConfig;
         }
 
+        public void setDelayedDataCheckConfig(DelayedDataCheckConfig delayedDataCheckConfig) {
+            this.delayedDataCheckConfig = delayedDataCheckConfig;
+        }
+
         public DatafeedConfig build() {
             ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
             ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
@@ -562,11 +590,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (types == null || types.contains(null) || types.contains("")) {
                 throw invalidOptionValue(TYPES.getPreferredName(), types);
             }
+
             validateAggregations();
             setDefaultChunkingConfig();
             setDefaultQueryDelay();
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, types, query, aggregations, scriptFields, scrollSize,
-                    chunkingConfig, headers);
+                    chunkingConfig, headers, delayedDataCheckConfig);
         }
 
         void validateAggregations() {

@@ -16,27 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.rollup;
+package org.elasticsearch.client.ml;
 
-import org.elasticsearch.client.core.AcknowledgedResponseTests;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
+public class DeleteModelSnapshotRequestTests extends ESTestCase {
 
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
-
-public class StartRollupJobResponseTests extends ESTestCase {
-
-    public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
-            this::createTestInstance,
-            AcknowledgedResponseTests::toXContent,
-            StartRollupJobResponse::fromXContent)
-            .supportsUnknownFields(false)
-            .test();
-    }
-    private StartRollupJobResponse createTestInstance() {
-        return new StartRollupJobResponse(randomBoolean());
+    public void test_WithNullJobId() {
+        NullPointerException ex = expectThrows(NullPointerException.class, () ->
+            new DeleteModelSnapshotRequest(null, randomAlphaOfLength(10)));
+        assertEquals("[job_id] must not be null", ex.getMessage());
     }
 
+    public void test_WithNullSnapshotId() {
+        NullPointerException ex = expectThrows(NullPointerException.class, ()
+            -> new DeleteModelSnapshotRequest(randomAlphaOfLength(10), null));
+        assertEquals("[snapshot_id] must not be null", ex.getMessage());
+    }
+
+    private DeleteModelSnapshotRequest createTestInstance() {
+        return new DeleteModelSnapshotRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
+    }
 }

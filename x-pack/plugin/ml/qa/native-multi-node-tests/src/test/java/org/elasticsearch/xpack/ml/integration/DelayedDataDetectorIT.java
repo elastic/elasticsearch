@@ -20,22 +20,24 @@ import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.datafeed.DelayedDataDetector;
-import org.elasticsearch.xpack.ml.datafeed.DelayedDataDetector.BucketWithMissingData;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeedBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -64,7 +66,10 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         final String jobId = "delayed-data-detection-job";
         Job.Builder job = createJob(jobId, TimeValue.timeValueMinutes(5), "count", null);
 
-        DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
+        DatafeedConfig.Builder datafeedConfigBuilder =
+            createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
+        datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         registerJob(job);
         putJob(job);
         openJob(job.getId());
@@ -77,26 +82,32 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         // Get the latest finalized bucket
         Bucket lastBucket = getLatestFinalizedBucket(jobId);
 
-        DelayedDataDetector delayedDataDetector =
-            new DelayedDataDetector(job.build(new Date()), datafeedConfig, TimeValue.timeValueHours(12), client());
+        DelayedDataDetector delayedDataDetector = newDetector(job.build(new Date()), datafeedConfig);
 
         List<BucketWithMissingData> response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
         assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum(), equalTo(0L));
 
         long missingDocs = randomIntBetween(32, 128);
         // Simply adding data within the current delayed data detection, the choice of 43100000 is arbitrary and within the window
-        // for the DelayedDataDetector
+        // for the DatafeedDelayedDataDetector
         writeData(logger, index, missingDocs, now - 43100000, lastBucket.getEpoch()*1000);
 
         response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
         assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum(), equalTo(missingDocs));
+        // Assert that the are returned in order
+        List<Long> timeStamps = response.stream().map(BucketWithMissingData::getTimeStamp).collect(Collectors.toList());
+        assertEquals(timeStamps.stream().sorted().collect(Collectors.toList()), timeStamps);
     }
 
     public void testMissingDataDetectionInSpecificBucket() throws Exception {
         final String jobId = "delayed-data-detection-job-missing-test-specific-bucket";
         Job.Builder job = createJob(jobId, TimeValue.timeValueMinutes(5), "count", null);
 
-        DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
+        DatafeedConfig.Builder datafeedConfigBuilder =
+            createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
+        datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+
         registerJob(job);
         putJob(job);
         openJob(job.getId());
@@ -110,8 +121,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         // Get the latest finalized bucket
         Bucket lastBucket = getLatestFinalizedBucket(jobId);
 
-        DelayedDataDetector delayedDataDetector =
-            new DelayedDataDetector(job.build(new Date()), datafeedConfig, TimeValue.timeValueHours(12), client());
+        DelayedDataDetector delayedDataDetector = newDetector(job.build(new Date()), datafeedConfig);
 
         long missingDocs = randomIntBetween(1, 10);
 
@@ -127,6 +137,10 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
             }
         }
         assertThat(hasBucketWithMissing, equalTo(true));
+
+        // Assert that the are returned in order
+        List<Long> timeStamps = response.stream().map(BucketWithMissingData::getTimeStamp).collect(Collectors.toList());
+        assertEquals(timeStamps.stream().sorted().collect(Collectors.toList()), timeStamps);
     }
 
     public void testMissingDataDetectionWithAggregationsAndQuery() throws Exception {
@@ -147,6 +161,8 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
                     .interval(TimeValue.timeValueMinutes(5).millis())));
         datafeedConfigBuilder.setQuery(new RangeQueryBuilder("value").gte(numDocs/2));
         datafeedConfigBuilder.setFrequency(TimeValue.timeValueMinutes(5));
+        datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
+
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         registerJob(job);
         putJob(job);
@@ -160,19 +176,21 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         // Get the latest finalized bucket
         Bucket lastBucket = getLatestFinalizedBucket(jobId);
 
-        DelayedDataDetector delayedDataDetector =
-            new DelayedDataDetector(job.build(new Date()), datafeedConfig, TimeValue.timeValueHours(12), client());
+        DelayedDataDetector delayedDataDetector = newDetector(job.build(new Date()), datafeedConfig);
 
         List<BucketWithMissingData> response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
         assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum(), equalTo(0L));
 
         long missingDocs = numDocs;
         // Simply adding data within the current delayed data detection, the choice of 43100000 is arbitrary and within the window
-        // for the DelayedDataDetector
+        // for the DatafeedDelayedDataDetector
         writeData(logger, index, missingDocs, now - 43100000, lastBucket.getEpoch()*1000);
 
         response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
         assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum(), equalTo((missingDocs+1)/2));
+        // Assert that the are returned in order
+        List<Long> timeStamps = response.stream().map(BucketWithMissingData::getTimeStamp).collect(Collectors.toList());
+        assertEquals(timeStamps.stream().sorted().collect(Collectors.toList()), timeStamps);
     }
 
     private Job.Builder createJob(String id, TimeValue bucketSpan, String function, String field) {
@@ -230,5 +248,9 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         getBucketsRequest.setDescending(true);
         getBucketsRequest.setPageParams(new PageParams(0, 1));
         return getBuckets(getBucketsRequest).get(0);
+    }
+
+    private DelayedDataDetector newDetector(Job job, DatafeedConfig datafeedConfig) {
+        return DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, client());
     }
 }

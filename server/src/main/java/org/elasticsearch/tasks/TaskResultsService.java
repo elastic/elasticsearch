@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -180,12 +181,13 @@ public class TaskResultsService {
 
             @Override
             public void onFailure(Exception e) {
-                if (backoff.hasNext()) {
+                if (false == (e instanceof EsRejectedExecutionException)
+                        || false == backoff.hasNext()) {
+                    listener.onFailure(e);
+                } else {
                     TimeValue wait = backoff.next();
                     logger.warn(() -> new ParameterizedMessage("failed to store task result, retrying in [{}]", wait), e);
                     threadPool.schedule(wait, ThreadPool.Names.SAME, () -> doStoreResult(backoff, index, listener));
-                } else {
-                    listener.onFailure(e);
                 }
             }
         });

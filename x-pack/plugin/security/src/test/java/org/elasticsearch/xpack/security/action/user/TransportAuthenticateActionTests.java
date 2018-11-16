@@ -16,6 +16,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -88,9 +89,12 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         assertThat(throwableRef.get().getMessage(), containsString("did not find an authenticated user"));
     }
 
-    public void testValidUser() {
+    public void testValidAuthentication(){
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
+        final Authentication authentication = new Authentication(user, new Authentication.RealmRef("native_realm", "native", "node1"),
+            null);
         SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
         when(securityContext.getUser()).thenReturn(user);
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
@@ -112,7 +116,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         });
 
         assertThat(responseRef.get(), notNullValue());
-        assertThat(responseRef.get().user(), sameInstance(user));
+        assertThat(responseRef.get().authentication(), sameInstance(authentication));
         assertThat(throwableRef.get(), nullValue());
     }
 }

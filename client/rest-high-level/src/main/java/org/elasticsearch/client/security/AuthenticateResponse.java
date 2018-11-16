@@ -46,12 +46,14 @@ public final class AuthenticateResponse {
     static final ParseField FULL_NAME = new ParseField("full_name");
     static final ParseField EMAIL = new ParseField("email");
     static final ParseField ENABLED = new ParseField("enabled");
+    static final ParseField AUTHENTICATION_REALM = new ParseField("authentication_realm");
+    static final ParseField LOOKUP_REALM = new ParseField("lookup_realm");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<AuthenticateResponse, Void> PARSER = new ConstructingObjectParser<>(
             "client_security_authenticate_response",
             a -> new AuthenticateResponse(new User((String) a[0], ((List<String>) a[1]), (Map<String, Object>) a[2],
-                    (String) a[3], (String) a[4]), (Boolean) a[5]));
+                    (String) a[3], (String) a[4]), (Boolean) a[5], (String) a[6], (String) a[7]));
     static {
         PARSER.declareString(constructorArg(), USERNAME);
         PARSER.declareStringArray(constructorArg(), ROLES);
@@ -59,14 +61,20 @@ public final class AuthenticateResponse {
         PARSER.declareStringOrNull(optionalConstructorArg(), FULL_NAME);
         PARSER.declareStringOrNull(optionalConstructorArg(), EMAIL);
         PARSER.declareBoolean(constructorArg(), ENABLED);
+        PARSER.declareString(constructorArg(), AUTHENTICATION_REALM);
+        PARSER.declareString(constructorArg(), LOOKUP_REALM);
     }
 
     private final User user;
     private final boolean enabled;
+    private final String authenticationRealm;
+    private final String lookupRealm;
 
-    public AuthenticateResponse(User user, boolean enabled) {
+    public AuthenticateResponse(User user, boolean enabled, String authenticationRealm, String lookupRealm) {
         this.user = user;
         this.enabled = enabled;
+        this.authenticationRealm = authenticationRealm;
+        this.lookupRealm = lookupRealm;
     }
 
     /**
@@ -83,6 +91,20 @@ public final class AuthenticateResponse {
      */
     public boolean enabled() {
         return enabled;
+    }
+
+    /**
+     * @return the name of the realm that authenticated the user
+     */
+    public String getAuthenticationRealm() {
+        return authenticationRealm;
+    }
+
+    /**
+     * @return the name of the realm where the user information was looked up
+     */
+    public String getLookupRealm() {
+        return lookupRealm;
     }
 
     @Override

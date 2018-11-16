@@ -11,6 +11,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -20,7 +22,7 @@ import java.util.Objects;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
-public class Authentication {
+public class Authentication implements ToXContentObject {
 
     private final User user;
     private final RealmRef authenticatedBy;
@@ -141,6 +143,17 @@ public class Authentication {
         }
     }
 
+    public static void writeTo(Authentication authentication, StreamOutput out) throws IOException {
+        User.writeTo(authentication.getUser(), out);
+        authentication.getAuthenticatedBy().writeTo(out);
+        if (authentication.getLookedUpBy() != null) {
+            out.writeBoolean(true);
+            authentication.getLookedUpBy().writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -161,6 +174,21 @@ public class Authentication {
         result = 31 * result + (lookedUpBy != null ? lookedUpBy.hashCode() : 0);
         result = 31 * result + version.hashCode();
         return result;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(User.Fields.USERNAME.getPreferredName(), user.principal());
+        builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
+        builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
+        builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
+        builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
+        builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());
+        builder.field(User.Fields.AUTHENTICATION_REALM.getPreferredName(), getAuthenticatedBy().getName());
+        final String lookedUpBy = getLookedUpBy() != null ? getLookedUpBy().getName() : getAuthenticatedBy().getName();
+        builder.field(User.Fields.LOOKUP_REALM.getPreferredName(), lookedUpBy);
+        return builder.endObject();
     }
 
     public static class RealmRef {

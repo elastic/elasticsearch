@@ -576,7 +576,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                                 basicAuthHeaderValue(username, getReservedPassword())))
                 .execute(AuthenticateAction.INSTANCE, new AuthenticateRequest(username))
                 .get();
-        assertThat(authenticateResponse.user().principal(), is(username));
+        assertThat(authenticateResponse.authentication().getUser().principal(), is(username));
     }
 
     public void testOperationsOnReservedRoles() throws Exception {

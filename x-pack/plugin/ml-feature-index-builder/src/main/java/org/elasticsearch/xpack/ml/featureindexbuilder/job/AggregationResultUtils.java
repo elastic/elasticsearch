@@ -6,7 +6,8 @@
 
 package org.elasticsearch.xpack.ml.featureindexbuilder.job;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
@@ -21,7 +22,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 final class AggregationResultUtils {
-    private static final Logger logger = Logger.getLogger(AggregationResultUtils.class.getName());
+    private static final Logger logger = LogManager.getLogger(AggregationResultUtils.class);
 
     /**
      * Extracts aggregation results from a composite aggregation and puts it into a map.

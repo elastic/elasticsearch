@@ -6,7 +6,8 @@
 
 package org.elasticsearch.xpack.ml.featureindexbuilder.job;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -31,7 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
 
-    private static final Logger logger = Logger.getLogger(FeatureIndexBuilderJobTask.class.getName());
+    private static final Logger logger = LogManager.getLogger(FeatureIndexBuilderJobTask.class);
 
     private final FeatureIndexBuilderJob job;
     private final ThreadPool threadPool;

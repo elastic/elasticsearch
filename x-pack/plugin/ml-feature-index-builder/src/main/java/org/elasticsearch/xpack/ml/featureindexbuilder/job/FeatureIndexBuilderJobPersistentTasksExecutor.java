@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.ml.featureindexbuilder.job;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -20,6 +22,9 @@ import org.elasticsearch.xpack.ml.featureindexbuilder.FeatureIndexBuilder;
 import java.util.Map;
 
 public class FeatureIndexBuilderJobPersistentTasksExecutor extends PersistentTasksExecutor<FeatureIndexBuilderJob> {
+
+    private static final Logger logger = LogManager.getLogger(FeatureIndexBuilderJobPersistentTasksExecutor.class);
+
     private final Client client;
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;

@@ -19,16 +19,22 @@
 
 package org.elasticsearch.xpack.ccr.respository;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,19 +48,28 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.xpack.ccr.Ccr;
+import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class RemoteClusterRepository extends AbstractLifecycleComponent implements Repository {
 
-    public final static SnapshotId SNAPSHOT_ID = new SnapshotId("_latest_", "_latest_");
+    public final static String SNAPSHOT_UUID = "_latest_";
+    public final static SnapshotId SNAPSHOT_ID = new SnapshotId("_latest_", SNAPSHOT_UUID);
     public final static String TYPE = "_remote_cluster_";
 
+    private final CcrLicenseChecker ccrLicenseChecker = null;
     private final RepositoryMetaData metadata;
+    private final Set<SnapshotId> snapshotIds = ConcurrentCollections.newConcurrentSet();
     private final Client client;
 
     public RemoteClusterRepository(RepositoryMetaData metadata, Client client, Settings settings) {
@@ -85,7 +100,7 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
 
     @Override
     public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
-        assert snapshotId.equals(SNAPSHOT_ID) : "RemoteClusterRepository only supports the SNAPSHOT_ID SnapshotId";
+        assert SNAPSHOT_UUID.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports the _latest_ as the UUID";
         ClusterStateResponse response = client.admin().cluster().prepareState().clear().setMetaData(true).get();
         // TODO: Perhaps add version
         return new SnapshotInfo(snapshotId, Arrays.asList(response.getState().metaData().getConcreteAllIndices()), SnapshotState.SUCCESS);
@@ -93,16 +108,56 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
 
     @Override
     public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
-        assert snapshotId.equals(SNAPSHOT_ID) : "RemoteClusterRepository only supports the SNAPSHOT_ID SnapshotId";
+        assert SNAPSHOT_UUID.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports the _latest_ as the UUID";
         ClusterStateResponse response = client.admin().cluster().prepareState().clear().setMetaData(true).get();
         return response.getState().metaData();
     }
 
     @Override
     public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
-        assert snapshotId.equals(SNAPSHOT_ID) : "RemoteClusterRepository only supports the SNAPSHOT_ID SnapshotId";
-        ClusterStateResponse response = client.admin().cluster().prepareState().clear().setMetaData(true).get();
-        return response.getState().metaData().index(index.getName());
+        assert SNAPSHOT_UUID.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports the _latest_ as the UUID";
+        String remoteCluster = snapshotId.getName();
+
+        // Validates whether the leader cluster has been configured properly:
+        client.getRemoteClusterClient(remoteCluster);
+        String leaderIndex = index.getName();
+        PlainActionFuture<Tuple<String[], IndexMetaData>> future = PlainActionFuture.newFuture();
+        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
+            client,
+            remoteCluster,
+            leaderIndex,
+            future::onFailure,
+            (historyUUID, leaderIndexMetaData) -> future.onResponse(new Tuple<>(historyUUID, leaderIndexMetaData)));
+        Tuple<String[], IndexMetaData> tuple = future.actionGet();
+
+        IndexMetaData leaderIndexMetaData = tuple.v2();
+        IndexMetaData.Builder imdBuilder = IndexMetaData.builder(leaderIndexMetaData);
+        // Adding the leader index uuid for each shard as custom metadata:
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", tuple.v1()));
+        metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetaData.getIndexUUID());
+        metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetaData.getIndex().getName());
+        metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, remoteCluster);
+        imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
+
+        // Copy all settings, but overwrite a few settings.
+        Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(leaderIndexMetaData.getSettings());
+        // Overwriting UUID here, because otherwise we can't follow indices in the same cluster
+        settingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+        // TODO: Figure out what to do with private setting SETTING_INDEX_PROVIDED_NAME
+        settingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, "");
+        settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
+        imdBuilder.settings(settingsBuilder);
+
+        // Copy mappings from leader IMD to follow IMD
+        for (ObjectObjectCursor<String, MappingMetaData> cursor : leaderIndexMetaData.getMappings()) {
+            imdBuilder.putMapping(cursor.value);
+        }
+
+        imdBuilder.setRoutingNumShards(leaderIndexMetaData.getRoutingNumShards());
+
+        return imdBuilder.build();
     }
 
     @Override

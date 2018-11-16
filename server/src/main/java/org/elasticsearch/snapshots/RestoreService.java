@@ -124,6 +124,12 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
             SETTING_CREATION_DATE,
             IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey()));
 
+    private static final Set<String> NON_API_UNMODIFIABLE_SETTINGS = unmodifiableSet(newHashSet(
+        SETTING_NUMBER_OF_SHARDS,
+        SETTING_VERSION_CREATED,
+        SETTING_CREATION_DATE,
+        IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey()));
+
     // It's OK to change some settings, but we shouldn't allow simply removing them
     private static final Set<String> UNREMOVABLE_SETTINGS;
 
@@ -173,6 +179,19 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
      */
     public void restoreSnapshot(final RestoreRequest request, final ActionListener<RestoreCompletionResponse> listener,
                                 final boolean apiRestore) {
+        restoreSnapshot(request, listener, apiRestore, true);
+    }
+
+    /**
+     * Restores snapshot specified in the restore request.
+     *
+     * @param request  restore request
+     * @param listener restore listener
+     * @param apiRestore indicates if this restore was initiated through the snapshot/restore api
+     * @param incrementIndexVersion indicates if index version of the restored index should be incremented
+     */
+    public void restoreSnapshot(final RestoreRequest request, final ActionListener<RestoreCompletionResponse> listener,
+                                final boolean apiRestore, final boolean incrementIndexVersion) {
         try {
             // Read snapshot info and metadata from the repository
             Repository repository = repositoriesService.repository(request.repositoryName);
@@ -302,8 +321,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                                 }
                                 rtBuilder.addAsNewRestore(updatedIndexMetaData, recoverySource, ignoreShards);
                                 blocks.addBlocks(updatedIndexMetaData);
-                                // TODO: In CCR we do not increment the version.
-                                mdBuilder.put(updatedIndexMetaData, true);
+                                mdBuilder.put(updatedIndexMetaData, incrementIndexVersion);
                                 renamedIndex = updatedIndexMetaData.getIndex();
                             } else {
                                 validateExistingIndex(currentIndexMetaData, snapshotIndexMetaData, renamedIndexName, partial);
@@ -336,7 +354,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndexName).build();
                                 rtBuilder.addAsRestore(updatedIndexMetaData, recoverySource);
                                 blocks.updateBlocks(updatedIndexMetaData);
-                                mdBuilder.put(updatedIndexMetaData, true);
+                                mdBuilder.put(updatedIndexMetaData, incrementIndexVersion);
                                 renamedIndex = updatedIndexMetaData.getIndex();
                             }
 
@@ -522,8 +540,11 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                                     return true;
                                 }
                             } else {
-                                // TODO: Evaluate what settings must be locked during internal calls
-                                return true;
+                                if (NON_API_UNMODIFIABLE_SETTINGS.contains(k)) {
+                                    throw new SnapshotRestoreException(snapshot, "cannot modify setting [" + k + "] on restore");
+                                } else {
+                                    return true;
+                                }
                             }
                         }));
 

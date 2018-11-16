@@ -213,7 +213,7 @@ public final class TransportPutFollowAction
             public void onFailure(Exception t) {
                 listener.onFailure(t);
             }
-        }, false);
+        }, false, false);
 
 
 //         Can't use create index api here, because then index templates can alter the mappings / settings.
@@ -251,7 +251,9 @@ public final class TransportPutFollowAction
                 settingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
                 settingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followIndex);
                 settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-                settingsBuilder.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+
+                // TODO: Remove as this should be inherited from the leader (must be true - validated)
+//                settingsBuilder.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
                 imdBuilder.settings(settingsBuilder);
 
                 // Copy mappings from leader IMD to follow IMD

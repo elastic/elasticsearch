@@ -71,6 +71,8 @@ import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
+import org.elasticsearch.client.ml.PostCalendarEventRequest;
+import org.elasticsearch.client.ml.PostCalendarEventResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
@@ -91,6 +93,8 @@ import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
+import org.elasticsearch.client.ml.calendars.ScheduledEvent;
+import org.elasticsearch.client.ml.calendars.ScheduledEventTests;
 import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
@@ -2190,6 +2194,61 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    public void testPostCalendarEvent() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays", Collections.singletonList("job_1"), "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        {
+            List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.testInstance());
+
+            // tag::post-calendar-event-request
+            PostCalendarEventRequest request = new PostCalendarEventRequest("holidays", // <1>
+                events); // <2>
+            // end::post-calendar-event-request
+
+            // tag::post-calendar-event-execute
+            PostCalendarEventResponse response = client.machineLearning().postCalendarEvent(request, RequestOptions.DEFAULT);
+            // end::post-calendar-event-execute
+
+            // tag::post-calendar-event-response
+            List<ScheduledEvent> scheduledEvents = response.getScheduledEvents(); // <1>
+            // end::post-calendar-event-response
+
+            assertEquals(1, scheduledEvents.size());
+        }
+        {
+            List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.testInstance());
+            PostCalendarEventRequest request = new PostCalendarEventRequest("holidays", events); // <1>
+
+            // tag::post-calendar-event-execute-listener
+            ActionListener<PostCalendarEventResponse> listener =
+                new ActionListener<PostCalendarEventResponse>() {
+                    @Override
+                    public void onResponse(PostCalendarEventResponse postCalendarsResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::post-calendar-event-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::post-calendar-event-execute-async
+            client.machineLearning().postCalendarEventAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::post-calendar-event-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+    
     public void testCreateFilter() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {

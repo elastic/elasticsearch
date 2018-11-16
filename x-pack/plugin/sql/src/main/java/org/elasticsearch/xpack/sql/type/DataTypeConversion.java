@@ -102,7 +102,7 @@ public abstract class DataTypeConversion {
         if (from == to) {
             return Conversion.IDENTITY;
         }
-        if (to == DataType.NULL) {
+        if (to == DataType.NULL || from == DataType.NULL) {
             return Conversion.NULL;
         }
         if (from == DataType.NULL) {

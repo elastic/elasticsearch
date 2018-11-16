@@ -45,7 +45,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
         int shingleDiff = maxShingleSize - minShingleSize + (outputUnigrams ? 1 : 0);
         if (shingleDiff > maxAllowedShingleDiff) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException(
                     "In Shingle TokenFilter the difference between max_shingle_size and min_shingle_size (and +1 if outputting unigrams)"
                         + " must be less than or equal to: [" + maxAllowedShingleDiff + "] but was [" + shingleDiff + "]. This limit"

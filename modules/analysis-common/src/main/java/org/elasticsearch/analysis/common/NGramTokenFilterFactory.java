@@ -47,7 +47,7 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
         this.maxGram = settings.getAsInt("max_gram", 2);
         int ngramDiff = maxGram - minGram;
         if (ngramDiff > maxAllowedNgramDiff) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException(
                     "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
                         + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["

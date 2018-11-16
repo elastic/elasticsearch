@@ -128,7 +128,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
     }
 
     public void testMinimumSupportedVersion() {
-        assertEquals(Version.V_7_0_0_alpha1, createTestInstance().getMinimalSupportedVersion());
+        assertEquals(Version.V_7_0_0, createTestInstance().getMinimalSupportedVersion());
     }
 
     public void testcontext() {

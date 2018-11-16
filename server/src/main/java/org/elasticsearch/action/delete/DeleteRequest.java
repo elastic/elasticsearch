@@ -25,6 +25,7 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -83,13 +84,13 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (type == null) {
+        if (Strings.isEmpty(type)) {
             validationException = addValidationError("type is missing", validationException);
         }
-        if (id == null) {
+        if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
         }
-        if (!versionType.validateVersionForWrites(version)) {
+        if (versionType.validateVersionForWrites(version) == false) {
             validationException = addValidationError("illegal version value [" + version + "] for version type ["
                 + versionType.name() + "]", validationException);
         }
@@ -188,7 +189,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readOptionalString(); // _parent
         }
         version = in.readLong();
@@ -201,7 +202,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing());
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalString(null); // _parent
         }
         out.writeLong(version);

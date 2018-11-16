@@ -4,7 +4,14 @@ plugins {
 
 testClusters {
     myTestCluster {
-       distribution = 'ZIP'
+        distribution = 'ZIP'
+        version = '7.0.0-alpha1-SNAPSHOT'
+    }
+}
+
+repositories {
+    maven {
+        url System.getProperty("local.repo.path")
     }
 }
 

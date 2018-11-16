@@ -214,12 +214,189 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
+                    // TODO: Evaluate if we want to keep once restore at a time behavior
+                    // Check if another restore process is already running - cannot run two restore processes at the
+                    // same time
+                    RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
+                    if (restoreInProgress != null && !restoreInProgress.entries().isEmpty()) {
+                        throw new ConcurrentSnapshotExecutionException(snapshot, "Restore process is already running in this cluster");
+                    }
+                    // Check if the snapshot to restore is currently being deleted
+                    SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+                    if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
+                        throw new ConcurrentSnapshotExecutionException(snapshot,
+                            "cannot restore a snapshot while a snapshot deletion is in-progress [" +
+                                deletionsInProgress.getEntries().get(0).getSnapshot() + "]");
+                    }
+
+                    // Updating cluster state
+                    ClusterState.Builder builder = ClusterState.builder(currentState);
+                    MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+                    ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+                    RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
+                    ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards;
+                    Set<String> aliases = new HashSet<>();
+
+                    if (indices.isEmpty() == false) {
+                        // We have some indices to restore
+                        ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder();
+                        final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion()
+                            .minimumIndexCompatibilityVersion();
+
+                        for (Map.Entry<String, String> indexEntry : indices.entrySet()) {
+                            String index = indexEntry.getValue();
+                            boolean partial = checkPartial(index);
+                            SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(snapshot, snapshotInfo.version(), index);
+                            String renamedIndexName = indexEntry.getKey();
+                            IndexMetaData snapshotIndexMetaData = updateIndexSettings(metaData.index(index), request.indexSettings,
+                                request.ignoreIndexSettings, apiRestore);
+
+                            try {
+                                snapshotIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(snapshotIndexMetaData,
+                                    minIndexCompatibilityVersion);
+                            } catch (Exception ex) {
+                                throw new SnapshotRestoreException(snapshot, "cannot restore index [" + index + "] because it cannot be upgraded", ex);
+                            }
+
+                            // Check that the index is closed or doesn't exist
+                            IndexMetaData currentIndexMetaData = currentState.metaData().index(renamedIndexName);
+                            IntSet ignoreShards = new IntHashSet();
+                            final Index renamedIndex;
+
+                            if (currentIndexMetaData == null) {
+                                // Index doesn't exist - create it and start recovery
+                                // Make sure that the index we are about to create has a validate name
+                                MetaDataCreateIndexService.validateIndexName(renamedIndexName, currentState);
+                                createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings(),
+                                    currentState, false);
+                                Settings.Builder indexSettingsBuilder = Settings.builder().put(snapshotIndexMetaData.getSettings());
+                                if (snapshotIndexMetaData.getSettings().hasValue(IndexMetaData.SETTING_INDEX_UUID) == false) {
+                                    indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+                                }
+
+                                IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData)
+                                    .state(IndexMetaData.State.OPEN)
+                                    .index(renamedIndexName)
+                                    .settings(indexSettingsBuilder.build());
+
+                                if (!request.includeAliases() && !snapshotIndexMetaData.getAliases().isEmpty()) {
+                                    // Remove all aliases - they shouldn't be restored
+                                    indexMdBuilder.removeAllAliases();
+                                } else {
+                                    for (ObjectCursor<String> alias : snapshotIndexMetaData.getAliases().keys()) {
+                                        aliases.add(alias.value);
+                                    }
+                                }
+                                IndexMetaData updatedIndexMetaData = indexMdBuilder.build();
+                                if (partial) {
+                                    populateIgnoredShards(index, ignoreShards);
+                                }
+                                rtBuilder.addAsNewRestore(updatedIndexMetaData, recoverySource, ignoreShards);
+                                blocks.addBlocks(updatedIndexMetaData);
+                                // TODO: In CCR we do not increment the version.
+                                mdBuilder.put(updatedIndexMetaData, true);
+                                renamedIndex = updatedIndexMetaData.getIndex();
+                            } else {
+
+                            }
+
+                        }
+
+
+                    }  else {
+                        shards = ImmutableOpenMap.of();
+                    }
+
                     return null;
                 }
 
                 @Override
                 public void onFailure(String source, Exception e) {
 
+                }
+
+                private void populateIgnoredShards(String index, IntSet ignoreShards) {
+                    for (SnapshotShardFailure failure : snapshotInfo.shardFailures()) {
+                        if (index.equals(failure.index())) {
+                            ignoreShards.add(failure.shardId());
+                        }
+                    }
+                }
+
+                private boolean checkPartial(String index) {
+                    // Make sure that index was fully snapshotted
+                    if (failed(snapshotInfo, index)) {
+                        if (request.partial()) {
+                            return true;
+                        } else {
+                            throw new SnapshotRestoreException(snapshot, "index [" + index + "] wasn't fully snapshotted - cannot restore");
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+
+                /**
+                 * Optionally updates index settings in indexMetaData by removing settings listed in ignoreSettings and
+                 * merging them with settings in changeSettings.
+                 */
+                private IndexMetaData updateIndexSettings(IndexMetaData indexMetaData, Settings changeSettings, String[] ignoreSettings,
+                                                          boolean apiRestore) {
+                    if (changeSettings.names().isEmpty() && ignoreSettings.length == 0) {
+                        return indexMetaData;
+                    }
+                    Settings normalizedChangeSettings = Settings.builder()
+                        .put(changeSettings)
+                        .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX)
+                        .build();
+
+                    IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
+                    Settings settings = indexMetaData.getSettings();
+                    Set<String> keyFilters = new HashSet<>();
+                    List<String> simpleMatchPatterns = new ArrayList<>();
+                    for (String ignoredSetting : ignoreSettings) {
+                        if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
+                            if (UNREMOVABLE_SETTINGS.contains(ignoredSetting)) {
+                                throw new SnapshotRestoreException(snapshot, "cannot remove setting [" + ignoredSetting + "] on restore");
+                            } else {
+                                keyFilters.add(ignoredSetting);
+                            }
+                        } else {
+                            simpleMatchPatterns.add(ignoredSetting);
+                        }
+                    }
+                    Predicate<String> settingsFilter = k -> {
+                        if (UNREMOVABLE_SETTINGS.contains(k) == false) {
+                            for (String filterKey : keyFilters) {
+                                if (k.equals(filterKey)) {
+                                    return false;
+                                }
+                            }
+                            for (String pattern : simpleMatchPatterns) {
+                                if (Regex.simpleMatch(pattern, k)) {
+                                    return false;
+                                }
+                            }
+                        }
+                        return true;
+                    };
+
+                    Settings.Builder settingsBuilder = Settings.builder()
+                        .put(settings.filter(settingsFilter))
+                        .put(normalizedChangeSettings.filter(k -> {
+                            if (apiRestore) {
+                                if (UNMODIFIABLE_SETTINGS.contains(k)) {
+                                    throw new SnapshotRestoreException(snapshot, "cannot modify setting [" + k + "] on restore");
+                                } else {
+                                    return true;
+                                }
+                            } else {
+                                // TODO: Evaluate what settings must be locked during internal calls
+                                return true;
+                            }
+                        }));
+
+                    return builder.settings(settingsBuilder).build();
                 }
             });
 

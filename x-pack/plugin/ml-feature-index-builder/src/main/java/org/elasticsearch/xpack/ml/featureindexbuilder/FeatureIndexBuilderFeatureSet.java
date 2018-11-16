@@ -28,17 +28,17 @@ public class FeatureIndexBuilderFeatureSet implements XPackFeatureSet {
 
     @Override
     public String name() {
-        return XPackField.FIB;
+        return XPackField.DATA_FRAME;
     }
 
     @Override
     public String description() {
-        return "Time series feature index creation";
+        return "Data Frame for the Elastic Stack";
     }
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isMachineLearningAllowed(); // todo: part of ML?
+        return licenseState != null && licenseState.isDataFrameAllowed();
     }
 
     @Override

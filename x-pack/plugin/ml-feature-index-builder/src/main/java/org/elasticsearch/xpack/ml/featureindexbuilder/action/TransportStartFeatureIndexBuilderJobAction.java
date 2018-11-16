@@ -68,7 +68,7 @@ public class TransportStartFeatureIndexBuilderJobAction extends
             ActionListener<StartFeatureIndexBuilderJobAction.Response> listener) {
 
         if (!licenseState.isMachineLearningAllowed()) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.FIB));
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.DATA_FRAME));
             return;
         }
 

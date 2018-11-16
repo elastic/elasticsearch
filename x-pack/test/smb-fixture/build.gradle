@@ -1,40 +1,34 @@
 apply plugin: 'elasticsearch.build'
 
-Map<String, String> vagrantEnvVars = [
-        'VAGRANT_CWD'           : "${project.projectDir.absolutePath}",
-        'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
-        'VAGRANT_PROJECT_DIR'   : "${project.projectDir.absolutePath}"
-]
-
-String box = "test.ad.elastic.local"
-
-task update(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'box'
-    subcommand 'update'
-    boxName box
-    environmentVars vagrantEnvVars
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath "com.avast.gradle:docker-compose-gradle-plugin:0.4.5"
+    }
 }
 
-task up(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'up'
-    args '--provision', '--provider', 'virtualbox'
-    boxName box
-    environmentVars vagrantEnvVars
-    dependsOn update
+apply plugin: "base"
+apply plugin: 'docker-compose'
+
+dockerCompose {
+    useComposeFiles = ['docker-compose.yml']
+    removeContainers = true // no persistent data!
+    // MacOS does not allow writing to /usr/bin, but Linux installs it there on some distributions
+    executable = file('/usr/local/bin/docker-compose').exists() ? '/usr/local/bin/docker-compose' : '/usr/bin/docker-compose'
 }
 
-task halt(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'halt'
-    boxName box
-    environmentVars vagrantEnvVars
+/**
+ * Allows for other subprojects to depend on the project level and not care about the details
+ * of composeUp
+ */
+jar {
+    dependsOn 'composeUp'
 }
 
-task destroy(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
-    command 'destroy'
-    args '-f'
-    boxName box
-    environmentVars vagrantEnvVars
-    dependsOn halt
+clean {
+    dependsOn 'composeDown'
 }
 
 thirdPartyAudit.enabled = false

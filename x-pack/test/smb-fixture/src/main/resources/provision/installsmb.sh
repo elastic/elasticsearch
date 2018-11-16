@@ -13,7 +13,7 @@ if [ -f $MARKER_FILE ]; then
   exit 0;
 fi
 
-VDIR=/vagrant
+VDIR=/fixture
 RESOURCES=$VDIR/src/main/resources
 CERTS_DIR=$RESOURCES/certs
 SSL_DIR=/var/lib/samba/private/tls
@@ -29,6 +29,7 @@ mkdir -p $SSL_DIR
 cp $CERTS_DIR/*.pem $SSL_DIR
 chmod 600 $SSL_DIR/key.pem
 
+mkdir -p /etc/ssl/certs/
 cat $SSL_DIR/ca.pem >> /etc/ssl/certs/ca-certificates.crt
 
 mv /etc/samba/smb.conf /etc/samba/smb.conf.orig
@@ -93,3 +94,6 @@ EOL
 ldapmodify -D Administrator@ad.test.elasticsearch.com -w Passw0rd -H ldaps://127.0.0.1:636 -f /tmp/entrymods -v
 
 touch $MARKER_FILE
+
+# keep the container alive
+while true ; do sleep 3600 ; done

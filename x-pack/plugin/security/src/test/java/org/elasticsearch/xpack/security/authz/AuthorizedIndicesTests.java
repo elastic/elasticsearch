@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -32,15 +31,13 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 public class AuthorizedIndicesTests extends ESTestCase {
 
     public void testAuthorizedIndicesUserWithoutRoles() {
-        User user = new User("test user");
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, Role.EMPTY, "",
-                MetaData.EMPTY_META_DATA);
+        AuthorizedIndices authorizedIndices = new AuthorizedIndices(
+            () -> RBACEngine.resolveAuthorizedIndicesFromRole(Role.EMPTY, "", MetaData.EMPTY_META_DATA.getAliasAndIndexLookup()));
         List<String> list = authorizedIndices.get();
         assertTrue(list.isEmpty());
     }
 
     public void testAuthorizedIndicesUserWithSomeRoles() {
-        User user = new User("test user", "a_star", "b");
         RoleDescriptor aStarRole = new RoleDescriptor("a_star", null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a*").privileges("all").build() }, null);
         RoleDescriptor bRole = new RoleDescriptor("b", null,
@@ -63,7 +60,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
         CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
         Role roles = future.actionGet();
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, roles, SearchAction.NAME, metaData);
+        AuthorizedIndices authorizedIndices = new AuthorizedIndices(
+            () -> RBACEngine.resolveAuthorizedIndicesFromRole(roles, SearchAction.NAME, metaData.getAliasAndIndexLookup()));
         List<String> list = authorizedIndices.get();
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
         assertFalse(list.contains("bbbbb"));
@@ -71,15 +69,14 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public void testAuthorizedIndicesUserWithSomeRolesEmptyMetaData() {
-        User user = new User("test user", "role");
         Role role = Role.builder("role").add(IndexPrivilege.ALL, "*").build();
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, role, SearchAction.NAME, MetaData.EMPTY_META_DATA);
+        AuthorizedIndices authorizedIndices = new AuthorizedIndices(
+            () -> RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, MetaData.EMPTY_META_DATA.getAliasAndIndexLookup()));
         List<String> list = authorizedIndices.get();
         assertTrue(list.isEmpty());
     }
 
     public void testSecurityIndicesAreRemovedFromRegularUser() {
-        User user = new User("test user", "user_role");
         Role role = Role.builder("user_role").add(IndexPrivilege.ALL, "*").cluster(ClusterPrivilege.ALL).build();
         Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
         MetaData metaData = MetaData.builder()
@@ -89,13 +86,13 @@ public class AuthorizedIndicesTests extends ESTestCase {
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
 
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, role, SearchAction.NAME, metaData);
+        AuthorizedIndices authorizedIndices = new AuthorizedIndices(
+            () -> RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getAliasAndIndexLookup()));
         List<String> list = authorizedIndices.get();
         assertThat(list, containsInAnyOrder("an-index", "another-index"));
     }
 
     public void testSecurityIndicesAreNotRemovedFromSuperUsers() {
-        User user = new User("admin", "kibana_user", "superuser");
         Role role = Role.builder("kibana_user+superuser").add(IndexPrivilege.ALL, "*").cluster(ClusterPrivilege.ALL).build();
         Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
         MetaData metaData = MetaData.builder()
@@ -105,7 +102,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
 
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, role, SearchAction.NAME, metaData);
+        AuthorizedIndices authorizedIndices = new AuthorizedIndices(
+            () -> RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getAliasAndIndexLookup()));
         List<String> list = authorizedIndices.get();
         assertThat(list, containsInAnyOrder("an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME));
     }

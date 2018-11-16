@@ -11,13 +11,18 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.search.ClearScrollAction;
+import org.elasticsearch.action.search.SearchScrollAction;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.update.UpdateAction;
@@ -100,7 +105,7 @@ public class AuthorizationService {
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
         this.fieldPermissionsCache = new FieldPermissionsCache(settings);
-        this.rbacEngine = new RBACEngine(settings, rolesStore);
+        this.rbacEngine = new RBACEngine(settings, rolesStore, anonymousUser, isAnonymousEnabled);
         this.settings = settings;
     }
 
@@ -184,7 +189,36 @@ public class AuthorizationService {
             }), threadContext);
             authzEngine.authorizeClusterAction(authentication, unwrappedRequest, action, authzInfo, clusterAuthzListener);
         } else if (IndexPrivilege.ACTION_MATCHER.test(action)) {
-            if (authzEngine.shouldAuthorizeIndexActionNameOnly(action)) {
+            // scroll is special
+            // some APIs are indices requests that are not actually associated with indices. For example,
+            // search scroll request, is categorized under the indices context, but doesn't hold indices names
+            // (in this case, the security check on the indices was done on the search request that initialized
+            // the scroll. Given that scroll is implemented using a context on the node holding the shard, we
+            // piggyback on it and enhance the context with the original authentication. This serves as our method
+            // to validate the scroll id only stays with the same user!
+            if (unwrappedRequest instanceof IndicesRequest == false && unwrappedRequest instanceof IndicesAliasesRequest == false) {
+                //note that clear scroll shard level actions can originate from a clear scroll all, which doesn't require any
+                //indices permission as it's categorized under cluster. This is why the scroll check is performed
+                //even before checking if the user has any indices permission.
+                if (isScrollRelatedAction(action)) {
+                    // if the action is a search scroll action, we first authorize that the user can execute the action for some
+                    // index and if they cannot, we can fail the request early before we allow the execution of the action and in
+                    // turn the shard actions
+                    if (SearchScrollAction.NAME.equals(action)) {
+                        authorizeIndexActionName(authentication, action, unwrappedRequest, authzInfo, authzEngine, listener);
+                    } else {
+                        // we store the request as a transient in the ThreadContext in case of a authorization failure at the shard
+                        // level. If authorization fails we will audit a access_denied message and will use the request to retrieve
+                        // information such as the index and the incoming address of the request
+                        auditTrail.accessGranted(authentication, action, unwrappedRequest, authentication.getUser().roles());
+                        listener.onResponse(null);
+                    }
+                } else {
+                    assert false :
+                        "only scroll related requests are known indices api that don't support retrieving the indices they relate to";
+                    listener.onFailure(denial(authentication, action, unwrappedRequest, authentication.getUser().roles()));
+                }
+            } else if (authzEngine.shouldAuthorizeIndexActionNameOnly(action)) {
                 authorizeIndexActionName(authentication, action, unwrappedRequest, authzInfo, authzEngine, listener);
             } else {
                 final MetaData metaData = clusterService.state().metaData();
@@ -198,9 +232,13 @@ public class AuthorizationService {
                 //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
                 //'-*' matches no indices so we allow the request to go through, which will yield an empty response
                 if (resolvedIndices.isNoIndicesPlaceholder()) {
-                    putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_NO_INDICES);
-                    auditTrail.accessGranted(authentication, action, unwrappedRequest, authentication.getUser().roles());
-                    listener.onResponse(null);
+                    authorizeIndexActionName(authentication, action, unwrappedRequest, authzInfo, authzEngine,
+                        ActionListener.wrap(ignore -> {
+                            putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
+                                IndicesAccessControl.ALLOW_NO_INDICES);
+                            auditTrail.accessGranted(authentication, action, unwrappedRequest, authentication.getUser().roles());
+                            listener.onResponse(null);
+                        }, listener::onFailure));
                 } else {
                     authorizeIndexAction(authentication, action, unwrappedRequest, authzInfo, authzEngine, resolvedIndices,
                         metaData, authorizedIndices, listener);
@@ -258,6 +296,7 @@ public class AuthorizationService {
                                     auditTrail.accessGranted(authentication, action, unwrappedRequest,
                                         authentication.getUser().roles());
                                 }
+                                listener.onResponse(null);
                             }, listener::onFailure));
                     }
                 } else if (action.equals(TransportShardBulkAction.ACTION_NAME)) {
@@ -270,6 +309,7 @@ public class AuthorizationService {
                             if (indexAuthorizationResult.isAuditable()) {
                                 auditTrail.accessGranted(authentication, action, unwrappedRequest, authentication.getUser().roles());
                             }
+                            listener.onResponse(null);
                         }, listener::onFailure));
                 } else {
                     if (indexAuthorizationResult.isAuditable()) {
@@ -463,7 +503,7 @@ public class AuthorizationService {
         try {
             return indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices);
         } catch (Exception e) {
-            auditTrail.accessDenied(authentication, action, request, Strings.EMPTY_ARRAY); // nocommit
+            auditTrail.accessDenied(authentication, action, request, authentication.getUser().roles()); // nocommit
             throw e;
         }
     }
@@ -538,7 +578,7 @@ public class AuthorizationService {
         // Special case for anonymous user
         if (isAnonymousEnabled && anonymousUser.equals(authUser)) {
             if (anonymousAuthzExceptionEnabled == false) {
-                throw authcFailureHandler.authenticationRequired(action, threadContext);
+                return authcFailureHandler.authenticationRequired(action, threadContext);
             }
         }
         // check for run as
@@ -550,6 +590,17 @@ public class AuthorizationService {
         }
         logger.debug("action [{}] is unauthorized for user [{}]", action, authUser.principal());
         return authorizationError("action [{}] is unauthorized for user [{}]", cause, action, authUser.principal());
+    }
+
+    private static boolean isScrollRelatedAction(String action) {
+        return action.equals(SearchScrollAction.NAME) ||
+            action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME) ||
+            action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME) ||
+            action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME) ||
+            action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
+            action.equals(ClearScrollAction.NAME) ||
+            action.equals("indices:data/read/sql/close_cursor") ||
+            action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
 
     public static void addSettings(List<Setting<?>> settings) {

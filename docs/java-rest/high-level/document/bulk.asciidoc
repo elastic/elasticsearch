@@ -37,9 +37,9 @@ And different operation types can be added to the same +{request}+:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-with-mixed-operations]
 --------------------------------------------------
-<1> Adds a `DeleteRequest` to the `BulkRequest`. See <<{upid}-delete>>
+<1> Adds a `DeleteRequest` to the +{request}+. See <<{upid}-delete>>
 for more information on how to build `DeleteRequest`.
-<2> Adds an `UpdateRequest` to the `BulkRequest`. See <<{upid}-update>>
+<2> Adds an `UpdateRequest` to the +{request}+. See <<{upid}-update>>
 for more information on how to build `UpdateRequest`.
 <3> Adds an `IndexRequest` using the SMILE format
 
@@ -69,6 +69,25 @@ the index/update/delete operations.
 <2> Number of shard copies provided as a `ActiveShardCount`: can be
 `ActiveShardCount.ALL`, `ActiveShardCount.ONE` or
 `ActiveShardCount.DEFAULT` (default)
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-pipeline]
+--------------------------------------------------
+<1> Global pipelineId used on all sub requests, unless overridden on a sub request
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-routing]
+--------------------------------------------------
+<1> Global routingId used on all sub requests, unless overridden on a sub request
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-index-type]
+--------------------------------------------------
+<1> A bulk request with global index and type used on all sub requests, unless overridden on a sub request.
+Both parameters are @Nullable and can only be set during +{request}+ creation.
 
 include::../execution.asciidoc[]
 
@@ -148,7 +167,7 @@ actions currently added (defaults to 1000, use -1 to disable it)
 actions currently added (defaults to 5Mb, use -1 to disable it)
 <3> Set the number of concurrent requests allowed to be executed
 (default to 1, use 0 to only allow the execution of a single request)
-<4> Set a flush interval flushing any `BulkRequest` pending if the
+<4> Set a flush interval flushing any +{request}+ pending if the
 interval passes (defaults to not set)
 <5> Set a constant back off policy that initially waits for 1 second
 and retries up to 3 times. See `BackoffPolicy.noBackoff()`,

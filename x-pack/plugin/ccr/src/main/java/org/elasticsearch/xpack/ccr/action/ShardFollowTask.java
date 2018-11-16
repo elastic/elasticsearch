@@ -73,14 +73,16 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_READ_REQUEST_OPERATION_COUNT);
         PARSER.declareField(
                 ConstructingObjectParser.constructorArg(),
-                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_READ_REQUEST_SIZE.getPreferredName()), MAX_READ_REQUEST_SIZE,
+                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_READ_REQUEST_SIZE.getPreferredName()),
+                MAX_READ_REQUEST_SIZE,
                 ObjectParser.ValueType.STRING);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_OUTSTANDING_READ_REQUESTS);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_WRITE_REQUEST_OPERATION_COUNT);
         PARSER.declareField(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_BUFFER_SIZE.getPreferredName()), MAX_WRITE_REQUEST_SIZE,
-            ObjectParser.ValueType.STRING);
+                ConstructingObjectParser.constructorArg(),
+                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_REQUEST_SIZE.getPreferredName()),
+                MAX_WRITE_REQUEST_SIZE,
+                ObjectParser.ValueType.STRING);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_OUTSTANDING_WRITE_REQUESTS);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_WRITE_BUFFER_COUNT);
         PARSER.declareField(

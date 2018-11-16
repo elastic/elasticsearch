@@ -53,6 +53,7 @@ import java.util.function.UnaryOperator;
  */
 public class MetaDataIndexUpgradeService extends AbstractComponent {
 
+    private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
@@ -61,7 +62,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     public MetaDataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
                                        IndexScopedSettings indexScopedSettings,
                                        Collection<UnaryOperator<IndexMetaData>> indexMetaDataUpgraders) {
-        super(settings);
+        this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
@@ -186,7 +187,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                     return Collections.emptySet();
                 }
             };
-            try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap, analyzerMap, analyzerMap)) {
+            try (IndexAnalyzers fakeIndexAnalzyers =
+                     new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
                         mapperRegistry, () -> null);
                 mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
@@ -201,7 +203,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Marks index as upgraded so we don't have to test it again
      */
     private IndexMetaData markAsUpgraded(IndexMetaData indexMetaData) {
-        Settings settings = Settings.builder().put(indexMetaData.getSettings()).put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT).build();
+        Settings settings = Settings.builder().put(indexMetaData.getSettings())
+            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT).build();
         return IndexMetaData.builder(indexMetaData).settings(settings).build();
     }
 
@@ -209,8 +212,10 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         final Settings settings = indexMetaData.getSettings();
         final Settings upgrade = indexScopedSettings.archiveUnknownOrInvalidSettings(
             settings,
-            e -> logger.warn("{} ignoring unknown index setting: [{}] with value [{}]; archiving", indexMetaData.getIndex(), e.getKey(), e.getValue()),
-            (e, ex) -> logger.warn(() -> new ParameterizedMessage("{} ignoring invalid index setting: [{}] with value [{}]; archiving", indexMetaData.getIndex(), e.getKey(), e.getValue()), ex));
+            e -> logger.warn("{} ignoring unknown index setting: [{}] with value [{}]; archiving",
+                indexMetaData.getIndex(), e.getKey(), e.getValue()),
+            (e, ex) -> logger.warn(() -> new ParameterizedMessage("{} ignoring invalid index setting: [{}] with value [{}]; archiving",
+                indexMetaData.getIndex(), e.getKey(), e.getValue()), ex));
         if (upgrade != settings) {
             return IndexMetaData.builder(indexMetaData).settings(upgrade).build();
         } else {

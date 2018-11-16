@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
@@ -28,7 +28,7 @@ import java.util.function.Supplier;
  */
 public class TemplateHttpResource extends PublishableHttpResource {
 
-    private static final Logger logger = Loggers.getLogger(TemplateHttpResource.class);
+    private static final Logger logger = LogManager.getLogger(TemplateHttpResource.class);
 
     /**
      * The name of the template that is sent to the remote cluster.

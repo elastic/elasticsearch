@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
@@ -42,8 +41,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     private volatile boolean shutDown = false; // indicates that the node has been shutdown and we should never start watcher after this.
     private volatile WatcherService watcherService;
 
-    WatcherLifeCycleService(Settings settings, ClusterService clusterService, WatcherService watcherService) {
-        super(settings);
+    WatcherLifeCycleService(ClusterService clusterService, WatcherService watcherService) {
         this.watcherService = watcherService;
         clusterService.addListener(this);
         // Close if the indices service is being stopped, so we don't run into search failures (locally) that will

@@ -69,7 +69,11 @@ class ClusterConfiguration {
      */
     @Input
     Closure<Integer> minimumMasterNodes = {
-        return getNumNodes() > 1 ? getNumNodes() : -1
+        if (bwcVersion != null && bwcVersion.before("6.5.0")) {
+            return numNodes > 1 ? numNodes : -1
+        } else {
+            return numNodes > 1 ? numNodes.intdiv(2) + 1 : -1
+        }
     }
 
     @Input
@@ -104,6 +108,14 @@ class ClusterConfiguration {
             }
         }
         return seedNode.transportUri()
+    }
+
+    /**
+     * A closure to call which returns a manually supplied list of unicast seed hosts.
+     */
+    @Input
+    Closure<List<String>> otherUnicastHostAddresses = {
+        Collections.emptyList()
     }
 
     /**

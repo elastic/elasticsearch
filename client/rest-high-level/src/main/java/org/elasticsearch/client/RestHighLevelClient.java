@@ -56,8 +56,11 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
+import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
@@ -156,6 +159,8 @@ import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ParsedMedianAbsoluteDeviation;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
@@ -222,7 +227,9 @@ public class RestHighLevelClient implements Closeable {
     private final MigrationClient migrationClient = new MigrationClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
+    private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
     private final RollupClient rollupClient = new RollupClient(this);
+    private final CcrClient ccrClient = new CcrClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -317,6 +324,20 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
+     * Provides methods for accessing the Elastic Licensed CCR APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-api.html">
+     * CCR APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making CCR API calls
+     */
+    public final CcrClient ccr() {
+        return ccrClient;
+    }
+
+    /**
      * Provides a {@link TasksClient} which can be used to access the Tasks API.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
@@ -367,6 +388,17 @@ public class RestHighLevelClient implements Closeable {
      * Licensing APIs on elastic.co</a> for more information.
      */
     public LicenseClient license() { return licenseClient; }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for
+     * accessing the Elastic Index Lifecycle APIs.
+     * <p>
+     * See the <a href="http://FILL-ME-IN-WE-HAVE-NO-DOCS-YET.com"> X-Pack APIs
+     * on elastic.co</a> for more information.
+     */
+    public IndexLifecycleClient indexLifecycle() {
+        return ilmClient;
+    }
 
     /**
      * Provides methods for accessing the Elastic Licensed Licensing APIs that
@@ -442,6 +474,20 @@ public class RestHighLevelClient implements Closeable {
     public final BulkByScrollResponse reindex(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
             reindexRequest, RequestConverters::reindex, options, BulkByScrollResponse::fromXContent, emptySet()
+        );
+    }
+
+    /**
+     * Submits a reindex task.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
+     * @param reindexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the submission response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final TaskSubmissionResponse submitReindexTask(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            reindexRequest, RequestConverters::submitReindex, options, TaskSubmissionResponse::fromXContent, emptySet()
         );
     }
 
@@ -728,6 +774,32 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
+     * Checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API 
+     * on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
+     * @throws IOException in case there is a problem sending the request
+     */
+    public boolean existsSource(GetRequest getRequest, RequestOptions options) throws IOException {
+        return performRequest(getRequest, RequestConverters::sourceExists, options, RestHighLevelClient::convertExistsResponse, emptySet());
+    }     
+    
+    /**
+     * Asynchronously checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API 
+     * on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void existsSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
+        performRequestAsync(getRequest, RequestConverters::sourceExists, options, RestHighLevelClient::convertExistsResponse, listener,
+                emptySet());
+    }    
+    
+    /**
      * Index a document using the Index API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
      * @param indexRequest the request
@@ -749,6 +821,31 @@ public class RestHighLevelClient implements Closeable {
     public final void indexAsync(IndexRequest indexRequest, RequestOptions options, ActionListener<IndexResponse> listener) {
         performRequestAsyncAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, listener,
                 emptySet());
+    }
+
+    /**
+     * Executes a count request using the Count API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html">Count API on elastic.co</a>
+     * @param countRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final CountResponse count(CountRequest countRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(countRequest, RequestConverters::count, options, CountResponse::fromXContent,
+        emptySet());
+    }
+
+    /**
+     * Asynchronously executes a count request using the Count API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html">Count API on elastic.co</a>
+     * @param countRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void countAsync(CountRequest countRequest, RequestOptions options, ActionListener<CountResponse> listener) {
+        performRequestAsyncAndParseEntity(countRequest, RequestConverters::count,  options,CountResponse::fromXContent,
+            listener, emptySet());
     }
 
     /**
@@ -1320,6 +1417,38 @@ public class RestHighLevelClient implements Closeable {
             throw new IOException("Unable to parse response body for " + response, e);
         }
     }
+    
+    /**
+     * Defines a helper method for requests that can 404 and in which case will return an empty Optional 
+     * otherwise tries to parse the response body
+     */
+    protected final <Req extends Validatable, Resp> Optional<Resp> performRequestAndParseOptionalEntity(Req request,
+                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                  RequestOptions options,
+                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser
+                                                                  ) throws IOException {
+        Optional<ValidationException> validationException = request.validate();
+        if (validationException != null && validationException.isPresent()) {
+            throw validationException.get();
+        }
+        Request req = requestConverter.apply(request);
+        req.setOptions(options);
+        Response response;
+        try {
+            response = client.performRequest(req);
+        } catch (ResponseException e) {
+            if (RestStatus.NOT_FOUND.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+                return Optional.empty();
+            }
+            throw parseResponseException(e);
+        }
+
+        try {
+            return Optional.of(parseEntity(response.getEntity(), entityParser));
+        } catch (Exception e) {
+            throw new IOException("Unable to parse response body for " + response, e);
+        }
+    }      
 
     /**
      * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
@@ -1441,6 +1570,62 @@ public class RestHighLevelClient implements Closeable {
             }
         };
     }
+    
+    /**
+     * Async request which returns empty Optionals in the case of 404s or parses entity into an Optional
+     */
+    protected final <Req extends Validatable, Resp> void performRequestAsyncAndParseOptionalEntity(Req request,
+            CheckedFunction<Req, Request, IOException> requestConverter,
+            RequestOptions options,
+            CheckedFunction<XContentParser, Resp, IOException> entityParser,
+            ActionListener<Optional<Resp>> listener) {
+        Optional<ValidationException> validationException = request.validate();
+        if (validationException != null && validationException.isPresent()) {
+            listener.onFailure(validationException.get());
+            return;
+        }
+        Request req;
+        try {
+            req = requestConverter.apply(request);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        req.setOptions(options);
+        ResponseListener responseListener = wrapResponseListener404sOptional(response -> parseEntity(response.getEntity(), 
+                entityParser), listener);
+        client.performRequestAsync(req, responseListener);        
+    }    
+    
+    final <Resp> ResponseListener wrapResponseListener404sOptional(CheckedFunction<Response, Resp, IOException> responseConverter,
+            ActionListener<Optional<Resp>> actionListener) {
+        return new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                try {
+                    actionListener.onResponse(Optional.of(responseConverter.apply(response)));
+                } catch (Exception e) {
+                    IOException ioe = new IOException("Unable to parse response body for " + response, e);
+                    onFailure(ioe);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                if (exception instanceof ResponseException) {
+                    ResponseException responseException = (ResponseException) exception;
+                    Response response = responseException.getResponse();
+                    if (RestStatus.NOT_FOUND.getStatus() == response.getStatusLine().getStatusCode()) {
+                            actionListener.onResponse(Optional.empty());
+                    } else {
+                        actionListener.onFailure(parseResponseException(responseException));
+                    }
+                } else {
+                    actionListener.onFailure(exception);
+                }
+            }
+        };
+    }    
 
     /**
      * Converts a {@link ResponseException} obtained from the low level REST client into an {@link ElasticsearchException}.
@@ -1511,6 +1696,7 @@ public class RestHighLevelClient implements Closeable {
         map.put(InternalTDigestPercentiles.NAME, (p, c) -> ParsedTDigestPercentiles.fromXContent(p, (String) c));
         map.put(InternalTDigestPercentileRanks.NAME, (p, c) -> ParsedTDigestPercentileRanks.fromXContent(p, (String) c));
         map.put(PercentilesBucketPipelineAggregationBuilder.NAME, (p, c) -> ParsedPercentilesBucket.fromXContent(p, (String) c));
+        map.put(MedianAbsoluteDeviationAggregationBuilder.NAME, (p, c) -> ParsedMedianAbsoluteDeviation.fromXContent(p, (String) c));
         map.put(MinAggregationBuilder.NAME, (p, c) -> ParsedMin.fromXContent(p, (String) c));
         map.put(MaxAggregationBuilder.NAME, (p, c) -> ParsedMax.fromXContent(p, (String) c));
         map.put(SumAggregationBuilder.NAME, (p, c) -> ParsedSum.fromXContent(p, (String) c));

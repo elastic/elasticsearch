@@ -28,7 +28,6 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
@@ -47,9 +46,8 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     private final String container;
     private final LocationMode locationMode;
 
-    public AzureBlobStore(RepositoryMetaData metadata, Settings settings, AzureStorageService service)
+    public AzureBlobStore(RepositoryMetaData metadata, AzureStorageService service)
             throws URISyntaxException, StorageException {
-        super(settings);
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
         this.service = service;

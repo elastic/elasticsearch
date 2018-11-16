@@ -20,16 +20,26 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 # Comparison
 #
   Boolean eq(Object, Object)
+  Boolean neq(Object, Object)
   Boolean lt(Object, Object)
   Boolean lte(Object, Object)
   Boolean gt(Object, Object)
   Boolean gte(Object, Object)
+  Boolean in(Object, java.util.List)
 
 #
 # Logical
 #
   Boolean and(Boolean, Boolean)
-  Boolean or(Boolean, Boolean)    
+  Boolean or(Boolean, Boolean)
+  Boolean not(Boolean)
+  Boolean isNull(Object)
+  Boolean isNotNull(Object)
+
+#
+# Null
+#
+  Object coalesce(java.util.List)
 
 #
 # Regex
@@ -43,6 +53,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   Number div(Number, Number)
   Number mod(Number, Number)
   Number mul(Number, Number)
+  Number neg(Number)
   Number sub(Number, Number)
   Number round(Number, Number)
   Number truncate(Number, Number)

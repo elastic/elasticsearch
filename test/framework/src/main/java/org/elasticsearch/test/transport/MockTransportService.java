@@ -37,6 +37,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -66,7 +67,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -348,9 +349,7 @@ public final class MockTransportService extends TransportService {
                 request.writeTo(bStream);
                 final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
 
-                Runnable runnable = new AbstractRunnable() {
-                    AtomicBoolean requestSent = new AtomicBoolean();
-
+                final RunOnce runnable = new RunOnce(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
                         logger.debug("failed to send delayed request", e);
@@ -358,11 +357,9 @@ public final class MockTransportService extends TransportService {
 
                     @Override
                     protected void doRun() throws IOException {
-                        if (requestSent.compareAndSet(false, true)) {
-                            connection.sendRequest(requestId, action, clonedRequest, options);
-                        }
+                        connection.sendRequest(requestId, action, clonedRequest, options);
                     }
-                };
+                });
 
                 // store the request to send it once the rule is cleared.
                 synchronized (this) {
@@ -599,21 +596,21 @@ public final class MockTransportService extends TransportService {
         Transport.Connection connection = super.openConnection(node, profile);
 
         synchronized (openConnections) {
-            List<Transport.Connection> connections = openConnections.computeIfAbsent(node,
-                (n) -> new CopyOnWriteArrayList<>());
-            connections.add(connection);
-        }
-
-        connection.addCloseListener(ActionListener.wrap(() -> {
-            synchronized (openConnections) {
-                List<Transport.Connection> connections = openConnections.get(node);
-                boolean remove = connections.remove(connection);
-                assert remove : "Should have removed connection";
-                if (connections.isEmpty()) {
-                    openConnections.remove(node);
+            openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
+            connection.addCloseListener(ActionListener.wrap(() -> {
+                synchronized (openConnections) {
+                    List<Transport.Connection> connections = openConnections.get(node);
+                    boolean remove = connections.remove(connection);
+                    assert remove : "Should have removed connection";
+                    if (connections.isEmpty()) {
+                        openConnections.remove(node);
+                    }
+                    if (openConnections.isEmpty()) {
+                        openConnections.notifyAll();
+                    }
                 }
-            }
-        }));
+            }));
+        }
 
         return connection;
     }
@@ -621,8 +618,15 @@ public final class MockTransportService extends TransportService {
     @Override
     protected void doClose() throws IOException {
         super.doClose();
-        synchronized (openConnections) {
-            assert openConnections.size() == 0 : "still open connections: " + openConnections;
+        try {
+            synchronized (openConnections) {
+                if (openConnections.isEmpty() == false) {
+                    openConnections.wait(TimeUnit.SECONDS.toMillis(30L));
+                }
+                assert openConnections.size() == 0 : "still open connections: " + openConnections;
+            }
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(e);
         }
     }
 

@@ -41,7 +41,7 @@ public class WatcherTemplateIT extends ESTestCase {
         Map<String, ScriptContext<?>> contexts =
             Collections.singletonMap(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, contexts);
-        textTemplateEngine = new TextTemplateEngine(Settings.EMPTY, scriptService);
+        textTemplateEngine = new TextTemplateEngine(scriptService);
     }
 
     public void testEscaping() throws Exception {

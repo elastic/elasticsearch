@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -100,9 +101,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
     private final RecoveriesCollection onGoingRecoveries;
 
-    public PeerRecoveryTargetService(Settings settings, ThreadPool threadPool, TransportService transportService, RecoverySettings
-            recoverySettings, ClusterService clusterService) {
-        super(settings);
+    public PeerRecoveryTargetService(ThreadPool threadPool, TransportService transportService,
+            RecoverySettings recoverySettings, ClusterService clusterService) {
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.recoverySettings = recoverySettings;
@@ -195,8 +195,10 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                     transportService.submitRequest(request.sourceNode(), PeerRecoverySourceService.Actions.START_RECOVERY, request,
                             new FutureTransportResponseHandler<RecoveryResponse>() {
                                 @Override
-                                public RecoveryResponse newInstance() {
-                                    return new RecoveryResponse();
+                                public RecoveryResponse read(StreamInput in) throws IOException {
+                                    RecoveryResponse recoveryResponse = new RecoveryResponse();
+                                    recoveryResponse.readFrom(in);
+                                    return recoveryResponse;
                                 }
                             }).txGet()));
             final RecoveryResponse recoveryResponse = responseHolder.get();

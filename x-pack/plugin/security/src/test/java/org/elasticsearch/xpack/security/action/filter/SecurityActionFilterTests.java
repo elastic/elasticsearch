@@ -83,7 +83,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         when(state.nodes()).thenReturn(nodes);
 
         SecurityContext securityContext = new SecurityContext(settings, threadContext);
-        filter = new SecurityActionFilter(Settings.EMPTY, authcService, authzService,
+        filter = new SecurityActionFilter(authcService, authzService,
                         licenseState, new HashSet<>(), threadPool, securityContext, destructiveOperations);
     }
 

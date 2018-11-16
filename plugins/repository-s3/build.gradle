@@ -49,7 +49,7 @@ dependencies {
   compile 'com.fasterxml.jackson.core:jackson-databind:2.6.7.1'
   compile 'com.fasterxml.jackson.core:jackson-annotations:2.6.0'
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  compile 'joda-time:joda-time:2.10'
+  compile "joda-time:joda-time:${versions.joda}"
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell 
@@ -202,14 +202,11 @@ if (useFixture && minioDistribution) {
 
     doLast {
       // get free port
-      for (int port = 60920; port < 60940; port++) {
-        try {
-          javax.net.ServerSocketFactory.getDefault().createServerSocket(port, 1, InetAddress.getByName(minioAddress)).close()
-          minioPort = port
-          break
-        } catch (BindException e) {
-          logger.info("Port " + port + " for Minio process is already taken", e)
-        }
+      ServerSocket serverSocket = new ServerSocket(0, 1, InetAddress.getByName(minioAddress))
+      try {
+        minioPort = serverSocket.localPort
+      } finally {
+        serverSocket.close()
       }
       if (minioPort == 0) {
         throw new GradleException("Could not find a free port for Minio")

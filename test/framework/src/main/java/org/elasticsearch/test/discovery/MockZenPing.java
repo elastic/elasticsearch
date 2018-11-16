@@ -21,7 +21,6 @@ package org.elasticsearch.test.discovery;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.zen.PingContextProvider;
@@ -45,8 +44,7 @@ public final class MockZenPing extends AbstractComponent implements ZenPing {
 
     private final PingContextProvider contextProvider;
 
-    public MockZenPing(Settings settings, PingContextProvider contextProvider) {
-        super(settings);
+    public MockZenPing(PingContextProvider contextProvider) {
         this.contextProvider = contextProvider;
     }
 

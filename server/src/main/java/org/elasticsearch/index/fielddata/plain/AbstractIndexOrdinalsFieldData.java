@@ -36,7 +36,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
 
-public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldData<AtomicOrdinalsFieldData> implements IndexOrdinalsFieldData {
+public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldData<AtomicOrdinalsFieldData>
+        implements IndexOrdinalsFieldData {
 
     private final double minFrequency, maxFrequency;
     private final int minSegmentSize;

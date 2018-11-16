@@ -38,7 +38,6 @@ public class JvmService extends AbstractComponent {
             Property.NodeScope);
 
     public JvmService(Settings settings) {
-        super(settings);
         this.jvmInfo = JvmInfo.jvmInfo();
         this.jvmStats = JvmStats.jvmStats();
 

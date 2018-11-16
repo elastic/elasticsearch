@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
@@ -27,7 +27,7 @@ import java.util.function.Supplier;
  */
 public class PipelineHttpResource extends PublishableHttpResource {
 
-    private static final Logger logger = Loggers.getLogger(PipelineHttpResource.class);
+    private static final Logger logger = LogManager.getLogger(PipelineHttpResource.class);
 
     /**
      * The name of the pipeline that is sent to the remote cluster.

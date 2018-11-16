@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
@@ -27,10 +26,9 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
-    public TransportSqlTranslateAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+    public TransportSqlTranslateAction(TransportService transportService, ActionFilters actionFilters,
                                        PlanExecutor planExecutor, SqlLicenseChecker sqlLicenseChecker) {
-        super(settings, SqlTranslateAction.NAME, transportService, actionFilters,
-            (Writeable.Reader<SqlTranslateRequest>) SqlTranslateRequest::new);
+        super(SqlTranslateAction.NAME, transportService, actionFilters, (Writeable.Reader<SqlTranslateRequest>) SqlTranslateRequest::new);
 
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;

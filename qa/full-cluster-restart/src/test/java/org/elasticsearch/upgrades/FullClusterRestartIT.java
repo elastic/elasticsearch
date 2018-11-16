@@ -325,7 +325,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34853")
     public void testShrink() throws IOException {
         String shrunkenIndex = index + "_shrunk";
         int numDocs;
@@ -364,7 +363,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(updateSettingsRequest);
 
             Request shrinkIndexRequest = new Request("PUT", "/" + index + "/_shrink/" + shrunkenIndex);
-            shrinkIndexRequest.addParameter("copy_settings", "true");
+            if (getOldClusterVersion().onOrAfter(Version.V_6_4_0)) {
+                shrinkIndexRequest.addParameter("copy_settings", "true");
+            }
             shrinkIndexRequest.setJsonEntity("{\"settings\": {\"index.number_of_shards\": 1}}");
             client().performRequest(shrinkIndexRequest);
 

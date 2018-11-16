@@ -3,11 +3,9 @@
 
   - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
-
+      reason: types are required in requests before 7.0.0
   - do:
       bulk:
-        include_type_name: false
         refresh: true
         body: |
           {"index": {"_index": "bulk_50_refresh_1", "_id": "bulk_50_refresh_id1"}}
@@ -25,11 +23,9 @@
 
   - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
-
+      reason: types are required in requests before 7.0.0
   - do:
       bulk:
-        include_type_name: false
         refresh: ""
         body: |
           {"index": {"_index": "bulk_50_refresh_2", "_id": "bulk_50_refresh_id3"}}
@@ -48,11 +44,9 @@
 
   - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
-
+      reason: types are required in requests before 7.0.0
   - do:
       bulk:
-        include_type_name: false
         refresh: wait_for
         body: |
           {"index": {"_index": "bulk_50_refresh_3", "_id": "bulk_50_refresh_id5"}}

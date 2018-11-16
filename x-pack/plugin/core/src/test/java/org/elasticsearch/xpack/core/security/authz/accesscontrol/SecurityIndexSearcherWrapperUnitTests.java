@@ -34,15 +34,12 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -57,7 +54,6 @@ import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -66,43 +62,31 @@ import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.join.query.HasChildQueryBuilder;
 import org.elasticsearch.join.query.HasParentQueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
-import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper.intersectScorerAndRoleBits;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
@@ -421,58 +405,6 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testIndexSearcherWrapperDenseWithDeletions() throws IOException {
         doTestIndexSearcherWrapper(false, true);
-    }
-
-    public void testTemplating() throws Exception {
-        User user = new User("_username", new String[]{"role1", "role2"}, "_full_name", "_email",
-                Collections.singletonMap("key", "value"), true);
-
-        TemplateScript.Factory compiledTemplate = templateParams ->
-                new TemplateScript(templateParams) {
-                    @Override
-                    public String execute() {
-                        return "rendered_text";
-                    }
-                };
-
-        when(scriptService.compile(any(Script.class), eq(TemplateScript.CONTEXT))).thenReturn(compiledTemplate);
-
-        XContentBuilder builder = jsonBuilder();
-        String query = Strings.toString(new TermQueryBuilder("field", "{{_user.username}}").toXContent(builder, ToXContent.EMPTY_PARAMS));
-        Script script = new Script(ScriptType.INLINE, "mustache", query, Collections.singletonMap("custom", "value"));
-        builder = jsonBuilder().startObject().field("template");
-        script.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        String querySource = Strings.toString(builder.endObject());
-
-        SecurityIndexSearcherWrapper.evaluateTemplate(querySource, scriptService, user);
-        ArgumentCaptor<Script> argument = ArgumentCaptor.forClass(Script.class);
-        verify(scriptService).compile(argument.capture(), eq(TemplateScript.CONTEXT));
-        Script usedScript = argument.getValue();
-        assertThat(usedScript.getIdOrCode(), equalTo(script.getIdOrCode()));
-        assertThat(usedScript.getType(), equalTo(script.getType()));
-        assertThat(usedScript.getLang(), equalTo("mustache"));
-        assertThat(usedScript.getOptions(), equalTo(script.getOptions()));
-        assertThat(usedScript.getParams().size(), equalTo(2));
-        assertThat(usedScript.getParams().get("custom"), equalTo("value"));
-
-        Map<String, Object> userModel = new HashMap<>();
-        userModel.put("username", user.principal());
-        userModel.put("full_name", user.fullName());
-        userModel.put("email", user.email());
-        userModel.put("roles", Arrays.asList(user.roles()));
-        userModel.put("metadata", user.metadata());
-        assertThat(usedScript.getParams().get("_user"), equalTo(userModel));
-
-    }
-
-    public void testSkipTemplating() throws Exception {
-        securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService);
-        XContentBuilder builder = jsonBuilder();
-        String querySource =  Strings.toString(new TermQueryBuilder("field", "value").toXContent(builder, ToXContent.EMPTY_PARAMS));
-        String result = SecurityIndexSearcherWrapper.evaluateTemplate(querySource, scriptService, null);
-        assertThat(result, sameInstance(querySource));
-        verifyZeroInteractions(scriptService);
     }
 
     static class CreateScorerOnceWeight extends Weight {

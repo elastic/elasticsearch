@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanQuery;
@@ -27,14 +27,12 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -54,23 +52,18 @@ import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
+import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
@@ -130,7 +123,8 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 BooleanQuery.Builder filter = new BooleanQuery.Builder();
                 for (BytesReference bytesReference : permissions.getQueries()) {
                     QueryShardContext queryShardContext = queryShardContextProvider.apply(shardId);
-                    String templateResult = evaluateTemplate(bytesReference.utf8ToString(), scriptService, getUser());
+                    String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(bytesReference.utf8ToString(), scriptService,
+                            getUser());
                     try (XContentParser parser = XContentFactory.xContent(templateResult)
                             .createParser(queryShardContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, templateResult)) {
                         QueryBuilder queryBuilder = queryShardContext.parseInnerQueryBuilder(parser);
@@ -255,46 +249,6 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
         }
     }
 
-    public static String evaluateTemplate(final String querySource, final ScriptService scriptService, final User user) throws IOException {
-        // EMPTY is safe here because we never use namedObject
-        try (XContentParser parser = XContentFactory.xContent(querySource).createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, querySource)) {
-            XContentParser.Token token = parser.nextToken();
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException("Unexpected token [" + token + "]");
-            }
-            token = parser.nextToken();
-            if (token != XContentParser.Token.FIELD_NAME) {
-                throw new ElasticsearchParseException("Unexpected token [" + token + "]");
-            }
-            if ("template".equals(parser.currentName())) {
-                token = parser.nextToken();
-                if (token != XContentParser.Token.START_OBJECT) {
-                    throw new ElasticsearchParseException("Unexpected token [" + token + "]");
-                }
-                Script script = Script.parse(parser);
-                // Add the user details to the params
-                Map<String, Object> params = new HashMap<>();
-                if (script.getParams() != null) {
-                    params.putAll(script.getParams());
-                }
-                Map<String, Object> userModel = new HashMap<>();
-                userModel.put("username", user.principal());
-                userModel.put("full_name", user.fullName());
-                userModel.put("email", user.email());
-                userModel.put("roles", Arrays.asList(user.roles()));
-                userModel.put("metadata", Collections.unmodifiableMap(user.metadata()));
-                params.put("_user", userModel);
-                // Always enforce mustache script lang:
-                script = new Script(script.getType(),
-                        script.getType() == ScriptType.STORED ? null : "mustache", script.getIdOrCode(), script.getOptions(), params);
-                TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
-                return compiledTemplate.execute();
-            } else {
-                return querySource;
-            }
-        }
-    }
 
     protected IndicesAccessControl getIndicesAccessControl() {
         IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);

@@ -47,9 +47,9 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.SubsetResult;
+import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -410,7 +410,7 @@ public class ApiKeyService {
             for (RoleDescriptor existingRD : existingRoleDescriptors) {
                 for (IndicesPrivileges indicesPriv : existingRD.getIndicesPrivileges()) {
                     if (Operations.subsetOf(indexNamesAutomaton, Automatons.patterns(indicesPriv.getIndices()))) {
-                        final String templateResult = SecurityIndexSearcherWrapper.evaluateTemplate(indicesPriv.getQuery().utf8ToString(),
+                        final String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(indicesPriv.getQuery().utf8ToString(),
                                 scriptService, user);
                         try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
                                 LoggingDeprecationHandler.INSTANCE, templateResult)) {
@@ -428,7 +428,7 @@ public class ApiKeyService {
             for (RoleDescriptor subsetRD : subsetRoleDescriptors) {
                 for (IndicesPrivileges ip : subsetRD.getIndicesPrivileges()) {
                     if (Sets.newHashSet(ip.getIndices()).equals(indexNamePattern)) {
-                        final String templateResult = SecurityIndexSearcherWrapper.evaluateTemplate(ip.getQuery().utf8ToString(),
+                        final String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(ip.getQuery().utf8ToString(),
                                 scriptService, user);
                         try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
                                 LoggingDeprecationHandler.INSTANCE, templateResult)) {

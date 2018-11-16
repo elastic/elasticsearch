@@ -37,6 +37,7 @@ import org.elasticsearch.client.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.client.indexlifecycle.Phase;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
+import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -123,9 +124,11 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
     }
 
-    public void testGetLifecyclePolicy() throws IOException {
+    public void testGetLifecyclePolicy() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
+        LifecyclePolicy myPolicyAsPut;
+        LifecyclePolicy otherPolicyAsPut;
         // Set up some policies so we have something to get
         {
             Map<String, Phase> phases = new HashMap<>();
@@ -141,14 +144,15 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
                 new Phase("delete",
                     new TimeValue(90, TimeUnit.DAYS), deleteActions));
 
-            LifecyclePolicy policy = new LifecyclePolicy("my_policy",
-                phases);
-            PutLifecyclePolicyRequest putRequest =
-                new PutLifecyclePolicyRequest(policy);
-            LifecyclePolicy policy2 = new LifecyclePolicy("other_policy",
-                phases);
-            PutLifecyclePolicyRequest putRequest2 =
-                new PutLifecyclePolicyRequest(policy2);
+            myPolicyAsPut = new LifecyclePolicy("my_policy", phases);
+            PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(myPolicyAsPut);
+
+            Map<String, Phase> otherPolicyPhases = new HashMap<>(phases);
+            Map<String, LifecycleAction> warmActions = Collections.singletonMap(ShrinkAction.NAME, new ShrinkAction(1));
+            otherPolicyPhases.put("warm", new Phase("warm", new TimeValue(30, TimeUnit.DAYS), warmActions));
+            otherPolicyAsPut = new LifecyclePolicy("other_policy", otherPolicyPhases);
+
+            PutLifecyclePolicyRequest putRequest2 = new PutLifecyclePolicyRequest(otherPolicyAsPut);
 
             AcknowledgedResponse putResponse = client.indexLifecycle().
                 putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
@@ -182,6 +186,17 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         LifecyclePolicy myPolicy = myPolicyMetadata.getPolicy(); // <2>
         // end::ilm-get-lifecycle-policy-response
 
+        assertEquals(myPolicyAsPut, myPolicy);
+        assertEquals("my_policy", myPolicyName);
+        assertNotNull(lastModified);
+        assertNotEquals(0, lastModifiedDate);
+
+        LifecyclePolicyMetadata otherPolicyMetadata = policies.get("other_policy");
+        assertEquals(otherPolicyAsPut, otherPolicyMetadata.getPolicy());
+        assertEquals("other_policy", otherPolicyMetadata.getName());
+        assertNotNull(otherPolicyMetadata.getModifiedDateString());
+        assertNotEquals(0, otherPolicyMetadata.getModifiedDate());
+
         // tag::ilm-get-lifecycle-policy-execute-listener
         ActionListener<GetLifecyclePolicyResponse> listener =
             new ActionListener<GetLifecyclePolicyResponse>() {
@@ -207,6 +222,8 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         client.indexLifecycle().getLifecyclePolicyAsync(request,
             RequestOptions.DEFAULT, listener); // <1>
         // end::ilm-get-lifecycle-policy-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {

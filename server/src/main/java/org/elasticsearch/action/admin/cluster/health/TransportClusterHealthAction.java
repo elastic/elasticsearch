@@ -91,56 +91,56 @@ public class TransportClusterHealthAction
             final long endTimeMS = TimeValue.nsecToMSec(System.nanoTime()) + request.timeout().millis();
             if (request.local()) {
                 clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])",
-                        new LocalClusterUpdateTask(request.waitForEvents()) {
-                    @Override
-                    public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
-                        return unchanged();
-                    }
+                    new LocalClusterUpdateTask(request.waitForEvents()) {
+                        @Override
+                        public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
+                            return unchanged();
+                        }
 
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        final long timeoutInMillis = Math.max(0, endTimeMS - TimeValue.nsecToMSec(System.nanoTime()));
-                        final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
-                        request.timeout(newTimeout);
-                        executeHealth(request, listener);
-                    }
+                        @Override
+                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                            final long timeoutInMillis = Math.max(0, endTimeMS - TimeValue.nsecToMSec(System.nanoTime()));
+                            final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
+                            request.timeout(newTimeout);
+                            executeHealth(request, listener);
+                        }
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-                        listener.onFailure(e);
-                    }
-                });
+                        @Override
+                        public void onFailure(String source, Exception e) {
+                            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                            listener.onFailure(e);
+                        }
+                    });
             } else {
                 clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])",
-                        new ClusterStateUpdateTask(request.waitForEvents()) {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return currentState;
-                    }
+                    new ClusterStateUpdateTask(request.waitForEvents()) {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            return currentState;
+                        }
 
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        final long timeoutInMillis = Math.max(0, endTimeMS - TimeValue.nsecToMSec(System.nanoTime()));
-                        final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
-                        request.timeout(newTimeout);
-                        executeHealth(request, listener);
-                    }
+                        @Override
+                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                            final long timeoutInMillis = Math.max(0, endTimeMS - TimeValue.nsecToMSec(System.nanoTime()));
+                            final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
+                            request.timeout(newTimeout);
+                            executeHealth(request, listener);
+                        }
 
-                    @Override
-                    public void onNoLongerMaster(String source) {
-                        logger.trace("stopped being master while waiting for events with priority [{}]. retrying.",
-                            request.waitForEvents());
-                        // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
-                        listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
-                    }
+                        @Override
+                        public void onNoLongerMaster(String source) {
+                            logger.trace("stopped being master while waiting for events with priority [{}]. retrying.",
+                                request.waitForEvents());
+                            // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
+                            listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
+                        }
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-                        listener.onFailure(e);
-                    }
-                });
+                        @Override
+                        public void onFailure(String source, Exception e) {
+                            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                            listener.onFailure(e);
+                        }
+                    });
             }
         } else {
             executeHealth(request, listener);

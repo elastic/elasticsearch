@@ -83,7 +83,7 @@ import static org.mockito.Mockito.when;
 public class IndexCreationTaskTests extends ESTestCase {
 
     private final IndicesService indicesService = mock(IndicesService.class);
-    private final AliasValidator aliasValidator = new AliasValidator(Settings.EMPTY);
+    private final AliasValidator aliasValidator = new AliasValidator();
     private final NamedXContentRegistry xContentRegistry = mock(NamedXContentRegistry.class);
     private final CreateIndexClusterStateUpdateRequest request = mock(CreateIndexClusterStateUpdateRequest.class);
     private final Logger logger = mock(Logger.class);

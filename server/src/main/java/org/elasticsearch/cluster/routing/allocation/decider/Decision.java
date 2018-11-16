@@ -92,10 +92,6 @@ public abstract class Decision implements ToXContent, Writeable {
             this.id = id;
         }
 
-        public static Type resolve(String s) {
-            return Type.valueOf(s.toUpperCase(Locale.ROOT));
-        }
-
         public static Type readFrom(StreamInput in) throws IOException {
             int i = in.readVInt();
             switch (i) {

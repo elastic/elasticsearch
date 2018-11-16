@@ -86,7 +86,6 @@ public class ClientYamlTestSuite {
 
         SetupSection setupSection = SetupSection.parseIfNext(parser);
         TeardownSection teardownSection = TeardownSection.parseIfNext(parser);
-
         Set<ClientYamlTestSection> testSections = new TreeSet<>();
         while(true) {
             //the "---" section separator is not understood by the yaml parser. null is returned, same as when the parser is closed
@@ -178,6 +177,14 @@ public class ClientYamlTestSuite {
             .map(section -> "attempted to add a [contains] assertion " +
                 "without a corresponding [\"skip\": \"features\": \"contains\"] so runners that do not support the " +
                 "[contains] assertion can skip the test at line [" + section.getLocation().lineNumber + "]"));
+
+        errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
+            .map(section -> (DoSection) section)
+            .filter(section -> false == section.getApiCallSection().getHeaders().isEmpty())
+            .filter(section -> false == hasSkipFeature("headers", testSection, setupSection, teardownSection))
+            .map(section -> "attempted to add a [do] with a [headers] section without a corresponding "
+                + "[\"skip\": \"features\": \"headers\"] so runners that do not support the [headers] section can skip the test at " +
+                "line [" + section.getLocation().lineNumber + "]"));
 
         return errors;
     }

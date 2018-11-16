@@ -97,7 +97,7 @@ public class IndexUpgradeTasksIT extends ESIntegTestCase {
 
         public MockUpgradePlugin(Settings settings) {
             this.settings = settings;
-            this.upgrade = new Upgrade(settings);
+            this.upgrade = new Upgrade();
             LogManager.getLogger(IndexUpgradeTasksIT.class).info("MockUpgradePlugin is created");
         }
 
@@ -121,8 +121,8 @@ public class IndexUpgradeTasksIT extends ESIntegTestCase {
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-            return Arrays.asList(new IndexUpgradeService(settings, Collections.singletonList(
-                    new IndexUpgradeCheck("test", settings,
+            return Arrays.asList(new IndexUpgradeService(Collections.singletonList(
+                    new IndexUpgradeCheck("test",
                             new Function<IndexMetaData, UpgradeActionRequired>() {
                                 @Override
                                 public UpgradeActionRequired apply(IndexMetaData indexMetaData) {

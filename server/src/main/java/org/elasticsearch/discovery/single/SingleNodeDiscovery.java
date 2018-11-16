@@ -47,6 +47,7 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
  */
 public class SingleNodeDiscovery extends AbstractLifecycleComponent implements Discovery {
 
+    private final ClusterName clusterName;
     protected final TransportService transportService;
     private final ClusterApplier clusterApplier;
     private volatile ClusterState clusterState;
@@ -54,6 +55,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     public SingleNodeDiscovery(final Settings settings, final TransportService transportService,
                                final MasterService masterService, final ClusterApplier clusterApplier) {
         super(Objects.requireNonNull(settings));
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.transportService = Objects.requireNonNull(transportService);
         masterService.setClusterStateSupplier(() -> clusterState);
         this.clusterApplier = clusterApplier;
@@ -114,7 +116,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     }
 
     protected ClusterState createInitialState(DiscoveryNode localNode) {
-        ClusterState.Builder builder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
+        ClusterState.Builder builder = ClusterState.builder(clusterName);
         return builder.nodes(DiscoveryNodes.builder().add(localNode)
                 .localNodeId(localNode.getId())
                 .masterNodeId(localNode.getId())

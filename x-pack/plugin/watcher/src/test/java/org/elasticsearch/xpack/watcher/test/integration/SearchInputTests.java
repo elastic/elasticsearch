@@ -189,6 +189,6 @@ public class SearchInputTests extends ESTestCase {
 
     private WatcherSearchTemplateService watcherSearchTemplateService() {
         SearchModule module = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-        return new WatcherSearchTemplateService(Settings.EMPTY, scriptService, new NamedXContentRegistry(module.getNamedXContents()));
+        return new WatcherSearchTemplateService(scriptService, new NamedXContentRegistry(module.getNamedXContents()));
     }
 }

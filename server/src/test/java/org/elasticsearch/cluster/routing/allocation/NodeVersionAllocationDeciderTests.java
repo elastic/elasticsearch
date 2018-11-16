@@ -336,9 +336,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             .metaData(metaData)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode).add(oldNode1).add(oldNode2)).build();
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new NodeVersionAllocationDecider(Settings.EMPTY)));
-        AllocationService strategy = new MockAllocationService(Settings.EMPTY,
+        AllocationDeciders allocationDeciders = new AllocationDeciders(
+            Collections.singleton(new NodeVersionAllocationDecider()));
+        AllocationService strategy = new MockAllocationService(
             allocationDeciders,
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
         state = strategy.reroute(state, new AllocationCommands(), true, false).getClusterState();
@@ -369,10 +369,10 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 new SnapshotRecoverySource(new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
                 Version.CURRENT, "test")).build())
             .nodes(DiscoveryNodes.builder().add(newNode).add(oldNode1).add(oldNode2)).build();
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, Arrays.asList(
-            new ReplicaAfterPrimaryActiveAllocationDecider(Settings.EMPTY),
-            new NodeVersionAllocationDecider(Settings.EMPTY)));
-        AllocationService strategy = new MockAllocationService(Settings.EMPTY,
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(
+            new ReplicaAfterPrimaryActiveAllocationDecider(),
+            new NodeVersionAllocationDecider()));
+        AllocationService strategy = new MockAllocationService(
             allocationDeciders,
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
         state = strategy.reroute(state, new AllocationCommands(), true, false).getClusterState();
@@ -466,7 +466,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             null, 0);
         routingAllocation.debugDecision(true);
 
-        final NodeVersionAllocationDecider allocationDecider = new NodeVersionAllocationDecider(Settings.EMPTY);
+        final NodeVersionAllocationDecider allocationDecider = new NodeVersionAllocationDecider();
         Decision decision = allocationDecider.canAllocate(primaryShard, newNode, routingAllocation);
         assertThat(decision.type(), is(Decision.Type.YES));
         assertThat(decision.getExplanation(), is("the primary shard is new or already existed on the node"));

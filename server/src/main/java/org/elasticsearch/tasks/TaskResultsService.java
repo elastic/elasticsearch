@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.tasks;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -35,7 +37,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -58,7 +59,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 /**
  * Service that can store task results.
  */
-public class TaskResultsService extends AbstractComponent {
+public class TaskResultsService {
+
+    private static final Logger logger = LogManager.getLogger(TaskResultsService.class);
 
     public static final String TASK_INDEX = ".tasks";
 
@@ -83,8 +86,7 @@ public class TaskResultsService extends AbstractComponent {
     private final ThreadPool threadPool;
 
     @Inject
-    public TaskResultsService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings);
+    public TaskResultsService(Client client, ClusterService clusterService, ThreadPool threadPool) {
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

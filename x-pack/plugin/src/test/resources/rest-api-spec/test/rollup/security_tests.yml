@@ -6,8 +6,6 @@ setup:
       cluster.health:
           wait_for_status: yellow
 
-
-
 ---
 teardown:
   - do:

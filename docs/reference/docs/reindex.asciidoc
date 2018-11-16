@@ -164,13 +164,7 @@ POST _reindex
 
 `index` and `type` in `source` can both be lists, allowing you to copy from
 lots of sources in one request. This will copy documents from the `_doc` and
-`post` types in the `twitter` and `blog` index. The copied documents would include the
-`post` type in the `twitter` index and the `_doc` type in the `blog` index. For more
-specific parameters, you can use `query`.
-
-The Reindex API makes no effort to handle ID collisions. For such issues, the target index
-will remain valid, but it's not easy to predict which document will survive because
-the iteration order isn't well defined.
+`post` types in the `twitter` and `blog` indices.
 
 [source,js]
 --------------------------------------------------
@@ -181,12 +175,19 @@ POST _reindex
     "type": ["_doc", "post"]
   },
   "dest": {
-    "index": "all_together"
+    "index": "all_together",
+    "type": "_doc"
   }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\nPUT blog\n/]
+// TEST[setup:twitter]
+// TEST[s/^/PUT blog\/post\/post1?refresh\n{"test": "foo"}\n/]
+
+NOTE: The Reindex API makes no effort to handle ID collisions so the last
+document written will "win" but the order isn't usually predictable so it is
+not a good idea to rely on this behavior. Instead, make sure that IDs are unique
+using a script.
 
 It's also possible to limit the number of processed documents by setting
 `size`. This will only copy a single document from `twitter` to
@@ -671,7 +672,7 @@ The number of requests per second effectively executed during the reindex.
 
 `throttled_until_millis`::
 
-This field should always be equal to zero in a `_delete_by_query` response. It only
+This field should always be equal to zero in a `_reindex` response. It only
 has meaning when using the <<docs-reindex-task-api, Task API>>, where it
 indicates the next time (in milliseconds since epoch) a throttled request will be
 executed again in order to conform to `requests_per_second`.

@@ -21,9 +21,10 @@ package org.elasticsearch.discovery.zen;
 
 import java.io.Closeable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +40,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  * A base class for {@link MasterFaultDetection} &amp; {@link NodesFaultDetection},
  * making sure both use the same setting.
  */
-public abstract class FaultDetection extends AbstractComponent implements Closeable {
+public abstract class FaultDetection implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(FaultDetection.class);
 
     public static final Setting<Boolean> CONNECT_ON_NETWORK_DISCONNECT_SETTING =
         Setting.boolSetting("discovery.zen.fd.connect_on_network_disconnect", false, Property.NodeScope);
@@ -66,7 +69,6 @@ public abstract class FaultDetection extends AbstractComponent implements Closea
     protected final int pingRetryCount;
 
     public FaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
-        super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = clusterName;

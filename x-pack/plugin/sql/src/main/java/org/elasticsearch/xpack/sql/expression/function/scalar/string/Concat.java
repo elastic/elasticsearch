@@ -50,6 +50,11 @@ public class Concat extends BinaryScalarFunction {
     }
     
     @Override
+    public boolean nullable() {
+        return left().nullable() && right().nullable();
+    }
+
+    @Override
     public boolean foldable() {
         return left().foldable() && right().foldable();
     }

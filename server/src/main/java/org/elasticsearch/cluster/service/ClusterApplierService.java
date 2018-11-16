@@ -134,7 +134,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         addListener(localNodeMasterListeners);
         threadPoolExecutor = EsExecutors.newSinglePrioritizing(
                 nodeName + "/" + CLUSTER_UPDATE_THREAD_NAME,
-                daemonThreadFactory(settings, CLUSTER_UPDATE_THREAD_NAME),
+                daemonThreadFactory(nodeName, CLUSTER_UPDATE_THREAD_NAME),
                 threadPool.getThreadContext(),
                 threadPool.scheduler());
     }

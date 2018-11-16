@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -42,10 +41,10 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
     private final SnapshotsService snapshotsService;
 
     @Inject
-    public TransportCreateSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportCreateSnapshotAction(TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, CreateSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(CreateSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
               CreateSnapshotRequest::new, indexNameExpressionResolver);
         this.snapshotsService = snapshotsService;
     }

@@ -20,25 +20,21 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.Distribution;
-import org.elasticsearch.gradle.Version;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
 import java.util.Objects;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class ElasticsearchNode {
 
     private final String name;
     private final GradleServicesAdapter services;
-    private final AtomicInteger noOfClaims = new AtomicInteger();
-    private final AtomicBoolean started = new AtomicBoolean(false);
+    private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
 
     private Distribution distribution;
-    private Version version;
+    private String version;
 
     public ElasticsearchNode(String name, GradleServicesAdapter services) {
         this.name = name;
@@ -49,12 +45,12 @@ public class ElasticsearchNode {
         return name;
     }
 
-    public Version getVersion() {
+    public String getVersion() {
         return version;
     }
 
-    public void setVersion(Version version) {
-        checkNotRunning();
+    public void setVersion(String version) {
+        checkFrozen();
         this.version = version;
     }
 
@@ -63,47 +59,27 @@ public class ElasticsearchNode {
     }
 
     public void setDistribution(Distribution distribution) {
-        checkNotRunning();
+        checkFrozen();
         this.distribution = distribution;
     }
 
-    public void claim() {
-        noOfClaims.incrementAndGet();
+    void start() {
+        logger.info("Starting `{}`", this);
     }
 
-    /**
-     * Start the cluster if not running. Does nothing if the cluster is already running.
-     *
-     * @return future of thread running in the background
-     */
-    public Future<Void> start() {
-        if (started.getAndSet(true)) {
-            logger.lifecycle("Already started cluster: {}", name);
-        } else {
-            logger.lifecycle("Starting cluster: {}", name);
-        }
-        return null;
+    void stop(boolean tailLogs) {
+        logger.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
     }
 
-    /**
-     * Stops a running cluster if it's not claimed. Does nothing otherwise.
-     */
-    public void unClaimAndStop() {
-        int decrementedClaims = noOfClaims.decrementAndGet();
-        if (decrementedClaims > 0) {
-            logger.lifecycle("Not stopping {}, since cluster still has {} claim(s)", name, decrementedClaims);
-            return;
-        }
-        if (started.get() == false) {
-            logger.lifecycle("Asked to unClaimAndStop, but cluster was not running: {}", name);
-            return;
-        }
-        logger.lifecycle("Stopping {}, number of claims is {}", name, decrementedClaims);
+    public void freeze() {
+        logger.info("Locking configuration of `{}`", this);
+        configurationFrozen.set(true);
+        Objects.requireNonNull(version, "Version of test cluster `" + this + "` can't be null");
     }
 
-    private void checkNotRunning() {
-        if (started.get()) {
-            throw new IllegalStateException("Configuration can not be altered while running ");
+    private void checkFrozen() {
+        if (configurationFrozen.get()) {
+            throw new IllegalStateException("Configuration can not be altered, already locked");
         }
     }
 
@@ -118,5 +94,10 @@ public class ElasticsearchNode {
     @Override
     public int hashCode() {
         return Objects.hash(name);
+    }
+
+    @Override
+    public String toString() {
+        return "ElasticsearchNode{name='" + name + "'}";
     }
 }

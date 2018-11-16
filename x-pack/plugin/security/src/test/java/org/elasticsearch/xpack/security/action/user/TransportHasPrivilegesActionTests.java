@@ -72,7 +72,6 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
 
     @Before
     public void setup() {
-        final Settings settings = Settings.builder().build();
         user = new User(randomAlphaOfLengthBetween(4, 12));
         final ThreadPool threadPool = mock(ThreadPool.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -103,7 +102,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             return null;
         }).when(privilegeStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
 
-        action = new TransportHasPrivilegesAction(settings, threadPool, transportService, mock(ActionFilters.class), authorizationService,
+        action = new TransportHasPrivilegesAction(threadPool, transportService, mock(ActionFilters.class), authorizationService,
             privilegeStore);
     }
 

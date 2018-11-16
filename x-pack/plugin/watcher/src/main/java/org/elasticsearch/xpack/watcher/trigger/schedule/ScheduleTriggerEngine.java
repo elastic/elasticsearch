@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -33,8 +32,7 @@ public abstract class ScheduleTriggerEngine extends AbstractComponent implements
     protected final ScheduleRegistry scheduleRegistry;
     protected final Clock clock;
 
-    public ScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
-        super(settings);
+    public ScheduleTriggerEngine(ScheduleRegistry scheduleRegistry, Clock clock) {
         this.scheduleRegistry = scheduleRegistry;
         this.clock = clock;
     }

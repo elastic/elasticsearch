@@ -83,7 +83,6 @@ public class WatcherService extends AbstractComponent {
 
     WatcherService(Settings settings, TriggerService triggerService, TriggeredWatchStore triggeredWatchStore,
                    ExecutionService executionService, WatchParser parser, Client client, ExecutorService executor) {
-        super(settings);
         this.triggerService = triggerService;
         this.triggeredWatchStore = triggeredWatchStore;
         this.executionService = executionService;

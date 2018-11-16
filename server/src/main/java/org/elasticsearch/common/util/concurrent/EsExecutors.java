@@ -179,6 +179,11 @@ public class EsExecutors {
         return daemonThreadFactory(threadName(settings, namePrefix));
     }
 
+    public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix) {
+        assert nodeName != null && false == nodeName.isEmpty();
+        return daemonThreadFactory(threadName(nodeName, namePrefix));
+    }
+
     public static ThreadFactory daemonThreadFactory(Settings settings, String ... names) {
         return daemonThreadFactory(threadName(settings, names));
     }

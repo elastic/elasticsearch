@@ -68,7 +68,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         int numberOfFields = job.allInputFields().size() + (includeTokensField ? 1 : 0) + 1;
 
         AutodetectStateProcessor stateProcessor = new AutodetectStateProcessor(client, job.getId());
-        AutodetectResultsParser resultsParser = new AutodetectResultsParser(settings);
+        AutodetectResultsParser resultsParser = new AutodetectResultsParser();
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
                 job.getId(), processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
                 processPipes.getProcessOutStream().get(), processPipes.getRestoreStream().orElse(null), numberOfFields,

@@ -46,6 +46,7 @@ import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
+import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
@@ -515,6 +516,16 @@ public class MLRequestConvertersTests extends ESTestCase {
             Calendar parsedCalendar = Calendar.PARSER.apply(parser, null);
             assertThat(parsedCalendar, equalTo(putCalendarRequest.getCalendar()));
         }
+    }
+
+    public void testPutCalendarJob() throws IOException {
+        String calendarId = randomAlphaOfLength(10);
+        String job1 = randomAlphaOfLength(5);
+        String job2 = randomAlphaOfLength(5);
+        PutCalendarJobRequest putCalendarJobRequest = new PutCalendarJobRequest(calendarId, job1, job2);
+        Request request = MLRequestConverters.putCalendarJob(putCalendarJobRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/calendars/" + calendarId + "/jobs/" + job1 + "," + job2, request.getEndpoint());
     }
 
     public void testGetCalendars() throws IOException {

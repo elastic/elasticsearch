@@ -263,6 +263,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-get-categories>>
 * <<{upid}-get-calendars>>
 * <<{upid}-put-calendar>>
+* <<{upid}-put-calendar-job>>
 * <<{upid}-delete-calendar>>
 * <<{upid}-put-filter>>
 * <<{upid}-get-model-snapshots>>
@@ -296,6 +297,7 @@ include::ml/get-influencers.asciidoc[]
 include::ml/get-categories.asciidoc[]
 include::ml/get-calendars.asciidoc[]
 include::ml/put-calendar.asciidoc[]
+include::ml/put-calendar-job.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
 include::ml/put-filter.asciidoc[]
 include::ml/get-model-snapshots.asciidoc[]

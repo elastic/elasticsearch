@@ -428,28 +428,28 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRandomSecondIntervals() throws IOException {
-        final int randomLength = randomIntBetween(120, 600);
-        final List<DateTime> dataset = new ArrayList<>(randomLength);
+        final int length = 120;
+        final List<DateTime> dataset = new ArrayList<>(length);
         final DateTime startDate = new DateTime(2017, 1, 1, 0, 0, 0, DateTimeZone.UTC);
-        for (int i = 0; i < randomLength; i++) {
+        for (int i = 0; i < length; i++) {
             final DateTime date = startDate.plusSeconds(i);
             dataset.add(date);
         }
         final Map<Integer, Integer> bucketsToExpectedDocCountMap = new HashMap<>();
-        bucketsToExpectedDocCountMap.put(randomLength, 1);
-        bucketsToExpectedDocCountMap.put(randomLength / 2, 5);
-        bucketsToExpectedDocCountMap.put(randomLength / 6, 10);
-        bucketsToExpectedDocCountMap.put(randomLength / 12, 30);
-        bucketsToExpectedDocCountMap.put(randomLength / 40, 60);
-        final Integer randomNumberOfBuckets = randomFrom(bucketsToExpectedDocCountMap.keySet());
+        bucketsToExpectedDocCountMap.put(120, 1);
+        bucketsToExpectedDocCountMap.put(60, 5);
+        bucketsToExpectedDocCountMap.put(20, 10);
+        bucketsToExpectedDocCountMap.put(10, 30);
+        bucketsToExpectedDocCountMap.put(3, 60);
+        final Map.Entry<Integer, Integer> randomEntry = randomFrom(bucketsToExpectedDocCountMap.entrySet());
         testSearchAndReduceCase(DEFAULT_QUERY, dataset,
-            aggregation -> aggregation.setNumBuckets(randomNumberOfBuckets).field(DATE_FIELD),
+            aggregation -> aggregation.setNumBuckets(randomEntry.getKey()).field(DATE_FIELD),
             histogram -> {
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                final int expectedDocCount = bucketsToExpectedDocCountMap.get(randomNumberOfBuckets);
-                final int expectedSizeCeil = (randomLength + expectedDocCount - 1) / expectedDocCount;
-                assertEquals(expectedSizeCeil, buckets.size());
-                final int randomIndex = randomInt(expectedSizeCeil - 2);
+                final int expectedDocCount = randomEntry.getValue();
+                final int expectedSize = length / expectedDocCount;
+                assertEquals(expectedSize, buckets.size());
+                final int randomIndex = randomInt(expectedSize - 1);
                 final Histogram.Bucket bucket = buckets.get(randomIndex);
                 assertEquals(startDate.plusSeconds(randomIndex * expectedDocCount), bucket.getKey());
                 assertEquals(expectedDocCount, bucket.getDocCount());
@@ -457,28 +457,28 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRandomMinuteIntervals() throws IOException {
-        final int randomLength = randomIntBetween(120, 600);
-        final List<DateTime> dataset = new ArrayList<>(randomLength);
+        final int length = 120;
+        final List<DateTime> dataset = new ArrayList<>(length);
         final DateTime startDate = new DateTime(2017, 1, 1, 0, 0, DateTimeZone.UTC);
-        for (int i = 0; i < randomLength; i++) {
+        for (int i = 0; i < length; i++) {
             final DateTime date = startDate.plusMinutes(i);
             dataset.add(date);
         }
         final Map<Integer, Integer> bucketsToExpectedDocCountMap = new HashMap<>();
-        bucketsToExpectedDocCountMap.put(randomLength, 1);
-        bucketsToExpectedDocCountMap.put(randomLength / 2, 5);
-        bucketsToExpectedDocCountMap.put(randomLength / 6, 10);
-        bucketsToExpectedDocCountMap.put(randomLength / 12, 30);
-        bucketsToExpectedDocCountMap.put(randomLength / 40, 60);
-        final Integer randomNumberOfBuckets = randomFrom(bucketsToExpectedDocCountMap.keySet());
+        bucketsToExpectedDocCountMap.put(120, 1);
+        bucketsToExpectedDocCountMap.put(60, 5);
+        bucketsToExpectedDocCountMap.put(20, 10);
+        bucketsToExpectedDocCountMap.put(10, 30);
+        bucketsToExpectedDocCountMap.put(3, 60);
+        final Map.Entry<Integer, Integer> randomEntry = randomFrom(bucketsToExpectedDocCountMap.entrySet());
         testSearchAndReduceCase(DEFAULT_QUERY, dataset,
-            aggregation -> aggregation.setNumBuckets(randomNumberOfBuckets).field(DATE_FIELD),
+            aggregation -> aggregation.setNumBuckets(randomEntry.getKey()).field(DATE_FIELD),
             histogram -> {
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                final int expectedDocCount = bucketsToExpectedDocCountMap.get(randomNumberOfBuckets);
-                final int expectedSizeCeil = (randomLength + expectedDocCount - 1) / expectedDocCount;
-                assertEquals(expectedSizeCeil, buckets.size());
-                final int randomIndex = randomInt(expectedSizeCeil - 2);
+                final int expectedDocCount = randomEntry.getValue();
+                final int expectedSize = length / expectedDocCount;
+                assertEquals(expectedSize, buckets.size());
+                final int randomIndex = randomInt(expectedSize - 1);
                 final Histogram.Bucket bucket = buckets.get(randomIndex);
                 assertEquals(startDate.plusMinutes(randomIndex * expectedDocCount), bucket.getKey());
                 assertEquals(expectedDocCount, bucket.getDocCount());
@@ -486,27 +486,27 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRandomHourIntervals() throws IOException {
-        final int randomLength = randomIntBetween(60, 600);
-        final List<DateTime> dataset = new ArrayList<>(randomLength);
+        final int length = 72;
+        final List<DateTime> dataset = new ArrayList<>(length);
         final DateTime startDate = new DateTime(2017, 1, 1, 0, 0, DateTimeZone.UTC);
-        for (int i = 0; i < randomLength; i++) {
+        for (int i = 0; i < length; i++) {
             final DateTime date = startDate.plusHours(i);
             dataset.add(date);
         }
         final Map<Integer, Integer> bucketsToExpectedDocCountMap = new HashMap<>();
-        bucketsToExpectedDocCountMap.put(randomLength, 1);
-        bucketsToExpectedDocCountMap.put(randomLength / 2, 3);
-        bucketsToExpectedDocCountMap.put(randomLength / 6, 12);
-        bucketsToExpectedDocCountMap.put(randomLength / 20, 24);
-        final Integer randomNumberOfBuckets = randomFrom(bucketsToExpectedDocCountMap.keySet());
+        bucketsToExpectedDocCountMap.put(72, 1);
+        bucketsToExpectedDocCountMap.put(36, 3);
+        bucketsToExpectedDocCountMap.put(12, 12);
+        bucketsToExpectedDocCountMap.put(3, 24);
+        final Map.Entry<Integer, Integer> randomEntry = randomFrom(bucketsToExpectedDocCountMap.entrySet());
         testSearchAndReduceCase(DEFAULT_QUERY, dataset,
-            aggregation -> aggregation.setNumBuckets(randomNumberOfBuckets).field(DATE_FIELD),
+            aggregation -> aggregation.setNumBuckets(randomEntry.getKey()).field(DATE_FIELD),
             histogram -> {
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                final int expectedDocCount = bucketsToExpectedDocCountMap.get(randomNumberOfBuckets);
-                final int expectedSizeCeil = (randomLength + expectedDocCount - 1) / expectedDocCount;
-                assertEquals(expectedSizeCeil, buckets.size());
-                final int randomIndex = randomInt(expectedSizeCeil - 2);
+                final int expectedDocCount = randomEntry.getValue();
+                final int expectedSize = length / expectedDocCount;
+                assertEquals(expectedSize, buckets.size());
+                final int randomIndex = randomInt(expectedSize - 1);
                 final Histogram.Bucket bucket = buckets.get(randomIndex);
                 assertEquals(startDate.plusHours(randomIndex * expectedDocCount), bucket.getKey());
                 assertEquals(expectedDocCount, bucket.getDocCount());
@@ -514,47 +514,44 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRandomDayIntervals() throws IOException {
-        final int randomLength = randomIntBetween(100, 700);
-        final List<DateTime> dataset = new ArrayList<>(randomLength);
+        final int length = 140;
+        final List<DateTime> dataset = new ArrayList<>(length);
         final DateTime startDate = new DateTime(2017, 1, 1, 0, 0, DateTimeZone.UTC);
-        for (int i = 0; i < randomLength; i++) {
+        for (int i = 0; i < length; i++) {
             final DateTime date = startDate.plusDays(i);
             dataset.add(date);
         }
         final int randomChoice = randomIntBetween(1, 3);
         if (randomChoice == 1) {
             testSearchAndReduceCase(DEFAULT_QUERY, dataset,
-                aggregation -> aggregation.setNumBuckets(randomLength).field(DATE_FIELD),
+                aggregation -> aggregation.setNumBuckets(length).field(DATE_FIELD),
                 histogram -> {
                     final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                    assertEquals(randomLength, buckets.size());
-                    final int randomIndex = randomInt(randomLength - 1);
+                    assertEquals(length, buckets.size());
+                    final int randomIndex = randomInt(length - 1);
                     final Histogram.Bucket bucket = buckets.get(randomIndex);
                     assertEquals(startDate.plusDays(randomIndex), bucket.getKey());
                     assertEquals(1, bucket.getDocCount());
                 });
         } else if (randomChoice == 2) {
             testSearchAndReduceCase(DEFAULT_QUERY, dataset,
-                aggregation -> aggregation.setNumBuckets(randomLength / 2).field(DATE_FIELD),
+                aggregation -> aggregation.setNumBuckets(60).field(DATE_FIELD),
                 histogram -> {
                     final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     final int expectedDocCount = 7;
-                    final int expectedSizeCeil = (randomLength + expectedDocCount - 1) / expectedDocCount;
-                    assertEquals(expectedSizeCeil, buckets.size());
-                    final int randomIndex = randomInt(expectedSizeCeil - 2);
+                    assertEquals(20, buckets.size());
+                    final int randomIndex = randomInt(19);
                     final Histogram.Bucket bucket = buckets.get(randomIndex);
                     assertEquals(startDate.plusDays(randomIndex * expectedDocCount), bucket.getKey());
                     assertEquals(expectedDocCount, bucket.getDocCount());
                 });
         } else if (randomChoice == 3) {
             testSearchAndReduceCase(DEFAULT_QUERY, dataset,
-                aggregation -> aggregation.setNumBuckets(randomLength / 24).field(DATE_FIELD),
+                aggregation -> aggregation.setNumBuckets(6).field(DATE_FIELD),
                 histogram -> {
                     final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                    final Period period = new Period(startDate, startDate.plusDays(randomLength), PeriodType.yearMonthDayTime());
-                    final int expectedSizeCeil = period.getYears() * 12 + period.getMonths() + (period.getDays() == 0 ? 0 : 1);
-                    assertEquals(expectedSizeCeil, buckets.size());
-                    final int randomIndex = randomInt(expectedSizeCeil - 2);
+                    assertEquals(5, buckets.size());
+                    final int randomIndex = randomInt(2);
                     final Histogram.Bucket bucket = buckets.get(randomIndex);
                     assertEquals(startDate.plusMonths(randomIndex), bucket.getKey());
                     assertEquals(startDate.plusMonths(randomIndex).dayOfMonth().getMaximumValue(), bucket.getDocCount());
@@ -563,26 +560,26 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRandomMonthIntervals() throws IOException {
-        final int randomLength = randomIntBetween(40, 600);
-        final List<DateTime> dataset = new ArrayList<>(randomLength);
+        final int length = 60;
+        final List<DateTime> dataset = new ArrayList<>(length);
         final DateTime startDate = new DateTime(2017, 1, 1, 0, 0, DateTimeZone.UTC);
-        for (int i = 0; i < randomLength; i++) {
+        for (int i = 0; i < length; i++) {
             final DateTime date = startDate.plusMonths(i);
             dataset.add(date);
         }
         final Map<Integer, Integer> bucketsToExpectedDocCountMap = new HashMap<>();
-        bucketsToExpectedDocCountMap.put(randomLength, 1);
-        bucketsToExpectedDocCountMap.put(randomLength / 2, 3);
-        bucketsToExpectedDocCountMap.put(randomLength / 10, 12);
-        final Integer randomNumberOfBuckets = randomFrom(bucketsToExpectedDocCountMap.keySet());
+        bucketsToExpectedDocCountMap.put(60, 1);
+        bucketsToExpectedDocCountMap.put(30, 3);
+        bucketsToExpectedDocCountMap.put(6, 12);
+        final Map.Entry<Integer, Integer> randomEntry = randomFrom(bucketsToExpectedDocCountMap.entrySet());
         testSearchAndReduceCase(DEFAULT_QUERY, dataset,
-            aggregation -> aggregation.setNumBuckets(randomNumberOfBuckets).field(DATE_FIELD),
+            aggregation -> aggregation.setNumBuckets(randomEntry.getKey()).field(DATE_FIELD),
             histogram -> {
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                final int expectedDocCount = bucketsToExpectedDocCountMap.get(randomNumberOfBuckets);
-                final int expectedSizeCeil = (randomLength + expectedDocCount - 1) / expectedDocCount;
-                assertEquals(expectedSizeCeil, buckets.size());
-                final int randomIndex = randomInt(expectedSizeCeil - 2);
+                final int expectedDocCount = randomEntry.getValue();
+                final int expectedSize = length / expectedDocCount;
+                assertEquals(expectedSize, buckets.size());
+                final int randomIndex = randomInt(expectedSize - 1);
                 final Histogram.Bucket bucket = buckets.get(randomIndex);
                 assertEquals(startDate.plusMonths(randomIndex * expectedDocCount), bucket.getKey());
                 assertEquals(expectedDocCount, bucket.getDocCount());
@@ -590,29 +587,29 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRandomYearIntervals() throws IOException {
-        final int randomLength = randomIntBetween(300, 600);
-        final List<DateTime> dataset = new ArrayList<>(randomLength);
+        final int length = 300;
+        final List<DateTime> dataset = new ArrayList<>(length);
         final DateTime startDate = new DateTime(2017, 1, 1, 0, 0, DateTimeZone.UTC);
-        for (int i = 0; i < randomLength; i++) {
+        for (int i = 0; i < length; i++) {
             final DateTime date = startDate.plusYears(i);
             dataset.add(date);
         }
         final Map<Integer, Integer> bucketsToExpectedDocCountMap = new HashMap<>();
-        bucketsToExpectedDocCountMap.put(randomLength, 1);
-        bucketsToExpectedDocCountMap.put(randomLength / 2, 5);
-        bucketsToExpectedDocCountMap.put(randomLength / 6, 10);
-        bucketsToExpectedDocCountMap.put(randomLength / 12, 20);
-        bucketsToExpectedDocCountMap.put(randomLength / 30, 50);
-        bucketsToExpectedDocCountMap.put(randomLength / 60, 100);
-        final Integer randomNumberOfBuckets = randomFrom(bucketsToExpectedDocCountMap.keySet());
+        bucketsToExpectedDocCountMap.put(300, 1);
+        bucketsToExpectedDocCountMap.put(150, 5);
+        bucketsToExpectedDocCountMap.put(50, 10);
+        bucketsToExpectedDocCountMap.put(25, 20);
+        bucketsToExpectedDocCountMap.put(10, 50);
+        bucketsToExpectedDocCountMap.put(5, 100);
+        final Map.Entry<Integer, Integer> randomEntry = randomFrom(bucketsToExpectedDocCountMap.entrySet());
         testSearchAndReduceCase(DEFAULT_QUERY, dataset,
-            aggregation -> aggregation.setNumBuckets(randomNumberOfBuckets).field(DATE_FIELD),
+            aggregation -> aggregation.setNumBuckets(randomEntry.getKey()).field(DATE_FIELD),
             histogram -> {
                 final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                final int expectedDocCount = bucketsToExpectedDocCountMap.get(randomNumberOfBuckets);
-                final int expectedSizeCeil = (randomLength + expectedDocCount - 1) / expectedDocCount;
-                assertEquals(expectedSizeCeil, buckets.size());
-                final int randomIndex = randomInt(expectedSizeCeil - 2);
+                final int expectedDocCount = randomEntry.getValue();
+                final int expectedSize = length / expectedDocCount;
+                assertEquals(expectedSize, buckets.size());
+                final int randomIndex = randomInt(expectedSize - 1);
                 final Histogram.Bucket bucket = buckets.get(randomIndex);
                 assertEquals(startDate.plusYears(randomIndex * expectedDocCount), bucket.getKey());
                 assertEquals(expectedDocCount, bucket.getDocCount());

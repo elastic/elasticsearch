@@ -65,7 +65,7 @@ public class AutodetectBuilderTests extends ESTestCase {
         job.setDataDescription(dd);
 
         List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand();
-        assertEquals(12, command.size());
+        assertEquals(11, command.size());
         assertTrue(command.contains(AutodetectBuilder.AUTODETECT_PATH));
         assertTrue(command.contains(AutodetectBuilder.BUCKET_SPAN_ARG + "120"));
         assertTrue(command.contains(AutodetectBuilder.LATENCY_ARG + "360"));

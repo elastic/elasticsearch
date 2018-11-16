@@ -1,6 +1,11 @@
 version: '3'
 services:
-    fixture:
-       build: 
-          context: .
-          dockerfile: Dockerfile
+  fixture:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "61389:389"  
+      - "61636:636"  
+      - "63268:3268"
+      - "63269:3269"  

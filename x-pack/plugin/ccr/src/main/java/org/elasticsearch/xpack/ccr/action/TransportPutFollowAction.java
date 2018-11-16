@@ -213,7 +213,7 @@ public final class TransportPutFollowAction
             public void onFailure(Exception t) {
                 listener.onFailure(t);
             }
-        });
+        }, false);
 
 
 //         Can't use create index api here, because then index templates can alter the mappings / settings.

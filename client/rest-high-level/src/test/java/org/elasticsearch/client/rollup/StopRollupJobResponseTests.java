@@ -18,34 +18,25 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
-import org.junit.Before;
+import org.elasticsearch.client.core.AcknowledgedResponseTests;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class StopRollupJobResponseTests extends AbstractXContentTestCase<StopRollupJobResponse> {
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-    private boolean acknowledged;
+public class StopRollupJobResponseTests extends ESTestCase {
 
-    @Before
-    public void setupAcknoledged() {
-        acknowledged = randomBoolean();
+    public void testFromXContent() throws IOException {
+        xContentTester(this::createParser,
+            this::createTestInstance,
+            AcknowledgedResponseTests::toXContent,
+            StopRollupJobResponse::fromXContent)
+            .supportsUnknownFields(false)
+            .test();
     }
-
-    @Override
-    protected StopRollupJobResponse createTestInstance() {
-        return new StopRollupJobResponse(acknowledged);
-    }
-
-    @Override
-    protected  StopRollupJobResponse doParseInstance(XContentParser parser) throws IOException {
-        return StopRollupJobResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    private StopRollupJobResponse createTestInstance() {
+        return new StopRollupJobResponse(randomBoolean());
     }
 
 }

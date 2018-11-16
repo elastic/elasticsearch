@@ -25,6 +25,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -101,6 +104,31 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
 
     public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> factories,
             Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
+    }
+    
+    public static void doValidateParentAggregations(AggregatorFactory<?> parent, String name) {
+        if (parent instanceof HistogramAggregatorFactory) {
+            HistogramAggregatorFactory histoParent = (HistogramAggregatorFactory) parent;
+            if (histoParent.minDocCount() != 0) {
+                throw new IllegalStateException("parent histogram of derivative aggregation [" + name
+                        + "] must have min_doc_count of 0");
+            }
+        } else if (parent instanceof DateHistogramAggregatorFactory) {
+            DateHistogramAggregatorFactory histoParent = (DateHistogramAggregatorFactory) parent;
+            if (histoParent.minDocCount() != 0) {
+                throw new IllegalStateException("parent histogram of derivative aggregation [" + name
+                        + "] must have min_doc_count of 0");
+            }
+        } else if (parent instanceof AutoDateHistogramAggregatorFactory) {
+            AutoDateHistogramAggregatorFactory histoParent = (AutoDateHistogramAggregatorFactory) parent;
+            if (histoParent.numBuckets() != 0) {
+                throw new IllegalStateException("parent histogram of derivative aggregation [" + name
+                        + "] must have bucket number greater than 0");
+            }
+        } else {
+            throw new IllegalStateException("derivative aggregation [" + name
+                    + "] must have a histogram, date_histogram or auto_datehistogram as parent");
+        }
     }
 
     @SuppressWarnings("unchecked")

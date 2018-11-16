@@ -47,6 +47,10 @@ public final class AutoDateHistogramAggregatorFactory
         this.numBuckets = numBuckets;
         this.roundingInfos = roundingInfos;
     }
+    
+    public int numBuckets() {
+        return numBuckets;
+    }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,

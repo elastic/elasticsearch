@@ -31,6 +31,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -161,22 +162,8 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
         }
-        if (parent instanceof HistogramAggregatorFactory) {
-            HistogramAggregatorFactory histoParent = (HistogramAggregatorFactory) parent;
-            if (histoParent.minDocCount() != 0) {
-                throw new IllegalStateException("parent histogram of derivative aggregation [" + name
-                        + "] must have min_doc_count of 0");
-            }
-        } else if (parent instanceof DateHistogramAggregatorFactory) {
-            DateHistogramAggregatorFactory histoParent = (DateHistogramAggregatorFactory) parent;
-            if (histoParent.minDocCount() != 0) {
-                throw new IllegalStateException("parent histogram of derivative aggregation [" + name
-                        + "] must have min_doc_count of 0");
-            }
-        } else {
-            throw new IllegalStateException("derivative aggregation [" + name
-                    + "] must have a histogram or date_histogram as parent");
-        }
+        
+        doValidateParentAggregations(parent, name);
     }
 
     @Override

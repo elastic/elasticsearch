@@ -293,6 +293,29 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return shell.numDimensions();
     }
 
+    @Override
+    public int inherentDimensions() {
+        return 2;
+    }
+
+    @Override
+    public double firstX() {
+        if (shell == null) {
+            throw new IllegalStateException("unable to get the first point, " +
+                "Polygon has not yet been initialized");
+        }
+        return shell.firstX();
+    }
+
+    @Override
+    public double firstY() {
+        if (shell == null) {
+            throw new IllegalStateException("unable to get the first point, " +
+                "Polygon has not yet been initialized");
+        }
+        return shell.firstY();
+    }
+
     protected static Polygon polygon(GeometryFactory factory, Coordinate[][] polygon) {
         LinearRing shell = factory.createLinearRing(polygon[0]);
         LinearRing[] holes;

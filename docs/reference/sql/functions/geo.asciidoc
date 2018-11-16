@@ -32,8 +32,8 @@ include-tagged::{sql-specs}/geo/docs.csv-spec[aswkt]
 --------------------------------------------------
 
 
-[[sql-functions-geo-st-as-wkt]]
-===== `ST_AsWKT`
+[[sql-functions-geo-st-wkt-to-sql]]
+===== `ST_WKTToSQL`
 
 .Synopsis:
 [source, sql]
@@ -54,4 +54,207 @@ Returns the geometry from WKT representation. The return type is geometry.
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/geo/docs.csv-spec[aswkt]
+--------------------------------------------------
+
+==== Geometry Properties
+
+[[sql-functions-geo-dimension]]
+===== `ST_Dimension`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_Dimension(geometry<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> geometry
+
+*Output*: small integer
+
+.Description:
+
+Returns the dimension of the `geometry` in terms of width and length.
+For example, a point has dimension 0, a line - 1 and a polygon 2. The
+return type is small integer.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/geo/docs.csv-spec[dimension]
+--------------------------------------------------
+
+[[sql-functions-geo-geometrytype]]
+===== `ST_GeometryType`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_GeometryType(geometry<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> geometry
+
+*Output*: string
+
+.Description:
+
+Returns the type of the `geometry` such as "Point", "Polygon", "MultiPolygon", etc.
+The return type is string.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/geo/docs.csv-spec[geometrytype]
+--------------------------------------------------
+
+[[sql-functions-geo-x]]
+===== `ST_X`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_X(geometry<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> geometry
+
+*Output*: double
+
+.Description:
+
+Returns the longitude of the first point in the geometry.
+The return type is double.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/geo/docs.csv-spec[x]
+--------------------------------------------------
+
+[[sql-functions-geo-y]]
+===== `ST_Y`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_Y(geometry<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> geometry
+
+*Output*: double
+
+.Description:
+
+Returns the the latitude of the first point in the geometry.
+The return type is double.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/geo/docs.csv-spec[y]
+--------------------------------------------------
+
+[[sql-functions-geo-xmin]]
+===== `ST_XMin`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_XMin(geometry<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> geometry
+
+*Output*: double
+
+.Description:
+
+Returns the minimum longitude of all points in the geometry.
+The return type is double.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/geo/docs.csv-spec[xmin]
+--------------------------------------------------
+
+[[sql-functions-geo-ymin]]
+===== `ST_YMin`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_YMin(geometry<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> geometry
+
+*Output*: double
+
+.Description:
+
+Returns the minimum latitude of all points in the geometry.
+The return type is double.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/geo/docs.csv-spec[ymin]
+--------------------------------------------------
+
+[[sql-functions-geo-xmax]]
+===== `ST_XMax`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_XMax(geometry<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> geometry
+
+*Output*: double
+
+.Description:
+
+Returns the maximum longitude of all points in the geometry.
+The return type is double.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/geo/docs.csv-spec[xmax]
+--------------------------------------------------
+
+[[sql-functions-geo-ymax]]
+===== `ST_YMax`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_YMax(geometry<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> geometry
+
+*Output*: double
+
+.Description:
+
+Returns the maximum latitude of all points in the geometry.
+The return type is double.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/geo/docs.csv-spec[ymax]
 --------------------------------------------------

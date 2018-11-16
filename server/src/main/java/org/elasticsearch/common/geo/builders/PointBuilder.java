@@ -97,4 +97,10 @@ public class PointBuilder extends ShapeBuilder<Point, PointBuilder> {
     public int numDimensions() {
         return Double.isNaN(coordinates.get(0).z) ? 2 : 3;
     }
+
+    @Override
+    public int inherentDimensions() {
+        return 0;
+    }
+
 }

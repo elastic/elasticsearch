@@ -14,32 +14,32 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
- * ST_AsWKT function that takes a geometry and returns its Well Known Text representation
+ * ST_YMax function that takes a geometry and returns max Y of all coordinates
  */
-public class StAswkt extends UnaryGeoFunction {
+public class StYmax extends UnaryGeoFunction {
 
-    public StAswkt(Location location, Expression field) {
+    public StYmax(Location location, Expression field) {
         super(location, field);
     }
 
     @Override
-    protected NodeInfo<StAswkt> info() {
-        return NodeInfo.create(this, StAswkt::new, field());
+    protected NodeInfo<StYmax> info() {
+        return NodeInfo.create(this, StYmax::new, field());
     }
 
     @Override
-    protected StAswkt replaceChild(Expression newChild) {
-        return new StAswkt(location(), newChild);
+    protected StYmax replaceChild(Expression newChild) {
+        return new StYmax(location(), newChild);
     }
 
     @Override
     protected GeoOperation operation() {
-        return GeoOperation.ASWKT;
+        return GeoOperation.Y_MAX;
     }
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return DataType.DOUBLE;
     }
 
 }

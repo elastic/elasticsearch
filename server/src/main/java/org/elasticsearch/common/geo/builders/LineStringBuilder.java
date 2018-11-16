@@ -101,6 +101,11 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuild
     }
 
     @Override
+    public int inherentDimensions() {
+        return 1;
+    }
+
+    @Override
     public JtsGeometry build() {
         Coordinate[] coordinates = this.coordinates.toArray(new Coordinate[this.coordinates.size()]);
         Geometry geometry;

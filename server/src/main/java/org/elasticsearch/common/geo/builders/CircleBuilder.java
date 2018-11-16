@@ -178,6 +178,21 @@ public class CircleBuilder extends ShapeBuilder<Circle, CircleBuilder> {
     }
 
     @Override
+    public int inherentDimensions() {
+        return 2;
+    }
+
+    @Override
+    public double firstX() {
+        return center.x;
+    }
+
+    @Override
+    public double firstY() {
+        return center.y;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(center, radius, unit.ordinal());
     }

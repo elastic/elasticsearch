@@ -14,32 +14,32 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
- * ST_AsWKT function that takes a geometry and returns its Well Known Text representation
+ * ST_X function that takes a geometry and returns X of the first coordinate
  */
-public class StAswkt extends UnaryGeoFunction {
+public class StX extends UnaryGeoFunction {
 
-    public StAswkt(Location location, Expression field) {
+    public StX(Location location, Expression field) {
         super(location, field);
     }
 
     @Override
-    protected NodeInfo<StAswkt> info() {
-        return NodeInfo.create(this, StAswkt::new, field());
+    protected NodeInfo<StX> info() {
+        return NodeInfo.create(this, StX::new, field());
     }
 
     @Override
-    protected StAswkt replaceChild(Expression newChild) {
-        return new StAswkt(location(), newChild);
+    protected StX replaceChild(Expression newChild) {
+        return new StX(location(), newChild);
     }
 
     @Override
     protected GeoOperation operation() {
-        return GeoOperation.ASWKT;
+        return GeoOperation.X;
     }
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return DataType.DOUBLE;
     }
 
 }

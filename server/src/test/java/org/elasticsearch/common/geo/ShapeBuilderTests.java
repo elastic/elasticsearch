@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.geo;
 
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Polygon;
@@ -38,6 +39,8 @@ import org.locationtech.spatial4j.shape.Point;
 import org.locationtech.spatial4j.shape.Rectangle;
 import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.impl.PointImpl;
+
+import java.io.IOException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiLineString;
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiPolygon;
@@ -698,5 +701,49 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(new Coordinate(-45, 30, 110)));
 
         assertEquals(expected, pb.toString());
+    }
+
+    public void testBuilderProperties() throws IOException {
+        ShapeBuilder<?, ?> builder = new CircleBuilder().radius("10000m").center(10, 20);
+        assertEquals(2, builder.inherentDimensions());
+        assertEquals(10.0, builder.firstX(), 0.0001);
+        assertEquals(20.0, builder.firstY(), 0.0001);
+
+        builder = ShapeParser.parse("linestring (10 20, 30 40, 50 55)");
+        assertEquals(1, builder.inherentDimensions());
+        assertEquals(10.0, builder.firstX(), 0.0001);
+        assertEquals(20.0, builder.firstY(), 0.0001);
+
+
+        builder = ShapeParser.parse("multilinestring ((10 20, 30 40, 50 55), (1 2, 3 4))");
+        assertEquals(1, builder.inherentDimensions());
+        assertEquals(10.0, builder.firstX(), 0.0001);
+        assertEquals(20.0, builder.firstY(), 0.0001);
+
+
+        builder = ShapeParser.parse("point (10 20)");
+        assertEquals(0, builder.inherentDimensions());
+        assertEquals(10.0, builder.firstX(), 0.0001);
+        assertEquals(20.0, builder.firstY(), 0.0001);
+
+        builder = ShapeParser.parse("geometrycollection(point (10 20),linestring(10 20, 30 40, 50 55))");
+        assertEquals(1, builder.inherentDimensions());
+        assertEquals(10.0, builder.firstX(), 0.0001);
+        assertEquals(20.0, builder.firstY(), 0.0001);
+
+        builder = ShapeParser.parse("polygon ((20 40, 10 20, 30 10, 40 40, 20 40))");
+        assertEquals(2, builder.inherentDimensions());
+        assertEquals(20.0, builder.firstX(), 0.0001);
+        assertEquals(40.0, builder.firstY(), 0.0001);
+
+        builder = ShapeParser.parse("multipolygon (((20 40, 10 20, 30 10, 40 40, 20 40)), ((2 4, 1 2, 3 1, 4 4, 2 4)))");
+        assertEquals(2, builder.inherentDimensions());
+        assertEquals(20.0, builder.firstX(), 0.0001);
+        assertEquals(40.0, builder.firstY(), 0.0001);
+
+        builder = ShapeParser.parse("multipoint ((10 20), (30 20))");
+        assertEquals(0, builder.inherentDimensions());
+        assertEquals(10.0, builder.firstX(), 0.0001);
+        assertEquals(20.0, builder.firstY(), 0.0001);
     }
 }

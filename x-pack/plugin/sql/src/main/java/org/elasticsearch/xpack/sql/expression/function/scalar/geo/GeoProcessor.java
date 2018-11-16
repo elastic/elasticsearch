@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -17,39 +16,32 @@ import java.util.function.Function;
 
 public class GeoProcessor implements Processor {
 
-    private interface GeoPointFunction<R> {
-        default R apply(Object o) {
-            if (!(o instanceof GeoPoint)) {
-                throw new SqlIllegalArgumentException("A geo_point is required; received [{}]", o);
-            }
-            return doApply((GeoPoint) o);
-        }
-
-        R doApply(GeoPoint s);
-    }
-
-
     private interface GeoShapeFunction<R> {
         default R apply(Object o) {
-            if (!(o instanceof GeoShape)) {
+            if (o instanceof  GeoPoint) {
+                return doApply(new GeoShape((GeoPoint) o));
+            } else if (o instanceof GeoShape) {
+                return doApply((GeoShape) o);
+            } else {
                 throw new SqlIllegalArgumentException("A geo_shape is required; received [{}]", o);
             }
-
-            return doApply((GeoShape) o);
         }
 
         R doApply(GeoShape s);
     }
 
     public enum GeoOperation {
-        ASWKT_POINT((GeoPoint p) -> new PointBuilder(p.getLon(), p.getLat()).toWKT()),
-        ASWKT_SHAPE(GeoShape::toString);
+        ASWKT(GeoShape::toString),
+        DIMENSION(GeoShape::dimension),
+        GEOMETRY_TYPE(GeoShape::geometryType),
+        X(GeoShape::x),
+        Y(GeoShape::y),
+        X_MIN(GeoShape::minX),
+        Y_MIN(GeoShape::minY),
+        X_MAX(GeoShape::maxX),
+        Y_MAX(GeoShape::maxY);
 
         private final Function<Object, Object> apply;
-
-        GeoOperation(GeoPointFunction<Object> apply) {
-            this.apply = l -> l == null ? null : apply.apply(l);
-        }
 
         GeoOperation(GeoShapeFunction<Object> apply) {
             this.apply = l -> l == null ? null : apply.apply(l);

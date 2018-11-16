@@ -123,6 +123,11 @@ public class EnvelopeBuilder extends ShapeBuilder<Rectangle, EnvelopeBuilder> {
     }
 
     @Override
+    public int inherentDimensions() {
+        return 2;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(topLeft, bottomRight);
     }

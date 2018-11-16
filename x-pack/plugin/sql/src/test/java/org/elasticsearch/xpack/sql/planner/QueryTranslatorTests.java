@@ -378,7 +378,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(" +
-                "InternalSqlScriptUtils.aswktPoint(InternalSqlScriptUtils.docValue(doc,params.v0))," +
+                "InternalSqlScriptUtils.aswkt(InternalSqlScriptUtils.docValue(doc,params.v0))," +
                 "params.v1)" +
                 ")",
             aggFilter.scriptTemplate().toString());
@@ -396,7 +396,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(" +
-                "InternalSqlScriptUtils.aswktShape(InternalSqlScriptUtils.docValue(doc,params.v0))," +
+                "InternalSqlScriptUtils.aswkt(InternalSqlScriptUtils.docValue(doc,params.v0))," +
                 "params.v1)" +
                 ")",
             aggFilter.scriptTemplate().toString());

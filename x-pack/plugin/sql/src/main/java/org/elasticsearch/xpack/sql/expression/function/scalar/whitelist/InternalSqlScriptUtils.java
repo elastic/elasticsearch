@@ -402,15 +402,43 @@ public final class InternalSqlScriptUtils {
         return (String) StringOperation.UCASE.apply(s);
     }
 
-    public static String aswktPoint(Object v) {
-        return GeoProcessor.GeoOperation.ASWKT_POINT.apply(v).toString();
-    }
-
-    public static String aswktShape(Object v) {
-        return GeoProcessor.GeoOperation.ASWKT_SHAPE.apply(v).toString();
+    public static String aswkt(Object v) {
+        return GeoProcessor.GeoOperation.ASWKT.apply(v).toString();
     }
 
     public static GeoShape wktToSql(String wktString) {
         return StWkttosqlProcessor.apply(wktString);
+    }
+
+    public static Integer dimension(Object g) {
+        return (Integer) GeoProcessor.GeoOperation.DIMENSION.apply(g);
+    }
+
+    public static String geometryType(Object g) {
+        return (String) GeoProcessor.GeoOperation.GEOMETRY_TYPE.apply(g);
+    }
+
+    public static Double x(Object g) {
+        return (Double) GeoProcessor.GeoOperation.X.apply(g);
+    }
+
+    public static Double y(Object g) {
+        return (Double) GeoProcessor.GeoOperation.Y.apply(g);
+    }
+
+    public static Double xMin(Object g) {
+        return (Double) GeoProcessor.GeoOperation.X_MIN.apply(g);
+    }
+
+    public static Double yMin(Object g) {
+        return (Double) GeoProcessor.GeoOperation.Y_MIN.apply(g);
+    }
+
+    public static Double xMax(Object g) {
+        return (Double) GeoProcessor.GeoOperation.X_MAX.apply(g);
+    }
+
+    public static Double yMax(Object g) {
+        return (Double) GeoProcessor.GeoOperation.Y_MAX.apply(g);
     }
 }

@@ -35,7 +35,15 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfM
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StAswkt;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDimension;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StGeometrytype;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StXmax;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StYmax;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StXmin;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StYmin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StWkttosql;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StX;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StY;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
@@ -215,8 +223,16 @@ public class FunctionRegistry {
                 def(UCase.class, UCase::new));
 
         // Geo Functions
-        addToMap(def(StAswkt.class, StAswkt::new, "ST_ASTEXT"));
-        addToMap(def(StWkttosql.class, StWkttosql::new, "ST_GEOMFROMTEXT"));
+        addToMap(def(StDimension.class, StDimension::new),
+                def(StGeometrytype.class, StGeometrytype::new),
+                def(StAswkt.class, StAswkt::new, "ST_ASTEXT"),
+                def(StX.class, StX::new),
+                def(StY.class, StY::new),
+                def(StXmin.class, StXmin::new),
+                def(StYmin.class, StYmin::new),
+                def(StXmax.class, StXmax::new),
+                def(StYmax.class, StYmax::new),
+                def(StWkttosql.class, StWkttosql::new, "ST_GEOMFROMTEXT"));
         // DataType conversion
         addToMap(def(Cast.class, Cast::new, "CONVERT"));
         // Special

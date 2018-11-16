@@ -14,32 +14,32 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
- * ST_AsWKT function that takes a geometry and returns its Well Known Text representation
+ * ST_YMin function that takes a geometry and returns min Y of all coordinates
  */
-public class StAswkt extends UnaryGeoFunction {
+public class StYmin extends UnaryGeoFunction {
 
-    public StAswkt(Location location, Expression field) {
+    public StYmin(Location location, Expression field) {
         super(location, field);
     }
 
     @Override
-    protected NodeInfo<StAswkt> info() {
-        return NodeInfo.create(this, StAswkt::new, field());
+    protected NodeInfo<StYmin> info() {
+        return NodeInfo.create(this, StYmin::new, field());
     }
 
     @Override
-    protected StAswkt replaceChild(Expression newChild) {
-        return new StAswkt(location(), newChild);
+    protected StYmin replaceChild(Expression newChild) {
+        return new StYmin(location(), newChild);
     }
 
     @Override
     protected GeoOperation operation() {
-        return GeoOperation.ASWKT;
+        return GeoOperation.Y_MIN;
     }
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return DataType.DOUBLE;
     }
 
 }

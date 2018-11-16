@@ -162,6 +162,29 @@ public class MultiPolygonBuilder extends ShapeBuilder<Shape, MultiPolygonBuilder
     }
 
     @Override
+    public int inherentDimensions() {
+        return 2;
+    }
+
+    @Override
+    public double firstX() {
+        if (polygons == null || polygons.isEmpty()) {
+            throw new IllegalStateException("unable to get the first point, " +
+                "Polygons have not yet been initialized");
+        }
+        return polygons.get(0).firstX();
+    }
+
+    @Override
+    public double firstY() {
+        if (polygons == null || polygons.isEmpty()) {
+            throw new IllegalStateException("unable to get the first point, " +
+                "Polygons have not yet been initialized");
+        }
+        return polygons.get(0).firstY();
+    }
+
+    @Override
     public Shape build() {
 
         List<Shape> shapes = new ArrayList<>(this.polygons.size());

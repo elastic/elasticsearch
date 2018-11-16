@@ -4,7 +4,7 @@
 
 ///////////////////////////////
 //
-// ST_AsWKT()
+// Geometry Conversion
 //
 ///////////////////////////////
 
@@ -24,4 +24,82 @@ SELECT CAST(ST_WKTToSQL('POINT (10 20)') AS STRING) location;
    location:s
 point (10.0 20.0)
 // end::wkttosql
+;
+
+///////////////////////////////
+//
+// Geometry Properties
+//
+///////////////////////////////
+
+selectDimension
+// tag::dimension
+SELECT ST_Dimension(ST_WKTToSQL('POINT (10 20)')) dim;
+
+      dim:sh
+0
+// end::dimension
+;
+
+selectGeometryType
+// tag::geometrytype
+SELECT ST_GeometryType(ST_WKTToSQL('POINT (10 20)')) type;
+
+      type:s
+Point
+// end::geometrytype
+;
+
+selectX
+// tag::x
+SELECT ST_X(ST_WKTToSQL('POINT (10 20)')) x;
+
+      x:d
+10.0
+// end::x
+;
+
+selectY
+// tag::y
+SELECT ST_Y(ST_WKTToSQL('POINT (10 20)')) y;
+
+      y:d
+20.0
+// end::y
+;
+
+selectXMin
+// tag::xmin
+SELECT ST_XMin(ST_WKTToSQL('POLYGON ((20 40, 10 20, 30 10, 40 40, 20 40))')) x;
+
+      x:d
+10.0
+// end::xmin
+;
+
+selectYMin
+// tag::ymin
+SELECT ST_YMin(ST_WKTToSQL('POLYGON ((20 40, 10 20, 30 10, 40 40, 20 40))')) y;
+
+      y:d
+10.0
+// end::ymin
+;
+
+selectXMax
+// tag::xmax
+SELECT ST_XMax(ST_WKTToSQL('POLYGON ((20 40, 10 20, 30 10, 40 40, 20 40))')) x;
+
+      x:d
+40.0
+// end::xmax
+;
+
+selectYMax
+// tag::ymax
+SELECT ST_YMax(ST_WKTToSQL('POLYGON ((20 40, 10 20, 30 10, 40 40, 20 40))')) y;
+
+      y:d
+40.0
+// end::ymax
 ;

@@ -86,4 +86,9 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
         }
         return Double.isNaN(coordinates.get(0).z) ? 2 : 3;
     }
+
+    @Override
+    public int inherentDimensions() {
+        return 0;
+    }
 }

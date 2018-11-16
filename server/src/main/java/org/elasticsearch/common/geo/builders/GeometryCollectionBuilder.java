@@ -168,6 +168,33 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
     }
 
     @Override
+    public int inherentDimensions() {
+        if (shapes == null || shapes.isEmpty()) {
+            throw new IllegalStateException("unable to get number of dimensions, " +
+                "GeometryCollection has not yet been initialized");
+        }
+        return shapes.stream().mapToInt(ShapeBuilder::inherentDimensions).max().orElse(0);
+    }
+
+    @Override
+    public double firstX() {
+        if (shapes == null || shapes.isEmpty()) {
+            throw new IllegalStateException("unable to get the first point, " +
+                "GeometryCollection has not yet been initialized");
+        }
+        return shapes.get(0).firstX();
+    }
+
+    @Override
+    public double firstY() {
+        if (shapes == null || shapes.isEmpty()) {
+            throw new IllegalStateException("unable to get the first point, " +
+                "GeometryCollection has not yet been initialized");
+        }
+        return shapes.get(0).firstY();
+    }
+
+    @Override
     public Shape build() {
 
         List<Shape> shapes = new ArrayList<>(this.shapes.size());

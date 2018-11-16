@@ -231,6 +231,37 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
     public abstract int numDimensions();
 
     /**
+     * Tracks number of inherent dimensions (in terms of width and length)
+     *
+     * For example POINT has 0 dimension
+     * Line has 1 dimension
+     * Polygon has 2 dimensions
+     * GeometryCollection has the max number of dimension of its members
+     *
+     * */
+    public abstract int inherentDimensions();
+
+    /**
+     * Returns the first X coordinate
+     */
+    public double firstX() {
+        if (coordinates == null || coordinates.isEmpty()) {
+            throw new IllegalStateException("unable to get the first coordinate");
+        }
+        return coordinates.get(0).x;
+    }
+
+    /**
+     * Returns the first Y coordinate
+     */
+    public double firstY() {
+        if (coordinates == null || coordinates.isEmpty()) {
+            throw new IllegalStateException("unable to get the first coordinate");
+        }
+        return coordinates.get(0).y;
+    }
+
+    /**
      * Calculate the intersection of a line segment and a vertical dateline.
      *
      * @param p1

@@ -110,6 +110,25 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, MultiLineS
     }
 
     @Override
+    public int inherentDimensions() {
+        return 1;
+    }
+
+    public double firstX() {
+        if (lines == null || lines.isEmpty()) {
+            throw new IllegalStateException("unable to get the first coordinate");
+        }
+        return lines.get(0).firstX();
+    }
+
+    public double firstY() {
+        if (lines == null || lines.isEmpty()) {
+            throw new IllegalStateException("unable to get the first coordinate");
+        }
+        return lines.get(0).firstY();
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());

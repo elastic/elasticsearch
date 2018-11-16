@@ -357,6 +357,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-clear-roles-cache>>
 * <<{upid}-clear-realm-cache>>
 * <<{upid}-authenticate>>
+* <<{upid}-has-privileges>>
 * <<java-rest-high-security-get-certificates>>
 * <<java-rest-high-security-put-role-mapping>>
 * <<java-rest-high-security-get-role-mappings>>
@@ -374,6 +375,7 @@ include::security/delete-privileges.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/clear-realm-cache.asciidoc[]
 include::security/authenticate.asciidoc[]
+include::security/has-privileges.asciidoc[]
 include::security/get-certificates.asciidoc[]
 include::security/put-role-mapping.asciidoc[]
 include::security/get-role-mappings.asciidoc[]

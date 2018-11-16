@@ -16,35 +16,36 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.rollup;
+package org.elasticsearch.client.ml;
 
+import org.elasticsearch.client.ml.job.process.ModelSnapshot;
+import org.elasticsearch.client.ml.job.process.ModelSnapshotTests;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
-public class PutRollupJobResponseTests extends AbstractXContentTestCase<PutRollupJobResponse> {
+public class GetModelSnapshotsResponseTests extends AbstractXContentTestCase<GetModelSnapshotsResponse> {
 
-    private boolean acknowledged;
-
-    @Before
-    public void setupJobID() {
-        acknowledged = randomBoolean();
+    @Override
+    protected GetModelSnapshotsResponse createTestInstance() {
+        int listSize = randomInt(10);
+        List<ModelSnapshot.Builder> modelSnapshots = new ArrayList<>(listSize);
+        for (int j = 0; j < listSize; j++) {
+            modelSnapshots.add(ModelSnapshotTests.createRandomizedBuilder());
+        }
+        return new GetModelSnapshotsResponse(modelSnapshots, listSize);
     }
 
     @Override
-    protected PutRollupJobResponse createTestInstance() {
-        return new PutRollupJobResponse(acknowledged);
-    }
-
-    @Override
-    protected PutRollupJobResponse doParseInstance(XContentParser parser) throws IOException {
-        return PutRollupJobResponse.fromXContent(parser);
+    protected GetModelSnapshotsResponse doParseInstance(XContentParser parser) throws IOException {
+        return GetModelSnapshotsResponse.fromXContent(parser);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

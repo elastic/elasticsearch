@@ -195,6 +195,7 @@ if (project != rootProject) {
             ).asPath,
     )
     systemProperty 'test.local-test-repo-path', "${rootProject.buildDir}/local-test-repo"
+    systemProperty 'test.version_under_test', version
     systemProperty 'test.lucene-snapshot-revision', (versions.lucene =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
   }
   check.dependsOn(integTest)

@@ -103,8 +103,12 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     protected ResultSet executeJdbcQuery(Connection con, String query) throws SQLException {
         Statement statement = con.createStatement();
-        statement.setFetchSize(between(1, 500));
+        statement.setFetchSize(fetchSize());
         return statement.executeQuery(query);
+    }
+
+    protected int fetchSize() {
+        return between(1, 500);
     }
 
     // TODO: use UTC for now until deciding on a strategy for handling date extraction

@@ -28,6 +28,7 @@ import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
@@ -52,6 +53,7 @@ import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequestTests;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
@@ -74,6 +76,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -360,6 +363,16 @@ public class MLRequestConvertersTests extends ESTestCase {
             request.getParameters().get(DeleteForecastRequest.ALLOW_NO_FORECASTS.getPreferredName()));
     }
 
+    public void testDeleteModelSnapshot() {
+        String jobId = randomAlphaOfLength(10);
+        String snapshotId = randomAlphaOfLength(10);
+        DeleteModelSnapshotRequest deleteModelSnapshotRequest = new DeleteModelSnapshotRequest(jobId, snapshotId);
+
+        Request request = MLRequestConverters.deleteModelSnapshot(deleteModelSnapshotRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId, request.getEndpoint());
+    }
+
     public void testGetBuckets() throws IOException {
         String jobId = randomAlphaOfLength(10);
         GetBucketsRequest getBucketsRequest = new GetBucketsRequest(jobId);
@@ -564,6 +577,23 @@ public class MLRequestConvertersTests extends ESTestCase {
         request = MLRequestConverters.getFilter(getFiltersRequest);
         assertThat(request.getParameters().get(PageParams.FROM.getPreferredName()), equalTo("1"));
         assertThat(request.getParameters().get(PageParams.SIZE.getPreferredName()), equalTo("10"));
+    }
+
+    public void testUpdateFilter() throws IOException {
+        String filterId = randomAlphaOfLength(10);
+        UpdateFilterRequest updateFilterRequest = new UpdateFilterRequest(filterId);
+        updateFilterRequest.setDescription(randomAlphaOfLength(10));
+        updateFilterRequest.setRemoveItems(Arrays.asList("item1", "item2"));
+        updateFilterRequest.setAddItems(Arrays.asList("item3", "item5"));
+
+        Request request = MLRequestConverters.updateFilter(updateFilterRequest);
+
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/filters/"+filterId+"/_update"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            UpdateFilterRequest parsedFilterRequest = UpdateFilterRequest.PARSER.apply(parser, null);
+            assertThat(parsedFilterRequest, equalTo(updateFilterRequest));
+        }
     }
 
     private static Job createValidJob(String jobId) {

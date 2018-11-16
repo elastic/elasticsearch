@@ -27,6 +27,7 @@ import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
+import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -74,6 +75,7 @@ import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 
@@ -461,6 +463,47 @@ public final class MachineLearningClient {
                 AcknowledgedResponse::fromXContent,
                 listener,
                 Collections.emptySet());
+    }
+
+    /**
+     * Deletes Machine Learning Model Snapshots
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-snapshot.html">
+     *     ML Delete Model Snapshot documentation</a>
+     *
+     * @param request The request to delete the model snapshot
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteModelSnapshot(DeleteModelSnapshotRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteModelSnapshot,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes Machine Learning Model Snapshots asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-snapshot.html">
+     *         ML Delete Model Snapshot documentation</a>
+     *
+     * @param request The request to delete the model snapshot
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteModelSnapshotAsync(DeleteModelSnapshotRequest request, RequestOptions options,
+                                         ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteModelSnapshot,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 
     /**
@@ -1285,6 +1328,46 @@ public final class MachineLearningClient {
             MLRequestConverters::getFilter,
             options,
             GetFiltersResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Updates a Machine Learning Filter
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-filter.html">
+     *     ML Update Filter documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return PutFilterResponse with the updated {@link org.elasticsearch.client.ml.job.config.MlFilter} object
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutFilterResponse updateFilter(UpdateFilterRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::updateFilter,
+            options,
+            PutFilterResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Updates a Machine Learning Filter asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-filter.html">
+     *     ML Update Filter documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void updateFilterAsync(UpdateFilterRequest request, RequestOptions options, ActionListener<PutFilterResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::updateFilter,
+            options,
+            PutFilterResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

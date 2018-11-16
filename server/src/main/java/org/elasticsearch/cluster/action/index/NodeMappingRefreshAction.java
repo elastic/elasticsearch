@@ -19,12 +19,13 @@
 
 package org.elasticsearch.cluster.action.index;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,7 +39,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class NodeMappingRefreshAction extends AbstractComponent {
+public class NodeMappingRefreshAction {
+
+    private static final Logger logger = LogManager.getLogger(NodeMappingRefreshAction.class);
 
     public static final String ACTION_NAME = "internal:cluster/node/mapping/refresh";
 

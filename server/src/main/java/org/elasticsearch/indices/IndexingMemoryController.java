@@ -19,9 +19,10 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +49,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class IndexingMemoryController extends AbstractComponent implements IndexingOperationListener, Closeable {
+public class IndexingMemoryController implements IndexingOperationListener, Closeable {
+
+    private static final Logger logger = LogManager.getLogger(IndexingMemoryController.class);
 
     /** How much heap (% or bytes) we will share across all actively indexing shards on this node (default: 10%). */
     public static final Setting<ByteSizeValue> INDEX_BUFFER_SIZE_SETTING =

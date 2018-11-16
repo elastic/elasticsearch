@@ -21,12 +21,13 @@ package org.elasticsearch.repositories;
 
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.repositories.RepositoriesService.VerifyResponse;
@@ -45,7 +46,10 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class VerifyNodeRepositoryAction  extends AbstractComponent {
+public class VerifyNodeRepositoryAction {
+
+    private static final Logger logger = LogManager.getLogger(VerifyNodeRepositoryAction.class);
+
     public static final String ACTION_NAME = "internal:admin/repository/verify";
 
     private final TransportService transportService;

@@ -19,18 +19,22 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -47,7 +51,35 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
 
     private final Set<DiscoveryNode> votingTombstones;
 
-    CoordinationMetaData(long term, VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
+    private static final ParseField TERM_PARSE_FIELD = new ParseField("term");
+    private static final ParseField LAST_COMMITTED_CONFIGURATION_FIELD = new ParseField("last_committed_config");
+    private static final ParseField LAST_ACCEPTED_CONFIGURATION_FIELD = new ParseField("last_accepted_config");
+
+    private static long term(Object[] termAndConfigs) {
+        return (long)termAndConfigs[0];
+    }
+
+    private static VotingConfiguration lastCommittedConfig(Object[] termAndConfig) {
+        List<String> nodeIds = (List<String>) termAndConfig[1];
+        return new VotingConfiguration(new HashSet<>(nodeIds));
+    }
+
+    private static VotingConfiguration lastAcceptedConfig(Object[] termAndConfig) {
+        List<String> nodeIds = (List<String>) termAndConfig[2];
+        return new VotingConfiguration(new HashSet<>(nodeIds));
+    }
+
+    private static final ConstructingObjectParser<CoordinationMetaData, Void> PARSER = new ConstructingObjectParser<>(
+            "coordination",
+            termAndConfigs -> new CoordinationMetaData(term(termAndConfigs), lastCommittedConfig(termAndConfigs),
+                    lastAcceptedConfig(termAndConfigs), Collections.emptySet()));
+    static {
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), TERM_PARSE_FIELD);
+        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LAST_COMMITTED_CONFIGURATION_FIELD);
+        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LAST_ACCEPTED_CONFIGURATION_FIELD);
+    }
+
+    public CoordinationMetaData(long term, VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
         Set<DiscoveryNode> votingTombstones) {
         this.term = term;
         this.lastCommittedConfiguration = lastCommittedConfiguration;
@@ -81,10 +113,14 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder
-            .field("term", term)
-            .field("last_committed_config", lastCommittedConfiguration)
-            .field("last_accepted_config", lastAcceptedConfiguration);
+            .field(TERM_PARSE_FIELD.getPreferredName(), term)
+            .field(LAST_COMMITTED_CONFIGURATION_FIELD.getPreferredName(), lastCommittedConfiguration)
+            .field(LAST_ACCEPTED_CONFIGURATION_FIELD.getPreferredName(), lastAcceptedConfiguration);
         // TODO include voting tombstones here
+    }
+
+    public static CoordinationMetaData fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     public long term() {
@@ -131,6 +167,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
             "term=" + term +
             ", lastCommittedConfiguration=" + lastCommittedConfiguration +
             ", lastAcceptedConfiguration=" + lastAcceptedConfiguration +
+            ", votingTombstones=" + votingTombstones +
             '}';
     }
 

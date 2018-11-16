@@ -762,6 +762,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     public static boolean isGlobalStateEquals(MetaData metaData1, MetaData metaData2) {
+        if (!metaData1.coordinationMetaData.equals(metaData2.coordinationMetaData)) {
+            return false;
+        }
         if (!metaData1.persistentSettings.equals(metaData2.persistentSettings)) {
             return false;
         }
@@ -1238,6 +1241,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             builder.field("version", metaData.version());
             builder.field("cluster_uuid", metaData.clusterUUID);
 
+            builder.startObject("coordination");
+            metaData.coordinationMetaData().toXContent(builder, params);
+            builder.endObject();
+
             if (!metaData.persistentSettings().isEmpty()) {
                 builder.startObject("settings");
                 metaData.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
@@ -1305,7 +1312,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("settings".equals(currentFieldName)) {
+                    if ("coordination".equals(currentFieldName)) {
+                        builder.coordinationMetaData(CoordinationMetaData.fromXContent(parser));
+                    } else if ("settings".equals(currentFieldName)) {
                         builder.persistentSettings(Settings.fromXContent(parser));
                     } else if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

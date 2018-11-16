@@ -22,11 +22,17 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -145,5 +151,20 @@ public class CoordinationMetaDataTests extends ESTestCase {
                 }
                 return builder.build();
             });
+    }
+
+    public void testXContent() throws IOException {
+        CoordinationMetaData originalMeta = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
+                Collections.emptySet()); //TODO use non-empty tombstones set once toXContent for tombstones is implemented
+
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final CoordinationMetaData fromXContentMeta = CoordinationMetaData.fromXContent(parser);
+            assertThat(originalMeta, equalTo(fromXContentMeta));
+        }
     }
 }

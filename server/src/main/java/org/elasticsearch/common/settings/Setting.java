@@ -814,8 +814,10 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * Represents a validator for a setting. The {@link #validate(Object, Map)} method is invoked with the value of this setting and a map
-     * from the settings specified by {@link #settings()}} to their values. All these values come from the same {@link Settings} instance.
+     * Represents a validator for a setting. The {@link #validate(Object)} method is invoked early in the update setting process with the
+     * value of this setting for a fail-fast validation. Later on, the {@link #validate(Object, Map)} method is invoked with the value of
+     * this setting and a map from the settings specified by {@link #settings()}} to their values. All these values come from the same
+     * {@link Settings} instance.
      *
      * @param <T> the type of the {@link Setting}
      */
@@ -830,7 +832,7 @@ public class Setting<T> implements ToXContentObject {
         void validate(T value);
 
         /**
-         * Validate this setting against its dependencies, specified by {@link #settings()}.
+         * Validate this setting against its dependencies, specified by {@link #settings()}. Default implementation is a no operation.
          *
          * @param value    the value of this setting
          * @param settings a map from the settings specified by {@link #settings()}} to their values
@@ -839,7 +841,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         /**
-         * The settings needed by this validator.
+         * The settings needed by this validator. Default value is an empty iterator.
          *
          * @return the settings needed to validate; these can be used for cross-settings validation
          */

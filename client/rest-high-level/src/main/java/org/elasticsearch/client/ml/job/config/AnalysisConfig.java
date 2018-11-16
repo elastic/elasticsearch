@@ -121,6 +121,14 @@ public class AnalysisConfig implements ToXContentObject {
         return bucketSpan;
     }
 
+    public String getCategorizationFieldName() {
+        return categorizationFieldName;
+    }
+
+    public List<String> getCategorizationFilters() {
+        return categorizationFilters;
+    }
+
     public CategorizationAnalyzerConfig getCategorizationAnalyzerConfig() {
         return categorizationAnalyzerConfig;
     }

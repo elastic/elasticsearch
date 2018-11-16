@@ -318,19 +318,20 @@ public class Querier {
             // there are some results
             if (hits.length > 0) {
                 String scrollId = response.getScrollId();
-
+                SchemaSearchHitRowSet hitRowSet = new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), scrollId);
+                
                 // if there's an id, try to setup next scroll
                 if (scrollId != null &&
                         // is all the content already retrieved?
-                        (Boolean.TRUE.equals(response.isTerminatedEarly()) || response.getHits().getTotalHits() == hits.length
-                        // or maybe the limit has been reached
-                        || (hits.length >= query.limit() && query.limit() > -1))) {
+                        (Boolean.TRUE.equals(response.isTerminatedEarly()) 
+                                || response.getHits().getTotalHits() == hits.length
+                                || hitRowSet.isLimitReached())) {
                     // if so, clear the scroll
                     clear(response.getScrollId(), ActionListener.wrap(
                             succeeded -> listener.onResponse(new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), null)),
                             listener::onFailure));
                 } else {
-                    listener.onResponse(new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), scrollId));
+                    listener.onResponse(hitRowSet);
                 }
             }
             // no hits

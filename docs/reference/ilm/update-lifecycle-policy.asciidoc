@@ -177,7 +177,7 @@ PUT my_index
 ////
 
 The <<ilm-explain-lifecycle,Explain API>> is useful to introspect managed indices to see which phase definition they are currently executing.
-Using this API, we can find out that `my_index` is currently attempting to be rolled over.
+Using this API, we can find out that `my_index` is currently checking if it is ready to be rolled over.
 
 [source,js]
 --------------------------------------------------
@@ -199,7 +199,7 @@ GET my_index/_ilm/explain
       "phase_time_millis": 1538475653317,
       "action": "rollover",
       "action_time_millis": 1538475653317,
-      "step": "attempt_rollover",
+      "step": "check-rollover-ready",
       "step_time_millis": 1538475653317,
       "phase_execution": {
         "policy": "my_executing_policy",
@@ -275,7 +275,7 @@ GET my_index/_ilm/explain
       "phase_time_millis": 1538475653317,
       "action": "rollover",
       "action_time_millis": 1538475653317,
-      "step": "attempt_rollover",
+      "step": "check-rollover-ready",
       "step_time_millis": 1538475653317,
       "phase_execution": {
         "policy": "my_executing_policy",

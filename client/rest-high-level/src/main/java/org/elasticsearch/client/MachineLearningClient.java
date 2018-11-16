@@ -27,6 +27,7 @@ import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
+import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -462,6 +463,47 @@ public final class MachineLearningClient {
                 AcknowledgedResponse::fromXContent,
                 listener,
                 Collections.emptySet());
+    }
+
+    /**
+     * Deletes Machine Learning Model Snapshots
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-snapshot.html">
+     *     ML Delete Model Snapshot documentation</a>
+     *
+     * @param request The request to delete the model snapshot
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteModelSnapshot(DeleteModelSnapshotRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteModelSnapshot,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes Machine Learning Model Snapshots asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-snapshot.html">
+     *         ML Delete Model Snapshot documentation</a>
+     *
+     * @param request The request to delete the model snapshot
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteModelSnapshotAsync(DeleteModelSnapshotRequest request, RequestOptions options,
+                                         ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteModelSnapshot,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 
     /**

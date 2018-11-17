@@ -50,7 +50,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.TypeParsers.nodeIndexOptionValue;
-import static org.elasticsearch.index.mapper.TypeParsers.parseMultiField;
 
 public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValueMapperParser {
 
@@ -91,9 +90,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
                     continue;
                 } else if (fieldName.equals("index_options")) {
                     builder.indexOptions(nodeIndexOptionValue(fieldNode));
-                    iterator.remove();
-                } else if (fieldName.equals("fields")) {
-                    parseMultiField(builder, name, parserContext, fieldName, fieldNode);
                     iterator.remove();
                 } else if (fieldName.equals("analyzer")) {
                     final String analyzerName = fieldNode.toString();
@@ -194,7 +190,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
                 fieldType(),
                 suggesterizedFieldMappers,
                 context.indexSettings(),
-                multiFieldsBuilder.build(this, context),
                 copyTo
             );
         }
@@ -372,10 +367,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
                                       MappedFieldType fieldType,
                                       Set<SuggesterizedFieldMapper> suggesterizedFieldMappers,
                                       Settings indexSettings,
-                                      MultiFields multiFields,
                                       CopyTo copyTo) {
 
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), copyTo);
         this.suggesterizedFieldMappers = suggesterizedFieldMappers;
     }
 

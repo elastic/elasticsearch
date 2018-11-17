@@ -30,12 +30,13 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -50,7 +51,6 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
-import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,18 +64,31 @@ import java.util.stream.Collectors;
 public class RemoteClusterRepository extends AbstractLifecycleComponent implements Repository {
 
     public final static String SNAPSHOT_UUID = "_latest_";
-    public final static SnapshotId SNAPSHOT_ID = new SnapshotId("_latest_", SNAPSHOT_UUID);
     public final static String TYPE = "_remote_cluster_";
 
     private final CcrLicenseChecker ccrLicenseChecker = null;
     private final RepositoryMetaData metadata;
-    private final Set<SnapshotId> snapshotIds = ConcurrentCollections.newConcurrentSet();
+    private final Map<SnapshotId, Map<IndexId, IndexMetaData>> snapshotMetaData = ConcurrentCollections.newConcurrentMap();
     private final Client client;
 
     public RemoteClusterRepository(RepositoryMetaData metadata, Client client, Settings settings) {
         super(settings);
         this.metadata = metadata;
         this.client = client;
+    }
+
+    public synchronized void registerSnapshotMetaData(SnapshotId snapshotId, Map<IndexId, IndexMetaData> indexMetaData) {
+        Map<IndexId, IndexMetaData> existingIndexMetaData = snapshotMetaData.get(snapshotId);
+        if (existingIndexMetaData != null) {
+            // TODO: Maybe need to validate that is does not already exist
+            existingIndexMetaData.putAll(indexMetaData);
+        } else {
+            snapshotMetaData.put(snapshotId, new HashMap<>(indexMetaData));
+        }
+    }
+
+    public void removeSnapshotMetaData(String remoteClusterAlias) {
+
     }
 
     @Override
@@ -119,18 +132,16 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
         String remoteCluster = snapshotId.getName();
 
         // Validates whether the leader cluster has been configured properly:
-        client.getRemoteClusterClient(remoteCluster);
+        Client remoteClusterClient = client.getRemoteClusterClient(remoteCluster);
         String leaderIndex = index.getName();
         PlainActionFuture<Tuple<String[], IndexMetaData>> future = PlainActionFuture.newFuture();
-        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
-            client,
-            remoteCluster,
-            leaderIndex,
-            future::onFailure,
+        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(remoteClusterClient, remoteCluster,
+            leaderIndex, future::onFailure,
             (historyUUID, leaderIndexMetaData) -> future.onResponse(new Tuple<>(historyUUID, leaderIndexMetaData)));
         Tuple<String[], IndexMetaData> tuple = future.actionGet();
 
         IndexMetaData leaderIndexMetaData = tuple.v2();
+
         IndexMetaData.Builder imdBuilder = IndexMetaData.builder(leaderIndexMetaData);
         // Adding the leader index uuid for each shard as custom metadata:
         Map<String, String> metadata = new HashMap<>();
@@ -140,15 +151,7 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
         metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, remoteCluster);
         imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
 
-        // Copy all settings, but overwrite a few settings.
-        Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(leaderIndexMetaData.getSettings());
-        // Overwriting UUID here, because otherwise we can't follow indices in the same cluster
-        settingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
-        // TODO: Figure out what to do with private setting SETTING_INDEX_PROVIDED_NAME
-        settingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, "");
-        settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        imdBuilder.settings(settingsBuilder);
+        imdBuilder.settings(leaderIndexMetaData.getSettings());
 
         // Copy mappings from leader IMD to follow IMD
         for (ObjectObjectCursor<String, MappingMetaData> cursor : leaderIndexMetaData.getMappings()) {
@@ -162,15 +165,23 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
 
     @Override
     public RepositoryData getRepositoryData() {
-        MetaData metaData = client.admin().cluster().prepareState().clear().setMetaData(true).get().getState().getMetaData();
-        return new RepositoryData(1,
-            Collections.singletonMap(SNAPSHOT_ID.getName(), SNAPSHOT_ID),
-            Collections.singletonMap(SNAPSHOT_ID.getName(), SnapshotState.SUCCESS),
-            Arrays.stream(metaData.getConcreteAllIndices()).collect(Collectors.toMap(i -> {
-                    Index index = metaData.indices().get(i).getIndex();
-                    return new IndexId(index.getName(), index.getUUID());
-                }, i -> Collections.singleton(SNAPSHOT_ID))),
-            Collections.emptyList());
+        ClusterStateResponse response = client.getRemoteClusterClient("leader_cluster").admin().cluster().prepareState().clear().setMetaData(true).get();
+
+        Map<String, SnapshotId> copiedSnapshotIds = this.snapshotMetaData.keySet().stream()
+            .collect(Collectors.toMap(SnapshotId::getName, (sd) -> sd));
+        Map<String, SnapshotState> snapshotStates = new HashMap<>(copiedSnapshotIds.size());
+        Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
+        for (Map.Entry<String, SnapshotId> snapshotId : copiedSnapshotIds.entrySet()) {
+            snapshotStates.put(snapshotId.getKey(), SnapshotState.SUCCESS);
+            MetaData metaData = client.admin().cluster().prepareState().clear().setMetaData(true).get().getState().getMetaData();
+            ImmutableOpenMap<String, IndexMetaData> indices = metaData.indices();
+            for (String indexName : metaData.getConcreteAllIndices()) {
+                Index index = indices.get(indexName).getIndex();
+                indexSnapshots.put(new IndexId(index.getName(), index.getUUID()), Collections.singleton(snapshotId.getValue()));
+            }
+        }
+
+        return new RepositoryData(1, copiedSnapshotIds, snapshotStates, indexSnapshots, Collections.emptyList());
     }
 
     @Override

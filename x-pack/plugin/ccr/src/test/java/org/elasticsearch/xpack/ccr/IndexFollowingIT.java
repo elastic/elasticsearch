@@ -49,6 +49,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
+import org.elasticsearch.xpack.ccr.respository.RemoteClusterRepository;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction.StatsRequest;
@@ -87,6 +88,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class IndexFollowingIT extends CcrIntegTestCase {
 
     public void testFollowIndex() throws Exception {
+        followerClient().admin().cluster().preparePutRepository("_ccr_repository_").setType(RemoteClusterRepository.TYPE).get();
+
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));

@@ -12,8 +12,8 @@ Get auto-follow patterns.
 
 ==== Description
 
-This API gets configured auto-follow patterns. This API will return the
-specified auto-follow pattern collection.
+This API gets configured <<ccr-auto-follow,auto-follow patterns>>. This API will
+return the specified auto-follow pattern collection.
 
 ==== Request
 

@@ -24,7 +24,7 @@ public class DataTypeConversionTests extends ESTestCase {
 
         conversion = DataTypeConversion.conversionFor(DataType.DATE, DataType.KEYWORD);
         assertNull(conversion.convert(null));
-        assertEquals("1970-01-01T00:00Z", conversion.convert(dateTime(0)));
+        assertEquals("1970-01-01T00:00:00.000Z", conversion.convert(dateTime(0)));
     }
 
     /**

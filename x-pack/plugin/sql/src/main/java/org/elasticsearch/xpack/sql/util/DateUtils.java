@@ -59,11 +59,10 @@ public class DateUtils {
         
         return ZonedDateTime.ofStrict(ldt,
                 ZoneOffset.ofTotalSeconds(dateTime.getZone().getOffset(dateTime) / 1000),
-                dateTime.getZone().toTimeZone().toZoneId());
+                org.elasticsearch.common.time.DateUtils.dateTimeZoneToZoneId(dateTime.getZone()));
     }
     
     public static String toString(ZonedDateTime dateTime) {
-        // alternative to toOffsetDateTime().toString() - avoids creating the intermediate OffsetDateTime
-        return dateTime.toLocalDateTime().toString() + dateTime.getOffset().toString();
+        return org.elasticsearch.xpack.sql.proto.DateUtils.toString(dateTime);
     }
 }

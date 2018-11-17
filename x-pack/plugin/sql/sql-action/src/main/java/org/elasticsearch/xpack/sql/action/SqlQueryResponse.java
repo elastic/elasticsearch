@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.DateUtils;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.io.IOException;
@@ -176,7 +177,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             }
             // otherwise use the ISO format
             else {
-                builder.value(zdt.toLocalDateTime().toString() + zdt.getOffset().toString());
+                builder.value(DateUtils.toString(zdt));
             }
         } else {
             builder.value(value);

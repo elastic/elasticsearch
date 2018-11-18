@@ -17,28 +17,38 @@
  * under the License.
  */
 
-package org.elasticsearch.common.util.concurrent;
+package org.elasticsearch.client.watcher;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import java.util.Objects;
 
-public class LoggingRunnable implements Runnable {
+public class WatcherMetaData {
 
-    private final Runnable runnable;
-    private final Logger logger;
+    private final boolean manuallyStopped;
 
-    public LoggingRunnable(Logger logger, Runnable runnable) {
-        this.runnable = runnable;
-        this.logger = logger;
+    public WatcherMetaData(boolean manuallyStopped) {
+        this.manuallyStopped = manuallyStopped;
+    }
+
+    public boolean manuallyStopped() {
+        return manuallyStopped;
+    }
+    @Override
+    public String toString() {
+        return "manuallyStopped["+ manuallyStopped +"]";
     }
 
     @Override
-    public void run() {
-        try {
-            runnable.run();
-        } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("failed to execute [{}]", runnable.toString()), e);
-        }
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        WatcherMetaData action = (WatcherMetaData) o;
+
+        return manuallyStopped == action.manuallyStopped;
     }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(manuallyStopped);
+    }
 }

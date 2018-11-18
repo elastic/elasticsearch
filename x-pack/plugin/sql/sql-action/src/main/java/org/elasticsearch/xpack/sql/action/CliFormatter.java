@@ -9,9 +9,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
-import org.elasticsearch.xpack.sql.proto.StringUtils;
 
+import org.elasticsearch.xpack.sql.proto.DateUtils;
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -46,7 +47,7 @@ public class CliFormatter implements Writeable {
             for (int i = 0; i < width.length; i++) {
                 // TODO are we sure toString is correct here? What about dates that come back as longs.
                 // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3081
-                width[i] = Math.max(width[i], Objects.toString(row.get(i)).length());
+                width[i] = Math.max(width[i], toString(row.get(i)).length());
             }
         }
     }
@@ -117,9 +118,9 @@ public class CliFormatter implements Writeable {
                 if (i > 0) {
                     sb.append('|');
                 }
-
-                String string = StringUtils.toString(row.get(i));
-                if (string.length() <= width[i]) {
+                // TODO are we sure toString is correct here? What about dates that come back as longs.
+                // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3081
+                String string = toString(row.get(i));                if (string.length() <= width[i]) {
                     // Pad
                     sb.append(string);
                     int padding = width[i] - string.length();
@@ -135,6 +136,14 @@ public class CliFormatter implements Writeable {
             sb.append('\n');
         }
         return sb.toString();
+    }
+
+    private static String toString(Object object) {
+        if (object instanceof ZonedDateTime) {
+            return DateUtils.toString((ZonedDateTime) object);
+        } else {
+            return Objects.toString(object);
+        }
     }
 
     /**

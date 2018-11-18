@@ -28,8 +28,7 @@ import org.elasticsearch.xpack.sql.expression.literal.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalUtils;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalUtils.TimeUnit;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
-import org.elasticsearch.xpack.sql.expression.predicate.Range;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
@@ -103,8 +102,8 @@ import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
-import org.elasticsearch.xpack.sql.util.StringUtils;
-import org.joda.time.DateTime;
+
+import org.elasticsearch.xpack.sql.util.DateUtils;import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.DateTimeFormatterBuilder;
 import org.joda.time.format.ISODateTimeFormat;
@@ -732,7 +731,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch(IllegalArgumentException ex) {
             throw new ParsingException(loc, "Invalid date received; {}", ex.getMessage());
         }
-        return new Literal(loc, dt, DataType.DATE);
+        return new Literal(loc, DateUtils.of(dt), DataType.DATE);
     }
 
     @Override
@@ -768,7 +767,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch (IllegalArgumentException ex) {
             throw new ParsingException(loc, "Invalid timestamp received; {}", ex.getMessage());
         }
-        return new Literal(loc, dt, DataType.DATE);
+        return new Literal(loc, DateUtils.of(dt), DataType.DATE);
     }
 
     @Override

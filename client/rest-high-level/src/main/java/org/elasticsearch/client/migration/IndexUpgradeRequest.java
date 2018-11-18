@@ -16,25 +16,38 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.migration;
 
-package org.elasticsearch.client.rollup;
+import org.elasticsearch.client.Validatable;
 
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import java.util.Objects;
 
-import java.io.IOException;
+/**
+ * A request for performing Upgrade on Index
+ * Part of Migration API
+ */
+public class IndexUpgradeRequest implements Validatable {
 
-public class DeleteRollupJobResponse extends AcknowledgedResponse {
+    private String index;
 
-    public DeleteRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
+    public IndexUpgradeRequest(String index) {
+        this.index = index;
     }
 
-    private static final ConstructingObjectParser<DeleteRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("delete_rollup_job_response", DeleteRollupJobResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
+    public String index() {
+        return index;
+    }
 
-    public static DeleteRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IndexUpgradeRequest request = (IndexUpgradeRequest) o;
+        return Objects.equals(index, request.index);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(index);
     }
 }

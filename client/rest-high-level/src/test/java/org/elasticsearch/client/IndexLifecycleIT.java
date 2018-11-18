@@ -22,7 +22,7 @@ package org.elasticsearch.client;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.indexlifecycle.AllocateAction;
 import org.elasticsearch.client.indexlifecycle.DeleteAction;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
@@ -41,9 +41,9 @@ import org.elasticsearch.client.indexlifecycle.OperationMode;
 import org.elasticsearch.client.indexlifecycle.Phase;
 import org.elasticsearch.client.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyResponse;
+import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
 import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
@@ -62,7 +62,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.indexlifecycle.LifecyclePolicyTests.createRandomPolicy;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.ClientAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
@@ -194,7 +194,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertEquals("foo-01", fooResponse.getIndex());
         assertEquals("hot", fooResponse.getPhase());
         assertEquals("rollover", fooResponse.getAction());
-        assertEquals("attempt_rollover", fooResponse.getStep());
+        assertEquals("check-rollover-ready", fooResponse.getStep());
         assertEquals(new PhaseExecutionInfo(policy.getName(), new Phase("", hotPhase.getMinimumAge(), hotPhase.getActions()),
                 1L, expectedPolicyModifiedDate), fooResponse.getPhaseExecutionInfo());
         IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz-01");
@@ -203,7 +203,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertEquals("baz-01", bazResponse.getIndex());
         assertEquals("hot", bazResponse.getPhase());
         assertEquals("rollover", bazResponse.getAction());
-        assertEquals("attempt_rollover", bazResponse.getStep());
+        assertEquals("check-rollover-ready", bazResponse.getStep());
         IndexLifecycleExplainResponse squashResponse = indexResponses.get("squash");
         assertNotNull(squashResponse);
         assertFalse(squashResponse.managedByILM());

@@ -198,6 +198,7 @@ public class XPackSettings {
         settings.add(ROLLUP_ENABLED);
         settings.add(PASSWORD_HASHING_ALGORITHM);
         settings.add(INDEX_LIFECYCLE_ENABLED);
+        settings.add(DATA_FRAME_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

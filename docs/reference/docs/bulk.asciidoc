@@ -233,7 +233,7 @@ default behaviour defined by <<index-creation,`action.auto_create_index`>>):
 
 [source,js]
 --------------------------------------------------
-POST _bulk?auto_create_index=false
+POST _bulk
 { "index" : { "_index" : "non_existed_index", "_type" : "_doc", "_id" : "1", "auto_create_index": "false" } }
 { "field1" : "value1" }
 { "index" : { "_index" : "existed_index", "_type" : "_doc", "_id" : "1" } }

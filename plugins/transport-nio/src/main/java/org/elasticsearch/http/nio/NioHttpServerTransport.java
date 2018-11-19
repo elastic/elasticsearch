@@ -20,6 +20,7 @@
 package org.elasticsearch.http.nio;
 
 import io.netty.handler.codec.http.HttpMethod;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
@@ -80,6 +81,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MA
 import static org.elasticsearch.http.nio.cors.NioCorsHandler.ANY_ORIGIN;
 
 public class NioHttpServerTransport extends AbstractHttpServerTransport {
+    private static final Logger logger = LogManager.getLogger(NioHttpServerTransport.class);
 
     public static final Setting<Integer> NIO_HTTP_ACCEPTOR_COUNT =
         intSetting("http.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);

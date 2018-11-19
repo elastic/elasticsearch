@@ -31,6 +31,7 @@ import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
@@ -59,6 +60,7 @@ import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedResponse;
+import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
@@ -830,6 +832,26 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(putCalendarResponse.getCalendar(), equalTo(calendar));
     }
 
+    public void testPutCalendarJob() throws IOException {
+        Calendar calendar = new Calendar("put-calendar-job-id", Collections.singletonList("put-calendar-job-0"), null);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        PutCalendarResponse putCalendarResponse =
+            machineLearningClient.putCalendar(new PutCalendarRequest(calendar), RequestOptions.DEFAULT);
+
+        assertThat(putCalendarResponse.getCalendar().getJobIds(), containsInAnyOrder( "put-calendar-job-0"));
+
+        String jobId1 = "put-calendar-job-1";
+        String jobId2 = "put-calendar-job-2";
+
+        PutCalendarJobRequest putCalendarJobRequest = new PutCalendarJobRequest(calendar.getId(), jobId1, jobId2);
+
+        putCalendarResponse = execute(putCalendarJobRequest,
+            machineLearningClient::putCalendarJob,
+            machineLearningClient::putCalendarJobAsync);
+
+        assertThat(putCalendarResponse.getCalendar().getJobIds(), containsInAnyOrder(jobId1, jobId2, "put-calendar-job-0"));
+    }
+
     public void testGetCalendars() throws Exception {
         Calendar calendar1 = CalendarTests.testInstance();
         Calendar calendar2 = CalendarTests.testInstance();
@@ -973,6 +995,32 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         assertThat(filter.getDescription(), equalTo(updateFilterRequest.getDescription()));
         assertThat(filter.getItems(), contains("newItem1", "newItem2", "olditem2"));
+    }
+
+    public void testDeleteFilter() throws Exception {
+        String filterId = "delete-filter-job-test";
+        MlFilter mlFilter = MlFilter.builder(filterId)
+            .setDescription(randomAlphaOfLength(10))
+            .setItems(generateRandomStringArray(10, 10, false, false))
+            .build();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        PutFilterResponse putFilterResponse = execute(new PutFilterRequest(mlFilter),
+            machineLearningClient::putFilter,
+            machineLearningClient::putFilterAsync);
+        MlFilter createdFilter = putFilterResponse.getResponse();
+
+        assertThat(createdFilter, equalTo(mlFilter));
+
+        DeleteFilterRequest deleteFilterRequest = new DeleteFilterRequest(filterId);
+        AcknowledgedResponse response = execute(deleteFilterRequest, machineLearningClient::deleteFilter,
+            machineLearningClient::deleteFilterAsync);
+        assertTrue(response.isAcknowledged());
+
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(deleteFilterRequest, machineLearningClient::deleteFilter,
+                machineLearningClient::deleteFilterAsync));
+        assertThat(exception.status().getStatus(), equalTo(404));
     }
 
     public static String randomValidJobId() {

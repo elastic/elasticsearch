@@ -84,7 +84,8 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
         strings = Sets.newHashSet(status.store().directory().listAll());
         assertTrue(strings.toString(), strings.contains("foo.bar"));
         assertFalse(strings.toString(), strings.contains(expectedFile));
-        // we must fail the recovery because marking it as done will try to move the shard to POST_RECOVERY, which will fail because it's started
+        // we must fail the recovery because marking it as done will try to move the shard to POST_RECOVERY,
+        // which will fail because it's started
         status.fail(new RecoveryFailedException(status.state(), "end of test. OK.", null), false);
     }
 }

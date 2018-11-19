@@ -115,6 +115,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private long maxTermSeen;
     private final Reconfigurator reconfigurator;
     private final ClusterBootstrapService clusterBootstrapService;
+    private final DiscoveryUpgradeService discoveryUpgradeService;
 
     private Mode mode;
     private Optional<DiscoveryNode> lastKnownLeader;
@@ -153,6 +154,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
+        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, transportService, this::isBootstrapped, joinHelper,
+            peerFinder::getFoundPeers, this::unsafelySetConfigurationForUpgrade);
     }
 
     private Runnable getOnLeaderFailure() {
@@ -365,6 +368,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             joinAccumulator = joinHelper.new CandidateJoinAccumulator();
 
             peerFinder.activate(coordinationState.get().getLastAcceptedState().nodes());
+            discoveryUpgradeService.activate(lastKnownLeader);
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
             leaderChecker.updateLeader(null);
 
@@ -392,6 +396,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         lastKnownLeader = Optional.of(getLocalNode());
         peerFinder.deactivate(getLocalNode());
+        discoveryUpgradeService.deactivate();
         closePrevotingAndElectionScheduler();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
 
@@ -414,6 +419,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         lastKnownLeader = Optional.of(leaderNode);
         peerFinder.deactivate(leaderNode);
+        discoveryUpgradeService.deactivate();
         closePrevotingAndElectionScheduler();
         cancelActivePublication();
         preVoteCollector.update(getPreVoteResponse(), leaderNode);
@@ -637,6 +643,45 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
             startElectionScheduler();
             return true;
+        }
+    }
+
+    private boolean isBootstrapped() {
+        return getLastAcceptedState().getLastAcceptedConfiguration().isEmpty() == false;
+    }
+
+    private void unsafelySetConfigurationForUpgrade(VotingConfiguration votingConfiguration) {
+        assert Version.CURRENT.major == Version.V_6_6_0.major + 1 : "remove this method once unsafe upgrades are no longer needed";
+        synchronized (mutex) {
+            if (mode != Mode.CANDIDATE) {
+                throw new IllegalStateException("Cannot overwrite configuration in mode " + mode);
+            }
+
+            if (isBootstrapped()) {
+                throw new IllegalStateException("Cannot overwrite configuration: configuration is already set to "
+                    + getLastAcceptedState().getLastAcceptedConfiguration());
+            }
+
+            if (lastKnownLeader.map(Coordinator::isZen1Node).orElse(false) == false) {
+                throw new IllegalStateException("Cannot upgrade from last-known leader: " + lastKnownLeader);
+            }
+
+            assert getCurrentTerm() == 0 : getCurrentTerm();
+            final long newTerm = getCurrentTerm() + 1;
+            final Builder builder = masterService.incrementVersion(getStateForMasterService());
+            builder.lastAcceptedConfiguration(votingConfiguration);
+            builder.lastCommittedConfiguration(votingConfiguration);
+            builder.term(newTerm);
+            final ClusterState newClusterState = builder.build();
+
+            coordinationState.get().handleStartJoin(new StartJoinRequest(getLocalNode(), newClusterState.term()));
+            coordinationState.get().handlePublishRequest(new PublishRequest(newClusterState));
+
+            followersChecker.clearCurrentNodes();
+            followersChecker.updateFastResponseState(getCurrentTerm(), mode);
+
+            peerFinder.deactivate(getLocalNode());
+            peerFinder.activate(newClusterState.nodes());
         }
     }
 

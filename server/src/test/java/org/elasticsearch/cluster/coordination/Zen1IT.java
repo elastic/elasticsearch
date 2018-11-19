@@ -18,9 +18,19 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+
+import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class Zen1IT extends ESIntegTestCase {
@@ -44,5 +54,30 @@ public class Zen1IT extends ESIntegTestCase {
         internalCluster().startNodes(randomIntBetween(1, 3), ZEN2_SETTINGS);
         internalCluster().startNodes(randomIntBetween(1, 3), ZEN1_SETTINGS);
         createIndex("test");
+    }
+
+    @TestLogging("org.elasticsearch.discovery.zen:TRACE,org.elasticsearch.cluster.coordination:TRACE")
+    public void testUpgradingFromZen1ToZen2ClusterWithThreeNodes() throws IOException {
+        final List<String> zen1Nodes = internalCluster().startNodes(3, ZEN1_SETTINGS);
+
+        createIndex("test",
+            Settings.builder()
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // Assign shards
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3) // causes rebalancing
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build());
+        ensureGreen("test");
+
+        for (final String zen1Node : zen1Nodes) {
+            logger.info("--> shutting down {}", zen1Node);
+            internalCluster().stopRandomNode(s -> NODE_NAME_SETTING.get(s).equals(zen1Node));
+            ensureGreen("test");
+            logger.info("--> starting replacement for {}", zen1Node);
+            final String newNode = internalCluster().startNode(ZEN2_SETTINGS);
+            ensureGreen("test");
+            logger.info("--> successfully replaced {} with {}", zen1Node, newNode);
+        }
+
+        assertThat(internalCluster().size(), equalTo(3));
     }
 }

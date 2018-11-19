@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.zen;
 import com.carrotsearch.hppc.ObjectContainer;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -213,14 +214,20 @@ public class ElectMasterService extends AbstractComponent {
         return possibleNodes;
     }
 
-    /** master nodes go before other nodes, with a secondary sort by id **/
-     private static int compareNodes(DiscoveryNode o1, DiscoveryNode o2) {
-        if (o1.isMasterNode() && !o2.isMasterNode()) {
-            return -1;
+    /** master nodes go before other nodes, preferring Zen1 nodes, tiebreaking by id **/
+    private static int compareNodes(DiscoveryNode o1, DiscoveryNode o2) {
+        final int compareMasterEligibility = Boolean.compare(o2.isMasterNode(), o1.isMasterNode());
+        // NB reverse order, false < true
+        if (compareMasterEligibility != 0) {
+            return compareMasterEligibility;
         }
-        if (!o1.isMasterNode() && o2.isMasterNode()) {
-            return 1;
+
+        final int compareZenVersion = Boolean.compare(Coordinator.isZen1Node(o2), Coordinator.isZen1Node(o1));
+        // NB reverse order, false < true
+        if (compareZenVersion != 0) {
+            return compareZenVersion;
         }
+
         return o1.getId().compareTo(o2.getId());
     }
 }

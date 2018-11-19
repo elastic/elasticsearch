@@ -162,6 +162,11 @@ public class JoinHelper {
     }
 
     public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
+        sendJoinRequest(destination, optionalJoin, () -> {
+        });
+    }
+
+    public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin, Runnable onCompletion) {
         final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         if (pendingOutgoingJoins.add(dedupKey)) {
@@ -187,12 +192,14 @@ public class JoinHelper {
                     public void handleResponse(Empty response) {
                         pendingOutgoingJoins.remove(dedupKey);
                         logger.debug("successfully joined {} with {}", destination, joinRequest);
+                        onCompletion.run();
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
                         pendingOutgoingJoins.remove(dedupKey);
                         logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
+                        onCompletion.run();
                     }
 
                     @Override
@@ -203,6 +210,10 @@ public class JoinHelper {
         } else {
             logger.debug("already attempting to join {} with request {}, not sending request", destination, joinRequest);
         }
+    }
+
+    public boolean joinInProgress() {
+        return pendingOutgoingJoins.isEmpty() == false;
     }
 
     public void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {

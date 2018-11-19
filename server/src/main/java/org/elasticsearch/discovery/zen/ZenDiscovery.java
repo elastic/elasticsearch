@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -438,6 +439,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         nodeJoinController.startElectionContext();
         while (masterNode == null && joinThreadControl.joinThreadActive(currentThread)) {
             masterNode = findMaster();
+            assert masterNode == null || Coordinator.isZen1Node(masterNode) : masterNode;
         }
 
         if (!joinThreadControl.joinThreadActive(currentThread)) {

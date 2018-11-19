@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.coordination.DiscoveryUpgradeService;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
 import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
@@ -461,7 +462,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     JoinHelper.JOIN_TIMEOUT_SETTING,
                     Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
                     TransportAddVotingTombstonesAction.MAXIMUM_VOTING_TOMBSTONES_SETTING,
-                    ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING
+                    ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING,
+                    DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING,
+                    DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING
             )));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(

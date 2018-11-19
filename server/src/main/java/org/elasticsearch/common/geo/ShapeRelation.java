@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.document.LatLonShape.QueryRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -60,6 +61,17 @@ public enum ShapeRelation implements Writeable {
             }
         }
         return null;
+    }
+
+    /** Maps ShapeRelation to Lucene's LatLonShapeRelation */
+    public QueryRelation getLuceneRelation() {
+        switch (this) {
+            case INTERSECTS: return QueryRelation.INTERSECTS;
+            case DISJOINT: return QueryRelation.DISJOINT;
+            case WITHIN: return QueryRelation.WITHIN;
+            default:
+                throw new IllegalArgumentException("ShapeRelation [" + this + "] not supported");
+        }
     }
 
     public String getRelationName() {

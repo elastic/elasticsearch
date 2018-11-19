@@ -398,7 +398,7 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
                     currentState.getVotingTombstones().forEach(t -> votingNodeIds.remove(t.getId()));
                     final VotingConfiguration votingConfiguration = new VotingConfiguration(votingNodeIds);
                     return builder(currentState)
-                        .metaData(MetaData.builder()
+                        .metaData(MetaData.builder(currentState.metaData())
                             .coordinationMetaData(CoordinationMetaData.builder(currentState.coordinationMetaData())
                                 .lastAcceptedConfiguration(votingConfiguration)
                                 .lastCommittedConfiguration(votingConfiguration)

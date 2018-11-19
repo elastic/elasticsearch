@@ -90,6 +90,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             public TokenStream create(TokenStream tokenStream) {
                 return synonyms.fst == null ? tokenStream : new SynonymFilter(tokenStream, synonyms, false);
             }
+
+            @Override
+            public TokenFilterFactory getSynonymFilter() {
+                // In order to allow chained synonym filters, we return IDENTITY here to
+                // ensure that synonyms don't get applied to the synonym map itself,
+                // which doesn't support stacked input tokens
+                return IDENTITY_FILTER;
+            }
         };
     }
 

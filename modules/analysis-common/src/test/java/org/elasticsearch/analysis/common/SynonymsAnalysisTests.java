@@ -182,6 +182,24 @@ public class SynonymsAnalysisTests extends ESTestCase {
             new int[]{ 1, 0, 0 });
     }
 
+    public void testChainedSynonymFilters() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.synonyms1.type", "synonym")
+            .putList("index.analysis.filter.synonyms1.synonyms", "term1, term2")
+            .put("index.analysis.filter.synonyms2.type", "synonym")
+            .putList("index.analysis.filter.synonyms2.synonyms", "term1, term3")
+            .put("index.analysis.analyzer.syn.tokenizer", "standard")
+            .putList("index.analysis.analyzer.syn.filter", "lowercase", "synonyms1", "synonyms2")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+
+        BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("syn"), "term1",
+            new String[]{ "term1", "term3", "term2" }, new int[]{ 1, 0, 0 });
+    }
+
     public void testShingleFilters() {
 
         Settings settings = Settings.builder()

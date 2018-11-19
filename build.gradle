@@ -627,30 +627,17 @@ allprojects {
 }
 
 allprojects {
-  String testsSplit = System.getProperty("tests.split", "")
-  if (testsSplit.isEmpty() == false) {
-    Predicate discriminator = { it.path.startsWith(":x-pack:") }
-    List<Integer> split = testsSplit.split("/")
-            .collect( {Integer.parseInt(it)})
-    if (split[1] != 2) {
-      throw new IllegalArgumentException("test.split can only split in two")
+  task checkPart1
+  task checkPart2 
+  tasks.matching {it.name == "check"}.all { task ->
+    if (task.path.startsWith(":x-pack:")) {
+      checkPart2.dependsOn task
+    } else {
+      checkPart1.dependsOn task
     }
-    switch (split[0]) {
-      case 1:
-        tasks.withType(RandomizedTestingTask) { task ->
-          task.onlyIf { discriminator.test(it) }
-        }
-        break
-      case 2:
-        tasks.withType(RandomizedTestingTask) { task ->
-          task.onlyIf { discriminator.negate().test(it) }
-        }
-        break
-      default:
-        throw new IllegalArgumentException("test.split invalid part: " + split[0] + " of " + split[1])
-    }
-  }
+  } 
 }
+
 
 
 

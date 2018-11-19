@@ -31,7 +31,7 @@ Since indices that are eligible for freezing are unlikely to change in the futur
 
 == Searching a frozen index
 
-Frozen indices are throttled in order limit memory consumptions per node. The number of concurrently loaded frozen indices per node is
+Frozen indices are throttled in order to limit memory consumptions per node. The number of concurrently loaded frozen indices per node is
 limited by the number of threads in the <<search-throttled>> threadpool,  which is `1` by default. 
 Search requests will not be executed against frozen indices by default, even if a frozen index is named explicitly. This is 
 to prevent accidental slowdowns by targeting a frozen index by mistake. To include frozen indices a search request must be executed with

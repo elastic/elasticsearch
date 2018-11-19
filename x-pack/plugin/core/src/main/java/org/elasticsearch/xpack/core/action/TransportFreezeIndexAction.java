@@ -95,7 +95,7 @@ public final class TransportFreezeIndexAction extends
                 indices.add(index);
             }
         }
-        return indices.toArray(new Index[0]);
+        return indices.toArray(Index.EMPTY_ARRAY);
     }
 
     @Override
@@ -166,7 +166,6 @@ public final class TransportFreezeIndexAction extends
 
             @Override
             protected AcknowledgedResponse newResponse(boolean acknowledged) {
-
                 return new AcknowledgedResponse(acknowledged);
             }
         });

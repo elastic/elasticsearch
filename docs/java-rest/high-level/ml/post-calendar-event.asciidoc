@@ -21,7 +21,7 @@ and a non-empty list of scheduled events.
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Non-null existing calendar ID
-<2> Non-null, non-empty collection of `ScheduledEvent>` objects
+<2> Non-null, non-empty collection of `ScheduledEvent` objects
 
 
 [id="{upid}-{api}-response"]

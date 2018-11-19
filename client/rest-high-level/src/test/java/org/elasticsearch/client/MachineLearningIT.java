@@ -90,6 +90,7 @@ import org.elasticsearch.client.ml.job.config.JobState;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
@@ -878,7 +879,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         List<ScheduledEvent> events = new ArrayList<>(3);
         for (int i = 0; i < 3; i++) {
-            events.add(ScheduledEventTests.testInstance());
+            events.add(ScheduledEventTests.testInstance(calendar.getId(), null));
         }
 
         PostCalendarEventRequest postCalendarEventRequest = new PostCalendarEventRequest(calendar.getId(), events);
@@ -886,7 +887,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         PostCalendarEventResponse postCalendarEventResponse = execute(postCalendarEventRequest,
             machineLearningClient::postCalendarEvent,
             machineLearningClient::postCalendarEventAsync);
-        assertThat(postCalendarEventResponse.getScheduledEvents(), containsInAnyOrder(events));
+        assertThat(postCalendarEventResponse.getScheduledEvents(), containsInAnyOrder(events.toArray()));
     }
 
     public void testPutFilter() throws Exception {

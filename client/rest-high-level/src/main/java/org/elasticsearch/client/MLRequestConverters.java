@@ -505,7 +505,9 @@ final class MLRequestConverters {
             .addPathPartAsIs("events")
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(postCalendarEventRequest, REQUEST_BODY_CONTENT_TYPE));
+        request.setEntity(createEntity(postCalendarEventRequest,
+            REQUEST_BODY_CONTENT_TYPE,
+            PostCalendarEventRequest.EXCLUDE_CALENDAR_ID_PARAMS));
         return request;
     }
 

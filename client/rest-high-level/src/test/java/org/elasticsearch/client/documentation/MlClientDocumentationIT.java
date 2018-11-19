@@ -2201,7 +2201,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
         client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
         {
-            List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.testInstance());
+            List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.testInstance(calendar.getId(), null));
 
             // tag::post-calendar-event-request
             PostCalendarEventRequest request = new PostCalendarEventRequest("holidays", // <1>

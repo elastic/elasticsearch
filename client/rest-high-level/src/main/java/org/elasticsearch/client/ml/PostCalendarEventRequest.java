@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -38,6 +39,8 @@ public class PostCalendarEventRequest extends ActionRequest implements ToXConten
 
     private final String calendarId;
     private final List<ScheduledEvent> scheduledEvents;
+
+    public static final String INCLUDE_CALENDAR_ID_KEY = "include_calendar_id";
     public static final ParseField EVENTS = new ParseField("events");
 
     @SuppressWarnings("unchecked")
@@ -50,6 +53,8 @@ public class PostCalendarEventRequest extends ActionRequest implements ToXConten
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
             (p, c) -> ScheduledEvent.PARSER.apply(p, null), EVENTS);
     }
+    public static final MapParams EXCLUDE_CALENDAR_ID_PARAMS =
+        new MapParams(Collections.singletonMap(INCLUDE_CALENDAR_ID_KEY, Boolean.toString(false)));
 
     /**
      * Create a new PostCalendarEventRequest with an existing non-null calendarId and a list of Scheduled events
@@ -81,7 +86,9 @@ public class PostCalendarEventRequest extends ActionRequest implements ToXConten
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Calendar.ID.getPreferredName(), calendarId);
+        if (params.paramAsBoolean(INCLUDE_CALENDAR_ID_KEY, true)) {
+            builder.field(Calendar.ID.getPreferredName(), calendarId);
+        }
         builder.field(EVENTS.getPreferredName(), scheduledEvents);
         builder.endObject();
         return builder;

@@ -72,6 +72,7 @@ import org.elasticsearch.client.ml.job.config.MlFilterTests;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -550,7 +551,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/ml/calendars/" + deleteCalendarRequest.getCalendarId(), request.getEndpoint());
     }
 
-    public void testPostCalendarEvent() throws IOException {
+    public void testPostCalendarEvent() throws Exception {
         String calendarId = randomAlphaOfLength(10);
         List<ScheduledEvent> events = Arrays.asList(ScheduledEventTests.testInstance(),
             ScheduledEventTests.testInstance(),
@@ -560,10 +561,10 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.postCalendarEvents(postCalendarEventRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/calendars/" + calendarId + "/events", request.getEndpoint());
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
-            PostCalendarEventRequest parsedRequest = PostCalendarEventRequest.PARSER.apply(parser, null);
-            assertThat(parsedRequest, equalTo(postCalendarEventRequest));
-        }
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder = postCalendarEventRequest.toXContent(builder, PostCalendarEventRequest.EXCLUDE_CALENDAR_ID_PARAMS);
+        assertEquals(Strings.toString(builder), requestEntityToString(request));
     }
 
     public void testPutFilter() throws IOException {

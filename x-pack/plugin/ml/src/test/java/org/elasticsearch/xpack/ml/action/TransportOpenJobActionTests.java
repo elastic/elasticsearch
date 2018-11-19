@@ -69,7 +69,6 @@ import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilde
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -444,7 +443,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         cs.nodes(nodes);
 
         Job job = jobWithRules("v660-job");
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("v660-job", job, cs.build(), 2, 10, 30, logger);
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("v660-job", job, cs.build(), 2, 10, 30, memoryTracker, logger);
         assertNull(result.getExecutorNode());
         assertEquals("Not opening job [v660-job] on node [_node_name1] version [6.5.0], " +
                 "because this node does not support jobs of version [6.6.0]", result.getExplanation());
@@ -455,7 +454,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
                 .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
                         nodeAttr, Collections.emptySet(), Version.V_6_6_0));
         cs.nodes(nodes);
-        result = TransportOpenJobAction.selectLeastLoadedMlNode("v660-job", job, cs.build(), 2, 10, 30, logger);
+        result = TransportOpenJobAction.selectLeastLoadedMlNode("v660-job", job, cs.build(), 2, 10, 30, memoryTracker, logger);
         assertThat(result.getExplanation(), isEmptyOrNullString());
         assertEquals("_node_id2", result.getExecutorNode());
     }

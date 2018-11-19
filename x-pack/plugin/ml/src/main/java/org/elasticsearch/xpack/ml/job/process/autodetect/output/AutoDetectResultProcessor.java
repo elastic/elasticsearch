@@ -116,17 +116,18 @@ public class AutoDetectResultProcessor {
     private volatile long latestEstablishedModelMemory;
     private volatile boolean haveNewLatestModelSizeStats;
     private Future<?> scheduledEstablishedModelMemoryUpdate; // only accessed in synchronized methods
+    private final boolean isConfigInClusterState;
 
     public AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
                                      JobResultsPersister persister, JobResultsProvider jobResultsProvider,
-                                     ModelSizeStats latestModelSizeStats, boolean restoredSnapshot) {
+                                     ModelSizeStats latestModelSizeStats, boolean restoredSnapshot, boolean isConfigInClusterState) {
         this(client, auditor, jobId, renormalizer, persister, jobResultsProvider, latestModelSizeStats,
-                restoredSnapshot, new FlushListener());
+                restoredSnapshot, new FlushListener(), isConfigInClusterState);
     }
 
     AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
                               JobResultsPersister persister, JobResultsProvider jobResultsProvider, ModelSizeStats latestModelSizeStats,
-                              boolean restoredSnapshot, FlushListener flushListener) {
+                              boolean restoredSnapshot, FlushListener flushListener, boolean isConfigInClusterState) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
@@ -136,6 +137,7 @@ public class AutoDetectResultProcessor {
         this.flushListener = Objects.requireNonNull(flushListener);
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
         this.restoredSnapshot = restoredSnapshot;
+        this.isConfigInClusterState = isConfigInClusterState;
     }
 
     public void process(AutodetectProcess process) {
@@ -359,21 +361,23 @@ public class AutoDetectResultProcessor {
             return;
         }
 
-        updateJob(jobId, Collections.singletonMap(Job.MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshot.getSnapshotId()),
-                new ActionListener<UpdateResponse>() {
-                    @Override
-                    public void onResponse(UpdateResponse updateResponse) {
-                        updateModelSnapshotIdSemaphore.release();
-                        LOGGER.debug("[{}] Updated job with model snapshot id [{}]", jobId, modelSnapshot.getSnapshotId());
-                    }
+        if (isConfigInClusterState == false) {
+            updateJob(jobId, Collections.singletonMap(Job.MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshot.getSnapshotId()),
+                    new ActionListener<UpdateResponse>() {
+                        @Override
+                        public void onResponse(UpdateResponse updateResponse) {
+                            updateModelSnapshotIdSemaphore.release();
+                            LOGGER.debug("[{}] Updated job with model snapshot id [{}]", jobId, modelSnapshot.getSnapshotId());
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        updateModelSnapshotIdSemaphore.release();
-                        LOGGER.error("[" + jobId + "] Failed to update job with new model snapshot id [" +
-                                modelSnapshot.getSnapshotId() + "]", e);
-                    }
-                });
+                        @Override
+                        public void onFailure(Exception e) {
+                            updateModelSnapshotIdSemaphore.release();
+                            LOGGER.error("[" + jobId + "] Failed to update job with new model snapshot id [" +
+                                    modelSnapshot.getSnapshotId() + "]", e);
+                        }
+                    });
+        }
     }
 
     /**
@@ -420,6 +424,11 @@ public class AutoDetectResultProcessor {
      * to <code>null</code> by the first call.
      */
     private synchronized void runEstablishedModelMemoryUpdate(boolean cancelExisting) {
+        if (isConfigInClusterState) {
+            // TODO this check should is not necessary once established
+            // model memory is moved out of the job config
+            return;
+        }
 
         if (scheduledEstablishedModelMemoryUpdate != null) {
             if (cancelExisting) {
@@ -432,6 +441,10 @@ public class AutoDetectResultProcessor {
     }
 
     private void onAutodetectClose() {
+        if (isConfigInClusterState) {
+            return;
+        }
+
         onCloseActionsLatch = new CountDownLatch(1);
 
         ActionListener<UpdateResponse> updateListener = ActionListener.wrap(
@@ -481,6 +494,8 @@ public class AutoDetectResultProcessor {
     }
 
     private void updateJob(String jobId, Map<Object, Object> update, ActionListener<UpdateResponse> listener) {
+
+
         UpdateRequest updateRequest = new UpdateRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
         updateRequest.retryOnConflict(3);

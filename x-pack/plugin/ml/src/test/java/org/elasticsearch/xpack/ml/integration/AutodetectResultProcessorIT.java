@@ -89,7 +89,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         renormalizer = mock(Renormalizer.class);
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
         resultProcessor = new AutoDetectResultProcessor(client(), auditor, JOB_ID, renormalizer,
-                new JobResultsPersister(client()), jobResultsProvider, new ModelSizeStats.Builder(JOB_ID).build(), false) {
+                new JobResultsPersister(client()), jobResultsProvider, new ModelSizeStats.Builder(JOB_ID).build(), false, true) {
             @Override
             protected void updateModelSnapshotIdOnJob(ModelSnapshot modelSnapshot) {
                 capturedUpdateModelSnapshotOnJobRequests.add(modelSnapshot);
@@ -100,7 +100,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     @After
-    public void deleteJob() throws Exception {
+    public void deleteJob() {
         DeleteJobAction.Request request = new DeleteJobAction.Request(JOB_ID);
         AcknowledgedResponse response = client().execute(DeleteJobAction.INSTANCE, request).actionGet();
         assertTrue(response.isAcknowledged());

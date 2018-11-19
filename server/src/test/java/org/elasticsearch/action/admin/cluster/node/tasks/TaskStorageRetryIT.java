@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
@@ -80,12 +81,12 @@ public class TaskStorageRetryIT extends ESSingleNodeTestCase {
             TestTaskPlugin.NodesRequest req = new TestTaskPlugin.NodesRequest("foo");
             req.setShouldStoreResult(true);
             req.setShouldBlock(false);
-            task = client().executeLocally(TestTaskPlugin.TestTaskAction.INSTANCE, req, future);
+            task = nodeClient().executeLocally(TestTaskPlugin.TestTaskAction.INSTANCE, req, future);
 
             logger.info("verify that the task has started and is still running");
             assertBusy(() -> {
                 GetTaskResponse runningTask = client().admin().cluster()
-                        .prepareGetTask(new TaskId(client().getLocalNodeId(), task.getId()))
+                        .prepareGetTask(new TaskId(nodeClient().getLocalNodeId(), task.getId()))
                         .get();
                 assertNotNull(runningTask.getTask());
                 assertFalse(runningTask.getTask().isCompleted());
@@ -103,12 +104,24 @@ public class TaskStorageRetryIT extends ESSingleNodeTestCase {
 
         logger.info("check that it was written successfully");
         GetTaskResponse finishedTask = client().admin().cluster()
-                .prepareGetTask(new TaskId(client().getLocalNodeId(), task.getId()))
+                .prepareGetTask(new TaskId(nodeClient().getLocalNodeId(), task.getId()))
                 .get();
         assertTrue(finishedTask.getTask().isCompleted());
         assertEquals(emptyMap(), finishedTask.getTask().getErrorAsMap());
         assertEquals(singletonMap("failure_count", 0),
                 finishedTask.getTask().getResponseAsMap());
+    }
+
+    /**
+     * Get the {@linkplain NodeClient} local to the node being tested.
+     */
+    private NodeClient nodeClient() {
+        /*
+         * Luckilly our test infrastructure already returns it, but we can't
+         * change the return type in the superclass because it is wrapped other
+         * places.
+         */
+        return (NodeClient) client();
     }
 }
 

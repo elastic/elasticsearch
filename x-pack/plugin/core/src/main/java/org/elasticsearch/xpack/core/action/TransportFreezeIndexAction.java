@@ -158,8 +158,10 @@ public final class TransportFreezeIndexAction extends
                             .put(FrozenEngine.INDEX_FROZEN.getKey(), request.freeze())
                             .put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), request.freeze());
                     if (request.freeze()) {
+                        settingsBuilder.put("index.blocks.write", true);
                         blocks.addIndexBlock(index.getName(), IndexMetaData.INDEX_WRITE_BLOCK);
                     } else {
+                        settingsBuilder.remove("index.blocks.write");
                         blocks.removeIndexBlock(index.getName(), IndexMetaData.INDEX_WRITE_BLOCK);
                     }
                     imdBuilder.settings(settingsBuilder);

@@ -90,7 +90,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     @Override
     protected NodeGatewayMetaState nodeOperation(NodeRequest request) {
         try {
-            return new NodeGatewayMetaState(clusterService.localNode(), metaState.loadMetaState());
+            return new NodeGatewayMetaState(clusterService.localNode(), metaState.loadMetaData());
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load metadata", e);
         }

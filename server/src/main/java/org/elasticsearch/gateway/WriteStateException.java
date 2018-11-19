@@ -24,9 +24,9 @@ import java.io.IOException;
  * This exception is thrown when there is a problem of writing state to disk.
  */
 public class WriteStateException extends IOException {
-    private boolean dirty;
+    private final boolean dirty;
 
-    public WriteStateException(boolean dirty, String message, Exception cause) {
+    WriteStateException(boolean dirty, String message, Exception cause) {
         super(message, cause);
         this.dirty = dirty;
     }

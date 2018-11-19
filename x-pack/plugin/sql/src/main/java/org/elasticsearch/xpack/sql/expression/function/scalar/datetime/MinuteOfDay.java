@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.time.temporal.ChronoField;
 import java.util.TimeZone;
 
 /**
@@ -19,7 +18,7 @@ import java.util.TimeZone;
 public class MinuteOfDay extends DateTimeFunction {
 
     public MinuteOfDay(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+        super(location, field, timeZone, DateTimeExtractor.MINUTE_OF_DAY);
     }
 
     @Override
@@ -35,15 +34,5 @@ public class MinuteOfDay extends DateTimeFunction {
     @Override
     public String dateTimeFormat() {
         throw new UnsupportedOperationException("is there a format for it?");
-    }
-
-    @Override
-    protected ChronoField chronoField() {
-        return ChronoField.MINUTE_OF_DAY;
-    }
-
-    @Override
-    protected DateTimeExtractor extractor() {
-        return DateTimeExtractor.MINUTE_OF_DAY;
     }
 }

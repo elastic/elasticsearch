@@ -29,13 +29,14 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
@@ -69,35 +70,35 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
     public void testDeleteIsAppliedFirst() {
         final Setting<Integer> INITIAL_RECOVERIES = CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
-        final Setting<Integer> CONCURRENT_RECOVERIES = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
+        final Setting<TimeValue> REROUTE_INTERVAL = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING;
 
         ClusterUpdateSettingsResponse response = client().admin().cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder()
                 .put(INITIAL_RECOVERIES.getKey(), 7)
-                .put(CONCURRENT_RECOVERIES.getKey(), 42).build())
+                .put(REROUTE_INTERVAL.getKey(), "42s").build())
             .get();
 
         assertAcked(response);
         assertThat(INITIAL_RECOVERIES.get(response.getTransientSettings()), equalTo(7));
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(7));
-        assertThat(CONCURRENT_RECOVERIES.get(response.getTransientSettings()), equalTo(42));
-        assertThat(clusterService().getClusterSettings().get(CONCURRENT_RECOVERIES), equalTo(42));
+        assertThat(REROUTE_INTERVAL.get(response.getTransientSettings()), equalTo(TimeValue.timeValueSeconds(42)));
+        assertThat(clusterService().getClusterSettings().get(REROUTE_INTERVAL), equalTo(TimeValue.timeValueSeconds(42)));
 
         response = client().admin().cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder().putNull((randomBoolean() ? "cluster.routing.*" : "*"))
-                .put(CONCURRENT_RECOVERIES.getKey(), 43))
+                .put(REROUTE_INTERVAL.getKey(), "43s"))
             .get();
         assertThat(INITIAL_RECOVERIES.get(response.getTransientSettings()), equalTo(INITIAL_RECOVERIES.get(Settings.EMPTY)));
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(INITIAL_RECOVERIES.get(Settings.EMPTY)));
-        assertThat(CONCURRENT_RECOVERIES.get(response.getTransientSettings()), equalTo(43));
-        assertThat(clusterService().getClusterSettings().get(CONCURRENT_RECOVERIES), equalTo(43));
+        assertThat(REROUTE_INTERVAL.get(response.getTransientSettings()), equalTo(TimeValue.timeValueSeconds(43)));
+        assertThat(clusterService().getClusterSettings().get(REROUTE_INTERVAL), equalTo(TimeValue.timeValueSeconds(43)));
     }
 
     public void testResetClusterSetting() {
         final Setting<Integer> INITIAL_RECOVERIES = CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
-        final Setting<Integer> CONCURRENT_RECOVIERS = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
+        final Setting<TimeValue> REROUTE_INTERVAL = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING;
 
         ClusterUpdateSettingsResponse response = client().admin().cluster()
                 .prepareUpdateSettings()
@@ -122,14 +123,14 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
                         .put(INITIAL_RECOVERIES.getKey(), 8)
-                        .put(CONCURRENT_RECOVIERS.getKey(), 43).build())
+                        .put(REROUTE_INTERVAL.getKey(), "43s").build())
                 .get();
 
         assertAcked(response);
         assertThat(INITIAL_RECOVERIES.get(response.getTransientSettings()), equalTo(8));
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(8));
-        assertThat(CONCURRENT_RECOVIERS.get(response.getTransientSettings()), equalTo(43));
-        assertThat(clusterService().getClusterSettings().get(CONCURRENT_RECOVIERS), equalTo(43));
+        assertThat(REROUTE_INTERVAL.get(response.getTransientSettings()), equalTo(TimeValue.timeValueSeconds(43)));
+        assertThat(clusterService().getClusterSettings().get(REROUTE_INTERVAL), equalTo(TimeValue.timeValueSeconds(43)));
         response = client().admin().cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().putNull((randomBoolean() ? "cluster.routing.*" : "*")))
@@ -137,8 +138,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         assertThat(INITIAL_RECOVERIES.get(response.getTransientSettings()), equalTo(INITIAL_RECOVERIES.get(Settings.EMPTY)));
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(INITIAL_RECOVERIES.get(Settings.EMPTY)));
-        assertThat(CONCURRENT_RECOVIERS.get(response.getTransientSettings()), equalTo(CONCURRENT_RECOVIERS.get(Settings.EMPTY)));
-        assertThat(clusterService().getClusterSettings().get(CONCURRENT_RECOVIERS), equalTo(CONCURRENT_RECOVIERS.get(Settings.EMPTY)));
+        assertThat(REROUTE_INTERVAL.get(response.getTransientSettings()), equalTo(REROUTE_INTERVAL.get(Settings.EMPTY)));
+        assertThat(clusterService().getClusterSettings().get(REROUTE_INTERVAL), equalTo(REROUTE_INTERVAL.get(Settings.EMPTY)));
 
         // now persistent
         response = client().admin().cluster()
@@ -163,14 +164,14 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 .prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder()
                         .put(INITIAL_RECOVERIES.getKey(), 10)
-                        .put(CONCURRENT_RECOVIERS.getKey(), 44).build())
+                        .put(REROUTE_INTERVAL.getKey(), "44s").build())
                 .get();
 
         assertAcked(response);
         assertThat(INITIAL_RECOVERIES.get(response.getPersistentSettings()), equalTo(10));
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(10));
-        assertThat(CONCURRENT_RECOVIERS.get(response.getPersistentSettings()), equalTo(44));
-        assertThat(clusterService().getClusterSettings().get(CONCURRENT_RECOVIERS), equalTo(44));
+        assertThat(REROUTE_INTERVAL.get(response.getPersistentSettings()), equalTo(TimeValue.timeValueSeconds(44)));
+        assertThat(clusterService().getClusterSettings().get(REROUTE_INTERVAL), equalTo(TimeValue.timeValueSeconds(44)));
         response = client().admin().cluster()
                 .prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder().putNull((randomBoolean() ? "cluster.routing.*" : "*")))
@@ -178,8 +179,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         assertThat(INITIAL_RECOVERIES.get(response.getPersistentSettings()), equalTo(INITIAL_RECOVERIES.get(Settings.EMPTY)));
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(INITIAL_RECOVERIES.get(Settings.EMPTY)));
-        assertThat(CONCURRENT_RECOVIERS.get(response.getPersistentSettings()), equalTo(CONCURRENT_RECOVIERS.get(Settings.EMPTY)));
-        assertThat(clusterService().getClusterSettings().get(CONCURRENT_RECOVIERS), equalTo(CONCURRENT_RECOVIERS.get(Settings.EMPTY)));
+        assertThat(REROUTE_INTERVAL.get(response.getPersistentSettings()), equalTo(REROUTE_INTERVAL.get(Settings.EMPTY)));
+        assertThat(clusterService().getClusterSettings().get(REROUTE_INTERVAL), equalTo(REROUTE_INTERVAL.get(Settings.EMPTY)));
     }
 
     public void testClusterSettingsUpdateResponse() {

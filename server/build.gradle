@@ -172,9 +172,9 @@ task generateModulesList {
 }
 
 task generatePluginsList {
-  List<String> plugins = project(':plugins').subprojects
-    .findAll { it.name.contains('example') == false }
-    .collect { it.name }
+  Set<String> plugins = new TreeSet<>(project(':plugins').childProjects.keySet())
+  plugins.remove('example')
+
   File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
   processResources.from(pluginsFile)
   inputs.property('plugins', plugins)

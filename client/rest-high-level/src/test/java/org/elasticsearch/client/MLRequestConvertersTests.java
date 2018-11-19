@@ -26,8 +26,10 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
@@ -362,6 +364,16 @@ public class MLRequestConvertersTests extends ESTestCase {
             request.getParameters().get(DeleteForecastRequest.ALLOW_NO_FORECASTS.getPreferredName()));
     }
 
+    public void testDeleteModelSnapshot() {
+        String jobId = randomAlphaOfLength(10);
+        String snapshotId = randomAlphaOfLength(10);
+        DeleteModelSnapshotRequest deleteModelSnapshotRequest = new DeleteModelSnapshotRequest(jobId, snapshotId);
+
+        Request request = MLRequestConverters.deleteModelSnapshot(deleteModelSnapshotRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId, request.getEndpoint());
+    }
+
     public void testGetBuckets() throws IOException {
         String jobId = randomAlphaOfLength(10);
         GetBucketsRequest getBucketsRequest = new GetBucketsRequest(jobId);
@@ -583,6 +595,17 @@ public class MLRequestConvertersTests extends ESTestCase {
             UpdateFilterRequest parsedFilterRequest = UpdateFilterRequest.PARSER.apply(parser, null);
             assertThat(parsedFilterRequest, equalTo(updateFilterRequest));
         }
+    }
+
+    public void testDeleteFilter() {
+        MlFilter filter = MlFilterTests.createRandomBuilder("foo").build();
+        DeleteFilterRequest deleteFilterRequest = new DeleteFilterRequest(filter.getId());
+
+        Request request = MLRequestConverters.deleteFilter(deleteFilterRequest);
+
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/filters/foo"));
+        assertNull(request.getEntity());
     }
 
     private static Job createValidJob(String jobId) {

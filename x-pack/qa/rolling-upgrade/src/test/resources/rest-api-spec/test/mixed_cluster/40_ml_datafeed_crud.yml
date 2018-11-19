@@ -1,4 +1,9 @@
 ---
+setup:
+  - skip:
+     version: "all"
+     reason: "Temporarily disabled while backporting https://github.com/elastic/elasticsearch/pull/35645"
+---
 "Test old cluster datafeed":
   - do:
       xpack.ml.get_datafeeds:

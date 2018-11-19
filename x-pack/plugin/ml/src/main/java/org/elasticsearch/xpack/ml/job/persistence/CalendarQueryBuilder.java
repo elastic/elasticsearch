@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
@@ -67,10 +68,10 @@ public class CalendarQueryBuilder {
 
         if (jobIdAndGroups.isEmpty() == false) {
             qb = new BoolQueryBuilder()
-                    .filter(new TermsQueryBuilder(Calendar.TYPE.getPreferredName(), Calendar.CALENDAR_TYPE))
+                    .filter(new TermQueryBuilder(Calendar.TYPE.getPreferredName(), Calendar.CALENDAR_TYPE))
                     .filter(new TermsQueryBuilder(Calendar.JOB_IDS.getPreferredName(), jobIdAndGroups));
         } else {
-            qb = new TermsQueryBuilder(Calendar.TYPE.getPreferredName(), Calendar.CALENDAR_TYPE);
+            qb = new TermQueryBuilder(Calendar.TYPE.getPreferredName(), Calendar.CALENDAR_TYPE);
         }
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(qb);

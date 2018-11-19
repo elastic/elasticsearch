@@ -137,8 +137,18 @@ public class JobManager {
         this.maxModelMemoryLimit = maxModelMemoryLimit;
     }
 
+    public void groupExists(String groupId, ActionListener<Boolean> listener) {
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
+        boolean groupExistsInMlMetadata = mlMetadata.expandGroupIds(groupId).isEmpty() == false;
+        if (groupExistsInMlMetadata) {
+            listener.onResponse(Boolean.TRUE);
+        } else {
+            jobConfigProvider.groupExists(groupId, listener);
+        }
+    }
+
     public void jobExists(String jobId, ActionListener<Boolean> listener) {
-        jobConfigProvider.jobExists(jobId, true, ActionListener.wrap(
+        jobConfigProvider.jobExists(jobId, false, ActionListener.wrap(
                 jobFound -> {
                     if (jobFound) {
                         listener.onResponse(Boolean.TRUE);

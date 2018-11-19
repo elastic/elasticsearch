@@ -42,6 +42,28 @@ public class DatafeedConfigReader {
     }
 
     /**
+     * Read the datafeed config from {@code state} and if not found
+     * look for the index document
+     *
+     * @param datafeedId Id of datafeed to get
+     * @param state      Cluster state
+     * @param listener   DatafeedConfig listener
+     */
+    public void datafeedConfig(String datafeedId, ClusterState state, ActionListener<DatafeedConfig> listener) {
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
+        DatafeedConfig config = mlMetadata.getDatafeed(datafeedId);
+
+        if (config != null) {
+            listener.onResponse(config);
+        } else {
+            datafeedConfigProvider.getDatafeedConfig(datafeedId, ActionListener.wrap(
+                    builder -> listener.onResponse(builder.build()),
+                    listener::onFailure
+            ));
+        }
+    }
+
+    /**
      * Merges the results of {@link MlMetadata#expandDatafeedIds}
      * and {@link DatafeedConfigProvider#expandDatafeedIds(String, boolean, ActionListener)}
      */

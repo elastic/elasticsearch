@@ -17,9 +17,8 @@ import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 
@@ -29,17 +28,17 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
         GetCalendarEventsAction.Response> {
 
     private final JobResultsProvider jobResultsProvider;
-    private final JobConfigProvider jobConfigProvider;
+    private final JobManager jobManager;
 
     @Inject
     public TransportGetCalendarEventsAction(Settings settings, ThreadPool threadPool,
                                             TransportService transportService, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                            JobResultsProvider jobResultsProvider, JobConfigProvider jobConfigProvider) {
+                                            JobResultsProvider jobResultsProvider, JobManager jobManager) {
         super(settings, GetCalendarEventsAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, GetCalendarEventsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
-        this.jobConfigProvider = jobConfigProvider;
+        this.jobManager = jobManager;
     }
 
     @Override
@@ -66,15 +65,13 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
 
                     if (request.getJobId() != null) {
 
-                        jobConfigProvider.getJob(request.getJobId(), ActionListener.wrap(
-                                jobBuiler -> {
-                                    Job job = jobBuiler.build();
+                        jobManager.getJob(request.getJobId(), ActionListener.wrap(
+                                job -> {
                                     jobResultsProvider.scheduledEventsForJob(request.getJobId(), job.getGroups(), query, eventsListener);
-
                                 },
                                 jobNotFound -> {
                                     // is the request Id a group?
-                                    jobConfigProvider.groupExists(request.getJobId(), ActionListener.wrap(
+                                    jobManager.groupExists(request.getJobId(), ActionListener.wrap(
                                             groupExists -> {
                                                 if (groupExists) {
                                                     jobResultsProvider.scheduledEventsForJob(

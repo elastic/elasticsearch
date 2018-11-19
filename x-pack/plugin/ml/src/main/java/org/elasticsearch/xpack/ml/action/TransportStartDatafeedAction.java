@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigReader;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -71,7 +72,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final JobConfigProvider jobConfigProvider;
-    private final DatafeedConfigProvider datafeedConfigProvider;
+    private final DatafeedConfigReader datafeedConfigReader;
 
     @Inject
     public TransportStartDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
@@ -85,7 +86,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.persistentTasksService = persistentTasksService;
         this.client = client;
         this.jobConfigProvider = jobConfigProvider;
-        this.datafeedConfigProvider = datafeedConfigProvider;
+        this.datafeedConfigReader = new DatafeedConfigReader(datafeedConfigProvider);
     }
 
     static void validate(Job job, DatafeedConfig datafeedConfig, PersistentTasksCustomMetaData tasks) {
@@ -179,10 +180,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 listener::onFailure
         );
 
-        ActionListener<DatafeedConfig.Builder> datafeedListener = ActionListener.wrap(
-                datafeedBuilder -> {
+        ActionListener<DatafeedConfig> datafeedListener = ActionListener.wrap(
+                datafeedConfig -> {
                     try {
-                        DatafeedConfig datafeedConfig = datafeedBuilder.build();
                         params.setDatafeedIndices(datafeedConfig.getIndices());
                         params.setJobId(datafeedConfig.getJobId());
                         datafeedConfigHolder.set(datafeedConfig);
@@ -194,7 +194,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 listener::onFailure
         );
 
-        datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), datafeedListener);
+        datafeedConfigReader.datafeedConfig(params.getDatafeedId(), state, datafeedListener);
     }
 
     private void createDataExtractor(Job job, DatafeedConfig datafeed, StartDatafeedAction.DatafeedParams params,

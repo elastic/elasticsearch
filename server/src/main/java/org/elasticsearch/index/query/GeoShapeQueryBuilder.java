@@ -53,7 +53,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.BaseGeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -334,14 +335,9 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         if (relation == null) {
             throw new IllegalArgumentException("No Shape Relation defined");
         }
-        if (strategy != null) {
-            if (strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
-                throw new IllegalArgumentException("current strategy [" + strategy.getStrategyName() + "] only supports relation ["
-                    + ShapeRelation.INTERSECTS.getRelationName() + "] found relation [" + relation.getRelationName() + "]");
-            } else if (strategy == SpatialStrategy.VECTOR && relation == ShapeRelation.CONTAINS) {
-                throw new IllegalArgumentException("current strategy [" + strategy.getStrategyName() + "] does not support relation ["
-                    + ShapeRelation.CONTAINS.getRelationName() + "]");
-            }
+        if (SpatialStrategy.TERM.equals(strategy) && relation != ShapeRelation.INTERSECTS) {
+            throw new IllegalArgumentException("current strategy [" + strategy.getStrategyName() + "] only supports relation ["
+                + ShapeRelation.INTERSECTS.getRelationName() + "] found relation [" + relation.getRelationName() + "]");
         }
         this.relation = relation;
         return this;
@@ -386,19 +382,19 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             } else {
                 throw new QueryShardException(context, "failed to find geo_shape field [" + fieldName + "]");
             }
-        } else if (fieldType.typeName().equals(GeoShapeFieldMapper.CONTENT_TYPE) == false) {
+        } else if (fieldType.typeName().equals(BaseGeoShapeFieldMapper.CONTENT_TYPE) == false) {
             throw new QueryShardException(context,
                     "Field [" + fieldName + "] is not of type [geo_shape] but of type [" + fieldType.typeName() + "]");
         }
 
-        final GeoShapeFieldMapper.GeoShapeFieldType shapeFieldType = (GeoShapeFieldMapper.GeoShapeFieldType) fieldType;
-
-        SpatialStrategy spatialStrategy = shapeFieldType.strategy();
-        if(this.strategy != null) {
-            spatialStrategy = this.strategy;
-        }
+        final BaseGeoShapeFieldMapper.BaseGeoShapeFieldType ft = (BaseGeoShapeFieldMapper.BaseGeoShapeFieldType) fieldType;
         Query query;
-        if (spatialStrategy != SpatialStrategy.VECTOR) {
+        if (strategy != null || ft instanceof LegacyGeoShapeFieldMapper.GeoShapeFieldType) {
+            LegacyGeoShapeFieldMapper.GeoShapeFieldType shapeFieldType = (LegacyGeoShapeFieldMapper.GeoShapeFieldType) ft;
+            SpatialStrategy spatialStrategy = shapeFieldType.strategy();
+            if (this.strategy != null) {
+                spatialStrategy = this.strategy;
+            }
             PrefixTreeStrategy prefixTreeStrategy = shapeFieldType.resolvePrefixTreeStrategy(spatialStrategy);
             if (prefixTreeStrategy instanceof RecursivePrefixTreeStrategy && relation == ShapeRelation.DISJOINT) {
                 // this strategy doesn't support disjoint anymore: but it did
@@ -414,25 +410,24 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                 query = new ConstantScoreQuery(prefixTreeStrategy.makeQuery(getArgs(shapeToQuery, relation)));
             }
         } else {
-            query = getVectorQuery(context, shapeFieldType, shapeToQuery);
+            query = new ConstantScoreQuery(getVectorQuery(context, shapeToQuery));
         }
         return query;
     }
 
-    private Query getVectorQuery(QueryShardContext context, GeoShapeFieldMapper.GeoShapeFieldType shapeFieldType,
-                                 ShapeBuilder queryShapeBuilder) {
+    private Query getVectorQuery(QueryShardContext context, ShapeBuilder queryShapeBuilder) {
         // CONTAINS queries are not yet supported by VECTOR strategy
         if (relation == ShapeRelation.CONTAINS) {
             throw new QueryShardException(context,
                 ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName
-                    + "] when using Strategy [" + shapeFieldType.strategy() + "]");
+                    + "] Use prefix tree strategy [" + SpatialStrategy.RECURSIVE + "] or [" + SpatialStrategy.TERM + "] instead.");
         }
 
         // wrap geoQuery as a ConstantScoreQuery
-        return new ConstantScoreQuery(getVectorQuery(context, queryShapeBuilder.buildLucene()));
+        return getVectorQueryFromShape(context, queryShapeBuilder.buildLucene());
     }
 
-    private Query getVectorQuery(QueryShardContext context, Object queryShape) {
+    private Query getVectorQueryFromShape(QueryShardContext context, Object queryShape) {
         Query geoQuery;
         if (queryShape instanceof Line[]) {
             geoQuery = LatLonShape.newLineQuery(fieldName(), relation.getLuceneRelation(), (Line[]) queryShape);
@@ -468,7 +463,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     private Query createGeometryCollectionQuery(QueryShardContext context, Object... shapes) {
         BooleanQuery.Builder bqb = new BooleanQuery.Builder();
         for (Object shape : shapes) {
-            bqb.add(getVectorQuery(context, shape), BooleanClause.Occur.SHOULD);
+            bqb.add(getVectorQueryFromShape(context, shape), BooleanClause.Occur.SHOULD);
         }
         return bqb.build();
     }

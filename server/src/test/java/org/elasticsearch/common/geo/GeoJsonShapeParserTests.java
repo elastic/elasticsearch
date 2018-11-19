@@ -32,8 +32,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
@@ -303,19 +304,32 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         shellCoordinates.add(new Coordinate(101, 1, 10));
         shellCoordinates.add(new Coordinate(100, 1, 10));
         shellCoordinates.add(new Coordinate(100, 0, 10));
+        Coordinate[] coordinates = shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]);
 
+        Version randomVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
-        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
-        Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
-        Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        final GeoShapeFieldMapper mapperBuilder = new GeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext);
-        try (XContentParser parser = createParser(polygonGeoJson)) {
-            parser.nextToken();
-            ElasticsearchGeoAssertions.assertEquals(jtsGeom(expected), ShapeParser.parse(parser, mapperBuilder).buildS4J());
+
+        boolean useJTS = randomVersion.before(Version.V_6_6_0);
+
+        if (useJTS) {
+            LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
+            Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
+            Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
+            final LegacyGeoShapeFieldMapper mapperBuilder =
+                (LegacyGeoShapeFieldMapper) (new LegacyGeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext));
+            try (XContentParser parser = createParser(polygonGeoJson)) {
+                parser.nextToken();
+                ElasticsearchGeoAssertions.assertEquals(jtsGeom(expected), ShapeParser.parse(parser, mapperBuilder).buildS4J());
+            }
+        } else {
+            org.apache.lucene.geo.Polygon p = new org.apache.lucene.geo.Polygon(
+                Arrays.stream(coordinates).mapToDouble(i->i.y).toArray(),
+                Arrays.stream(coordinates).mapToDouble(i->i.x).toArray());
+            assertGeometryEquals(p, polygonGeoJson, useJTS);
         }
     }
 

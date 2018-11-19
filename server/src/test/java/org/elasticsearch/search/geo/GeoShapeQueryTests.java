@@ -41,7 +41,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
@@ -71,8 +71,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     private static final String[] PREFIX_TREES = new String[] {
-        GeoShapeFieldMapper.Names.TREE_GEOHASH,
-        GeoShapeFieldMapper.Names.TREE_QUADTREE
+        LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.GEOHASH,
+        LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE
     };
 
     private XContentBuilder createMapping() throws Exception {

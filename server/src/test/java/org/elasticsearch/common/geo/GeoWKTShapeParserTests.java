@@ -42,7 +42,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.jts.geom.Coordinate;
@@ -315,7 +315,8 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
 
         Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        final GeoShapeFieldMapper mapperBuilder = new GeoShapeFieldMapper.Builder("test").ignoreZValue(false).build(mockBuilderContext);
+        final LegacyGeoShapeFieldMapper mapperBuilder =
+            (LegacyGeoShapeFieldMapper)(new LegacyGeoShapeFieldMapper.Builder("test").ignoreZValue(false).build(mockBuilderContext));
 
         // test store z disabled
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
@@ -353,7 +354,8 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
 
         Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        final GeoShapeFieldMapper mapperBuilder = new GeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext);
+        final LegacyGeoShapeFieldMapper mapperBuilder =
+            (LegacyGeoShapeFieldMapper)(new LegacyGeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext));
 
         // test store z disabled
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
@@ -382,7 +384,8 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
 
         Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        final GeoShapeFieldMapper mapperBuilder = new GeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext);
+        final LegacyGeoShapeFieldMapper mapperBuilder =
+            (LegacyGeoShapeFieldMapper)(new LegacyGeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext));
 
         ShapeBuilder<?, ?> shapeBuilder = ShapeParser.parse(parser, mapperBuilder);
         assertEquals(shapeBuilder.numDimensions(), 3);
@@ -402,12 +405,14 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
 
         Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        final GeoShapeFieldMapper defaultMapperBuilder = new GeoShapeFieldMapper.Builder("test").coerce(false).build(mockBuilderContext);
+        final LegacyGeoShapeFieldMapper defaultMapperBuilder =
+            (LegacyGeoShapeFieldMapper)(new LegacyGeoShapeFieldMapper.Builder("test").coerce(false).build(mockBuilderContext));
         ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
             () -> ShapeParser.parse(parser, defaultMapperBuilder));
         assertEquals("invalid LinearRing found (coordinates are not closed)", exception.getMessage());
 
-        final GeoShapeFieldMapper coercingMapperBuilder = new GeoShapeFieldMapper.Builder("test").coerce(true).build(mockBuilderContext);
+        final LegacyGeoShapeFieldMapper coercingMapperBuilder =
+            (LegacyGeoShapeFieldMapper)(new LegacyGeoShapeFieldMapper.Builder("test").coerce(true).build(mockBuilderContext));
         ShapeBuilder<?, ?> shapeBuilder = ShapeParser.parse(parser, coercingMapperBuilder);
         assertNotNull(shapeBuilder);
         assertEquals("polygon ((100.0 5.0, 100.0 10.0, 90.0 10.0, 90.0 5.0, 100.0 5.0))", shapeBuilder.toWKT());

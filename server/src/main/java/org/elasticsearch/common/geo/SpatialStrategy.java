@@ -27,8 +27,7 @@ import java.io.IOException;
 public enum SpatialStrategy implements Writeable {
 
     TERM("term"),
-    RECURSIVE("recursive"),
-    VECTOR("vector");
+    RECURSIVE("recursive");
 
     private final String strategyName;
 
@@ -51,7 +50,7 @@ public enum SpatialStrategy implements Writeable {
 
     public static SpatialStrategy fromString(String strategyName) {
         for (SpatialStrategy strategy : values()) {
-            if (strategy.strategyName.equalsIgnoreCase(strategyName)) {
+            if (strategy.strategyName.equals(strategyName)) {
                 return strategy;
             }
         }

@@ -18,11 +18,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.SubsetResult.Result;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -138,22 +140,32 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         if (this.groups() == null || this.groups().length == 0) {
             return SubsetResult.isASubset();
         }
-        SubsetResult finalResult = null;
+        Set<Set<String>> combineDLSQueriesFromIndexPrivilegeMatchingTheseNames = null;
         for (Group thisGroup : this.groups()) {
-            SubsetResult resultForThisGroup = null;
+            boolean granted = false;
+            Set<Set<String>> maybeGroupIndices = Collections.emptySet();
             if (other.groups() != null) {
                 for (Group otherGroup : other.groups()) {
                     final SubsetResult result = thisGroup.isSubsetOf(otherGroup);
-                    resultForThisGroup = SubsetResult.merge(resultForThisGroup, result);
+                    if (result.result() == Result.YES) {
+                        granted = true;
+                    } else if (result.result() == Result.MAYBE) {
+                        maybeGroupIndices = Sets.union(maybeGroupIndices, result.setOfIndexNamesForCombiningDLSQueries());
+                        granted = true;
+                    }
                 }
             }
-            if (resultForThisGroup == null || resultForThisGroup.result() == SubsetResult.Result.NO) {
+            if (granted == false) {
                 return SubsetResult.isNotASubset();
             } else {
-                finalResult = SubsetResult.merge(finalResult, resultForThisGroup);
+                combineDLSQueriesFromIndexPrivilegeMatchingTheseNames = maybeGroupIndices;
             }
         }
-        return finalResult;
+        if (combineDLSQueriesFromIndexPrivilegeMatchingTheseNames.isEmpty()) {
+            return SubsetResult.isASubset();
+        } else {
+            return SubsetResult.mayBeASubset(combineDLSQueriesFromIndexPrivilegeMatchingTheseNames);
+        }
     }
 
     /**
@@ -302,7 +314,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
                 if (Sets.difference(this.getQuery(), other.getQuery()).isEmpty()) {
                     result = SubsetResult.isASubset();
                 } else {
-                    result = SubsetResult.mayBeASubset(Sets.newHashSet(this.indices()));
+                    result = SubsetResult.mayBeASubset(Collections.singleton(Sets.newHashSet(this.indices())));
                 }
             }
             return result;

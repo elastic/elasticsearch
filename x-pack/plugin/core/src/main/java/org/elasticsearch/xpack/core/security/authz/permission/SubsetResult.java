@@ -7,10 +7,8 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.util.set.Sets;
 
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -51,6 +49,24 @@ public class SubsetResult {
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(result, combineDLSQueriesFromIndexPrivilegeMatchingTheseNames);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        SubsetResult other = (SubsetResult) obj;
+        return result == other.result && Objects.equals(combineDLSQueriesFromIndexPrivilegeMatchingTheseNames,
+                other.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames);
+    }
+
+    @Override
     public String toString() {
         return "SubsetResult [result=" + result + ", combineDLSQueriesFromIndexPrivilegeMatchingTheseNames="
                 + combineDLSQueriesFromIndexPrivilegeMatchingTheseNames + "]";
@@ -72,33 +88,8 @@ public class SubsetResult {
      * compare to find appropriate indices permission.
      * @return {@link SubsetResult}
      */
-    public static SubsetResult mayBeASubset(final Set<String> indices) {
-        final Set<Set<String>> combineDLSQueriesFromIndexPrivilegeMatchingTheseNames = Collections.singleton(indices);
-        return new SubsetResult(Result.MAYBE, combineDLSQueriesFromIndexPrivilegeMatchingTheseNames);
+    public static SubsetResult mayBeASubset(final Set<Set<String>> indices) {
+        return new SubsetResult(Result.MAYBE, indices);
     }
 
-    public static SubsetResult merge(final SubsetResult left, final SubsetResult right) {
-        if (left == null && right != null) {
-            return right;
-        } else if (left != null && right == null) {
-            return left;
-        } else if (left.result == right.result) {
-            return new SubsetResult(left.result, Sets.union(left.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames,
-                    right.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames));
-        } else if (left.result == Result.NO && EnumSet.of(Result.YES, Result.MAYBE).contains(right.result)) {
-            return new SubsetResult(right.result, Sets.union(left.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames,
-                    right.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames));
-        } else if (right.result == Result.NO && EnumSet.of(Result.YES, Result.MAYBE).contains(left.result)) {
-            return new SubsetResult(left.result, Sets.union(left.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames,
-                    right.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames));
-        } else if (left.result == Result.MAYBE && right.result == Result.YES) {
-            return new SubsetResult(left.result, Sets.union(left.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames,
-                    right.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames));
-        } else if (left.result == Result.YES && right.result == Result.MAYBE) {
-            return new SubsetResult(right.result, Sets.union(left.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames,
-                    right.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames));
-        } else {
-            return new SubsetResult(Result.NO, null);
-        }
-    }
 }

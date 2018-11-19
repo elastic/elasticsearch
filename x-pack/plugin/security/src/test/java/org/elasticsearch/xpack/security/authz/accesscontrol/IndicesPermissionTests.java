@@ -354,7 +354,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 group(fieldPermissions(new String[] { "f1", "f2" }, null), Collections.singleton(new BytesArray("{diff}")),
                         IndexPrivilege.ALL, "index-1-*"));
         assertThat(permissionForSubsetSuccess_QueryIsNotASubset.isSubsetOf(permissionBase),
-                equalTo(SubsetResult.mayBeASubset(Sets.newHashSet("index-1-*"))));
+                equalTo(SubsetResult.mayBeASubset(Collections.singleton(Sets.newHashSet("index-1-*")))));
     }
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {

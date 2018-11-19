@@ -1,0 +1,295 @@
+[[search-aggregations-bucket-rare-terms-aggregation]]
+=== Rare Terms Aggregation
+
+A multi-bucket value source based aggregation which finds "rare" terms -- terms that are at the long-tail
+of the distribution and are not frequent.  Conceptually, this is like a `terms` aggregation that is
+sorted by `_count` ascending.  As noted in the <<search-aggregations-bucket-terms-aggregation-order,terms aggregation docs>>,
+actually ordering a `terms` agg by count ascending has unbounded error.  Instead, you should use the `rare_terms`
+aggregation
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /products
+{
+    "mappings": {
+        "product": {
+            "properties": {
+                "genre": {
+                    "type": "keyword"
+                },
+                "product": {
+                    "type": "keyword"
+                }
+            }
+        }
+    }
+}
+
+POST /products/product/_bulk?refresh
+{"index":{"_id":0}}
+{"genre": "rock", "product": "Product A"}
+{"index":{"_id":1}}
+{"genre": "rock"}
+{"index":{"_id":2}}
+{"genre": "rock"}
+{"index":{"_id":3}}
+{"genre": "jazz", "product": "Product Z"}
+{"index":{"_id":4}}
+{"genre": "jazz"}
+{"index":{"_id":5}}
+{"genre": "electronic"}
+{"index":{"_id":6}}
+{"genre": "electronic"}
+{"index":{"_id":7}}
+{"genre": "electronic"}
+{"index":{"_id":8}}
+{"genre": "electronic"}
+{"index":{"_id":9}}
+{"genre": "electronic"}
+{"index":{"_id":10}}
+{"genre": "swing"}
+
+-------------------------------------------------
+// NOTCONSOLE
+// TESTSETUP
+
+//////////////////////////
+
+==== Syntax
+
+A `rare_terms` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+    "rare_terms": {
+        "field": "the_field",
+        "max_doc_count": 1
+    }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+.`rare_terms` Parameters
+|===
+|Parameter Name |Description |Required |Default Value
+|`field` |The field we wish to find rare terms in |Required |
+|`max_doc_count` |The maximum number of documents a term should appear in. |Optional |`1`
+|`include` |Terms that should be included in the aggregation|Optional |
+|`exclude` |Terms that should be excluded from the aggregation|Optional |
+|`missing` |The value that should be used if a document does not have the field being aggregated|Optional |
+|===
+
+
+Example:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "genres" : {
+            "rare_terms" : {
+                "field" : "genre"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/_search/_search\?filter_path=aggregations/]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "aggregations" : {
+        "genres" : {
+            "doc_count_error_upper_bound": 0,
+            "sum_other_doc_count": 0,
+            "buckets" : [
+                {
+                    "key" : "swing",
+                    "doc_count" : 1
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+
+In this example, the only bucket that we see is the "swing" bucket, because it is the only term that appears in
+one document.  If we increase the `max_doc_count` to `2`, we'll see some more buckets:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "genres" : {
+            "rare_terms" : {
+                "field" : "genre",
+                "max_doc_count": 2
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/_search/_search\?filter_path=aggregations/]
+
+This now shows the "jazz" term which has a `doc_count` of 2":
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "aggregations" : {
+        "genres" : {
+            "doc_count_error_upper_bound": 0,
+            "sum_other_doc_count": 0,
+            "buckets" : [
+                {
+                    "key" : "swing",
+                    "doc_count" : 1
+                },
+                {
+                    "key" : "jazz",
+                    "doc_count" : 2
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+
+[[search-aggregations-bucket-rare-terms-aggregation-max-doc-count]]
+==== Maximum document count
+
+The `max_doc_count` parameter is used to control the upper bound of document counts that a term can have.  There
+is not a size limitation on the `rare_terms` agg like `terms` agg has.  This means that _all_ terms
+which match the `max_doc_count` criteria will be returned.  The aggregation functions in this manner to avoid
+the order-by-ascending issues that afflict the `terms` aggregation.
+
+This does, however, mean that  a large number of results can be returned if chosen incorrectly.
+To limit the danger of this setting, the maximum `max_doc_count` is 10.
+
+[[search-aggregations-bucket-rare-terms-aggregation-approximate-counts]]
+==== Document counts are approximate
+
+The naive way to determine the "rare" terms in a dataset is to place all the values in a map, incrementing counts
+as each document is visited, then return the bottom `n` rows.  This does not scale beyond even modestly sized data
+sets.  A sharded approach where only the "top n" values are retained from each shard (ala the `terms` aggregation)
+fails because the long-tail nature of the problem means it is impossible to find the "top n" bottom values without
+simply collecting all the values from all shards.
+
+Instead, the Rare Terms aggregation uses a different approximate algorithm:
+
+1. Values are placed in a map the first time they are seen.
+2. Each addition occurrence of the term increments a counter in the map
+3. If the counter > the `max_doc_count` threshold, the term is removed from the map and placed in a bloom filter
+4. The bloom filter is consulted on each term.  If the value is inside the bloom, it is known to be above the
+threshold already and skipped.
+
+After execution, the map of values is the map of "rare" terms under the `max_doc_count` threshold.  This map and bloom
+filter is then merged with all other shards.  If there are terms that are greater than the threshold (or appear in
+a different shard's bloom filter) the term is removed from the merged list.  The final map of values is returned
+to the user as the "rare" terms.
+
+Bloom filters have the possibility of returning false positives (they can say a value exists in their collection when
+it does not actually).  Since the Bloom filter is being used to see if a term is over threshold, this means a false positive
+from the bloom filter will mistakenly say a value is common when it is not (and thus exclude it from it final list of buckets).
+
+
+==== Filtering Values
+
+It is possible to filter the values for which buckets will be created. This can be done using the `include` and
+`exclude` parameters which are based on regular expression strings or arrays of exact values. Additionally,
+`include` clauses can filter using `partition` expressions.
+
+===== Filtering Values with regular expressions
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "genres" : {
+            "rare_terms" : {
+                "field" : "genre",
+                "include" : "swi*",
+                "exclude" : "electro*"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+In the above example, buckets will be created for all the tags that starts with `swi`, except those starting
+with `electro` (so the tag `swing` will be aggregated but not `electro_swing`). The `include` regular expression will determine what
+values are "allowed" to be aggregated, while the `exclude` determines the values that should not be aggregated. When
+both are defined, the `exclude` has precedence, meaning, the `include` is evaluated first and only then the `exclude`.
+
+The syntax is the same as <<regexp-syntax,regexp queries>>.
+
+===== Filtering Values with exact values
+
+For matching based on exact values the `include` and `exclude` parameters can simply take an array of
+strings that represent the terms as they are found in the index:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "genres" : {
+             "rare_terms" : {
+                 "field" : "genre",
+                 "include" : ["swing", "rock"],
+                 "exclude" : ["jazz"]
+             }
+         }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+
+==== Missing value
+
+The `missing` parameter defines how documents that are missing a value should be treated.
+By default they will be ignored but it is also possible to treat them as if they
+had a value.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "genres" : {
+             "rare_terms" : {
+                 "field" : "genre",
+                 "missing": "N/A" <1>
+             }
+         }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> Documents without a value in the `tags` field will fall into the same bucket as documents that have the value `N/A`.
+
+
+==== Mixing field types
+
+WARNING: When aggregating on multiple indices the type of the aggregated field may not be the same in all indices.
+Some types are compatible with each other (`integer` and `long` or `float` and `double`) but when the types are a mix
+of decimal and non-decimal number the terms aggregation will promote the non-decimal numbers to decimal numbers.
+This can result in a loss of precision in the bucket values.

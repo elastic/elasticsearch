@@ -72,7 +72,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     }
 
     @Override
-    protected final void writeTermTypeInfoTo(StreamOutput out) throws IOException {
+    protected void writeTermTypeInfoTo(StreamOutput out) throws IOException {
         out.writeZLong(docCountError);
         out.writeNamedWriteable(format);
         writeSize(shardSize, out);

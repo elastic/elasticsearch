@@ -142,11 +142,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             try {
                 // Check non-diffable elements
                 assertThat(clusterStateFromDiffs.version(), equalTo(clusterState.version()));
-                assertThat(clusterStateFromDiffs.term(), equalTo(clusterState.term()));
-                assertThat(clusterStateFromDiffs.stateUUID(), equalTo(clusterState.stateUUID()));
-                assertThat(clusterStateFromDiffs.getLastAcceptedConfiguration(), equalTo(clusterState.getLastAcceptedConfiguration()));
-                assertThat(clusterStateFromDiffs.getLastCommittedConfiguration(), equalTo(clusterState.getLastCommittedConfiguration()));
-                assertThat(clusterStateFromDiffs.getVotingTombstones(), equalTo(clusterState.getVotingTombstones()));
+                assertThat(clusterStateFromDiffs.coordinationMetaData(), equalTo(clusterState.coordinationMetaData()));
 
                 // Check nodes
                 assertThat(clusterStateFromDiffs.nodes().getNodes(), equalTo(clusterState.nodes().getNodes()));

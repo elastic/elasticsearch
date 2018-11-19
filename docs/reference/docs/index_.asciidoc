@@ -84,7 +84,7 @@ request is to set `auto_create_index` request parameter to `false`:
 
 [source,js]
 --------------------------------------------------
-PUT twitter/_doc/1?auto_create_index=false
+PUT twitter/_doc/42?auto_create_index=false
 {
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
@@ -92,6 +92,7 @@ PUT twitter/_doc/1?auto_create_index=false
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 [float]
 [[index-versioning]]

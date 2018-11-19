@@ -161,7 +161,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "  \"next_step\": {\n" +
             "    \"phase\": \"hot\",\n" +
             "    \"action\": \"rollover\",\n" +
-            "    \"name\": \"attempt_rollover\"\n" +
+            "    \"name\": \"attempt-rollover\"\n" +
             "  }\n" +
             "}");
         client().performRequest(moveToStepRequest);

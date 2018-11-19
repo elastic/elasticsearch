@@ -267,10 +267,11 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
     }
 
     public void testSucceedsEvenIfAllTombstonesAlreadyAdded() throws InterruptedException {
-        final ClusterState.Builder builder = builder(clusterService.state());
-        builder.metaData(MetaData.builder().
+        final ClusterState state = clusterService.state();
+        final ClusterState.Builder builder = builder(state);
+        builder.metaData(MetaData.builder(state.metaData()).
                 coordinationMetaData(
-                        CoordinationMetaData.builder(clusterService.state().coordinationMetaData())
+                        CoordinationMetaData.builder(state.coordinationMetaData())
                         .addVotingTombstone(otherNode1).
                 build()));
         setState(clusterService, builder);

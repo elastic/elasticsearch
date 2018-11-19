@@ -153,8 +153,11 @@ When not explicitly specifying the field to search on in the query
 string syntax, the `index.query.default_field` will be used to derive
 which field to search on. If the `index.query.default_field` is not specified,
 the `query_string` will automatically attempt to determine the existing fields in the index's
-mapping that are queryable, and perform the search on those fields. Note that this will not
-include nested documents, use a nested query to search those documents.
+mapping that are queryable, and perform the search on those fields. 
+This will not include nested documents, use a nested query to search those documents.
+
+NOTE: For mappings with a large number of fields, searching across all queryable
+fields in the mapping could be expensive.
 
 [float]
 ==== Multi Field

@@ -57,6 +57,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         customs = in.readBoolean();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        // TODO: change version to V_6_6_0 after backporting:
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             waitForTimeout = in.readTimeValue();
             waitForMetaDataVersion = in.readOptionalLong();
@@ -73,6 +74,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         out.writeBoolean(customs);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
+        // TODO: change version to V_6_6_0 after backporting:
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeTimeValue(waitForTimeout);
             out.writeOptionalLong(waitForMetaDataVersion);

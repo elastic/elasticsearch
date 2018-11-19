@@ -41,15 +41,18 @@ public class ClusterStateRequestTests extends ESTestCase {
             ClusterStateRequest clusterStateRequest = new ClusterStateRequest().routingTable(randomBoolean()).metaData(randomBoolean())
                     .nodes(randomBoolean()).blocks(randomBoolean()).indices("testindex", "testindex2").indicesOptions(indicesOptions);
 
-            if (randomBoolean()) {
-                clusterStateRequest.waitForMetaDataVersion(randomNonNegativeLong());
-            }
-            if (randomBoolean()) {
-                clusterStateRequest.waitForTimeout(new TimeValue(randomNonNegativeLong()));
-            }
-
             Version testVersion = VersionUtils.randomVersionBetween(random(),
                 Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
+            // TODO: change version to V_6_6_0 after backporting:
+            if (testVersion.onOrAfter(Version.V_7_0_0)) {
+                if (randomBoolean()) {
+                    clusterStateRequest.waitForMetaDataVersion(randomNonNegativeLong());
+                }
+                if (randomBoolean()) {
+                    clusterStateRequest.waitForTimeout(new TimeValue(randomNonNegativeLong()));
+                }
+            }
+
             BytesStreamOutput output = new BytesStreamOutput();
             output.setVersion(testVersion);
             clusterStateRequest.writeTo(output);
@@ -64,8 +67,10 @@ public class ClusterStateRequestTests extends ESTestCase {
             assertThat(deserializedCSRequest.blocks(), equalTo(clusterStateRequest.blocks()));
             assertThat(deserializedCSRequest.indices(), equalTo(clusterStateRequest.indices()));
             assertOptionsMatch(deserializedCSRequest.indicesOptions(), clusterStateRequest.indicesOptions());
-            assertThat(deserializedCSRequest.waitForMetaDataVersion(), equalTo(clusterStateRequest.waitForMetaDataVersion()));
-            assertThat(deserializedCSRequest.waitForTimeout(), equalTo(clusterStateRequest.waitForTimeout()));
+            if (testVersion.onOrAfter(Version.V_7_0_0)) {
+                assertThat(deserializedCSRequest.waitForMetaDataVersion(), equalTo(clusterStateRequest.waitForMetaDataVersion()));
+                assertThat(deserializedCSRequest.waitForTimeout(), equalTo(clusterStateRequest.waitForTimeout()));
+            }
         }
     }
 

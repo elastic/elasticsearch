@@ -1,14 +1,22 @@
+--
+:api: upgrade
+:request: IndexUpgradeRequest
+:response: BulkByScrollResponse
+:submit_response: IndexUpgradeSubmissionResponse
+:doc-tests-file: {doc-tests}/MigrationClientDocumentationIT.java
+--
+
 [[java-rest-high-migration-upgrade]]
 === Migration Upgrade
 
 [[java-rest-high-migraton-upgrade-request]]
 ==== Index Upgrade Request
 
-An `IndexUpgradeRequest` requires an index argument. Only one index at the time should be upgraded:
+An +{request}+ requires an index argument. Only one index at the time should be upgraded:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MigrationClientDocumentationIT.java[upgrade-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Create a new request instance
 
@@ -17,39 +25,37 @@ include-tagged::{doc-tests}/MigrationClientDocumentationIT.java[upgrade-request]
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MigrationClientDocumentationIT.java[upgrade-execute]
+include-tagged::{doc-tests-file}[{api}-execute]
 --------------------------------------------------
 
 [[java-rest-high-migration-upgrade-response]]
 ==== Response
-The returned `BulkByScrollResponse` contains information about the executed operation
+The returned +{response}+ contains information about the executed operation
 
 
 [[java-rest-high-migraton-async-upgrade-request]]
 ==== Asynchronous Execution
 
-The asynchronous execution of a upgrade request requires both the `IndexUpgradeRequest`
+The asynchronous execution of an upgrade request requires both the +{request}+
 instance and an `ActionListener` instance to be passed to the asynchronous
 method:
 
-A typical listener for `BulkResponse` looks like:
-
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MigrationClientDocumentationIT.java[upgrade-async-listener]
+include-tagged::{doc-tests-file}[{api}-async-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument and contains a list of individual results for each
 operation that was executed. Note that one or more operations might have
 failed while the others have been successfully executed.
-<2> Called when the whole `IndexUpgradeRequest` fails. In this case the raised
+<2> Called when the whole +{request}+ fails. In this case the raised
 exception is provided as an argument and no operation has been executed.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MigrationClientDocumentationIT.java[upgrade-async-execute]
+include-tagged::{doc-tests-file}[{api}-async-execute]
 --------------------------------------------------
-<1> The `IndexUpgradeRequest` to execute and the `ActionListener` to use when
+<1> The +{request}+ to execute and the `ActionListener` to use when
 the execution completes
 
 The asynchronous method does not block and returns immediately. Once it is
@@ -59,11 +65,11 @@ it failed.
 
 
 === Migration Upgrade with Task API
-Submission of upgrade request task will requires the `IndexUpgradeRequest` and will return
-`IndexUpgradeSubmissionResponse`. The `IndexUpgradeSubmissionResponse` can later be use to fetch
+Submission of upgrade request task will requires the +{request}+ and will return
++{submit_response}+. The +{submit_response}+ can later be use to fetch
 TaskId and query the Task API for results.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MigrationClientDocumentationIT.java[upgrade-task-api]
+include-tagged::{doc-tests-file}[{api}-task-api]
 --------------------------------------------------

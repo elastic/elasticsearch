@@ -17,6 +17,7 @@
  * under the License.
  */
 package org.elasticsearch.test.disruption;
+
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,13 +26,16 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 public class BusyMasterServiceDisruption extends SingleNodeDisruption {
     final AtomicBoolean active = new AtomicBoolean();
     final Priority priority;
+
     public BusyMasterServiceDisruption(Random random, Priority priority) {
         super(random);
         this.priority = priority;
     }
+
     @Override
     public void startDisrupting() {
         disruptedNode = cluster.getMasterName();
@@ -47,12 +51,14 @@ public class BusyMasterServiceDisruption extends SingleNodeDisruption {
         active.set(true);
         submitTask(clusterService);
     }
+
     void submitTask(ClusterService clusterService) {
         clusterService.getMasterService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask() {
             @Override
             public Priority priority() {
                 return priority;
             }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (active.get()) {
@@ -60,20 +66,24 @@ public class BusyMasterServiceDisruption extends SingleNodeDisruption {
                 }
                 return currentState;
             }
+
             @Override
             public void onFailure(String source, Exception e) {
                 logger.error("unexpected error during disruption", e);
             }
         });
     }
+
     @Override
     public void stopDisrupting() {
         active.set(false);
     }
+
     @Override
     public void removeAndEnsureHealthy(InternalTestCluster cluster) {
         removeFromCluster(cluster);
     }
+
     @Override
     public TimeValue expectedTimeToHeal() {
         return TimeValue.timeValueMinutes(0);

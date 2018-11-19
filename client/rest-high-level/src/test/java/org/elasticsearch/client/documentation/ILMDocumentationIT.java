@@ -30,12 +30,9 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.indexlifecycle.DeleteAction;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
-<<<<<<< HEAD
+import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyResponse;
-=======
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
->>>>>>> [ILM] HLRC ILM Retry Documentation
 import org.elasticsearch.client.indexlifecycle.LifecycleAction;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicyMetadata;
@@ -44,12 +41,9 @@ import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
 import org.elasticsearch.client.indexlifecycle.ShrinkAction;
-<<<<<<< HEAD
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-=======
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
->>>>>>> [ILM] HLRC ILM Retry Documentation
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;

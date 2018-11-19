@@ -65,11 +65,10 @@ include::../follow-request-body.asciidoc[]
 
 ==== Authorization
 
-If the {es} {security-features} are enabled, you must have `write` index
-privileges for the follower index and `read` index privileges for the leader
-index. You must have `manage_ccr` and `monitor` cluster privileges on the
-cluster that contains the follower index. You must also have `monitor` cluster
-privileges on the cluster that contains the leader index. For more information,
+If the {es} {security-features} are enabled, you must have `write` and `monitor`
+index privileges for the follower index. You must have `read` and `monitor`
+index privileges for the leader index. You must also have `manage_ccr` cluster
+privileges on the cluster that contains the follower index. For more information,
 see {stack-ov}/security-privileges.html[Security privileges].
 
 ==== Example

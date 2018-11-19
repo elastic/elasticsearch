@@ -54,25 +54,37 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     public static final Setting<ByteSizeValue> INDEX_BUFFER_SIZE_SETTING =
             Setting.memorySizeSetting("indices.memory.index_buffer_size", "10%", Property.NodeScope);
 
-    /** Only applies when <code>indices.memory.index_buffer_size</code> is a %, to set a floor on the actual size in bytes (default: 48 MB). */
-    public static final Setting<ByteSizeValue> MIN_INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting("indices.memory.min_index_buffer_size",
-                                                                                                       new ByteSizeValue(48, ByteSizeUnit.MB),
-                                                                                                       new ByteSizeValue(0, ByteSizeUnit.BYTES),
-                                                                                                       new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-                                                                                                       Property.NodeScope);
+    /** Only applies when <code>indices.memory.index_buffer_size</code> is a %,
+     * to set a floor on the actual size in bytes (default: 48 MB). */
+    public static final Setting<ByteSizeValue> MIN_INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting(
+        "indices.memory.min_index_buffer_size",
+        new ByteSizeValue(48, ByteSizeUnit.MB),
+        new ByteSizeValue(0, ByteSizeUnit.BYTES),
+        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        Property.NodeScope);
 
-    /** Only applies when <code>indices.memory.index_buffer_size</code> is a %, to set a ceiling on the actual size in bytes (default: not set). */
-    public static final Setting<ByteSizeValue> MAX_INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting("indices.memory.max_index_buffer_size",
-                                                                                                       new ByteSizeValue(-1),
-                                                                                                       new ByteSizeValue(-1),
-                                                                                                       new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-                                                                                                       Property.NodeScope);
+    /** Only applies when <code>indices.memory.index_buffer_size</code> is a %,
+     * to set a ceiling on the actual size in bytes (default: not set). */
+    public static final Setting<ByteSizeValue> MAX_INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting(
+        "indices.memory.max_index_buffer_size",
+        new ByteSizeValue(-1),
+        new ByteSizeValue(-1),
+        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        Property.NodeScope);
 
-    /** If we see no indexing operations after this much time for a given shard, we consider that shard inactive (default: 5 minutes). */
-    public static final Setting<TimeValue> SHARD_INACTIVE_TIME_SETTING = Setting.positiveTimeSetting("indices.memory.shard_inactive_time", TimeValue.timeValueMinutes(5), Property.NodeScope);
+    /** If we see no indexing operations after this much time for a given shard,
+     * we consider that shard inactive (default: 5 minutes). */
+    public static final Setting<TimeValue> SHARD_INACTIVE_TIME_SETTING = Setting.positiveTimeSetting(
+        "indices.memory.shard_inactive_time",
+        TimeValue.timeValueMinutes(5),
+        Property.NodeScope
+    );
 
     /** How frequently we check indexing memory usage (default: 5 seconds). */
-    public static final Setting<TimeValue> SHARD_MEMORY_INTERVAL_TIME_SETTING = Setting.positiveTimeSetting("indices.memory.interval", TimeValue.timeValueSeconds(5), Property.NodeScope);
+    public static final Setting<TimeValue> SHARD_MEMORY_INTERVAL_TIME_SETTING = Setting.positiveTimeSetting(
+        "indices.memory.interval",
+        TimeValue.timeValueSeconds(5),
+        Property.NodeScope);
 
     private final ThreadPool threadPool;
 
@@ -248,10 +260,11 @@ public class IndexingMemoryController extends AbstractComponent implements Index
                         totalBytes = bytesWrittenSinceCheck.get();
                         if (totalBytes > indexingBuffer.getBytes()/30) {
                             bytesWrittenSinceCheck.addAndGet(-totalBytes);
-                            // NOTE: this is only an approximate check, because bytes written is to the translog, vs indexing memory buffer which is
-                            // typically smaller but can be larger in extreme cases (many unique terms).  This logic is here only as a safety against
-                            // thread starvation or too infrequent checking, to ensure we are still checking periodically, in proportion to bytes
-                            // processed by indexing:
+                            // NOTE: this is only an approximate check, because bytes written is to the translog,
+                            // vs indexing memory buffer which is typically smaller but can be larger in extreme
+                            // cases (many unique terms).  This logic is here only as a safety against thread
+                            // starvation or too infrequent checking, to ensure we are still checking periodically,
+                            // in proportion to bytes processed by indexing:
                             runUnlocked();
                         }
                     } finally {
@@ -310,7 +323,8 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
             if (logger.isTraceEnabled()) {
                 logger.trace("total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}]",
-                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer, new ByteSizeValue(totalBytesWriting));
+                    new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer,
+                    new ByteSizeValue(totalBytesWriting));
             }
 
             // If we are using more than 50% of our budget across both indexing buffer and bytes we are still moving to disk, then we now
@@ -340,7 +354,8 @@ public class IndexingMemoryController extends AbstractComponent implements Index
                     if (shardBytesUsed > 0) {
                         if (logger.isTraceEnabled()) {
                             if (shardWritingBytes != 0) {
-                                logger.trace("shard [{}] is using [{}] heap, writing [{}] heap", shard.shardId(), shardBytesUsed, shardWritingBytes);
+                                logger.trace("shard [{}] is using [{}] heap, writing [{}] heap", shard.shardId(), shardBytesUsed,
+                                    shardWritingBytes);
                             } else {
                                 logger.trace("shard [{}] is using [{}] heap, not writing any bytes", shard.shardId(), shardBytesUsed);
                             }
@@ -349,12 +364,14 @@ public class IndexingMemoryController extends AbstractComponent implements Index
                     }
                 }
 
-                logger.debug("now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}], [{}] shards with non-zero indexing buffer",
-                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer, new ByteSizeValue(totalBytesWriting), queue.size());
+                logger.debug("now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], " +
+                    "currently writing bytes [{}], [{}] shards with non-zero indexing buffer", new ByteSizeValue(totalBytesUsed),
+                    INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer, new ByteSizeValue(totalBytesWriting), queue.size());
 
                 while (totalBytesUsed > indexingBuffer.getBytes() && queue.isEmpty() == false) {
                     ShardAndBytesUsed largest = queue.poll();
-                    logger.debug("write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer", largest.shard.shardId(), new ByteSizeValue(largest.bytesUsed));
+                    logger.debug("write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer",
+                        largest.shard.shardId(), new ByteSizeValue(largest.bytesUsed));
                     writeIndexingBufferAsync(largest.shard);
                     totalBytesUsed -= largest.bytesUsed;
                     if (doThrottle && throttled.contains(largest.shard) == false) {

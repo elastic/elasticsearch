@@ -236,39 +236,9 @@ public abstract class TransportReplicationAction<
         return TransportRequestOptions.EMPTY;
     }
 
-    private String concreteIndex(final ClusterState state, final ReplicationRequest request) {
-        return resolveIndex() ? indexNameExpressionResolver.concreteSingleIndex(state, request).getName() : request.index();
-    }
-
-    private ClusterBlockException blockExceptions(final ClusterState state, final String indexName) {
-        ClusterBlockLevel globalBlockLevel = globalBlockLevel();
-        if (globalBlockLevel != null) {
-            ClusterBlockException blockException = state.blocks().globalBlockedException(globalBlockLevel);
-            if (blockException != null) {
-                return blockException;
-            }
-        }
-        ClusterBlockLevel indexBlockLevel = indexBlockLevel();
-        if (indexBlockLevel != null) {
-            ClusterBlockException blockException = state.blocks().indexBlockedException(indexBlockLevel, indexName);
-            if (blockException != null) {
-                return blockException;
-            }
-        }
-        return null;
-    }
-
     protected boolean retryPrimaryException(final Throwable e) {
         return e.getClass() == ReplicationOperation.RetryOnPrimaryException.class
-                || TransportActions.isShardNotAvailableException(e)
-                || isRetryableClusterBlockException(e);
-    }
-
-    boolean isRetryableClusterBlockException(final Throwable e) {
-        if (e instanceof ClusterBlockException) {
-            return ((ClusterBlockException) e).retryable();
-        }
-        return false;
+                || TransportActions.isShardNotAvailableException(e);
     }
 
     protected class OperationTransportHandler implements TransportRequestHandler<Request> {
@@ -351,15 +321,6 @@ public abstract class TransportReplicationAction<
         @Override
         public void onResponse(PrimaryShardReference primaryShardReference) {
             try {
-                final ClusterState clusterState = clusterService.state();
-                final IndexMetaData indexMetaData = clusterState.metaData().getIndexSafe(primaryShardReference.routingEntry().index());
-
-                final ClusterBlockException blockException = blockExceptions(clusterState, indexMetaData.getIndex().getName());
-                if (blockException != null) {
-                    logger.trace("cluster is blocked, action failed on primary", blockException);
-                    throw blockException;
-                }
-
                 if (primaryShardReference.isRelocated()) {
                     primaryShardReference.close(); // release shard operation lock as soon as possible
                     setPhase(replicationTask, "primary_delegation");
@@ -373,7 +334,7 @@ public abstract class TransportReplicationAction<
                         response.readFrom(in);
                         return response;
                     };
-                    DiscoveryNode relocatingNode = clusterState.nodes().get(primary.relocatingNodeId());
+                    DiscoveryNode relocatingNode = clusterService.state().nodes().get(primary.relocatingNodeId());
                     transportService.sendRequest(relocatingNode, transportPrimaryAction,
                         new ConcreteShardRequest<>(request, primary.allocationId().getRelocationId(), primaryTerm),
                         transportOptions,
@@ -752,42 +713,35 @@ public abstract class TransportReplicationAction<
         protected void doRun() {
             setPhase(task, "routing");
             final ClusterState state = observer.setAndGetObservedState();
-            final String concreteIndex = concreteIndex(state, request);
-            final ClusterBlockException blockException = blockExceptions(state, concreteIndex);
-            if (blockException != null) {
-                if (blockException.retryable()) {
-                    logger.trace("cluster is blocked, scheduling a retry", blockException);
-                    retry(blockException);
-                } else {
-                    finishAsFailed(blockException);
-                }
+            if (handleBlockExceptions(state)) {
+                return;
+            }
+
+            // request does not have a shardId yet, we need to pass the concrete index to resolve shardId
+            final String concreteIndex = concreteIndex(state);
+            final IndexMetaData indexMetaData = state.metaData().index(concreteIndex);
+            if (indexMetaData == null) {
+                retry(new IndexNotFoundException(concreteIndex));
+                return;
+            }
+            if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                throw new IndexClosedException(indexMetaData.getIndex());
+            }
+
+            // resolve all derived request fields, so we can route and apply it
+            resolveRequest(indexMetaData, request);
+            assert request.shardId() != null : "request shardId must be set in resolveRequest";
+            assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "request waitForActiveShards must be set in resolveRequest";
+
+            final ShardRouting primary = primary(state);
+            if (retryIfUnavailable(state, primary)) {
+                return;
+            }
+            final DiscoveryNode node = state.nodes().get(primary.currentNodeId());
+            if (primary.currentNodeId().equals(state.nodes().getLocalNodeId())) {
+                performLocalAction(state, primary, node, indexMetaData);
             } else {
-                // request does not have a shardId yet, we need to pass the concrete index to resolve shardId
-                final IndexMetaData indexMetaData = state.metaData().index(concreteIndex);
-                if (indexMetaData == null) {
-                    retry(new IndexNotFoundException(concreteIndex));
-                    return;
-                }
-                if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                    throw new IndexClosedException(indexMetaData.getIndex());
-                }
-
-                // resolve all derived request fields, so we can route and apply it
-                resolveRequest(indexMetaData, request);
-                assert request.shardId() != null : "request shardId must be set in resolveRequest";
-                assert request.waitForActiveShards() != ActiveShardCount.DEFAULT :
-                    "request waitForActiveShards must be set in resolveRequest";
-
-                final ShardRouting primary = primary(state);
-                if (retryIfUnavailable(state, primary)) {
-                    return;
-                }
-                final DiscoveryNode node = state.nodes().get(primary.currentNodeId());
-                if (primary.currentNodeId().equals(state.nodes().getLocalNodeId())) {
-                    performLocalAction(state, primary, node, indexMetaData);
-                } else {
-                    performRemoteAction(state, primary, node);
-                }
+                performRemoteAction(state, primary, node);
             }
         }
 
@@ -839,9 +793,42 @@ public abstract class TransportReplicationAction<
             return false;
         }
 
+        private String concreteIndex(ClusterState state) {
+            return resolveIndex() ? indexNameExpressionResolver.concreteSingleIndex(state, request).getName() : request.index();
+        }
+
         private ShardRouting primary(ClusterState state) {
             IndexShardRoutingTable indexShard = state.getRoutingTable().shardRoutingTable(request.shardId());
             return indexShard.primaryShard();
+        }
+
+        private boolean handleBlockExceptions(ClusterState state) {
+            ClusterBlockLevel globalBlockLevel = globalBlockLevel();
+            if (globalBlockLevel != null) {
+                ClusterBlockException blockException = state.blocks().globalBlockedException(globalBlockLevel);
+                if (blockException != null) {
+                    handleBlockException(blockException);
+                    return true;
+                }
+            }
+            ClusterBlockLevel indexBlockLevel = indexBlockLevel();
+            if (indexBlockLevel != null) {
+                ClusterBlockException blockException = state.blocks().indexBlockedException(indexBlockLevel, concreteIndex(state));
+                if (blockException != null) {
+                    handleBlockException(blockException);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void handleBlockException(ClusterBlockException blockException) {
+            if (blockException.retryable()) {
+                logger.trace("cluster is blocked, scheduling a retry", blockException);
+                retry(blockException);
+            } else {
+                finishAsFailed(blockException);
+            }
         }
 
         private void performAction(final DiscoveryNode node, final String action, final boolean isPrimaryAction,

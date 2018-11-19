@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.indexlifecycle.WaitForRolloverReadyStep;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -160,7 +161,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "  \"next_step\": {\n" +
             "    \"phase\": \"hot\",\n" +
             "    \"action\": \"rollover\",\n" +
-            "    \"name\": \"attempt_rollover\"\n" +
+            "    \"name\": \"attempt-rollover\"\n" +
             "  }\n" +
             "}");
         client().performRequest(moveToStepRequest);
@@ -237,12 +238,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
-
         // create policy
         createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
         // update policy on index
         updatePolicy(originalIndex, policy);
-
         // Manually create the new index
         Request request = new Request("PUT", "/" + secondIndex);
         request.setJsonEntity("{\n \"settings\": " + Strings.toString(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -250,17 +249,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         client().performRequest(request);
         // wait for the shards to initialize
         ensureGreen(secondIndex);
-
         // index another doc to trigger the policy
         index(client(), originalIndex, "_id", "foo", "bar");
-
         assertBusy(() -> {
             logger.info(originalIndex + ": " + getStepKeyForIndex(originalIndex));
             logger.info(secondIndex + ": " + getStepKeyForIndex(secondIndex));
             assertThat(getStepKeyForIndex(originalIndex), equalTo(new StepKey("hot", RolloverAction.NAME, ErrorStep.NAME)));
-            assertThat(getFailedStepForIndex(originalIndex), equalTo("update-rollover-lifecycle-date"));
-            assertThat(getReasonForIndex(originalIndex), equalTo("no rollover info found for [" + originalIndex + "], either the index " +
-                "has not yet rolled over or a subsequent index was created outside of Index Lifecycle Management"));
+            assertThat(getFailedStepForIndex(originalIndex), equalTo(WaitForRolloverReadyStep.NAME));
+            assertThat(getReasonForIndex(originalIndex), containsString("already exists"));
         });
     }
 

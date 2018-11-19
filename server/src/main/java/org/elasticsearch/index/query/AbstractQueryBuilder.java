@@ -167,17 +167,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return (QB) this;
     }
 
-    static void checkNoBoost(String queryName, String fieldName, XContentParser parser, SpanQueryBuilder clause) {
-        try {
-            if (clause.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                throw new ParsingException(parser.getTokenLocation(),
-                    queryName + " [" + fieldName + "] can't have non-default boost value [" + clause.boost() + "]");
-            }
-        } catch (UnsupportedOperationException ignored) {
-            // if boost is unsupported it can't have been set
-        }
-    }
-
     protected final QueryValidationException addValidationError(String validationError, QueryValidationException validationException) {
         return QueryValidationException.addValidationError(getName(), validationError, validationException);
     }

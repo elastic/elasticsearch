@@ -184,30 +184,36 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
         ExplainLifecycleRequest req = new ExplainLifecycleRequest();
         req.indices("foo-01", "baz-01", "squash");
-        ExplainLifecycleResponse response = execute(req, highLevelClient().indexLifecycle()::explainLifecycle,
+        // Occasionally the explain is so fast that the indices have not yet left the "new" phase,
+        // so we assertBusy here in the event that they haven't progressed to the "hot" phase yet.
+        assertBusy(() -> {
+            ExplainLifecycleResponse response = execute(req, highLevelClient().indexLifecycle()::explainLifecycle,
                 highLevelClient().indexLifecycle()::explainLifecycleAsync);
-        Map<String, IndexLifecycleExplainResponse> indexResponses = response.getIndexResponses();
-        assertEquals(3, indexResponses.size());
-        IndexLifecycleExplainResponse fooResponse = indexResponses.get("foo-01");
-        assertNotNull(fooResponse);
-        assertTrue(fooResponse.managedByILM());
-        assertEquals("foo-01", fooResponse.getIndex());
-        assertEquals("hot", fooResponse.getPhase());
-        assertEquals("rollover", fooResponse.getAction());
-        assertEquals("check-rollover-ready", fooResponse.getStep());
-        assertEquals(new PhaseExecutionInfo(policy.getName(), new Phase("", hotPhase.getMinimumAge(), hotPhase.getActions()),
+            Map<String, IndexLifecycleExplainResponse> indexResponses = response.getIndexResponses();
+            assertEquals(3, indexResponses.size());
+
+            IndexLifecycleExplainResponse squashResponse = indexResponses.get("squash");
+            assertNotNull(squashResponse);
+            assertFalse(squashResponse.managedByILM());
+            assertEquals("squash", squashResponse.getIndex());
+
+            IndexLifecycleExplainResponse fooResponse = indexResponses.get("foo-01");
+            assertNotNull(fooResponse);
+            assertTrue(fooResponse.managedByILM());
+            assertEquals("foo-01", fooResponse.getIndex());
+            assertEquals("hot", fooResponse.getPhase());
+            assertEquals("rollover", fooResponse.getAction());
+            assertEquals("check-rollover-ready", fooResponse.getStep());
+            assertEquals(new PhaseExecutionInfo(policy.getName(), new Phase("", hotPhase.getMinimumAge(), hotPhase.getActions()),
                 1L, expectedPolicyModifiedDate), fooResponse.getPhaseExecutionInfo());
-        IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz-01");
-        assertNotNull(bazResponse);
-        assertTrue(bazResponse.managedByILM());
-        assertEquals("baz-01", bazResponse.getIndex());
-        assertEquals("hot", bazResponse.getPhase());
-        assertEquals("rollover", bazResponse.getAction());
-        assertEquals("check-rollover-ready", bazResponse.getStep());
-        IndexLifecycleExplainResponse squashResponse = indexResponses.get("squash");
-        assertNotNull(squashResponse);
-        assertFalse(squashResponse.managedByILM());
-        assertEquals("squash", squashResponse.getIndex());
+            IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz-01");
+            assertNotNull(bazResponse);
+            assertTrue(bazResponse.managedByILM());
+            assertEquals("baz-01", bazResponse.getIndex());
+            assertEquals("hot", bazResponse.getPhase());
+            assertEquals("rollover", bazResponse.getAction());
+            assertEquals("check-rollover-ready", bazResponse.getStep());
+        });
     }
 
     public void testDeleteLifecycle() throws IOException {

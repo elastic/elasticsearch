@@ -54,13 +54,13 @@ An error will now be thrown when unknown configuration options are provided
 to similarities. Such unknown parameters were ignored before.
 
 [float]
-==== `geo_shape` defaults to `vector` strategy
+==== deprecated `geo_shape` Prefix Tree indexing
 
-`geo_shape` types now default to using the `vector` indexing strategy. This indexes
-shapes as a triangular mesh instead of decomposing them into individual grid cells.
-To index using legacy prefix trees `recursive` or `term` strategy must be explicitly
-defined. Note that these strategies are now deprecated and will be removed in a future
-version.
+`geo_shape` types now default to using a vector indexing approach based on Lucene's new
+`LatLonShape` field type. This indexes shapes as a triangular mesh instead of decomposing
+them into individual grid cells. To index using legacy prefix trees `recursive` or `term`
+strategy must be explicitly defined. Note that these strategies are now deprecated and will
+be removed in a future version.
 
 [float]
 ==== deprecated `geo_shape` parameters

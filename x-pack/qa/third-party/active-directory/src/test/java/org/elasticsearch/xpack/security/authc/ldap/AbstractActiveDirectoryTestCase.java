@@ -46,13 +46,14 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
     // as we cannot control the URL of the referral which may contain a non-resolvable DNS name as
     // this name would be served by the samba4 instance
     public static final Boolean FOLLOW_REFERRALS = Booleans.parseBoolean(getFromEnv("TESTS_AD_FOLLOW_REFERRALS", "false"));
-    public static final String AD_LDAP_URL = getFromEnv("TESTS_AD_LDAP_URL", "ldaps://localhost:61636");
-    public static final String AD_LDAP_GC_URL = getFromEnv("TESTS_AD_LDAP_GC_URL", "ldaps://localhost:63269");
+    public static final String AD_LDAP_URL = getFromEnv("TESTS_AD_LDAP_URL", "ldaps://localhost:" + getFromProperty("636"));
+    public static final String AD_LDAP_GC_URL = getFromEnv("TESTS_AD_LDAP_GC_URL", "ldaps://localhost:" + getFromProperty("3269"));
     public static final String PASSWORD = getFromEnv("TESTS_AD_USER_PASSWORD", "Passw0rd");
-    public static final String AD_LDAP_PORT = getFromEnv("TESTS_AD_LDAP_PORT", "61389");
-    public static final String AD_LDAPS_PORT = getFromEnv("TESTS_AD_LDAPS_PORT", "61636");
-    public static final String AD_GC_LDAP_PORT = getFromEnv("TESTS_AD_GC_LDAP_PORT", "63268");
-    public static final String AD_GC_LDAPS_PORT = getFromEnv("TESTS_AD_GC_LDAPS_PORT", "63269");
+    public static final String AD_LDAP_PORT = getFromEnv("TESTS_AD_LDAP_PORT", getFromProperty("389"));
+
+    public static final String AD_LDAPS_PORT = getFromEnv("TESTS_AD_LDAPS_PORT",  getFromProperty("636"));
+    public static final String AD_GC_LDAP_PORT = getFromEnv("TESTS_AD_GC_LDAP_PORT", getFromProperty("3268"));
+    public static final String AD_GC_LDAPS_PORT = getFromEnv("TESTS_AD_GC_LDAPS_PORT", getFromProperty("3269"));
     public static final String AD_DOMAIN = "ad.test.elasticsearch.com";
 
     protected SSLService sslService;
@@ -150,5 +151,12 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
     private static String getFromEnv(String envVar, String defaultValue) {
         final String value = System.getenv(envVar);
         return value == null ? defaultValue : value;
+    }
+
+    private static String getFromProperty(String port) {
+        String key = "fixture.smb-fixture.tcp." + port;
+        final String value = System.getProperty(key);
+        assertNotNull("Expected the actual value for " + port + " to be in system property " + key, value);
+        return value;
     }
 }

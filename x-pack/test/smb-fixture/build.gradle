@@ -19,16 +19,13 @@ dockerCompose {
     executable = file('/usr/local/bin/docker-compose').exists() ? '/usr/local/bin/docker-compose' : '/usr/bin/docker-compose'
 }
 
-/**
- * Allows for other subprojects to depend on the project level and not care about the details
- * of composeUp
- */
-jar {
-    dependsOn 'composeUp'
-}
-
 clean {
     dependsOn 'composeDown'
+}
+
+task info() {
+    dependsOn composeUp
+    doLast { println dockerCompose.servicesInfos.fixture.ports }
 }
 
 thirdPartyAudit.enabled = false

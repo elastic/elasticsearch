@@ -6,6 +6,8 @@
 <titleabbrev>Delete Policy</titleabbrev>
 ++++
 
+beta[]
+
 Deletes a lifecycle policy.
 
 ==== Request

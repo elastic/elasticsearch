@@ -150,7 +150,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertTrue(called.get());
         called.set(false);
         sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, "main/5_0_0_alpha_3.json").lookupRemoteVersion(v -> {
-            // V_5_0_0 since we no longer consider qualifier in Version
+            // assert for V_5_0_0 (no qualifier) since we no longer consider qualifier in Version since 7
             assertEquals(Version.fromId(5000099), v);
             called.set(true);
         });

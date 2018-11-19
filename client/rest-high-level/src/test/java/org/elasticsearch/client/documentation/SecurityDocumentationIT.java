@@ -29,6 +29,7 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
@@ -42,7 +43,6 @@ import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
-import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
@@ -72,7 +72,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -146,27 +145,27 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::delete-user-request
 
             // tag::delete-user-execute
-            Optional<DeleteUserResponse> deleteUserResponse = client.security().deleteUser(deleteUserRequest, RequestOptions.DEFAULT);
+            AcknowledgedResponse deleteUserResponse = client.security().deleteUser(deleteUserRequest, RequestOptions.DEFAULT);
             // end::delete-user-execute
 
             // tag::delete-user-response
-            boolean found = deleteUserResponse.get().isAcknowledged();    // <1>
+            boolean found = deleteUserResponse.isAcknowledged();    // <1>
             // end::delete-user-response
             assertTrue(found);
 
             // check if deleting the already deleted user again will give us a different response
             deleteUserResponse = client.security().deleteUser(deleteUserRequest, RequestOptions.DEFAULT);
-            assertFalse(deleteUserResponse.isPresent());
+            assertFalse(deleteUserResponse.isAcknowledged());
         }
 
         {
             DeleteUserRequest deleteUserRequest = new DeleteUserRequest("testUser", RefreshPolicy.IMMEDIATE);
 
-            ActionListener<Optional<DeleteUserResponse>> listener;
+            ActionListener<AcknowledgedResponse> listener;
             //tag::delete-user-execute-listener
-            listener = new ActionListener<Optional<DeleteUserResponse>>() {
+            listener = new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(Optional<DeleteUserResponse> deleteUserResponse) {
+                public void onResponse(AcknowledgedResponse deleteUserResponse) {
                     // <1>
                 }
 

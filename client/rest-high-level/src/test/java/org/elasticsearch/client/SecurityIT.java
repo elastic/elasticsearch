@@ -21,9 +21,9 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
-import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
@@ -35,7 +35,6 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -80,9 +79,9 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         final DeleteUserRequest deleteUserRequest =
             new DeleteUserRequest(putUserRequest.getUser().getUsername(), putUserRequest.getRefreshPolicy());
 
-        final Optional<DeleteUserResponse> deleteUserResponse =
+        final AcknowledgedResponse deleteUserResponse =
             execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
-        assertThat(deleteUserResponse.get().isAcknowledged(), is(true));
+        assertThat(deleteUserResponse.isAcknowledged(), is(true));
 
         // authentication no longer works
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> execute(securityClient::authenticate,
@@ -90,9 +89,9 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(e.getMessage(), containsString("unable to authenticate user [" + putUserRequest.getUser().getUsername() + "]"));
 
         // delete non-existing user
-        final Optional<DeleteUserResponse> deleteUserResponse2 =
+        final AcknowledgedResponse deleteUserResponse2 =
             execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
-        assertThat(deleteUserResponse2.isPresent(), is(false));
+        assertThat(deleteUserResponse2.isAcknowledged(), is(false));
     }
 
     private static User randomUser() {

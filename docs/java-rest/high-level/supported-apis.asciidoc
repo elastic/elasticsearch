@@ -452,7 +452,8 @@ Management APIs:
 
 * <<{upid}-ilm-put-lifecycle-policy>>
 * <<{upid}-ilm-get-lifecycle-policy>>
+* <<{upid}-ilm-retry-lifecycle-policy>>
 
 include::ilm/put_lifecycle_policy.asciidoc[]
 include::ilm/get_lifecycle_policy.asciidoc[]
-
+include::ilm/retry_lifecycle_policy.asciidoc[]

@@ -16,24 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.rollup;
+package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-import java.io.IOException;
+/**
+ * Runnable that can only be run one time.
+ */
+public class RunOnce implements Runnable {
 
-public class PutRollupJobResponse extends AcknowledgedResponse {
+    private final Runnable delegate;
+    private final AtomicBoolean hasRun;
 
-    public PutRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
+    public RunOnce(final Runnable delegate) {
+        this.delegate = Objects.requireNonNull(delegate);
+        this.hasRun = new AtomicBoolean(false);
     }
 
-    private static final ConstructingObjectParser<PutRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("delete_rollup_job_response", PutRollupJobResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
+    @Override
+    public void run() {
+        if (hasRun.compareAndSet(false, true)) {
+            delegate.run();
+        }
+    }
 
-    public static PutRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    /**
+     * {@code true} if the {@link RunOnce} has been executed once.
+     */
+    public boolean hasRun() {
+        return hasRun.get();
     }
 }

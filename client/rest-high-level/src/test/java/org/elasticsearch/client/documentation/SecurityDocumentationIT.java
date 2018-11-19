@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.security.AuthenticateResponse;
@@ -38,6 +39,8 @@ import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
+import org.elasticsearch.client.security.DeletePrivilegesRequest;
+import org.elasticsearch.client.security.DeletePrivilegesResponse;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
@@ -50,6 +53,8 @@ import org.elasticsearch.client.security.ExpressionRoleMapping;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.HasPrivilegesRequest;
+import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -57,13 +62,16 @@ import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.user.User;
-import org.elasticsearch.client.security.support.CertificateInfo;
-import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
+import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -78,6 +86,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
@@ -491,6 +500,67 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::authenticate-execute-async
             client.security().authenticateAsync(RequestOptions.DEFAULT, listener); // <1>
             // end::authenticate-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testHasPrivileges() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::has-privileges-request
+            HasPrivilegesRequest request = new HasPrivilegesRequest(
+                Sets.newHashSet("monitor", "manage"),
+                Sets.newHashSet(
+                    IndicesPrivileges.builder().indices("logstash-2018-10-05").privileges("read", "write").build(),
+                    IndicesPrivileges.builder().indices("logstash-2018-*").privileges("read").build()
+                ),
+                null
+            );
+            //end::has-privileges-request
+
+            //tag::has-privileges-execute
+            HasPrivilegesResponse response = client.security().hasPrivileges(request, RequestOptions.DEFAULT);
+            //end::has-privileges-execute
+
+            //tag::has-privileges-response
+            boolean hasMonitor = response.hasClusterPrivilege("monitor"); // <1>
+            boolean hasWrite = response.hasIndexPrivilege("logstash-2018-10-05", "write"); // <2>
+            boolean hasRead = response.hasIndexPrivilege("logstash-2018-*", "read"); // <3>
+            //end::has-privileges-response
+
+            assertThat(response.getUsername(), is("test_user"));
+            assertThat(response.hasAllRequested(), is(true));
+            assertThat(hasMonitor, is(true));
+            assertThat(hasWrite, is(true));
+            assertThat(hasRead, is(true));
+            assertThat(response.getApplicationPrivileges().entrySet(), emptyIterable());
+        }
+
+        {
+            HasPrivilegesRequest request = new HasPrivilegesRequest(Collections.singleton("monitor"),null,null);
+
+            // tag::has-privileges-execute-listener
+            ActionListener<HasPrivilegesResponse> listener = new ActionListener<HasPrivilegesResponse>() {
+                @Override
+                public void onResponse(HasPrivilegesResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::has-privileges-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::has-privileges-execute-async
+            client.security().hasPrivilegesAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::has-privileges-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -977,6 +1047,80 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(response);
             assertTrue(response.isCreated());// technically, this should be false, but the API is broken
             // See https://github.com/elastic/elasticsearch/issues/35115
+        }
+    }
+
+    public void testDeletePrivilege() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            final Request createPrivilegeRequest = new Request("POST", "/_xpack/security/privilege");
+            createPrivilegeRequest.setJsonEntity("{" +
+                "  \"testapp\": {" +
+                "    \"read\": {" +
+                "      \"actions\": [ \"action:login\", \"data:read/*\" ]" +
+                "    }," +
+                "    \"write\": {" +
+                "      \"actions\": [ \"action:login\", \"data:write/*\" ]" +
+                "    }," +
+                "    \"all\": {" +
+                "      \"actions\": [ \"action:login\", \"data:write/*\" ]" +
+                "    }" +
+                "  }" +
+                "}");
+
+            final Response createPrivilegeResponse = client.getLowLevelClient().performRequest(createPrivilegeRequest);
+            assertEquals(RestStatus.OK.getStatus(), createPrivilegeResponse.getStatusLine().getStatusCode());
+        }
+        {
+            // tag::delete-privileges-request
+            DeletePrivilegesRequest request = new DeletePrivilegesRequest(
+                "testapp",          // <1>
+                "read", "write"); // <2>
+            // end::delete-privileges-request
+
+            // tag::delete-privileges-execute
+            DeletePrivilegesResponse response = client.security().deletePrivileges(request, RequestOptions.DEFAULT);
+            // end::delete-privileges-execute
+
+            // tag::delete-privileges-response
+            String application = response.getApplication();        // <1>
+            boolean found = response.isFound("read");              // <2>
+            // end::delete-privileges-response
+            assertThat(application, equalTo("testapp"));
+            assertTrue(response.isFound("write"));
+            assertTrue(found);
+
+            // check if deleting the already deleted privileges again will give us a different response
+            response = client.security().deletePrivileges(request, RequestOptions.DEFAULT);
+            assertFalse(response.isFound("write"));
+        }
+        {
+            DeletePrivilegesRequest deletePrivilegesRequest = new DeletePrivilegesRequest("testapp", "all");
+
+            ActionListener<DeletePrivilegesResponse> listener;
+            //tag::delete-privileges-execute-listener
+            listener = new ActionListener<DeletePrivilegesResponse>() {
+                @Override
+                public void onResponse(DeletePrivilegesResponse deletePrivilegesResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::delete-privileges-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::delete-privileges-execute-async
+            client.security().deletePrivilegesAsync(deletePrivilegesRequest, RequestOptions.DEFAULT, listener); // <1>
+            //end::delete-privileges-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 }

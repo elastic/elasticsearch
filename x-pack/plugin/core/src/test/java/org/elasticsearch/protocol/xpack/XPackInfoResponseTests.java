@@ -27,11 +27,6 @@ public class XPackInfoResponseTests extends
         AbstractHlrcStreamableXContentTestCase<XPackInfoResponse, org.elasticsearch.client.xpack.XPackInfoResponse> {
 
     @Override
-    protected XPackInfoResponse doParseInstance(XContentParser parser) throws IOException {
-        return XPackInfoResponse.fromXContent(parser);
-    }
-
-    @Override
     protected XPackInfoResponse createBlankInstance() {
         return new XPackInfoResponse();
     }

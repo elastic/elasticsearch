@@ -16,35 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.rollup;
+package org.elasticsearch.client.ml;
 
+import org.elasticsearch.client.ml.job.config.MlFilter;
+import org.elasticsearch.client.ml.job.config.MlFilterTests;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
-public class PutRollupJobResponseTests extends AbstractXContentTestCase<PutRollupJobResponse> {
+public class GetFiltersResponseTests extends AbstractXContentTestCase<GetFiltersResponse> {
 
-    private boolean acknowledged;
+    @Override
+    protected GetFiltersResponse createTestInstance() {
+        int count = randomIntBetween(1, 5);
+        List<MlFilter.Builder> results = new ArrayList<>(count);
+        for(int i = 0; i < count; i++) {
+            results.add(MlFilterTests.createRandomBuilder(randomAlphaOfLength(10)));
+        }
 
-    @Before
-    public void setupJobID() {
-        acknowledged = randomBoolean();
+        return new GetFiltersResponse(results, count);
     }
 
     @Override
-    protected PutRollupJobResponse createTestInstance() {
-        return new PutRollupJobResponse(acknowledged);
-    }
-
-    @Override
-    protected PutRollupJobResponse doParseInstance(XContentParser parser) throws IOException {
-        return PutRollupJobResponse.fromXContent(parser);
+    protected GetFiltersResponse doParseInstance(XContentParser parser) throws IOException {
+        return GetFiltersResponse.fromXContent(parser);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

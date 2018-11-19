@@ -599,7 +599,7 @@ public class CoordinatorTests extends ESTestCase {
 
         assertTrue("expected immediate ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
         assertFalse("expected no ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
-        cluster.stabilise();
+        cluster.stabilise(defaultMillis(PUBLISH_TIMEOUT_SETTING));
         assertTrue("expected eventual ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
         assertFalse("expected no ack from " + follower0, ackCollector.hasAcked(follower0));
     }
@@ -1097,7 +1097,6 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             runFor(stabilisationDurationMillis, "stabilising");
-            fixLag();
 
             final ClusterNode leader = getAnyLeader();
             final long leaderTerm = leader.coordinator.getCurrentTerm();
@@ -1152,35 +1151,6 @@ public class CoordinatorTests extends ESTestCase {
                 lastAcceptedState.getLastCommittedConfiguration(), equalTo(lastAcceptedState.getLastAcceptedConfiguration()));
             assertThat("current configuration is already optimal",
                 leader.improveConfiguration(lastAcceptedState), sameInstance(lastAcceptedState));
-        }
-
-        // TODO remove this when lag detection is implemented
-        void fixLag() {
-            final ClusterNode leader = getAnyLeader();
-            final long leaderVersion = leader.getLastAppliedClusterState().version();
-            final long minVersion = clusterNodes.stream()
-                .filter(n -> isConnectedPair(n, leader))
-                .map(n -> n.getLastAppliedClusterState().version()).min(Long::compare).orElse(Long.MIN_VALUE);
-            assert minVersion >= 0;
-            if (minVersion < leaderVersion) {
-                logger.info("--> fixLag publishing a value to fix lag, leaderVersion={}, minVersion={}", leaderVersion, minVersion);
-                onNode(leader.getLocalNode(), () -> {
-                    synchronized (leader.coordinator.mutex) {
-                        leader.submitValue(randomLong());
-                    }
-                }).run();
-
-                runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY
-                        // may need to bump terms too
-                        + DEFAULT_ELECTION_DELAY,
-                    "re-stabilising after lag-fixing publication");
-
-                if (clusterNodes.stream().anyMatch(n -> n.getClusterStateApplyResponse().equals(ClusterStateApplyResponse.HANG))) {
-                    runFor(defaultMillis(PUBLISH_TIMEOUT_SETTING), "allowing lag-fixing publication to time out");
-                }
-            } else {
-                logger.info("--> fixLag found no lag, leader={}, leaderVersion={}, minVersion={}", leader, leaderVersion, minVersion);
-            }
         }
 
         void runFor(long runDurationMillis, String description) {

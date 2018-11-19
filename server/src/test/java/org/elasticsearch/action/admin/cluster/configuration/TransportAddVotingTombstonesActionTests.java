@@ -292,12 +292,12 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
         final MetaData.Builder metaDataBuilder = MetaData.builder(clusterService.state().metaData()).persistentSettings(
                 Settings.builder().put(clusterService.state().metaData().persistentSettings())
                         .put(MAXIMUM_VOTING_TOMBSTONES_SETTING.getKey(), 2).build());
-        CoordinationMetaData.Builder cmdb =
+        CoordinationMetaData.Builder coordinationMetaDataBuilder =
                 CoordinationMetaData.builder(clusterService.state().coordinationMetaData()).addVotingTombstone(localNode);
 
         final int existingCount, newCount;
         if (randomBoolean()) {
-            cmdb.addVotingTombstone(otherNode1);
+            coordinationMetaDataBuilder.addVotingTombstone(otherNode1);
             existingCount = 2;
             newCount = 1;
         } else {
@@ -305,7 +305,7 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
             newCount = 2;
         }
 
-        metaDataBuilder.coordinationMetaData(cmdb.build());
+        metaDataBuilder.coordinationMetaData(coordinationMetaDataBuilder.build());
 
         final ClusterState.Builder builder = builder(clusterService.state()).metaData(metaDataBuilder);
         setState(clusterService, builder);

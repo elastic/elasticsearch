@@ -458,10 +458,10 @@ public class CoordinationState {
          */
         default void markLastAcceptedConfigAsCommitted() {
             final ClusterState lastAcceptedState = getLastAcceptedState();
-            final CoordinationMetaData cmd = CoordinationMetaData.builder(lastAcceptedState.coordinationMetaData())
+            final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder(lastAcceptedState.coordinationMetaData())
                     .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
                     .build();
-            final MetaData metaData = MetaData.builder(lastAcceptedState.metaData()).coordinationMetaData(cmd).build();
+            final MetaData metaData = MetaData.builder(lastAcceptedState.metaData()).coordinationMetaData(coordinationMetaData).build();
             setLastAcceptedState(ClusterState.builder(lastAcceptedState).metaData(metaData).build());
         }
     }

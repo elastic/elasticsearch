@@ -447,15 +447,15 @@ public class MetaDataTests extends ESTestCase {
     }
 
     public void testGlobalStateEqualsCoordinationMetaData() {
-        CoordinationMetaData cmd1 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
-                randomDiscoveryNodeSet());
-        MetaData md1 = MetaData.builder().coordinationMetaData(cmd1).build();
-        CoordinationMetaData cmd2 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
-                randomDiscoveryNodeSet());
-        MetaData md2 = MetaData.builder().coordinationMetaData(cmd2).build();
+        CoordinationMetaData coordinationMetaData1 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(),
+                randomVotingConfig(), randomDiscoveryNodeSet());
+        MetaData metaData1 = MetaData.builder().coordinationMetaData(coordinationMetaData1).build();
+        CoordinationMetaData coordinationMetaData2 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(),
+                randomVotingConfig(), randomDiscoveryNodeSet());
+        MetaData metaData2 = MetaData.builder().coordinationMetaData(coordinationMetaData2).build();
 
-        assertTrue(MetaData.isGlobalStateEquals(md1, md1));
-        assertFalse(MetaData.isGlobalStateEquals(md1, md2));
+        assertTrue(MetaData.isGlobalStateEquals(metaData1, metaData1));
+        assertFalse(MetaData.isGlobalStateEquals(metaData1, metaData2));
     }
 
     public void testSerializationWithIndexGraveyard() throws IOException {

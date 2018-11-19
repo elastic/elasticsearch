@@ -740,6 +740,7 @@ for `http` or `443` for `https`).
 These values must be aligned with the URLs used in the {es} configuration for
 `sp.acs` and `sp.logout`.
 
+[[saml-kibana-basic]]
 ==== Supporting SAML and basic authentication in {kib}
 
 The SAML support in {kib} is designed on the expectation that it will be the

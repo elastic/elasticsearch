@@ -93,7 +93,7 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
             return modules;
         }
 
-        modules.add(b -> XPackPlugin.bindFeatureSet(b, FeatureIndexBuilderFeatureSet.class));
+        modules.add(b -> XPackPlugin.bindFeatureSet(b, DataFrameFeatureSet.class));
         return modules;
     }
 

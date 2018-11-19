@@ -13,18 +13,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
 
 import java.util.Map;
 
-public class FeatureIndexBuilderFeatureSet implements XPackFeatureSet {
+public class DataFrameFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
 
     @Inject
-    public FeatureIndexBuilderFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState) {
-        this.enabled = true; // XPackSettings.FEATURE_INDEX_BUILDER_ENABLED.get(settings);
+    public DataFrameFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState) {
+        this.enabled = XPackSettings.DATA_FRAME_ENABLED.get(settings);
         this.licenseState = licenseState;
     }
 
@@ -55,8 +56,7 @@ public class FeatureIndexBuilderFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        // TODO expose the currently running rollup tasks on this node? Unclear the best
-        // way to do that
+        // TODO retrieve and send something useful
         listener.onResponse(new DataFrameFeatureSetUsage(available(), enabled()));
     }
 }

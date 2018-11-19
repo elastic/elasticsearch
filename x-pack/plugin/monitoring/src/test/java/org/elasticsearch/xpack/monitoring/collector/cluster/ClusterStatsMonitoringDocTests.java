@@ -331,6 +331,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                             needToEnableTLS);
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);
+        logger.error(xContent.utf8ToString());
         assertEquals("{"
                   + "\"cluster_uuid\":\"_cluster\","
                   + "\"timestamp\":\"2017-08-07T12:03:22.133Z\","
@@ -519,11 +520,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     + "\"nodes_hash\":1314980060,"
                     + "\"status\":\"green\","
                     + "\"cluster_uuid\":\"_cluster\","
-                    + "\"term\":0,"
                     + "\"version\":12,"
                     + "\"state_uuid\":\"_state_uuid\","
-                    + "\"last_committed_config\":[],"
-                    + "\"last_accepted_config\":[],"
                     + "\"master_node\":\"_node\","
                     + "\"nodes\":{"
                       + "\"_node_id\":{"

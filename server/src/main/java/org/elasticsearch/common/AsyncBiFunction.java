@@ -20,8 +20,6 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.action.ActionListener;
 
-import java.util.function.BiConsumer;
-
 /**
  * A {@link java.util.function.BiFunction}-like interface designed to be used with asynchronous executions.
  */

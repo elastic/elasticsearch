@@ -27,18 +27,18 @@ import com.amazonaws.services.s3.model.HeadBucketRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
+
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Locale;
 
-class S3BlobStore extends AbstractComponent implements BlobStore {
+class S3BlobStore implements BlobStore {
 
     private final S3Service service;
 

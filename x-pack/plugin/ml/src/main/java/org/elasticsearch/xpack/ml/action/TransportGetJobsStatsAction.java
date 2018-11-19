@@ -39,7 +39,9 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -95,6 +97,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
         List<GetJobsStatsAction.Response.JobStats> stats = new ArrayList<>();
         for (QueryPage<GetJobsStatsAction.Response.JobStats> task : tasks) {
             stats.addAll(task.results());
+            Collections.sort(stats, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
         }
         return new GetJobsStatsAction.Response(taskOperationFailures, failedNodeExceptions, new QueryPage<>(stats, stats.size(),
                 Job.RESULTS_FIELD));
@@ -159,6 +162,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
                     if (counter.decrementAndGet() == 0) {
                         List<GetJobsStatsAction.Response.JobStats> results = response.getResponse().results();
                         results.addAll(jobStats.asList());
+                        Collections.sort(results, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
                         listener.onResponse(new GetJobsStatsAction.Response(response.getTaskFailures(), response.getNodeFailures(),
                                 new QueryPage<>(results, results.size(), Job.RESULTS_FIELD)));
                     }

@@ -69,30 +69,30 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
     public void testDeleteIsAppliedFirst() {
         final Setting<Integer> INITIAL_RECOVERIES = CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
-        final Setting<Integer> CONCURRENT_RECOVIERS = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
+        final Setting<Integer> CONCURRENT_RECOVERIES = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
 
         ClusterUpdateSettingsResponse response = client().admin().cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder()
                 .put(INITIAL_RECOVERIES.getKey(), 7)
-                .put(CONCURRENT_RECOVIERS.getKey(), 42).build())
+                .put(CONCURRENT_RECOVERIES.getKey(), 42).build())
             .get();
 
         assertAcked(response);
         assertThat(INITIAL_RECOVERIES.get(response.getTransientSettings()), equalTo(7));
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(7));
-        assertThat(CONCURRENT_RECOVIERS.get(response.getTransientSettings()), equalTo(42));
-        assertThat(clusterService().getClusterSettings().get(CONCURRENT_RECOVIERS), equalTo(42));
+        assertThat(CONCURRENT_RECOVERIES.get(response.getTransientSettings()), equalTo(42));
+        assertThat(clusterService().getClusterSettings().get(CONCURRENT_RECOVERIES), equalTo(42));
 
         response = client().admin().cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder().putNull((randomBoolean() ? "cluster.routing.*" : "*"))
-                .put(CONCURRENT_RECOVIERS.getKey(), 43))
+                .put(CONCURRENT_RECOVERIES.getKey(), 43))
             .get();
         assertThat(INITIAL_RECOVERIES.get(response.getTransientSettings()), equalTo(INITIAL_RECOVERIES.get(Settings.EMPTY)));
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(INITIAL_RECOVERIES.get(Settings.EMPTY)));
-        assertThat(CONCURRENT_RECOVIERS.get(response.getTransientSettings()), equalTo(43));
-        assertThat(clusterService().getClusterSettings().get(CONCURRENT_RECOVIERS), equalTo(43));
+        assertThat(CONCURRENT_RECOVERIES.get(response.getTransientSettings()), equalTo(43));
+        assertThat(clusterService().getClusterSettings().get(CONCURRENT_RECOVERIES), equalTo(43));
     }
 
     public void testResetClusterSetting() {

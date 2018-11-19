@@ -143,13 +143,6 @@ public final class TransportPutFollowAction
         final String[] historyUUIDs,
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener) {
-//        RemoteClusterRepository remoteClusterRepository;
-//        try {
-//            remoteClusterRepository = (RemoteClusterRepository) repositoriesService.repository(RemoteClusterRepository.TYPE);
-//        } catch (RepositoryMissingException ex) {
-//            listener.onFailure(ex);
-//            return;
-//        }
 
         if (leaderIndexMetaData == null) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
@@ -161,15 +154,15 @@ public final class TransportPutFollowAction
             return;
         }
 
-        ActionListener<Boolean> handler2 = ActionListener.wrap(
-            result -> {
-                if (result) {
-                    initiateFollowing(request, listener);
-                } else {
-                    listener.onResponse(new PutFollowAction.Response(true, false, false));
-                }
-            },
-            listener::onFailure);
+//        ActionListener<Boolean> handler2 = ActionListener.wrap(
+//            result -> {
+//                if (result) {
+//                    initiateFollowing(request, listener);
+//                } else {
+//                    listener.onResponse(new PutFollowAction.Response(true, false, false));
+//                }
+//            },
+//            listener::onFailure);
 
         ActionListener<RestoreSnapshotResponse> handler = ActionListener.wrap(result -> {
                 if (result.getRestoreInfo().failedShards() == 0) {
@@ -189,118 +182,118 @@ public final class TransportPutFollowAction
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
 
         String remoteCluster = request.getRemoteCluster();
-        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest("_ccr_repository_",
-            remoteCluster, request.indices(), request.indicesOptions(), "^(.*)$", request.getFollowRequest().getFollowerIndex(),
-            Settings.EMPTY, request.masterNodeTimeout(), false, false, true, settingsBuilder.build(), new String[0],
-            "restore_snapshot[" + remoteCluster + "]");
+        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(remoteCluster,
+            leaderIndexMetaData.getIndex().getName(), new String[]{request.getLeaderIndex()}, request.indicesOptions(), "^(.*)$",
+            request.getFollowRequest().getFollowerIndex(), Settings.EMPTY, request.masterNodeTimeout(), false, false, true,
+            settingsBuilder.build(), new String[0], "restore_snapshot[" + remoteCluster + "]");
 
 
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() ->
             restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
-                @Override
-                public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
-                    final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
+            @Override
+            public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
+                final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
 
-                    ClusterStateListener clusterStateListener = new ClusterStateListener() {
-                        @Override
-                        public void clusterChanged(ClusterChangedEvent changedEvent) {
-                            final RestoreInProgress.Entry prevEntry = RestoreService.restoreInProgress(changedEvent.previousState(), snapshot);
-                            final RestoreInProgress.Entry newEntry = RestoreService.restoreInProgress(changedEvent.state(), snapshot);
-                            if (prevEntry == null) {
-                                // When there is a master failure after a restore has been started, this listener might not be registered
-                                // on the current master and as such it might miss some intermediary cluster states due to batching.
-                                // Clean up listener in that case and acknowledge completion of restore operation to client.
-                                clusterService.removeListener(this);
-                                handler.onResponse(null);
-                            } else if (newEntry == null) {
-                                clusterService.removeListener(this);
-                                ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
-                                assert prevEntry.state().completed() : "expected completed snapshot state but was " + prevEntry.state();
-                                assert RestoreService.completed(shards) : "expected all restore entries to be completed";
-                                RestoreInfo restoreInfo = new RestoreInfo(prevEntry.snapshot().getSnapshotId().getName(), prevEntry.indices(),
-                                    shards.size(), shards.size() - RestoreService.failedShards(shards));
-                                RestoreSnapshotResponse response = null;
-                                logger.debug("restore of [{}] completed", snapshot);
-                                handler.onResponse(response);
-                            } else {
-                                // restore not completed yet, wait for next cluster state update
-                            }
+                ClusterStateListener clusterStateListener = new ClusterStateListener() {
+                    @Override
+                    public void clusterChanged(ClusterChangedEvent changedEvent) {
+                        final RestoreInProgress.Entry prevEntry = RestoreService.restoreInProgress(changedEvent.previousState(), snapshot);
+                        final RestoreInProgress.Entry newEntry = RestoreService.restoreInProgress(changedEvent.state(), snapshot);
+                        if (prevEntry == null) {
+                            // TODO: Does this block still make sense?
+                            // When there is a master failure after a restore has been started, this listener might not be registered
+                            // on the current master and as such it might miss some intermediary cluster states due to batching.
+                            // Clean up listener in that case and acknowledge completion of restore operation to client.
+                            clusterService.removeListener(this);
+                            handler.onResponse(null);
+                        } else if (newEntry == null) {
+                            clusterService.removeListener(this);
+                            ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
+                            assert prevEntry.state().completed() : "expected completed snapshot state but was " + prevEntry.state();
+                            assert RestoreService.completed(shards) : "expected all restore entries to be completed";
+                            RestoreInfo restoreInfo = new RestoreInfo(prevEntry.snapshot().getSnapshotId().getName(), prevEntry.indices(),
+                                shards.size(), shards.size() - RestoreService.failedShards(shards));
+                            RestoreSnapshotResponse response = new RestoreSnapshotResponse(restoreInfo);
+                            logger.debug("restore of [{}] completed", snapshot);
+                            handler.onResponse(response);
+                        } else {
+                            // restore not completed yet, wait for next cluster state update
                         }
-                    };
+                    }
+                };
 
-                    clusterService.addListener(clusterStateListener);
-                }
+                clusterService.addListener(clusterStateListener);
+            }
 
-                @Override
-                public void onFailure(Exception t) {
-                    listener.onFailure(t);
-                }
-            }, false, false);
-        });
+            @Override
+            public void onFailure(Exception t) {
+                listener.onFailure(t);
+            }
+        }, false, false));
 //         Can't use create index api here, because then index templates can alter the mappings / settings.
 //         And index templates could introduce settings / mappings that are incompatible with the leader index.
-        clusterService.submitStateUpdateTask("create_following_index", new AckedClusterStateUpdateTask<Boolean>(request, handler2) {
-
-            @Override
-            protected Boolean newResponse(final boolean acknowledged) {
-                return acknowledged;
-            }
-
-            @Override
-            public ClusterState execute(final ClusterState currentState) throws Exception {
-                String followIndex = request.getFollowRequest().getFollowerIndex();
-                IndexMetaData currentIndex = currentState.metaData().index(followIndex);
-                if (currentIndex != null) {
-                    throw new ResourceAlreadyExistsException(currentIndex.getIndex());
-                }
-
-                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                IndexMetaData.Builder imdBuilder = IndexMetaData.builder(followIndex);
-
-                // Adding the leader index uuid for each shard as custom metadata:
-                Map<String, String> metadata = new HashMap<>();
-                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", historyUUIDs));
-                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetaData.getIndexUUID());
-                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetaData.getIndex().getName());
-                metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, request.getRemoteCluster());
-                imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
-
-                // Copy all settings, but overwrite a few settings.
-                Settings.Builder settingsBuilder = Settings.builder();
-                settingsBuilder.put(leaderIndexMetaData.getSettings());
-                // Overwriting UUID here, because otherwise we can't follow indices in the same cluster
-                settingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
-                settingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followIndex);
-                settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-
-                // TODO: Remove as this should be inherited from the leader (must be true - validated)
-//                settingsBuilder.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
-                imdBuilder.settings(settingsBuilder);
-
-                // Copy mappings from leader IMD to follow IMD
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : leaderIndexMetaData.getMappings()) {
-                    imdBuilder.putMapping(cursor.value);
-                }
-                imdBuilder.setRoutingNumShards(leaderIndexMetaData.getRoutingNumShards());
-                IndexMetaData followIMD = imdBuilder.build();
-                mdBuilder.put(followIMD, false);
-
-                ClusterState.Builder builder = ClusterState.builder(currentState);
-                builder.metaData(mdBuilder.build());
-                ClusterState updatedState = builder.build();
-
-                RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
-                        .addAsNew(updatedState.metaData().index(request.getFollowRequest().getFollowerIndex()));
-                updatedState = allocationService.reroute(
-                        ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
-                        "follow index [" + request.getFollowRequest().getFollowerIndex() + "] created");
-
-                logger.info("[{}] creating index, cause [ccr_create_and_follow], shards [{}]/[{}]",
-                        followIndex, followIMD.getNumberOfShards(), followIMD.getNumberOfReplicas());
-
-                return updatedState;
-            }
-        });
+//        clusterService.submitStateUpdateTask("create_following_index", new AckedClusterStateUpdateTask<Boolean>(request, handler2) {
+//
+//            @Override
+//            protected Boolean newResponse(final boolean acknowledged) {
+//                return acknowledged;
+//            }
+//
+//            @Override
+//            public ClusterState execute(final ClusterState currentState) throws Exception {
+//                String followIndex = request.getFollowRequest().getFollowerIndex();
+//                IndexMetaData currentIndex = currentState.metaData().index(followIndex);
+//                if (currentIndex != null) {
+//                    throw new ResourceAlreadyExistsException(currentIndex.getIndex());
+//                }
+//
+//                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+//                IndexMetaData.Builder imdBuilder = IndexMetaData.builder(followIndex);
+//
+//                // Adding the leader index uuid for each shard as custom metadata:
+//                Map<String, String> metadata = new HashMap<>();
+//                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", historyUUIDs));
+//                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetaData.getIndexUUID());
+//                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetaData.getIndex().getName());
+//                metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, request.getRemoteCluster());
+//                imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
+//
+//                // Copy all settings, but overwrite a few settings.
+//                Settings.Builder settingsBuilder = Settings.builder();
+//                settingsBuilder.put(leaderIndexMetaData.getSettings());
+//                // Overwriting UUID here, because otherwise we can't follow indices in the same cluster
+//                settingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+//                settingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followIndex);
+//                settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
+//
+//                // TODO: Remove as this should be inherited from the leader (must be true - validated)
+////                settingsBuilder.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+//                imdBuilder.settings(settingsBuilder);
+//
+//                // Copy mappings from leader IMD to follow IMD
+//                for (ObjectObjectCursor<String, MappingMetaData> cursor : leaderIndexMetaData.getMappings()) {
+//                    imdBuilder.putMapping(cursor.value);
+//                }
+//                imdBuilder.setRoutingNumShards(leaderIndexMetaData.getRoutingNumShards());
+//                IndexMetaData followIMD = imdBuilder.build();
+//                mdBuilder.put(followIMD, false);
+//
+//                ClusterState.Builder builder = ClusterState.builder(currentState);
+//                builder.metaData(mdBuilder.build());
+//                ClusterState updatedState = builder.build();
+//
+//                RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
+//                        .addAsNew(updatedState.metaData().index(request.getFollowRequest().getFollowerIndex()));
+//                updatedState = allocationService.reroute(
+//                        ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
+//                        "follow index [" + request.getFollowRequest().getFollowerIndex() + "] created");
+//
+//                logger.info("[{}] creating index, cause [ccr_create_and_follow], shards [{}]/[{}]",
+//                        followIndex, followIMD.getNumberOfShards(), followIMD.getNumberOfReplicas());
+//
+//                return updatedState;
+//            }
+//        });
     }
 
     private void initiateFollowing(

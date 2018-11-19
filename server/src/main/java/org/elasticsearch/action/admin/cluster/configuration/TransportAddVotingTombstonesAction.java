@@ -91,7 +91,7 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
                 assert resolvedNodes == null : resolvedNodes;
                 resolvedNodes = resolveNodesAndCheckMaximum(request, currentState);
 
-                CoordinationMetaData.Builder builder = CoordinationMetaData.builder(currentState.coordinationMetaData());
+                final CoordinationMetaData.Builder builder = CoordinationMetaData.builder(currentState.coordinationMetaData());
                 resolvedNodes.forEach(builder::addVotingTombstone);
                 final MetaData newMetaData = MetaData.builder(currentState.metaData()).coordinationMetaData(builder.build()).build();
                 final ClusterState newState = ClusterState.builder(currentState).metaData(newMetaData).build();

@@ -318,7 +318,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             shutdownLock.unlock();
         }
 
-        // We have new shards to starts
+        // We have new shards to start
         if (newSnapshots.isEmpty() == false) {
             Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
             for (final Map.Entry<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> entry : newSnapshots.entrySet()) {
@@ -328,7 +328,11 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
                 for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : entry.getValue().entrySet()) {
                     final ShardId shardId = shardEntry.getKey();
-                    final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
+                    final IndexShard indexShard = indicesService.getShardOrNull(shardId);
+                    if (indexShard == null) {
+                        notifyFailedSnapshotShard(snapshot, shardId, localNodeId, "could not find shard");
+                        continue;
+                    }
                     final IndexId indexId = indicesMap.get(shardId.getIndexName());
                     assert indexId != null;
                     executor.execute(new AbstractRunnable() {

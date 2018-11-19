@@ -29,6 +29,7 @@ import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
@@ -361,6 +362,16 @@ public class MLRequestConvertersTests extends ESTestCase {
             request.getParameters().get(DeleteForecastRequest.TIMEOUT.getPreferredName()));
         assertEquals(Boolean.toString(true),
             request.getParameters().get(DeleteForecastRequest.ALLOW_NO_FORECASTS.getPreferredName()));
+    }
+
+    public void testDeleteModelSnapshot() {
+        String jobId = randomAlphaOfLength(10);
+        String snapshotId = randomAlphaOfLength(10);
+        DeleteModelSnapshotRequest deleteModelSnapshotRequest = new DeleteModelSnapshotRequest(jobId, snapshotId);
+
+        Request request = MLRequestConverters.deleteModelSnapshot(deleteModelSnapshotRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId, request.getEndpoint());
     }
 
     public void testGetBuckets() throws IOException {

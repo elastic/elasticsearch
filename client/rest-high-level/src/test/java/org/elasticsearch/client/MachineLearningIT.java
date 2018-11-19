@@ -35,6 +35,7 @@ import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
+import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -1022,5 +1023,39 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setFrequency(TimeValue.timeValueSeconds(1)).build();
         highLevelClient().machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
         return datafeedId;
+    }
+
+    public void createModelSnapshot(String jobId, String snapshotId) throws IOException {
+        Job job = MachineLearningIT.buildJob(jobId);
+        highLevelClient().machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"" + snapshotId + "\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"" + jobId + "\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+
+        highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
+    }
+
+    public void testDeleteModelSnapshot() throws IOException {
+        String jobId = "test-delete-model-snapshot";
+        String snapshotId = "1541587919";
+
+        createModelSnapshot(jobId, snapshotId);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        DeleteModelSnapshotRequest request = new DeleteModelSnapshotRequest(jobId, snapshotId);
+
+        AcknowledgedResponse response = execute(request, machineLearningClient::deleteModelSnapshot,
+                machineLearningClient::deleteModelSnapshotAsync);
+
+        assertTrue(response.isAcknowledged());
     }
 }

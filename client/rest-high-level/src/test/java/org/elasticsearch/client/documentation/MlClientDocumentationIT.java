@@ -41,6 +41,7 @@ import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
+import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -95,6 +96,7 @@ import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.client.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -582,6 +584,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-datafeed-config-set-query-delay
             datafeedBuilder.setQueryDelay(TimeValue.timeValueMinutes(1)); // <1>
             // end::put-datafeed-config-set-query-delay
+
+            // tag::put-datafeed-config-set-delayed-data-check-config
+            datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig
+                .enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1))); // <1>
+            // end::put-datafeed-config-set-delayed-data-check-config
+
+            // no need to accidentally trip internal validations due to job bucket size
+            datafeedBuilder.setDelayedDataCheckConfig(null);
 
             List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
             // tag::put-datafeed-config-set-script-fields
@@ -1863,6 +1873,73 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-categories-execute-async
             client.machineLearning().getCategoriesAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::get-categories-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteModelSnapshot() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-delete-model-snapshot";
+        String snapshotId = "1541587919";
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a snapshot
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"" + snapshotId + "\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"" + jobId + "\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+        {
+            client.index(indexRequest, RequestOptions.DEFAULT);
+
+            // tag::delete-model-snapshot-request
+            DeleteModelSnapshotRequest request = new DeleteModelSnapshotRequest(jobId, snapshotId); // <1>
+            // end::delete-model-snapshot-request
+
+            // tag::delete-model-snapshot-execute
+            AcknowledgedResponse response = client.machineLearning().deleteModelSnapshot(request, RequestOptions.DEFAULT);
+            // end::delete-model-snapshot-execute
+
+            // tag::delete-model-snapshot-response
+            boolean isAcknowledged = response.isAcknowledged(); // <1>
+            // end::delete-model-snapshot-response
+
+            assertTrue(isAcknowledged);
+        }
+        {
+            client.index(indexRequest, RequestOptions.DEFAULT);
+
+            // tag::delete-model-snapshot-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-model-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            DeleteModelSnapshotRequest deleteModelSnapshotRequest = new DeleteModelSnapshotRequest(jobId, "1541587919");
+
+            // tag::delete-model-snapshot-execute-async
+            client.machineLearning().deleteModelSnapshotAsync(deleteModelSnapshotRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-model-snapshot-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

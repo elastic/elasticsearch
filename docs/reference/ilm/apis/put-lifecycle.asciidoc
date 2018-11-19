@@ -6,6 +6,8 @@
 <titleabbrev>Create Policy</titleabbrev>
 ++++
 
+beta[]
+
 Creates or updates lifecycle policy.
 
 ==== Request

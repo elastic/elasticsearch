@@ -174,8 +174,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             sourceBuilder.fetchSource(false);
             // end::search-source-filtering-off
             // tag::search-source-filtering-includes
-            String[] includeFields = new String[] {"title", "user", "innerObject.*"};
-            String[] excludeFields = new String[] {"_type"};
+            String[] includeFields = new String[] {"title", "innerObject.*"};
+            String[] excludeFields = new String[] {"user"};
             sourceBuilder.fetchSource(includeFields, excludeFields);
             // end::search-source-filtering-includes
             sourceBuilder.fetchSource(true);
@@ -247,7 +247,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             for (SearchHit hit : searchHits) {
                 // tag::search-hits-singleHit-properties
                 String index = hit.getIndex();
-                String type = hit.getType();
                 String id = hit.getId();
                 float score = hit.getScore();
                 // end::search-hits-singleHit-properties
@@ -263,8 +262,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertEquals(3, totalHits);
             assertNotNull(hits.getHits()[0].getSourceAsString());
             assertNotNull(hits.getHits()[0].getSourceAsMap().get("title"));
-            assertNotNull(hits.getHits()[0].getSourceAsMap().get("user"));
             assertNotNull(hits.getHits()[0].getSourceAsMap().get("innerObject"));
+            assertNull(hits.getHits()[0].getSourceAsMap().get("user"));
         }
     }
 
@@ -1242,18 +1241,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
-        {
-            // tag::multi-search-request-index
-            MultiSearchRequest request = new MultiSearchRequest();
-            request.add(new SearchRequest("posts")  // <1>
-                    .types("doc"));                 // <2>
-            // end::multi-search-request-index
-            MultiSearchResponse response = client.msearch(request, RequestOptions.DEFAULT);
-            MultiSearchResponse.Item firstResponse = response.getResponses()[0];
-            assertNull(firstResponse.getFailure());
-            SearchResponse searchResponse = firstResponse.getResponse();
-            assertEquals(3, searchResponse.getHits().getTotalHits());
-        }
     }
 
     private void indexSearchTestData() throws IOException {
@@ -1304,19 +1291,12 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::count-request-basic
         }
         {
-            // tag::count-request-indices-types
-            CountRequest countRequest = new CountRequest("blog"); // <1>
-            countRequest.types("doc"); // <2>
-            // end::count-request-indices-types
-            // tag::count-request-routing
-            countRequest.routing("routing"); // <1>
-            // end::count-request-routing
-            // tag::count-request-indicesOptions
-            countRequest.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
-            // end::count-request-indicesOptions
-            // tag::count-request-preference
-            countRequest.preference("_local"); // <1>
-            // end::count-request-preference
+            // tag::count-request-args
+            CountRequest countRequest = new CountRequest("blog") // <1>
+                .routing("routing") // <2>
+                .indicesOptions(IndicesOptions.lenientExpandOpen()) // <3>
+                .preference("_local"); // <4>
+            // end::count-request-args
             assertNotNull(client.count(countRequest, RequestOptions.DEFAULT));
         }
         {

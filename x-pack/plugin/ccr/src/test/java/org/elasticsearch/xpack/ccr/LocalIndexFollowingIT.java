@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -28,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
     public void testFollowIndex() throws Exception {
-        client().admin().cluster().preparePutRepository("local").setType(RemoteClusterRepository.TYPE).get();
+//        client().admin().cluster().preparePutRepository("local").setType(RemoteClusterRepository.TYPE).get();
 
         final String leaderIndexSettings = getIndexSettings(2, 0,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));

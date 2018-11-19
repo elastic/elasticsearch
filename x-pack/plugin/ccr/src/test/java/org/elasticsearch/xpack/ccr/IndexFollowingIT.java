@@ -88,8 +88,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class IndexFollowingIT extends CcrIntegTestCase {
 
     public void testFollowIndex() throws Exception {
-        followerClient().admin().cluster().preparePutRepository("leader_cluster").setType(RemoteClusterRepository.TYPE).get();
-
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));

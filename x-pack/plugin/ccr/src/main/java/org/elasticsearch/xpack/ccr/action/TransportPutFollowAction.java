@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -154,17 +155,9 @@ public final class TransportPutFollowAction
             return;
         }
 
-//        ActionListener<Boolean> handler2 = ActionListener.wrap(
-//            result -> {
-//                if (result) {
-//                    initiateFollowing(request, listener);
-//                } else {
-//                    listener.onResponse(new PutFollowAction.Response(true, false, false));
-//                }
-//            },
-//            listener::onFailure);
+        String remoteCluster = request.getRemoteCluster();
 
-        ActionListener<RestoreSnapshotResponse> handler = ActionListener.wrap(result -> {
+        ActionListener<RestoreSnapshotResponse> recoverCompleteHandler = ActionListener.wrap(result -> {
                 if (result.getRestoreInfo().failedShards() == 0) {
                     initiateFollowing(request, listener);
                 } else {
@@ -173,63 +166,77 @@ public final class TransportPutFollowAction
             },
             listener::onFailure);
 
-        Settings.Builder settingsBuilder = Settings.builder()
-            .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-            // TODO: Figure out what to do with private setting SETTING_INDEX_PROVIDED_NAME
-            .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex())
-            // Overwriting UUID here, because otherwise we can't follow indices in the same cluster
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-
-        String remoteCluster = request.getRemoteCluster();
-        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(remoteCluster,
-            leaderIndexMetaData.getIndex().getName(), new String[]{request.getLeaderIndex()}, request.indicesOptions(), "^(.*)$",
-            request.getFollowRequest().getFollowerIndex(), Settings.EMPTY, request.masterNodeTimeout(), false, false, true,
-            settingsBuilder.build(), new String[0], "restore_snapshot[" + remoteCluster + "]");
-
-
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() ->
-            restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
+        client.admin().cluster().preparePutRepository(remoteCluster).setType(RemoteClusterRepository.TYPE).execute(new ActionListener<AcknowledgedResponse>() {
             @Override
-            public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
-                final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                if (acknowledgedResponse.isAcknowledged()) {
+                    Settings.Builder settingsBuilder = Settings.builder()
+                        .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
+                        // TODO: Figure out what to do with private setting SETTING_INDEX_PROVIDED_NAME
+                        .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex())
+                        // Overwriting UUID here, because otherwise we can't follow indices in the same cluster
+                        .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                        .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
 
-                ClusterStateListener clusterStateListener = new ClusterStateListener() {
-                    @Override
-                    public void clusterChanged(ClusterChangedEvent changedEvent) {
-                        final RestoreInProgress.Entry prevEntry = RestoreService.restoreInProgress(changedEvent.previousState(), snapshot);
-                        final RestoreInProgress.Entry newEntry = RestoreService.restoreInProgress(changedEvent.state(), snapshot);
-                        if (prevEntry == null) {
-                            // TODO: Does this block still make sense?
-                            // When there is a master failure after a restore has been started, this listener might not be registered
-                            // on the current master and as such it might miss some intermediary cluster states due to batching.
-                            // Clean up listener in that case and acknowledge completion of restore operation to client.
-                            clusterService.removeListener(this);
-                            handler.onResponse(null);
-                        } else if (newEntry == null) {
-                            clusterService.removeListener(this);
-                            ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
-                            assert prevEntry.state().completed() : "expected completed snapshot state but was " + prevEntry.state();
-                            assert RestoreService.completed(shards) : "expected all restore entries to be completed";
-                            RestoreInfo restoreInfo = new RestoreInfo(prevEntry.snapshot().getSnapshotId().getName(), prevEntry.indices(),
-                                shards.size(), shards.size() - RestoreService.failedShards(shards));
-                            RestoreSnapshotResponse response = new RestoreSnapshotResponse(restoreInfo);
-                            logger.debug("restore of [{}] completed", snapshot);
-                            handler.onResponse(response);
-                        } else {
-                            // restore not completed yet, wait for next cluster state update
-                        }
-                    }
-                };
+                    RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(remoteCluster,
+                        leaderIndexMetaData.getIndex().getName(), new String[]{request.getLeaderIndex()}, request.indicesOptions(), "^(.*)$",
+                        request.getFollowRequest().getFollowerIndex(), Settings.EMPTY, request.masterNodeTimeout(), false, false, true,
+                        settingsBuilder.build(), new String[0], "restore_snapshot[" + remoteCluster + "]");
 
-                clusterService.addListener(clusterStateListener);
+
+                    threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() ->
+                        restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
+                            @Override
+                            public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
+                                final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
+
+                                ClusterStateListener clusterStateListener = new ClusterStateListener() {
+                                    @Override
+                                    public void clusterChanged(ClusterChangedEvent changedEvent) {
+                                        final RestoreInProgress.Entry prevEntry = RestoreService.restoreInProgress(changedEvent.previousState(), snapshot);
+                                        final RestoreInProgress.Entry newEntry = RestoreService.restoreInProgress(changedEvent.state(), snapshot);
+                                        if (prevEntry == null) {
+                                            // TODO: Does this block still make sense?
+                                            // When there is a master failure after a restore has been started, this listener might not be registered
+                                            // on the current master and as such it might miss some intermediary cluster states due to batching.
+                                            // Clean up listener in that case and acknowledge completion of restore operation to client.
+                                            clusterService.removeListener(this);
+                                            recoverCompleteHandler.onResponse(null);
+                                        } else if (newEntry == null) {
+                                            clusterService.removeListener(this);
+                                            ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
+                                            assert prevEntry.state().completed() : "expected completed snapshot state but was " + prevEntry.state();
+                                            assert RestoreService.completed(shards) : "expected all restore entries to be completed";
+                                            RestoreInfo restoreInfo = new RestoreInfo(prevEntry.snapshot().getSnapshotId().getName(), prevEntry.indices(),
+                                                shards.size(), shards.size() - RestoreService.failedShards(shards));
+                                            RestoreSnapshotResponse response = new RestoreSnapshotResponse(restoreInfo);
+                                            logger.debug("restore of [{}] completed", snapshot);
+                                            recoverCompleteHandler.onResponse(response);
+                                        } else {
+                                            // restore not completed yet, wait for next cluster state update
+                                        }
+                                    }
+                                };
+
+                                clusterService.addListener(clusterStateListener);
+                            }
+
+                            @Override
+                            public void onFailure(Exception t) {
+                                listener.onFailure(t);
+                            }
+                        }, false, false));
+
+                } else {
+                    listener.onFailure(new ElasticsearchException("remote cluster repository put not acknowledged"));
+                }
             }
 
             @Override
-            public void onFailure(Exception t) {
-                listener.onFailure(t);
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
             }
-        }, false, false));
+        });
 //         Can't use create index api here, because then index templates can alter the mappings / settings.
 //         And index templates could introduce settings / mappings that are incompatible with the leader index.
 //        clusterService.submitStateUpdateTask("create_following_index", new AckedClusterStateUpdateTask<Boolean>(request, handler2) {

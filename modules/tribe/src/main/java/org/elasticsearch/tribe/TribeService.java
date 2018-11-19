@@ -20,6 +20,7 @@
 package org.elasticsearch.tribe;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
@@ -94,6 +95,7 @@ import static java.util.Collections.unmodifiableMap;
  * to propagate to the relevant cluster.
  */
 public class TribeService extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(TribeService.class);
 
     public static final ClusterBlock TRIBE_METADATA_BLOCK = new ClusterBlock(10, "tribe node, metadata not allowed", false, false,
         false, RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE));

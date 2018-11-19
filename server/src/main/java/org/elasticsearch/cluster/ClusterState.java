@@ -27,6 +27,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -268,11 +269,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return this.clusterName;
     }
 
-    public CoordinationMetaData.VotingConfiguration getLastAcceptedConfiguration() {
+    public VotingConfiguration getLastAcceptedConfiguration() {
         return coordinationMetaData().getLastAcceptedConfiguration();
     }
 
-    public CoordinationMetaData.VotingConfiguration getLastCommittedConfiguration() {
+    public VotingConfiguration getLastCommittedConfiguration() {
         return coordinationMetaData().getLastCommittedConfiguration();
     }
 

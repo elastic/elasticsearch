@@ -627,15 +627,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             logger.info("setting initial configuration to {}", votingConfiguration);
             final Builder builder = masterService.incrementVersion(currentState);
-            final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder()
-                .term(currentState.term())
-                .lastAcceptedConfiguration(votingConfiguration)
-                .lastCommittedConfiguration(votingConfiguration)
-                .build();
             MetaData.Builder metaDataBuilder = MetaData.builder();
             // automatically generate a UID for the metadata if we need to
             metaDataBuilder.generateClusterUuidIfNeeded(); // TODO generate UUID in bootstrapping tool?
-            metaDataBuilder.coordinationMetaData(coordinationMetaData);
+            metaDataBuilder.coordinationMetaData(CoordinationMetaData.builder(currentState.coordinationMetaData()).build());
             builder.metaData(metaDataBuilder);
             coordinationState.get().setInitialState(builder.build());
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version

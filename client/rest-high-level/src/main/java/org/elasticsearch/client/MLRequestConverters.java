@@ -30,8 +30,10 @@ import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
@@ -335,6 +337,18 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request deleteModelSnapshot(DeleteModelSnapshotRequest deleteModelSnapshotRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(deleteModelSnapshotRequest.getJobId())
+            .addPathPartAsIs("model_snapshots")
+            .addPathPart(deleteModelSnapshotRequest.getSnapshotId())
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
+    }
+
     static Request getBuckets(GetBucketsRequest getBucketsRequest) throws IOException {
         String endpoint = new EndpointBuilder()
                 .addPathPartAsIs("_xpack")
@@ -522,6 +536,15 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(updateFilterRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteFilter(DeleteFilterRequest deleteFilterRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack", "ml", "filters")
+            .addPathPart(deleteFilterRequest.getId())
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         return request;
     }
 }

@@ -10,21 +10,25 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.TimeZone;
 
 public abstract class BaseDateTimeProcessor implements Processor {
 
     private final TimeZone timeZone;
+    private final ZoneId zoneId;
     
     BaseDateTimeProcessor(TimeZone timeZone) {
         this.timeZone = timeZone;
+        this.zoneId = timeZone.toZoneId();
     }
     
     BaseDateTimeProcessor(StreamInput in) throws IOException {
         timeZone = TimeZone.getTimeZone(in.readString());
+        zoneId = timeZone.toZoneId();
     }
 
     @Override
@@ -37,23 +41,17 @@ public abstract class BaseDateTimeProcessor implements Processor {
     }
 
     @Override
-    public Object process(Object l) {
-        if (l == null) {
+    public Object process(Object input) {
+        if (input == null) {
             return null;
         }
-        long millis;
-        if (l instanceof String) {
-            // 6.4+
-            millis = Long.parseLong(l.toString());
-        } else if (l instanceof ReadableInstant) {
-            // 6.3-
-            millis = ((ReadableInstant) l).getMillis();
-        } else {
-            throw new SqlIllegalArgumentException("A string or a date is required; received {}", l);
+
+        if (!(input instanceof ZonedDateTime)) {
+            throw new SqlIllegalArgumentException("A date is required; received {}", input);
         }
-        
-        return doProcess(millis);
+
+        return doProcess(((ZonedDateTime) input).withZoneSameInstant(zoneId));
     }
 
-    abstract Object doProcess(long millis);
+    abstract Object doProcess(ZonedDateTime dateTime);
 }

@@ -48,7 +48,8 @@ public class ClusterStateRequestTests extends ESTestCase {
                 clusterStateRequest.waitForTimeout(new TimeValue(randomNonNegativeLong()));
             }
 
-            Version testVersion = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
+            Version testVersion = VersionUtils.randomVersionBetween(random(),
+                Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
             BytesStreamOutput output = new BytesStreamOutput();
             output.setVersion(testVersion);
             clusterStateRequest.writeTo(output);

@@ -1692,18 +1692,18 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 new TermVectorsRequest("authors", "_doc", "1");
             tvrequest1.setFields("user");
             request.add(tvrequest1); // <2>
-            TermVectorsRequest tvrequest2 =
-                new TermVectorsRequest("authors", "_doc");
+
             XContentBuilder docBuilder = XContentFactory.jsonBuilder();
             docBuilder.startObject().field("user", "guest-user").endObject();
-            tvrequest2.setDoc(docBuilder);
+            TermVectorsRequest tvrequest2 =
+                new TermVectorsRequest("authors", "_doc", docBuilder);
             request.add(tvrequest2); // <3>
             // end::multi-term-vectors-request
         }
 
         // tag::multi-term-vectors-request-template
         TermVectorsRequest tvrequestTemplate =
-            new TermVectorsRequest("authors", "_doc"); // <1>
+            new TermVectorsRequest("authors", "_doc", "fake_id"); // <1>
         tvrequestTemplate.setFields("user");
         String[] ids = {"1", "2"};
         MultiTermVectorsRequest request =

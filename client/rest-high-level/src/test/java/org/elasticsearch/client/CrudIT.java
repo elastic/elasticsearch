@@ -1214,7 +1214,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // test _mtermvectors where MultiTermVectorsRequest is constructed with ids and a template
             String[] expectedIds = {"1", "2"};
-            TermVectorsRequest tvRequestTemplate = new TermVectorsRequest(sourceIndex, "_doc");
+            TermVectorsRequest tvRequestTemplate = new TermVectorsRequest(sourceIndex, "_doc", "fake_id");
             tvRequestTemplate.setFields("field");
             MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest(expectedIds, tvRequestTemplate);
 
@@ -1236,10 +1236,10 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             TermVectorsRequest tvRequest1 = new TermVectorsRequest(sourceIndex, "_doc", "1");
             tvRequest1.setFields("field");
             mtvRequest.add(tvRequest1);
-            TermVectorsRequest tvRequest2 = new TermVectorsRequest(sourceIndex, "_doc");
+
             XContentBuilder docBuilder = XContentFactory.jsonBuilder();
             docBuilder.startObject().field("field", "valuex").endObject();
-            tvRequest2.setDoc(docBuilder);
+            TermVectorsRequest tvRequest2 = new TermVectorsRequest(sourceIndex, "_doc", docBuilder);
             mtvRequest.add(tvRequest2);
 
             MultiTermVectorsResponse mtvResponse =

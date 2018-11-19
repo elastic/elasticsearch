@@ -265,9 +265,11 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-put-calendar>>
 * <<{upid}-delete-calendar>>
 * <<{upid}-put-filter>>
-* <<{upid}-get-model-snapshots>>
 * <<{upid}-get-filters>>
+* <<{upid}-delete-model-snapshot>>
 * <<{upid}-update-filter>>
+* <<{upid}-delete-filter>>
+* <<{upid}-get-model-snapshots>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -299,7 +301,9 @@ include::ml/delete-calendar.asciidoc[]
 include::ml/put-filter.asciidoc[]
 include::ml/get-model-snapshots.asciidoc[]
 include::ml/get-filters.asciidoc[]
+include::ml/delete-model-snapshot.asciidoc[]
 include::ml/update-filter.asciidoc[]
+include::ml/delete-filter.asciidoc[]
 
 == Migration APIs
 
@@ -349,6 +353,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-clear-roles-cache>>
 * <<{upid}-clear-realm-cache>>
 * <<{upid}-authenticate>>
+* <<{upid}-has-privileges>>
 * <<java-rest-high-security-get-certificates>>
 * <<java-rest-high-security-put-role-mapping>>
 * <<java-rest-high-security-get-role-mappings>>
@@ -366,6 +371,7 @@ include::security/delete-privileges.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/clear-realm-cache.asciidoc[]
 include::security/authenticate.asciidoc[]
+include::security/has-privileges.asciidoc[]
 include::security/get-certificates.asciidoc[]
 include::security/put-role-mapping.asciidoc[]
 include::security/get-role-mappings.asciidoc[]
@@ -440,5 +446,8 @@ The Java High Level REST Client supports the following Index Lifecycle
 Management APIs:
 
 * <<{upid}-ilm-put-lifecycle-policy>>
+* <<{upid}-ilm-get-lifecycle-policy>>
 
 include::ilm/put_lifecycle_policy.asciidoc[]
+include::ilm/get_lifecycle_policy.asciidoc[]
+

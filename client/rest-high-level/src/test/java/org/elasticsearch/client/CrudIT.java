@@ -192,8 +192,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
     }
-    
-    public void testSourceExists() throws IOException {     
+
+    public void testSourceExists() throws IOException {
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
@@ -215,8 +215,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
     }
-    
-    public void testSourceDoesNotExist() throws IOException {     
+
+    public void testSourceDoesNotExist() throws IOException {
         final String noSourceIndex = "no_source";
         {
             // Prepare
@@ -224,8 +224,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
                 .build();
-            String mapping = "\"_doc\": { \"_source\": {\n" + 
-                    "        \"enabled\": false\n" + 
+            String mapping = "\"_doc\": { \"_source\": {\n" +
+                    "        \"enabled\": false\n" +
                     "      }  }";
             createIndex(noSourceIndex, settings, mapping);
             assertEquals(
@@ -240,13 +240,13 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                     RequestOptions.DEFAULT
                 ).status()
             );
-        }        
+        }
         {
             GetRequest getRequest = new GetRequest(noSourceIndex, "_doc", "1");
             assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
-    }    
+    }
 
     public void testGet() throws IOException {
         {
@@ -1154,10 +1154,10 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         {
             // test _termvectors on artificial documents
-            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, "_doc");
             XContentBuilder docBuilder = XContentFactory.jsonBuilder();
             docBuilder.startObject().field("field", "valuex").endObject();
-            tvRequest.setDoc(docBuilder);
+
+            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, "_doc", docBuilder);
             TermVectorsResponse tvResponse = execute(tvRequest, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync);
 
             TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token(0, 6, 0, null);

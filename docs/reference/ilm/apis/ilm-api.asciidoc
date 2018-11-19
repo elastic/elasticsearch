@@ -1,6 +1,8 @@
 [[index-lifecycle-management-api]]
 == Index Lifecycle Management API
 
+beta[]
+
 You can use the following APIs to manage policies on indices.
 
 [float]

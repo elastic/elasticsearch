@@ -1565,10 +1565,12 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // tag::term-vectors-request-artificial
-            TermVectorsRequest request = new TermVectorsRequest("authors", "_doc");
+
             XContentBuilder docBuilder = XContentFactory.jsonBuilder();
             docBuilder.startObject().field("user", "guest-user").endObject();
-            request.setDoc(docBuilder); // <1>
+            TermVectorsRequest request = new TermVectorsRequest("authors",
+                "_doc",
+                docBuilder); // <1>
             // end::term-vectors-request-artificial
 
             // tag::term-vectors-request-optional-arguments

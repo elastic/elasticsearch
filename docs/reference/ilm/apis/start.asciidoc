@@ -6,6 +6,8 @@
 <titleabbrev>Start {ILM}</titleabbrev>
 ++++
 
+beta[]
+
 Start the {ILM} plugin.
 
 ==== Request

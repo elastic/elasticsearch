@@ -263,12 +263,14 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         // tag::ilm-retry-lifecycle-policy-request
-        RetryLifecyclePolicyRequest request = new RetryLifecyclePolicyRequest("my_index");
+        RetryLifecyclePolicyRequest request =
+            new RetryLifecyclePolicyRequest("my_index"); // <1>
         // end::ilm-retry-lifecycle-policy-request
 
 
         // tag::ilm-retry-lifecycle-policy-execute
-        AcknowledgedResponse response = client.indexLifecycle().retryLifecyclePolicy(request, RequestOptions.DEFAULT);
+        AcknowledgedResponse response = client.indexLifecycle()
+            .retryLifecyclePolicy(request, RequestOptions.DEFAULT);
         // end::ilm-retry-lifecycle-policy-execute
 
         // tag::ilm-retry-lifecycle-policy-response

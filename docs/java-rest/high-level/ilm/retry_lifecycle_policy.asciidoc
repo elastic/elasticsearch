@@ -18,7 +18,7 @@ that encountered errors in certain indices.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1>
+<1> retries execution of `my_index`'s policy
 
 [id="{upid}-{api}-response"]
 ==== Response
@@ -29,7 +29,7 @@ The returned +{response}+ indicates if the retry lifecycle policy request was re
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1>
+<1> Whether or not the lifecycle policy retry was acknowledged.
 
 include::../execution.asciidoc[]
 

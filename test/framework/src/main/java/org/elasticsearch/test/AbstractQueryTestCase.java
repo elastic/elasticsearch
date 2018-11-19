@@ -82,13 +82,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static final int NUMBER_OF_TESTQUERIES = 20;
 
     public final QB createTestQueryBuilder() {
-        QB query;
-        if (supportsBoostAndQueryName()) {
-            query = createTestQueryBuilder(true, true);
-        } else {
-            query = createTestQueryBuilder(false, false);
-        }
-        return query;
+        return createTestQueryBuilder(supportsBoost(), supportsQueryName());
     }
 
     public final QB createTestQueryBuilder(boolean supportsBoost, boolean supportsQueryName) {
@@ -466,7 +460,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
             }
 
-            if (supportsBoostAndQueryName()) {
+            if (supportsBoost()) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
                 Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
                 assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
@@ -493,12 +487,22 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
-     * Few queries allow you to set the boost and queryName on the java api, although the corresponding parser
-     * doesn't parse them as they are not supported. This method allows to disable boost and queryName related tests for those queries.
-     * Those queries are easy to identify: their parsers don't parse `boost` and `_name` as they don't apply to the specific query:
-     * wrapper query and match_none
+     * Few queries allow you to set the boost on the Java API, although the corresponding parser
+     * doesn't parse it as it isn't supported. This method allows to disable boost related tests for those queries.
+     * Those queries are easy to identify: their parsers don't parse {@code boost} as they don't apply to the specific query:
+     * wrapper query and {@code match_none}.
      */
-    protected boolean supportsBoostAndQueryName() {
+    protected boolean supportsBoost() {
+        return true;
+    }
+
+    /**
+     * Few queries allow you to set the query name on the Java API, although the corresponding parser
+     * doesn't parse it as it isn't supported. This method allows to disable query name related tests for those queries.
+     * Those queries are easy to identify: their parsers don't parse {@code _name} as they don't apply to the specific query:
+     * wrapper query and {@code match_none}.
+     */
+    protected boolean supportsQueryName() {
         return true;
     }
 

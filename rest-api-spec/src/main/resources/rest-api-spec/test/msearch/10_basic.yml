@@ -50,7 +50,7 @@ setup:
           - index: index_3
           - query:
               match_all: {}
-          - type: test
+          - {}
           - query:
               match_all: {}
 
@@ -82,7 +82,7 @@ setup:
           - index: index_3
           - query:
               match_all: {}
-          - type: test
+          - {}
           - query:
               match_all: {}
 

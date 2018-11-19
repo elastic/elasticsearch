@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.persistent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -29,7 +31,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
@@ -43,7 +44,9 @@ import java.util.function.Predicate;
  * to the master node so that the master can update the cluster state and can track of the states
  * of the persistent tasks.
  */
-public class PersistentTasksService extends AbstractComponent {
+public class PersistentTasksService {
+
+    private static final Logger logger = LogManager.getLogger(PersistentTasksService.class);
 
     private static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
 

@@ -37,6 +37,7 @@ import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
@@ -2284,16 +2285,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::get-filters-execute-listener
             ActionListener<GetFiltersResponse> listener = new ActionListener<GetFiltersResponse>() {
-                    @Override
-                    public void onResponse(GetFiltersResponse getfiltersResponse) {
-                        // <1>
-                    }
+                @Override
+                public void onResponse(GetFiltersResponse getfiltersResponse) {
+                    // <1>
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                };
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
             // end::get-filters-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -2368,5 +2369,63 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testDeleteFilter() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        String filterId = createFilter(client);
+
+        {
+            // tag::delete-filter-request
+            DeleteFilterRequest request = new DeleteFilterRequest(filterId); // <1>
+            // end::delete-filter-request
+
+            // tag::delete-filter-execute
+            AcknowledgedResponse response = client.machineLearning().deleteFilter(request, RequestOptions.DEFAULT);
+            // end::delete-filter-execute
+
+            // tag::delete-filter-response
+            boolean isAcknowledged = response.isAcknowledged(); // <1>
+            // end::delete-filter-response
+            assertTrue(isAcknowledged);
+        }
+        filterId = createFilter(client);
+        {
+            DeleteFilterRequest request = new DeleteFilterRequest(filterId);
+            // tag::delete-filter-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-filter-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-filter-execute-async
+            client.machineLearning().deleteFilterAsync(request, RequestOptions.DEFAULT, listener); //<1>
+            // end::delete-filter-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    private String createFilter(RestHighLevelClient client) throws IOException {
+        MlFilter.Builder filterBuilder = MlFilter.builder("my_safe_domains")
+            .setDescription("A list of safe domains")
+            .setItems("*.google.com", "wikipedia.org");
+        PutFilterRequest putFilterRequest = new PutFilterRequest(filterBuilder.build());
+        PutFilterResponse putFilterResponse = client.machineLearning().putFilter(putFilterRequest, RequestOptions.DEFAULT);
+        MlFilter createdFilter = putFilterResponse.getResponse();
+        assertThat(createdFilter.getId(), equalTo("my_safe_domains"));
+        return createdFilter.getId();
     }
 }

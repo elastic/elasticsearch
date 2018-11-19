@@ -174,11 +174,6 @@ subprojects {
       if (version.before('5.6.9') || (version.onOrAfter('6.0.0') && version.before('6.2.4'))) {
         jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
       }
-
-      systemProperty 'tests.rest.blacklist', [
-              'old_cluster/30_ml_jobs_crud/*',
-              'old_cluster/40_ml_datafeed_crud/*',
-      ].join(',')
     }
 
     Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
@@ -222,11 +217,6 @@ subprojects {
           setting 'xpack.watcher.encrypt_sensitive_data', 'true'
           keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
         }
-
-        systemProperty 'tests.rest.blacklist', [
-                'mixed_cluster/30_ml_jobs_crud/*',
-                'mixed_cluster/40_ml_datafeed_crud/*',
-        ].join(',')
       }
     }
 
@@ -244,8 +234,8 @@ subprojects {
       // We only need to run these tests once so we may as well do it when we're two thirds upgraded
       systemProperty 'tests.rest.blacklist', [
           'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
-          'mixed_cluster/30_ml_jobs_crud/*',
-          'mixed_cluster/40_ml_datafeed_crud/*',
+          'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
+          'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
         ].join(',')
       finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
     }
@@ -262,11 +252,6 @@ subprojects {
       systemProperty 'tests.first_round', 'false'
       systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
       finalizedBy "${baseName}#oldClusterTestCluster#node2.stop"
-
-      systemProperty 'tests.rest.blacklist', [
-              'mixed_cluster/30_ml_jobs_crud/*',
-              'mixed_cluster/40_ml_datafeed_crud/*',
-      ].join(',')
     }
 
     Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
@@ -300,11 +285,6 @@ subprojects {
       if (version.before('6.1.0') || version.onOrAfter('6.3.0')) {
         systemProperty 'tests.rest.blacklist', '/30_ml_jobs_crud/Test model memory limit is updated'
       }
-
-      systemProperty 'tests.rest.blacklist', [
-              'upgraded_cluster/30_ml_jobs_crud/*',
-              'upgraded_cluster/40_ml_datafeed_crud/*',
-      ].join(',')
     }
 
     Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {

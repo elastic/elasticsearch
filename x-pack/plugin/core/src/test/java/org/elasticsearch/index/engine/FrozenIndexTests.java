@@ -38,6 +38,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
@@ -183,7 +184,9 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         XPackClient xPackClient = new XPackClient(client());
         assertAcked(xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest("test-idx")));
         ExecutionException executionException = expectThrows(ExecutionException.class,
-            () -> xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest("test-idx")));
+            () -> xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest("test-idx")
+                .indicesOptions(new IndicesOptions(EnumSet.noneOf(IndicesOptions.Option.class),
+                EnumSet.of(IndicesOptions.WildcardStates.OPEN)))));
         assertEquals("no index found to freeze", executionException.getCause().getMessage());
     }
 
@@ -313,7 +316,9 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertEquals(IndexMetaData.State.CLOSE,
             client().admin().cluster().prepareState().get().getState().metaData().index("idx").getState());
         expectThrows(ExecutionException.class,
-            () -> xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest("id*").setFreeze(false)));
+            () -> xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest("id*").setFreeze(false)
+                .indicesOptions(new IndicesOptions(EnumSet.noneOf(IndicesOptions.Option.class),
+                    EnumSet.of(IndicesOptions.WildcardStates.OPEN)))));
         // we don't resolve to closed indices
         assertAcked(xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest("idx").setFreeze(false)));
         assertEquals(IndexMetaData.State.OPEN,

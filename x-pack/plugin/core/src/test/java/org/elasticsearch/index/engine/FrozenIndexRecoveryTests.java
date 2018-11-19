@@ -9,14 +9,14 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class FrozenIndexRecoveryTests extends ESIndexLevelReplicationTestCase {
+public class FrozenIndexRecoveryTests extends IndexShardTestCase {
 
     /**
      * Make sure we can recover from a frozen engine

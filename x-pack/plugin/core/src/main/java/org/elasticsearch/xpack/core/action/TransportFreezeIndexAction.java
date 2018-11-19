@@ -95,14 +95,18 @@ public final class TransportFreezeIndexAction extends
                 indices.add(index);
             }
         }
+        if (indices.isEmpty() && request.indicesOptions().allowNoIndices() == false) {
+            throw new ResourceNotFoundException("no index found to " + (request.freeze() ? "freeze" : "unfreeze"));
+        }
         return indices.toArray(Index.EMPTY_ARRAY);
     }
 
     @Override
     protected void masterOperation(FreezeRequest request, ClusterState state, ActionListener<FreezeResponse> listener) {
         final Index[] concreteIndices = resolveIndices(request, state);
-        if (concreteIndices == null || concreteIndices.length == 0) {
-            throw new ResourceNotFoundException("no index found to " + (request.freeze() ? "freeze" : "unfreeze"));
+        if (concreteIndices.length == 0) {
+            listener.onResponse(new FreezeResponse(true, true));
+            return;
         }
         clusterService.submitStateUpdateTask("toggle-frozen-settings",
             new AckedClusterStateUpdateTask<AcknowledgedResponse>(Priority.URGENT, request, new ActionListener<AcknowledgedResponse>() {
@@ -139,7 +143,7 @@ public final class TransportFreezeIndexAction extends
                         toClose.add(index);
                     }
                 }
-                currentState = indexStateService.closeIndex(currentState, toClose.toArray(new Index[0]), toClose.toString());
+                currentState = indexStateService.closeIndices(currentState, toClose.toArray(new Index[0]), toClose.toString());
                 final MetaData.Builder builder = MetaData.builder(currentState.metaData());
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                 for (Index index : concreteIndices) {

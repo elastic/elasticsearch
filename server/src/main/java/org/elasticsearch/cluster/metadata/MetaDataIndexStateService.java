@@ -84,7 +84,7 @@ public class MetaDataIndexStateService {
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
 
-    public void closeIndex(final CloseIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void closeIndices(final CloseIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
@@ -99,12 +99,12 @@ public class MetaDataIndexStateService {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return closeIndex(currentState, request.indices(), indicesAsString);
+                return closeIndices(currentState, request.indices(), indicesAsString);
             }
         });
     }
 
-    public ClusterState closeIndex(ClusterState currentState, final Index[] indices, String indicesAsString) {
+    public ClusterState closeIndices(ClusterState currentState, final Index[] indices, String indicesAsString) {
         Set<IndexMetaData> indicesToClose = new HashSet<>();
         for (Index index : indices) {
             final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);

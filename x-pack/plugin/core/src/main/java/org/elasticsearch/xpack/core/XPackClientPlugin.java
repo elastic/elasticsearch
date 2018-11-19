@@ -346,7 +346,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 RemoveIndexLifecyclePolicyAction.INSTANCE,
                 MoveToStepAction.INSTANCE,
                 RetryAction.INSTANCE,
-                // Frozen indices
                 TransportFreezeIndexAction.FreezeIndexAction.INSTANCE
         );
     }

@@ -361,4 +361,3 @@ setup:
       catch: forbidden
       tasks.get:
         task_id: $task
-  - match: {response.created: 1}

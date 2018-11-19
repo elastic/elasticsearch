@@ -34,12 +34,22 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
      */
     @Before
     public void waitForTemplates() throws Exception {
-        List<String> templatesToWaitFor;
+        List<String> templatesToWaitFor = XPackRestTestHelper.ML_POST_V660_TEMPLATES;
+
+        // If upgrading from a version prior to v6.6.0 the set of templates
+        // to wait for is different
         if (System.getProperty("tests.rest.suite").equals("old_cluster")) {
-            templatesToWaitFor = XPackRestTestHelper.ML_PRE_V660_TEMPLATES;
-        } else {
-            templatesToWaitFor = XPackRestTestHelper.ML_POST_V660_TEMPLATES;
+            String versionProperty = System.getProperty("tests.upgrade_from_version");
+            if (versionProperty == null) {
+                throw new IllegalStateException("System property 'tests.upgrade_from_version' not set, cannot start tests");
+            }
+
+            Version upgradeFromVersion = Version.fromString(versionProperty);
+            if (upgradeFromVersion.before(Version.V_6_6_0)) {
+                templatesToWaitFor = XPackRestTestHelper.ML_PRE_V660_TEMPLATES;
+            }
         }
+
         XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
     }
 

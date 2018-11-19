@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.DeleteFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutFeatureIndexBuilderJobAction;
@@ -80,8 +81,7 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
     public FeatureIndexBuilder(Settings settings) {
         this.settings = settings;
 
-        // todo: XPackSettings.FEATURE_INDEX_BUILDER_ENABLED.get(settings);
-        this.enabled = true;
+        this.enabled = XPackSettings.DATA_FRAME_ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 

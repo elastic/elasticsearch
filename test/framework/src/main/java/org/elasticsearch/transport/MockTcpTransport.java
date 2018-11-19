@@ -245,7 +245,6 @@ public class MockTcpTransport extends TcpTransport {
         private final CancellableThreads cancellableThreads = new CancellableThreads();
         private final CompletableContext<Void> closeFuture = new CompletableContext<>();
         private final CompletableContext<Void> connectFuture = new CompletableContext<>();
-        private final ChannelStats stats = new ChannelStats();
 
         /**
          * Constructs a new MockChannel instance intended for handling the actual incoming / outgoing traffic.
@@ -405,11 +404,6 @@ public class MockTcpTransport extends TcpTransport {
         @Override
         public void addConnectListener(ActionListener<Void> listener) {
             connectFuture.addListener(ActionListener.toBiConsumer(listener));
-        }
-
-        @Override
-        public ChannelStats getChannelStats() {
-            return stats;
         }
 
         @Override

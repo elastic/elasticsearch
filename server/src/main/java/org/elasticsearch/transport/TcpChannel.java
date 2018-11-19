@@ -22,11 +22,10 @@ package org.elasticsearch.transport;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.CloseableChannel;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 
 /**
@@ -87,31 +86,25 @@ public interface TcpChannel extends CloseableChannel {
      */
     void addConnectListener(ActionListener<Void> listener);
 
-    /**
-     * Returns stats about this channel
-     */
-    ChannelStats getChannelStats();
-
     class ChannelStats {
 
+        private final LongSupplier timeSupplier;
         private volatile long lastReadTime;
         private volatile long lastWriteTime;
 
-        public ChannelStats() {
-            // We set the initial value to a day in the past to ensure that the next read or write time is
-            // greater than the initial time. This is important because we mark reads and writes with our
-            // ThreadPool.relativeTimeInMillis() which is incremented every 200ms.
-            long oneDayAgo = TimeValue.nsecToMSec(System.nanoTime() - TimeUnit.HOURS.toNanos(24));
-            lastReadTime = oneDayAgo;
-            lastWriteTime = oneDayAgo;
+        ChannelStats(LongSupplier timeSupplier) {
+            this.timeSupplier = timeSupplier;
+            long initTime = timeSupplier.getAsLong();
+            lastReadTime = initTime;
+            lastWriteTime = initTime;
         }
 
-        void markRelativeReadTime(long readTime) {
-            lastReadTime = readTime;
+        void markRead() {
+            lastReadTime = timeSupplier.getAsLong();
         }
 
-        void markRelativeWriteTime(long writeTime) {
-            lastWriteTime = writeTime;
+        void markWrite() {
+            lastWriteTime = timeSupplier.getAsLong();
         }
 
         long lastRelativeReadTime() {

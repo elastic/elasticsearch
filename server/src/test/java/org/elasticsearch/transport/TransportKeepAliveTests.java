@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.AsyncBiConsumer;
+import org.elasticsearch.common.AsyncBiFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -29,10 +29,11 @@ import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -45,7 +46,7 @@ public class TransportKeepAliveTests extends ESTestCase {
 
     private final ConnectionProfile defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
     private BytesReference expectedPingMessage;
-    private AsyncBiConsumer<TcpChannel, BytesReference, Void> pingSender;
+    private AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender;
     private TransportKeepAlive keepAlive;
     private CapturingThreadPool threadPool;
 
@@ -53,7 +54,7 @@ public class TransportKeepAliveTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         super.setUp();
-        pingSender = mock(AsyncBiConsumer.class);
+        pingSender = mock(AsyncBiFunction.class);
         threadPool = new CapturingThreadPool();
         keepAlive = new TransportKeepAlive(threadPool, pingSender);
 
@@ -83,7 +84,7 @@ public class TransportKeepAliveTests extends ESTestCase {
 
         TcpChannel channel1 = new FakeTcpChannel();
         TcpChannel channel2 = new FakeTcpChannel();
-        keepAlive.registerNodeConnection(Arrays.asList(channel1, channel2), connectionProfile);
+        keepAlive.registerNodeConnection(createChannelStats(channel1, channel2), connectionProfile);
 
         assertEquals(1, threadPool.scheduledTasks.size());
         Tuple<TimeValue, Runnable> taskTuple = threadPool.scheduledTasks.poll();
@@ -92,8 +93,8 @@ public class TransportKeepAliveTests extends ESTestCase {
         assertEquals(0, threadPool.scheduledTasks.size());
         keepAliveTask.run();
 
-        verify(pingSender, times(1)).accept(same(channel1), eq(expectedPingMessage), any());
-        verify(pingSender, times(1)).accept(same(channel2), eq(expectedPingMessage), any());
+        verify(pingSender, times(1)).apply(same(channel1), eq(expectedPingMessage), any());
+        verify(pingSender, times(1)).apply(same(channel2), eq(expectedPingMessage), any());
 
         // Test that the task has rescheduled itself
         assertEquals(1, threadPool.scheduledTasks.size());
@@ -116,8 +117,8 @@ public class TransportKeepAliveTests extends ESTestCase {
 
         TcpChannel channel1 = new FakeTcpChannel();
         TcpChannel channel2 = new FakeTcpChannel();
-        keepAlive.registerNodeConnection(Collections.singletonList(channel1), connectionProfile1);
-        keepAlive.registerNodeConnection(Collections.singletonList(channel2), connectionProfile2);
+        keepAlive.registerNodeConnection(createChannelStats(channel1), connectionProfile1);
+        keepAlive.registerNodeConnection(createChannelStats(channel2), connectionProfile2);
 
         assertEquals(2, threadPool.scheduledTasks.size());
         Tuple<TimeValue, Runnable> taskTuple1 = threadPool.scheduledTasks.poll();
@@ -142,16 +143,16 @@ public class TransportKeepAliveTests extends ESTestCase {
 
         TcpChannel channel1 = new FakeTcpChannel();
         TcpChannel channel2 = new FakeTcpChannel();
-        keepAlive.registerNodeConnection(Collections.singletonList(channel1), connectionProfile);
-        keepAlive.registerNodeConnection(Collections.singletonList(channel2), connectionProfile);
+        keepAlive.registerNodeConnection(createChannelStats(channel1), connectionProfile);
+        keepAlive.registerNodeConnection(createChannelStats(channel2), connectionProfile);
 
         channel1.close();
 
         Runnable task = threadPool.scheduledTasks.poll().v2();
         task.run();
 
-        verify(pingSender, times(0)).accept(same(channel1), eq(expectedPingMessage), any());
-        verify(pingSender, times(1)).accept(same(channel2), eq(expectedPingMessage), any());
+        verify(pingSender, times(0)).apply(same(channel1), eq(expectedPingMessage), any());
+        verify(pingSender, times(1)).apply(same(channel2), eq(expectedPingMessage), any());
     }
 
     public void testKeepAliveResponseIfServer() {
@@ -159,7 +160,7 @@ public class TransportKeepAliveTests extends ESTestCase {
 
         keepAlive.receiveKeepAlive(channel);
 
-        verify(pingSender, times(1)).accept(same(channel), eq(expectedPingMessage), any());
+        verify(pingSender, times(1)).apply(same(channel), eq(expectedPingMessage), any());
     }
 
     public void testNoKeepAliveResponseIfClient() {
@@ -167,7 +168,7 @@ public class TransportKeepAliveTests extends ESTestCase {
 
         keepAlive.receiveKeepAlive(channel);
 
-        verify(pingSender, times(0)).accept(same(channel), eq(expectedPingMessage), any());
+        verify(pingSender, times(0)).apply(same(channel), eq(expectedPingMessage), any());
     }
 
     public void testOnlySendPingIfWeHaveNotWrittenAndReadSinceLastPing() {
@@ -178,20 +179,29 @@ public class TransportKeepAliveTests extends ESTestCase {
 
         TcpChannel channel1 = new FakeTcpChannel();
         TcpChannel channel2 = new FakeTcpChannel();
-        keepAlive.registerNodeConnection(Arrays.asList(channel1, channel2), connectionProfile);
+        Map<TcpChannel, TcpChannel.ChannelStats> channelStats = createChannelStats(channel1, channel2);
+        keepAlive.registerNodeConnection(channelStats, connectionProfile);
 
         Tuple<TimeValue, Runnable> taskTuple = threadPool.scheduledTasks.poll();
         taskTuple.v2().run();
 
-        TcpChannel.ChannelStats stats = channel1.getChannelStats();
-        stats.markRelativeReadTime(threadPool.relativeTimeInMillis() + (pingInterval.millis() / 2));
-        stats.markRelativeWriteTime(threadPool.relativeTimeInMillis() + (pingInterval.millis() / 2));
+        boolean increased = false;
+        long lastReadTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
+        long lastWriteTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
+        TcpChannel.ChannelStats stats = channelStats.get(channel1);
+        while (increased == false) {
+            stats.markRead();
+            stats.markWrite();
+            increased = stats.lastRelativeReadTime() - lastReadTime > 0 && stats.lastRelativeWriteTime() - lastWriteTime > 0;
+            lastReadTime = stats.lastRelativeReadTime();
+            lastWriteTime = stats.lastRelativeWriteTime();
+        }
 
         taskTuple = threadPool.scheduledTasks.poll();
         taskTuple.v2().run();
 
-        verify(pingSender, times(1)).accept(same(channel1), eq(expectedPingMessage), any());
-        verify(pingSender, times(2)).accept(same(channel2), eq(expectedPingMessage), any());
+        verify(pingSender, times(1)).apply(same(channel1), eq(expectedPingMessage), any());
+        verify(pingSender, times(2)).apply(same(channel2), eq(expectedPingMessage), any());
     }
 
     public void testNeedBothReadAndWriteToPreventPing() {
@@ -202,25 +212,35 @@ public class TransportKeepAliveTests extends ESTestCase {
 
         TcpChannel channel1 = new FakeTcpChannel();
         TcpChannel channel2 = new FakeTcpChannel();
-        keepAlive.registerNodeConnection(Arrays.asList(channel1, channel2), connectionProfile);
+        Map<TcpChannel, TcpChannel.ChannelStats> channelStats = createChannelStats(channel1, channel2);
+        keepAlive.registerNodeConnection(channelStats, connectionProfile);
 
         Tuple<TimeValue, Runnable> taskTuple = threadPool.scheduledTasks.poll();
         taskTuple.v2().run();
 
         boolean doRead = randomBoolean();
 
-        TcpChannel.ChannelStats stats = channel1.getChannelStats();
-        if (doRead) {
-            stats.markRelativeReadTime(threadPool.relativeTimeInMillis() + (pingInterval.millis() / 2));
-        } else {
-            stats.markRelativeWriteTime(threadPool.relativeTimeInMillis() + (pingInterval.millis() / 2));
+        boolean increased = false;
+        long lastReadTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
+        long lastWriteTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
+        while (increased == false) {
+            TcpChannel.ChannelStats stats = channelStats.get(channel1);
+            if (doRead) {
+                stats.markRead();
+                increased = stats.lastRelativeReadTime() - lastReadTime > 0;
+                lastReadTime = stats.lastRelativeReadTime();
+            } else {
+                stats.markWrite();
+                increased = stats.lastRelativeWriteTime() - lastWriteTime > 0;
+                lastWriteTime = stats.lastRelativeWriteTime();
+            }
         }
 
         taskTuple = threadPool.scheduledTasks.poll();
         taskTuple.v2().run();
 
-        verify(pingSender, times(2)).accept(same(channel1), eq(expectedPingMessage), any());
-        verify(pingSender, times(2)).accept(same(channel2), eq(expectedPingMessage), any());
+        verify(pingSender, times(2)).apply(same(channel1), eq(expectedPingMessage), any());
+        verify(pingSender, times(2)).apply(same(channel2), eq(expectedPingMessage), any());
     }
 
     private class CapturingThreadPool extends TestThreadPool {
@@ -236,5 +256,14 @@ public class TransportKeepAliveTests extends ESTestCase {
             scheduledTasks.add(new Tuple<>(delay, task));
             return null;
         }
+    }
+
+    private Map<TcpChannel, TcpChannel.ChannelStats> createChannelStats(TcpChannel... channels) {
+        Map<TcpChannel, TcpChannel.ChannelStats> channelStats = new HashMap<>(channels.length);
+        for (TcpChannel channel : channels) {
+            channelStats.put(channel, new TcpChannel.ChannelStats(threadPool::relativeTimeInMillis));
+        }
+
+        return channelStats;
     }
 }

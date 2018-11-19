@@ -30,7 +30,6 @@ public class FakeTcpChannel implements TcpChannel {
     private final boolean isServer;
     private final String profile;
     private final AtomicReference<BytesReference> messageCaptor;
-    private final ChannelStats stats = new ChannelStats();
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
     public FakeTcpChannel() {
@@ -100,10 +99,5 @@ public class FakeTcpChannel implements TcpChannel {
     @Override
     public boolean isOpen() {
         return closeContext.isDone() == false;
-    }
-
-    @Override
-    public ChannelStats getChannelStats() {
-        return stats;
     }
 }

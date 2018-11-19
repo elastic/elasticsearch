@@ -88,7 +88,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -183,7 +182,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
-    private final Set<TcpChannel> acceptedChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Map<TcpChannel, TcpChannel.ChannelStats> acceptedChannels = newConcurrentMap();
+    private final Map<TcpChannel, TcpChannel.ChannelStats> clientChannels = newConcurrentMap();
 
     private final NamedWriteableRegistry namedWriteableRegistry;
 
@@ -664,7 +664,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 serverChannels.clear();
 
                 // close all of the incoming channels. The closeChannels method takes a list so we must convert the set.
-                CloseableChannel.closeChannels(new ArrayList<>(acceptedChannels), true);
+                CloseableChannel.closeChannels(new ArrayList<>(acceptedChannels.keySet()), true);
                 acceptedChannels.clear();
 
                 stopInternal();
@@ -754,7 +754,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     protected void serverAcceptedChannel(TcpChannel channel) {
-        boolean addedOnThisCall = acceptedChannels.add(channel);
+        boolean addedOnThisCall = acceptedChannels.put(channel, new TcpChannel.ChannelStats(threadPool::relativeTimeInMillis)) == null;
         assert addedOnThisCall : "Channel should only be added to accepted channel set once";
         channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
         logger.trace(() -> new ParameterizedMessage("Tcp transport channel accepted: {}", channel));
@@ -832,7 +832,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * sends a message to the given channel, using the given callbacks.
      */
     private void internalSendMessage(TcpChannel channel, BytesReference message, ActionListener<Void> listener) {
-        channel.getChannelStats().markRelativeWriteTime(threadPool.relativeTimeInMillis());
+        TcpChannel.ChannelStats channelStats = getChannelStats(channel);
+        if (channelStats != null) {
+            channelStats.markWrite();
+        }
         transportLogger.logOutboundMessage(channel, message);
         try {
             channel.sendMessage(message, new SendListener(channel, message.length(), listener));
@@ -987,7 +990,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public void inboundMessage(TcpChannel channel, BytesReference message) {
         try {
-            channel.getChannelStats().markRelativeReadTime(threadPool.relativeTimeInMillis());
+            TcpChannel.ChannelStats channelStats = getChannelStats(channel);
+            if (channelStats != null) {
+                channelStats.markRead();
+            }
             transportLogger.logInboundMessage(channel, message);
             // Message length of 0 is a ping
             if (message.length() != 0) {
@@ -1416,6 +1422,17 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
+    private TcpChannel.ChannelStats getChannelStats(TcpChannel channel) {
+        TcpChannel.ChannelStats channelStats;
+        if (channel.isServerChannel()) {
+            channelStats = acceptedChannels.get(channel);
+        } else  {
+            channelStats = clientChannels.get(channel);
+        }
+        assert channelStats != null || channel.isOpen() == false : "Channel stats was null when channel was not closed";
+        return channelStats;
+    }
+
     /**
      * This listener increments the transmitted bytes metric on success.
      */
@@ -1616,8 +1633,18 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         @Override
                         public void onResponse(Version version) {
                             NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
-                            nodeChannels.channels.forEach(ch -> ch.addCloseListener(ActionListener.wrap(nodeChannels::close)));
-                            keepAlive.registerNodeConnection(nodeChannels.channels, connectionProfile);
+                            Map<TcpChannel, TcpChannel.ChannelStats> channelMap = new HashMap<>(nodeChannels.getChannels().size());
+                            for  (TcpChannel channel : nodeChannels.getChannels()) {
+                                TcpChannel.ChannelStats channelStats = new TcpChannel.ChannelStats(threadPool::relativeTimeInMillis);
+                                channelMap.put(channel, channelStats);
+                                clientChannels.put(channel, channelStats);
+                                channel.addCloseListener(ActionListener.wrap(() -> {
+                                    clientChannels.remove(channel);
+                                    nodeChannels.close();
+                                }));
+
+                            }
+                            keepAlive.registerNodeConnection(channelMap, connectionProfile);
                             listener.onResponse(nodeChannels);
                         }
 

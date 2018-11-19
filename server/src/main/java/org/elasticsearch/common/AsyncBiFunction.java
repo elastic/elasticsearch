@@ -23,9 +23,9 @@ import org.elasticsearch.action.ActionListener;
 import java.util.function.BiConsumer;
 
 /**
- * A {@link BiConsumer}-like interface designed to be used with asynchronous executions.
+ * A {@link java.util.function.BiFunction}-like interface designed to be used with asynchronous executions.
  */
-public interface AsyncBiConsumer<T,U,C> {
+public interface AsyncBiFunction<T,U,C> {
 
-    void accept(T t, U u, ActionListener<C> listener);
+    void apply(T t, U u, ActionListener<C> listener);
 }

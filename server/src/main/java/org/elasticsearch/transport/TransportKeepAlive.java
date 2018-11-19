@@ -22,7 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.AsyncBiConsumer;
+import org.elasticsearch.common.AsyncBiFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -35,8 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -55,10 +54,10 @@ final class TransportKeepAlive implements Closeable {
     private final ConcurrentMap<TimeValue, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
     private final Lifecycle lifecycle = new Lifecycle();
     private final ThreadPool threadPool;
-    private final AsyncBiConsumer<TcpChannel, BytesReference, Void> pingSender;
+    private final AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender;
     private final BytesReference pingMessage;
 
-    TransportKeepAlive(ThreadPool threadPool, AsyncBiConsumer<TcpChannel, BytesReference, Void> pingSender) {
+    TransportKeepAlive(ThreadPool threadPool, AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender) {
         this.threadPool = threadPool;
         this.pingSender = pingSender;
 
@@ -74,7 +73,7 @@ final class TransportKeepAlive implements Closeable {
         this.lifecycle.moveToStarted();
     }
 
-    void registerNodeConnection(List<TcpChannel> nodeChannels, ConnectionProfile connectionProfile) {
+    void registerNodeConnection(Map<TcpChannel, TcpChannel.ChannelStats> nodeChannels, ConnectionProfile connectionProfile) {
         TimeValue pingInterval = connectionProfile.getPingInterval();
         if (pingInterval.millis() < 0) {
             return;
@@ -83,8 +82,9 @@ final class TransportKeepAlive implements Closeable {
         final ScheduledPing scheduledPing = pingIntervals.computeIfAbsent(pingInterval, ScheduledPing::new);
         scheduledPing.ensureStarted();
 
-        for (TcpChannel channel : nodeChannels) {
-            scheduledPing.addChannel(channel);
+        for (Map.Entry<TcpChannel, TcpChannel.ChannelStats> entry : nodeChannels.entrySet()) {
+            TcpChannel channel = entry.getKey();
+            scheduledPing.addChannel(channel, entry.getValue());
 
             channel.addCloseListener(ActionListener.wrap(() -> {
                 scheduledPing.removeChannel(channel);
@@ -116,7 +116,7 @@ final class TransportKeepAlive implements Closeable {
     }
 
     private void sendPing(TcpChannel channel) {
-        pingSender.accept(channel, pingMessage, new ActionListener<Void>() {
+        pingSender.apply(channel, pingMessage, new ActionListener<Void>() {
 
             @Override
             public void onResponse(Void v) {
@@ -145,7 +145,7 @@ final class TransportKeepAlive implements Closeable {
 
         private final TimeValue pingInterval;
 
-        private final Set<TcpChannel> channels = ConcurrentCollections.newConcurrentSet();
+        private final Map<TcpChannel, TcpChannel.ChannelStats> channels = ConcurrentCollections.newConcurrentMap();
 
         private final AtomicBoolean isStarted = new AtomicBoolean(false);
         private volatile long lastPingRelativeMillis;
@@ -162,8 +162,8 @@ final class TransportKeepAlive implements Closeable {
             }
         }
 
-        void addChannel(TcpChannel channel) {
-            channels.add(channel);
+        void addChannel(TcpChannel channel,  TcpChannel.ChannelStats channelStats) {
+            channels.put(channel, channelStats);
         }
 
         void removeChannel(TcpChannel channel) {
@@ -172,12 +172,12 @@ final class TransportKeepAlive implements Closeable {
 
         @Override
         protected void doRunInLifecycle() {
-            for (TcpChannel channel : channels) {
+            for (Map.Entry<TcpChannel, TcpChannel.ChannelStats> channelEntry : channels.entrySet()) {
                 // In the future it is possible that we may want to kill a channel if we have not read from
                 // the channel since the last ping. However, this will need to be backwards compatible with
                 // pre-6.6 nodes that DO NOT respond to pings
-                if (needsKeepAlivePing(channel)) {
-                    sendPing(channel);
+                if (needsKeepAlivePing(channelEntry.getValue())) {
+                    sendPing(channelEntry.getKey());
                 }
             }
             this.lastPingRelativeMillis = threadPool.relativeTimeInMillis();
@@ -201,8 +201,7 @@ final class TransportKeepAlive implements Closeable {
             logger.warn("failed to send ping transport message", e);
         }
 
-        private boolean needsKeepAlivePing(TcpChannel channel) {
-            TcpChannel.ChannelStats stats = channel.getChannelStats();
+        private boolean needsKeepAlivePing(TcpChannel.ChannelStats stats) {
             long writeDelta = stats.lastRelativeWriteTime() - lastPingRelativeMillis;
             long readDelta = stats.lastRelativeReadTime() - lastPingRelativeMillis;
             return writeDelta <= 0 || readDelta <= 0;

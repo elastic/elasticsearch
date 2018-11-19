@@ -255,7 +255,6 @@ public class MockNioTransport extends TcpTransport {
 
         private final boolean isServer;
         private final String profile;
-        private final ChannelStats stats = new ChannelStats();
 
         private MockSocketChannel(boolean isServer, String profile, SocketChannel socketChannel) {
             super(socketChannel);
@@ -286,11 +285,6 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public void addConnectListener(ActionListener<Void> listener) {
             addConnectListener(ActionListener.toBiConsumer(listener));
-        }
-
-        @Override
-        public ChannelStats getChannelStats() {
-            return stats;
         }
 
         @Override

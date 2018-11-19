@@ -21,7 +21,6 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DeleteUserResponse;

@@ -20,11 +20,13 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
@@ -38,6 +40,14 @@ import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 1)
 public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // no state persistence yet
+            .build();
+    }
+    
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(TestPersistentTasksPlugin.class);

@@ -49,6 +49,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 
 import java.io.IOException;
 import java.util.List;
@@ -64,6 +65,14 @@ import static org.hamcrest.Matchers.nullValue;
 public class GatewayIndexStateIT extends ESIntegTestCase {
 
     private final Logger logger = LogManager.getLogger(GatewayIndexStateIT.class);
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            // testRecoverBrokenIndexMetadata, testRecoverMissingAnalyzer, testDanglingIndices and testArchiveBrokenClusterSettings fail
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false)
+            .build();
+    }
 
     public void testMappingMetaDataParsed() throws Exception {
         logger.info("--> starting 1 nodes");

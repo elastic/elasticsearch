@@ -45,7 +45,7 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
     @Override
     protected SpanNearQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(
-            randomIntBetween(1, 6), false, true);
+            randomIntBetween(1, 6), false);
         SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(spanTermQueries[0], randomIntBetween(-10, 10));
         for (int i = 1; i < spanTermQueries.length; i++) {
             SpanTermQueryBuilder termQB = spanTermQueries[i];

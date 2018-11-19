@@ -33,7 +33,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithinQueryBuilder> {
     @Override
     protected SpanWithinQueryBuilder doCreateTestQueryBuilder() {
-        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(2, false, true);
+        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(2, false);
         return new SpanWithinQueryBuilder(spanTermQueries[0], spanTermQueries[1]);
     }
 

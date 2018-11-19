@@ -36,7 +36,7 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
     @Override
     protected SpanOrQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(
-            randomIntBetween(1, 6), false, true);
+            randomIntBetween(1, 6), false);
         SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder(spanTermQueries[0]);
         for (int i = 1; i < spanTermQueries.length; i++) {
             queryBuilder.addClause(spanTermQueries[i]);

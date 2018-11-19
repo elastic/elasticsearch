@@ -36,7 +36,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -69,12 +68,14 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
     private final CcrLicenseChecker ccrLicenseChecker = null;
     private final RepositoryMetaData metadata;
     private final Map<SnapshotId, Map<IndexId, IndexMetaData>> snapshotMetaData = ConcurrentCollections.newConcurrentMap();
-    private final Client client;
+    private final Client remoteClient;
+    private final String clusterAlias;
 
     public RemoteClusterRepository(RepositoryMetaData metadata, Client client, Settings settings) {
         super(settings);
         this.metadata = metadata;
-        this.client = client;
+        this.clusterAlias = metadata.name();
+        this.remoteClient = client.getRemoteClusterClient(clusterAlias);
     }
 
     public synchronized void registerSnapshotMetaData(SnapshotId snapshotId, Map<IndexId, IndexMetaData> indexMetaData) {
@@ -114,7 +115,7 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
     @Override
     public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
         assert SNAPSHOT_UUID.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports the _latest_ as the UUID";
-        ClusterStateResponse response = client.admin().cluster().prepareState().clear().setMetaData(true).get();
+        ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true).get();
         // TODO: Perhaps add version
         return new SnapshotInfo(snapshotId, Arrays.asList(response.getState().metaData().getConcreteAllIndices()), SnapshotState.SUCCESS);
     }
@@ -122,7 +123,7 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
     @Override
     public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
         assert SNAPSHOT_UUID.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports the _latest_ as the UUID";
-        ClusterStateResponse response = client.admin().cluster().prepareState().clear().setMetaData(true).get();
+        ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true).get();
         return response.getState().metaData();
     }
 
@@ -132,7 +133,7 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
         String remoteCluster = snapshotId.getName();
 
         // Validates whether the leader cluster has been configured properly:
-        Client remoteClusterClient = client.getRemoteClusterClient(remoteCluster);
+        Client remoteClusterClient = remoteClient.getRemoteClusterClient(remoteCluster);
         String leaderIndex = index.getName();
         PlainActionFuture<Tuple<String[], IndexMetaData>> future = PlainActionFuture.newFuture();
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(remoteClusterClient, remoteCluster,
@@ -165,15 +166,14 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
 
     @Override
     public RepositoryData getRepositoryData() {
-        ClusterStateResponse response = client.getRemoteClusterClient("leader_cluster").admin().cluster().prepareState().clear().setMetaData(true).get();
+        ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true).get();
 
-        Map<String, SnapshotId> copiedSnapshotIds = this.snapshotMetaData.keySet().stream()
-            .collect(Collectors.toMap(SnapshotId::getName, (sd) -> sd));
+        Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
         Map<String, SnapshotState> snapshotStates = new HashMap<>(copiedSnapshotIds.size());
         Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
         for (Map.Entry<String, SnapshotId> snapshotId : copiedSnapshotIds.entrySet()) {
             snapshotStates.put(snapshotId.getKey(), SnapshotState.SUCCESS);
-            MetaData metaData = client.admin().cluster().prepareState().clear().setMetaData(true).get().getState().getMetaData();
+            MetaData metaData = remoteClient.admin().cluster().prepareState().clear().setMetaData(true).get().getState().getMetaData();
             ImmutableOpenMap<String, IndexMetaData> indices = metaData.indices();
             for (String indexName : metaData.getConcreteAllIndices()) {
                 Index index = indices.get(indexName).getIndex();

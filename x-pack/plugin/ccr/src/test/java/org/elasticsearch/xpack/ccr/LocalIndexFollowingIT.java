@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
     public void testFollowIndex() throws Exception {
-        client().admin().cluster().preparePutRepository("_ccr_repository_").setType(RemoteClusterRepository.TYPE).get();
+        client().admin().cluster().preparePutRepository("_ccr_repository_").setType(RemoteClusterRepository.TYPE).setName("local").get();
 
         final String leaderIndexSettings = getIndexSettings(2, 0,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));

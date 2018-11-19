@@ -31,6 +31,7 @@ import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
@@ -950,6 +951,32 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         assertThat(filter.getDescription(), equalTo(updateFilterRequest.getDescription()));
         assertThat(filter.getItems(), contains("newItem1", "newItem2", "olditem2"));
+    }
+
+    public void testDeleteFilter() throws Exception {
+        String filterId = "delete-filter-job-test";
+        MlFilter mlFilter = MlFilter.builder(filterId)
+            .setDescription(randomAlphaOfLength(10))
+            .setItems(generateRandomStringArray(10, 10, false, false))
+            .build();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        PutFilterResponse putFilterResponse = execute(new PutFilterRequest(mlFilter),
+            machineLearningClient::putFilter,
+            machineLearningClient::putFilterAsync);
+        MlFilter createdFilter = putFilterResponse.getResponse();
+
+        assertThat(createdFilter, equalTo(mlFilter));
+
+        DeleteFilterRequest deleteFilterRequest = new DeleteFilterRequest(filterId);
+        AcknowledgedResponse response = execute(deleteFilterRequest, machineLearningClient::deleteFilter,
+            machineLearningClient::deleteFilterAsync);
+        assertTrue(response.isAcknowledged());
+
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(deleteFilterRequest, machineLearningClient::deleteFilter,
+                machineLearningClient::deleteFilterAsync));
+        assertThat(exception.status().getStatus(), equalTo(404));
     }
 
     public static String randomValidJobId() {

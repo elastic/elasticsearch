@@ -163,9 +163,8 @@ public class ElasticsearchNode {
             spec.from(new File(distroArtifact, "config"));
             spec.into(getConfigFile().getParent());
         });
-        writeConfigFile();
+        configure();
         startElasticsearchProcess(distroArtifact);
-        registerCleanupHooks();
     }
 
     private void startElasticsearchProcess(File distroArtifact) {
@@ -207,29 +206,6 @@ public class ElasticsearchNode {
         }
     }
 
-    private void registerCleanupHooks() {
-        requireNonNull(esProcess, "Attempted to register cleanup hooks without a process");
-        // The Gradle daemon interrupts all threads from the build when a build concludes,
-        // We use this tread to pick that up and stop the ES process when it happens
-        new Thread(
-            () -> {
-                while (true) {
-                    try {
-                        Thread.sleep(Long.MAX_VALUE);
-                    } catch (InterruptedException interrupted) {
-                        logger.info("Interrupted, stopping elasticsearch: {}", this);
-                        stop(false);
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            }
-        ).start();
-        // When the Daemon is not used, or runs into issues, rely on a shutdown hook
-        // When the daemon is used, but does not work correctly and eventually dies off (e.x. due to non interruptable
-        // thread in the build) process will be stopped eventually when the daemon dies.
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> stop(false)));
-    }
-
     public String getHttpSocketURI() {
         waitForAllConditions();
         return getHttpPortInternal().get(0);
@@ -241,12 +217,12 @@ public class ElasticsearchNode {
     }
 
     synchronized void stop(boolean tailLogs) {
-        logger.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
             // Another exception here would eat the orriginal.
             return;
         }
+        logger.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         stopHandle(esProcess.toHandle());
         if (tailLogs) {
@@ -341,7 +317,7 @@ public class ElasticsearchNode {
         return new File(getConfPathLogs(), "es.stderr.log");
     }
 
-    private void writeConfigFile() {
+    private void configure() {
         getConfigFile().getParentFile().mkdirs();
         getConfPathRepo().mkdirs();
         getConfPathData().mkdirs();

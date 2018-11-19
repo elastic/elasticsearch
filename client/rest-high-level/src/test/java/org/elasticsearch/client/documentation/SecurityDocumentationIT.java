@@ -46,6 +46,7 @@ import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
+import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
@@ -154,7 +155,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::delete-user-request
 
             // tag::delete-user-execute
-            AcknowledgedResponse deleteUserResponse = client.security().deleteUser(deleteUserRequest, RequestOptions.DEFAULT);
+            DeleteUserResponse deleteUserResponse = client.security().deleteUser(deleteUserRequest, RequestOptions.DEFAULT);
             // end::delete-user-execute
 
             // tag::delete-user-response
@@ -170,11 +171,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             DeleteUserRequest deleteUserRequest = new DeleteUserRequest("testUser", RefreshPolicy.IMMEDIATE);
 
-            ActionListener<AcknowledgedResponse> listener;
+            ActionListener<DeleteUserResponse> listener;
             //tag::delete-user-execute-listener
-            listener = new ActionListener<AcknowledgedResponse>() {
+            listener = new ActionListener<DeleteUserResponse>() {
                 @Override
-                public void onResponse(AcknowledgedResponse deleteUserResponse) {
+                public void onResponse(DeleteUserResponse deleteUserResponse) {
                     // <1>
                 }
 

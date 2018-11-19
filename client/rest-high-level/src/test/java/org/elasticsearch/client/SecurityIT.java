@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
+import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
@@ -79,7 +80,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         final DeleteUserRequest deleteUserRequest =
             new DeleteUserRequest(putUserRequest.getUser().getUsername(), putUserRequest.getRefreshPolicy());
 
-        final AcknowledgedResponse deleteUserResponse =
+        final DeleteUserResponse deleteUserResponse =
             execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
         assertThat(deleteUserResponse.isAcknowledged(), is(true));
 
@@ -89,7 +90,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(e.getMessage(), containsString("unable to authenticate user [" + putUserRequest.getUser().getUsername() + "]"));
 
         // delete non-existing user
-        final AcknowledgedResponse deleteUserResponse2 =
+        final DeleteUserResponse deleteUserResponse2 =
             execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
         assertThat(deleteUserResponse2.isAcknowledged(), is(false));
     }

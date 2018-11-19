@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -308,6 +310,20 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             return state;
         }
 
+        final ClusterBlock globalTestBlock = new ClusterBlock(1, "test global block", false, false, false,
+            RestStatus.INTERNAL_SERVER_ERROR, ClusterBlockLevel.READ_WRITE);
+
+        // randomly remove the global test block
+        if (randomBoolean() && state.blocks().hasGlobalBlock(globalTestBlock)) {
+            state = ClusterState.builder(state).blocks(
+                ClusterBlocks.builder().blocks(state.blocks()).removeGlobalBlock(globalTestBlock)).build();
+        }
+        // randomly add global test block
+        if (rarely() && state.blocks().hasGlobalBlock(globalTestBlock) == false) {
+            state = ClusterState.builder(state).blocks(
+                ClusterBlocks.builder().blocks(state.blocks()).addGlobalBlock(globalTestBlock)).build();
+        }
+
         // randomly create new indices (until we have 200 max)
         for (int i = 0; i < randomInt(5); i++) {
             if (state.metaData().indices().size() > 200) {
@@ -323,6 +339,18 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             } else {
                 settingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));
             }
+
+            // randomly add index blocks
+            if (rarely()) {
+                final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
+                Set<ClusterBlock> indexBlocks =
+                    new HashSet<>(randomSubsetOf(Arrays.asList(IndexMetaData.INDEX_READ_BLOCK, IndexMetaData.INDEX_WRITE_BLOCK)));
+                for (ClusterBlock indexBlock : indexBlocks) {
+                    blocks.addIndexBlock(name, indexBlock);
+                }
+                state = ClusterState.builder(state).blocks(blocks).build();
+            }
+
             CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex(name));

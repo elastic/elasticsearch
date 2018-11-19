@@ -232,7 +232,7 @@ public class MetaDataIndexTemplateService {
                 .build();
 
             final IndexMetaData tmpIndexMetadata = IndexMetaData.builder(temporaryIndexName).settings(dummySettings).build();
-            IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList());
+            IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, null, null, Collections.emptyList());
             createdIndex = dummyIndexService.index();
 
             templateBuilder.order(request.order);

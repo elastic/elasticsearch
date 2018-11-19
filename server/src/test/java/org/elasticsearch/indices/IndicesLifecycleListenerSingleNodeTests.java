@@ -19,6 +19,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -38,6 +39,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Arrays;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
@@ -55,8 +57,11 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         ensureGreen();
         Index idx = resolveIndex("test");
-        IndexMetaData metaData = indicesService.indexService(idx).getMetaData();
-        ShardRouting shardRouting = indicesService.indexService(idx).getShard(0).routingEntry();
+        IndexService indexService = indicesService.indexService(idx);
+        IndexMetaData metaData = indexService.getMetaData();
+        ShardRouting shardRouting = indexService.getShard(0).routingEntry();
+        Set<ClusterBlock> globalBlocks = indexService.getIndexSettings().getIndexBlocks().global();
+        Set<ClusterBlock> indexBlocks = indexService.getIndexSettings().getIndexBlocks().indices().get(idx.getName());
         final AtomicInteger counter = new AtomicInteger(1);
         IndexEventListener countingListener = new IndexEventListener() {
 
@@ -121,7 +126,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         };
         indicesService.removeIndex(idx, DELETED, "simon says");
         try {
-            IndexService index = indicesService.createIndex(metaData, Arrays.asList(countingListener));
+            IndexService index = indicesService.createIndex(metaData, globalBlocks, indexBlocks, Arrays.asList(countingListener));
             assertEquals(3, counter.get());
             idx = index.index();
             ShardRouting newRouting = shardRouting;

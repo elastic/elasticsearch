@@ -457,6 +457,6 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(service.getIndexSortSupplier()).thenReturn(supplier);
         when(service.getIndexEventListener()).thenReturn(mock(IndexEventListener.class));
 
-        when(indicesService.createIndex(anyObject(), anyObject())).thenReturn(service);
+        when(indicesService.createIndex(anyObject(), anyObject(), anyObject(), anyObject())).thenReturn(service);
     }
 }

@@ -25,6 +25,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUp
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -124,6 +126,11 @@ public class MetaDataIndexAliasesService {
                 if (index == null) {
                     throw new IndexNotFoundException(action.getIndex());
                 }
+
+                final ClusterBlocks clusterBlocks = currentState.blocks();
+                final Set<ClusterBlock> globalBlocks = clusterBlocks.global();
+                final Set<ClusterBlock> indexBlocks = clusterBlocks.indices().get(index.getIndex().getName());
+
                 NewAliasValidator newAliasValidator = (alias, indexRouting, filter, writeIndex) -> {
                     /* It is important that we look up the index using the metadata builder we are modifying so we can remove an
                      * index and replace it with an alias. */
@@ -136,7 +143,7 @@ public class MetaDataIndexAliasesService {
                             if (indexService == null) {
                                 // temporarily create the index and add mappings so we can parse the filter
                                 try {
-                                    indexService = indicesService.createIndex(index, emptyList());
+                                    indexService = indicesService.createIndex(index, globalBlocks, indexBlocks, emptyList());
                                     indicesToClose.add(index.getIndex());
                                 } catch (IOException e) {
                                     throw new ElasticsearchException("Failed to create temporary index for parsing the alias", e);

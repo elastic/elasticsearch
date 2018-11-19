@@ -21,11 +21,13 @@ package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
@@ -104,6 +106,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             // check that all shards in local routing nodes have been allocated
             for (ShardRouting shardRouting : localRoutingNode) {
                 Index index = shardRouting.index();
+                String indexName = index.getName();
                 IndexMetaData indexMetaData = state.metaData().getIndexSafe(index);
 
                 MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
@@ -130,13 +133,14 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
                     if (shard != null) {
                         AllocatedIndex<? extends Shard> indexService = indicesService.indexService(index);
-                        assertTrue("Index " + index + " expected but missing in indicesService", indexService != null);
+                        assertNotNull("Index " + index + " expected but missing in indicesService", indexService);
 
                         // index metadata has been updated
-                        assertThat(indexService.getIndexSettings().getIndexMetaData(), equalTo(indexMetaData));
+                        final IndexSettings indexSettings = indexService.getIndexSettings();
+                        assertThat(indexSettings.getIndexMetaData(), equalTo(indexMetaData));
                         // shard has been created
                         if (enableRandomFailures == false || failedShard == null) {
-                            assertTrue("Shard with id " + shardRouting + " expected but missing in indexService", shard != null);
+                            assertNotNull("Shard with id " + shardRouting + " expected but missing in indexService", shard);
                             // shard has latest shard routing
                             assertThat(shard.routingEntry(), equalTo(shardRouting));
                         }
@@ -150,6 +154,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                             assertThat(shard.routingEntry() + " isn't updated with routing table", shard.routingTable,
                                 equalTo(shardRoutingTable));
                         }
+                        assertThat("global level blocks should have been updated in IndexSettings for " + indexName,
+                            indexSettings.getIndexBlocks().global(), equalTo(state.blocks().global()));
+                        assertThat("index level blocks should have been updated in IndexSettings for " + indexName,
+                            indexSettings.getIndexBlocks().indices().get(indexName), equalTo(state.blocks().indices().get(indexName)));
                     }
                 }
             }
@@ -194,8 +202,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         @Override
         public synchronized MockIndexService createIndex(
                 IndexMetaData indexMetaData,
+                Set<ClusterBlock> globalBlocks,
+                Set<ClusterBlock> indexBlocks,
                 List<IndexEventListener> buildInIndexListener) throws IOException {
-            MockIndexService indexService = new MockIndexService(new IndexSettings(indexMetaData, Settings.EMPTY));
+            MockIndexService indexService = new MockIndexService(new IndexSettings(indexMetaData, Settings.EMPTY,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, globalBlocks, indexBlocks));
             indices = newMapBuilder(indices).put(indexMetaData.getIndexUUID(), indexService).immutableMap();
             return indexService;
         }
@@ -284,6 +295,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             for (MockIndexShard shard: shards.values()) {
                 shard.updateTerm(newIndexMetaData.primaryTerm(shard.shardId().id()));
             }
+        }
+
+        @Override
+        public void updateBlocks(@Nullable final Set<ClusterBlock> globalBlocks, @Nullable final Set<ClusterBlock> indexBlocks) {
+            indexSettings.updateIndexBlocks(globalBlocks, indexBlocks);
         }
 
         @Override

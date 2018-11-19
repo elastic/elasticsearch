@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
@@ -52,6 +54,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
@@ -144,8 +147,12 @@ public class MetaDataMappingService {
             boolean removeIndex = false;
             IndexService indexService = indicesService.indexService(indexMetaData.getIndex());
             if (indexService == null) {
+                final ClusterBlocks clusterBlocks = currentState.blocks();
+                final Set<ClusterBlock> globalBlocks = clusterBlocks.global();
+                final Set<ClusterBlock> indexBlocks = clusterBlocks.indices().get(indexMetaData.getIndex().getName());
+
                 // we need to create the index here, and add the current mapping to it, so we can merge
-                indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+                indexService = indicesService.createIndex(indexMetaData, globalBlocks, indexBlocks, Collections.emptyList());
                 removeIndex = true;
                 indexService.mapperService().merge(indexMetaData, MergeReason.MAPPING_RECOVERY);
             }

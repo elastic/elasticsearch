@@ -20,6 +20,8 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -29,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -41,6 +44,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
 
@@ -560,5 +564,57 @@ public class IndexSettingsTests extends ESTestCase {
             settings.updateSettings(Settings.builder().put("index.soft_deletes.enabled", randomBoolean()).build(),
                 Settings.builder(), Settings.builder(), "index"));
         assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updateable"));
+    }
+
+    public void testIndexSettingsWithoutBlocks() {
+        IndexScopedSettings indexScopedSettings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, "0xdeadbeef")
+            .build());
+
+        Set<ClusterBlock> globalBlocks = randomBoolean() ? Collections.emptySet() : null;
+        Set<ClusterBlock> indexBlocks = randomBoolean() ? Collections.emptySet() : null;
+
+        IndexSettings indexSettings = new IndexSettings(metaData, Settings.EMPTY, indexScopedSettings, globalBlocks, indexBlocks);
+        assertThat(indexSettings.getIndexBlocks().global(), notNullValue());
+        assertThat(indexSettings.getIndexBlocks().global().size(), equalTo(0));
+        assertThat(indexSettings.getIndexBlocks().indices(), notNullValue());
+        assertThat(indexSettings.getIndexBlocks().indices().size(), equalTo(0));
+    }
+
+    public void testIndexSettingsWithBlocks() {
+        IndexScopedSettings indexScopedSettings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, "0xdeadbeef")
+            .build());
+
+        Set<ClusterBlock> globalBlocks = randomClusterBlocks();
+        Set<ClusterBlock> indexBlocks = randomClusterBlocks();
+
+        IndexSettings indexSettings = new IndexSettings(metaData, Settings.EMPTY, indexScopedSettings, globalBlocks, indexBlocks);
+        assertThat(indexSettings.getIndexBlocks().global(), equalTo(globalBlocks));
+        assertThat(indexSettings.getIndexBlocks().indices(), notNullValue());
+        assertThat(indexSettings.getIndexBlocks().indices().size(), equalTo(1));
+        assertThat(indexSettings.getIndexBlocks().indices().get("index"), equalTo(indexBlocks));
+
+        globalBlocks = randomClusterBlocks();
+        indexBlocks = randomClusterBlocks();
+        indexSettings.updateIndexBlocks(globalBlocks, indexBlocks);
+
+        assertThat(indexSettings.getIndexBlocks().global(), equalTo(globalBlocks));
+        assertThat(indexSettings.getIndexBlocks().indices(), notNullValue());
+        assertThat(indexSettings.getIndexBlocks().indices().size(), equalTo(1));
+        assertThat(indexSettings.getIndexBlocks().indices().get("index"), equalTo(indexBlocks));
+    }
+
+    private Set<ClusterBlock> randomClusterBlocks() {
+        final Set<ClusterBlock> globalBlocks = new HashSet<>();
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            globalBlocks.add(new ClusterBlock(i, "random block", randomBoolean(), randomBoolean(), randomBoolean(),
+                randomFrom(RestStatus.values()), ClusterBlockLevel.ALL));
+        }
+        return globalBlocks;
     }
 }

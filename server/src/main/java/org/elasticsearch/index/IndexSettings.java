@@ -21,7 +21,10 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -37,6 +40,7 @@ import org.elasticsearch.node.Node;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -328,6 +332,11 @@ public final class IndexSettings {
     private volatile boolean searchThrottled;
 
     /**
+     * A {@link ClusterBlocks} containing global level and index level blocks
+     */
+    private volatile ClusterBlocks indexBlocks;
+
+    /**
      * The maximum number of refresh listeners allows on this shard.
      */
     private volatile int maxRefreshListeners;
@@ -397,8 +406,27 @@ public final class IndexSettings {
      *
      * @param indexMetaData the index metadata this settings object is associated with
      * @param nodeSettings the nodes settings this index is allocated on.
+     * @param indexScopedSettings the index level settings
      */
     public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
+        this(indexMetaData, nodeSettings, indexScopedSettings, null, null);
+    }
+
+    /**
+     * Creates a new {@link IndexSettings} instance. The given node settings will be merged with the settings in the metadata
+     * while index level settings will overwrite node settings.
+     *
+     * @param indexMetaData       the index metadata this settings object is associated with
+     * @param nodeSettings        the nodes settings this index is allocated on.
+     * @param indexScopedSettings the index level settings
+     * @param globalBlocks        the global level blocks
+     * @param indexBlocks         the index level blocks
+     */
+    public IndexSettings(final IndexMetaData indexMetaData,
+                         final Settings nodeSettings,
+                         final IndexScopedSettings indexScopedSettings,
+                         @Nullable final Set<ClusterBlock> globalBlocks,
+                         @Nullable final Set<ClusterBlock> indexBlocks) {
         scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetaData);
         this.nodeSettings = nodeSettings;
         this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
@@ -408,7 +436,7 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
-
+        this.indexBlocks = buildBlocks(globalBlocks, indexBlocks);
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -624,6 +652,36 @@ public final class IndexSettings {
     public static boolean same(final Settings left, final Settings right) {
         return left.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE)
                 .equals(right.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
+    }
+
+    /**
+     * Updates the global level and index level blocks.
+     *
+     * @param globalBlocks the global level blocks
+     * @param indexBlocks  the index level blocks
+     */
+    public synchronized void updateIndexBlocks(@Nullable final Set<ClusterBlock> globalBlocks,
+                                               @Nullable final Set<ClusterBlock> indexBlocks) {
+        this.indexBlocks = buildBlocks(globalBlocks, indexBlocks);
+    }
+
+    private ClusterBlocks buildBlocks(@Nullable final Set<ClusterBlock> globalBlocks,
+                                      @Nullable final Set<ClusterBlock> indexBlocks) {
+        final ClusterBlocks.Builder builder = ClusterBlocks.builder();
+        if (globalBlocks != null) {
+            globalBlocks.forEach(builder::addGlobalBlock);
+        }
+        if (indexBlocks != null) {
+            indexBlocks.forEach(block -> builder.addIndexBlock(index.getName(), block));
+        }
+        return builder.build();
+    }
+
+    /**
+     * @return the current global level and index level blocks
+     */
+    public ClusterBlocks getIndexBlocks() {
+        return indexBlocks;
     }
 
     /**

@@ -84,6 +84,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.shards.ClusterShardLimitIT.ShardCounts.forDataNodeCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -541,7 +542,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .build();
-            final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+            final IndexService indexService = indicesService.createIndex(indexMetaData, null, null, emptyList());
             if (value != null && value) {
                 assertThat(indexService.getEngineFactory(), instanceOf(FooEnginePlugin.FooEngineFactory.class));
             } else {
@@ -550,7 +551,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testConflictingEngineFactories() throws IOException {
+    public void testConflictingEngineFactories() {
         final String indexName = "foobar";
         final Index index = new Index(indexName, UUIDs.randomBase64UUID());
         final Settings settings = Settings.builder()
@@ -567,7 +568,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         final IndicesService indicesService = getIndicesService();
         final IllegalStateException e =
-                expectThrows(IllegalStateException.class, () -> indicesService.createIndex(indexMetaData, Collections.emptyList()));
+                expectThrows(IllegalStateException.class, () -> indicesService.createIndex(indexMetaData, null, null, emptyList()));
         final String pattern =
                 ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
         assertThat(e, hasToString(new RegexMatcher(pattern)));

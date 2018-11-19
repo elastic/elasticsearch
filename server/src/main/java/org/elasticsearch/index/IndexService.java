@@ -28,6 +28,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
@@ -677,6 +678,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 rescheduleFsyncTask(durability);
             }
         }
+    }
+
+    @Override
+    public void updateBlocks(@Nullable final Set<ClusterBlock> globalBlocks, @Nullable final Set<ClusterBlock> indexBlocks) {
+        indexSettings.updateIndexBlocks(globalBlocks, indexBlocks);
     }
 
     private void rescheduleFsyncTask(Translog.Durability durability) {

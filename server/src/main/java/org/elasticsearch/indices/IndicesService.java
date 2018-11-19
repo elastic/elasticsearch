@@ -36,6 +36,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -448,8 +449,10 @@ public class IndicesService extends AbstractLifecycleComponent
      * @throws ResourceAlreadyExistsException if the index already exists.
      */
     @Override
-    public synchronized IndexService createIndex(
-            final IndexMetaData indexMetaData, final List<IndexEventListener> builtInListeners) throws IOException {
+    public synchronized IndexService createIndex(final IndexMetaData indexMetaData,
+                                                 @Nullable final Set<ClusterBlock> globalBlocks,
+                                                 @Nullable final Set<ClusterBlock> indexBlocks,
+                                                 final List<IndexEventListener> builtInListeners) throws IOException {
         ensureChangesAllowed();
         if (indexMetaData.getIndexUUID().equals(IndexMetaData.INDEX_UUID_NA_VALUE)) {
             throw new IllegalArgumentException("index must have a real UUID found value: [" + indexMetaData.getIndexUUID() + "]");
@@ -471,6 +474,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 createIndexService(
                         "create index",
                         indexMetaData,
+                        globalBlocks,
+                        indexBlocks,
                         indicesQueryCache,
                         indicesFieldDataCache,
                         finalListeners,
@@ -493,11 +498,13 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     private synchronized IndexService createIndexService(final String reason,
                                                          IndexMetaData indexMetaData,
+                                                         @Nullable final Set<ClusterBlock> globalBlocks,
+                                                         @Nullable final Set<ClusterBlock> indexBlocks,
                                                          IndicesQueryCache indicesQueryCache,
                                                          IndicesFieldDataCache indicesFieldDataCache,
                                                          List<IndexEventListener> builtInListeners,
                                                          IndexingOperationListener... indexingOperationListeners) throws IOException {
-        final IndexSettings idxSettings = new IndexSettings(indexMetaData, settings, indexScopedSettings);
+        final IndexSettings idxSettings = new IndexSettings(indexMetaData, settings, indexScopedSettings, globalBlocks, indexBlocks);
         // we ignore private settings since they are not registered settings
         indexScopedSettings.validate(indexMetaData.getSettings(), true, true, true);
         logger.debug("creating Index [{}], shards [{}]/[{}] - reason [{}]",
@@ -587,7 +594,7 @@ public class IndicesService extends AbstractLifecycleComponent
             closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
             final IndexService service =
-                createIndexService("metadata verification", metaData, indicesQueryCache, indicesFieldDataCache, emptyList());
+                createIndexService("metadata verification", metaData, null, null, indicesQueryCache, indicesFieldDataCache, emptyList());
             closeables.add(() -> service.close("metadata verification", false));
             service.mapperService().merge(metaData, MapperService.MergeReason.MAPPING_RECOVERY);
             if (metaData.equals(metaDataUpdate) == false) {

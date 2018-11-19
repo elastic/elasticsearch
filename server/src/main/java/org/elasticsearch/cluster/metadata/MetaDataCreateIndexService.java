@@ -447,8 +447,13 @@ public class MetaDataCreateIndexService {
                         "]: cannot be greater than number of shard copies [" +
                         (tmpImd.getNumberOfReplicas() + 1) + "]");
                 }
+
+                final ClusterBlocks clusterBlocks = currentState.blocks();
+                final Set<ClusterBlock> globalBlocks = clusterBlocks.global();
+                final Set<ClusterBlock> indexBlocks = clusterBlocks.indices().get(tmpImd.getIndex().getName());
+
                 // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList());
+                final IndexService indexService = indicesService.createIndex(tmpImd, globalBlocks, indexBlocks, Collections.emptyList());
                 createdIndex = indexService.index();
                 // now add the mappings
                 MapperService mapperService = indexService.mapperService();

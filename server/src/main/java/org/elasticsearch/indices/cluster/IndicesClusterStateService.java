@@ -30,6 +30,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -457,7 +459,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             AllocatedIndex<? extends Shard> indexService = null;
             try {
-                indexService = indicesService.createIndex(indexMetaData, buildInIndexListener);
+                final ClusterBlocks clusterBlocks = state.blocks();
+                final Set<ClusterBlock> globalBlocks = clusterBlocks.global();
+                final Set<ClusterBlock> indexBlocks = clusterBlocks.indices().get(index.getName());
+
+                indexService = indicesService.createIndex(indexMetaData, globalBlocks, indexBlocks, buildInIndexListener);
                 if (indexService.updateMapping(null, indexMetaData) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
                         new NodeMappingRefreshAction.NodeMappingRefreshRequest(indexMetaData.getIndex().getName(),
@@ -479,8 +485,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private void updateIndices(ClusterChangedEvent event) {
-        if (!event.metaDataChanged()) {
+    private void updateIndices(final ClusterChangedEvent event) {
+        if (event.metaDataChanged() == false && event.blocksChanged() == false) {
             return;
         }
         final ClusterState state = event.state();
@@ -511,6 +517,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         }
                     }
                 }
+            }
+
+            if (event.blocksChanged()) {
+                final ClusterBlocks clusterBlocks = state.blocks();
+                indexService.updateBlocks(clusterBlocks.global(), clusterBlocks.indices().get(index.getName()));
             }
         }
     }
@@ -781,6 +792,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         void updateMetaData(IndexMetaData currentIndexMetaData, IndexMetaData newIndexMetaData);
 
         /**
+         * Updates the global level and index level blocks of this index. Changes become visible through {@link #getIndexSettings()}.
+         *
+         * @param globalBlocks the global level blocks
+         * @param indexBlocks  the index level blocks
+         */
+        void updateBlocks(@Nullable Set<ClusterBlock> globalBlocks, @Nullable Set<ClusterBlock> indexBlocks);
+
+        /**
          * Checks if index requires refresh from master.
          */
         boolean updateMapping(IndexMetaData currentIndexMetaData, IndexMetaData newIndexMetaData) throws IOException;
@@ -801,12 +820,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /**
          * Creates a new {@link IndexService} for the given metadata.
          *
-         * @param indexMetaData          the index metadata to create the index for
-         * @param builtInIndexListener   a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with
-         *                               the per-index listeners
+         * @param indexMetaData        the index metadata to create the index for
+         * @param globalBlocks         the global level blocks
+         * @param indexBlocks          the index level blocks
+         * @param builtInIndexListener a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with
+         *                             the per-index listeners
          * @throws ResourceAlreadyExistsException if the index already exists.
          */
         U createIndex(IndexMetaData indexMetaData,
+                      @Nullable Set<ClusterBlock> globalBlocks,
+                      @Nullable Set<ClusterBlock> indexBlocks,
                       List<IndexEventListener> builtInIndexListener) throws IOException;
 
         /**

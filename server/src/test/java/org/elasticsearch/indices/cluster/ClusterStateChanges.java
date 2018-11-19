@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -101,6 +102,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
+import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -151,7 +153,8 @@ public class ClusterStateChanges {
         // MetaDataCreateIndexService creates indices using its IndicesService instance to check mappings -> fake it here
         try {
             @SuppressWarnings("unchecked") final List<IndexEventListener> listeners = anyList();
-            when(indicesService.createIndex(any(IndexMetaData.class), listeners))
+            when(indicesService
+                .createIndex(any(IndexMetaData.class), anySetOf(ClusterBlock.class), anySetOf(ClusterBlock.class), listeners))
                 .then(invocationOnMock -> {
                     IndexService indexService = mock(IndexService.class);
                     IndexMetaData indexMetaData = (IndexMetaData)invocationOnMock.getArguments()[0];

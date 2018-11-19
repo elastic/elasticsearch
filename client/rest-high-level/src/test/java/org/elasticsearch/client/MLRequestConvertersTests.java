@@ -56,6 +56,7 @@ import org.elasticsearch.client.ml.StartDatafeedRequestTests;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
@@ -418,6 +419,22 @@ public class MLRequestConvertersTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             GetModelSnapshotsRequest parsedRequest = GetModelSnapshotsRequest.PARSER.apply(parser, null);
             assertThat(parsedRequest, equalTo(getModelSnapshotsRequest));
+        }
+    }
+
+    public void testUpdateModelSnapshot() throws IOException {
+        String jobId = randomAlphaOfLength(10);
+        String snapshotId = randomAlphaOfLength(10);
+        UpdateModelSnapshotRequest updateModelSnapshotRequest = new UpdateModelSnapshotRequest(jobId, snapshotId);
+        updateModelSnapshotRequest.setDescription("My First Snapshot");
+        updateModelSnapshotRequest.setRetain(true);
+
+        Request request = MLRequestConverters.updateModelSnapshot(updateModelSnapshotRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId + "/_update", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            UpdateModelSnapshotRequest parsedRequest = UpdateModelSnapshotRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(updateModelSnapshotRequest));
         }
     }
 

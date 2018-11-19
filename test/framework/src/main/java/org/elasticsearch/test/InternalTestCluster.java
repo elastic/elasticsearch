@@ -73,6 +73,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -129,7 +130,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -580,7 +580,7 @@ public final class InternalTestCluster extends TestCluster {
         final Stream<NodeAndClient> collection = n == 0
                 ? nodes.values().stream()
                 : nodes.values().stream()
-                        .filter(new DataNodePredicate().and(new MasterNodePredicate(getMasterName()).negate()));
+                        .filter(new DataNodePredicate().and(new NodeNamePredicate(getMasterName()).negate()));
         final Iterator<NodeAndClient> values = collection.iterator();
 
         logger.info("changing cluster size from {} data nodes to {}", size, n);
@@ -726,7 +726,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized Client masterClient() {
         ensureOpen();
-        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()));
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getMasterName()));
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client master is requested
         }
@@ -739,7 +739,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized Client nonMasterClient() {
         ensureOpen();
-        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()).negate());
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getMasterName()).negate());
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client non-master is requested
         }
@@ -1543,7 +1543,7 @@ public final class InternalTestCluster extends TestCluster {
      * Stops any of the current nodes but not the master node.
      */
     public synchronized void stopRandomNonMasterNode() throws IOException {
-        NodeAndClient nodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()).negate());
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getMasterName()).negate());
         if (nodeAndClient != null) {
             logger.info("Closing random non master node [{}] current master [{}] ", nodeAndClient.name, getMasterName());
             stopNodesAndClient(nodeAndClient);
@@ -2116,22 +2116,22 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private static final class MasterNodePredicate implements Predicate<NodeAndClient> {
-        private final Optional<String> masterNodeName;
-
-        MasterNodePredicate(String masterNodeName) {
-            this.masterNodeName = Optional.of(masterNodeName);
+        @Override
+        public boolean test(NodeAndClient nodeAndClient) {
+            return DiscoveryNode.isMasterNode(nodeAndClient.node.settings());
         }
+    }
 
-        MasterNodePredicate() {
-            this.masterNodeName = Optional.empty();
+    private static final class NodeNamePredicate implements Predicate<NodeAndClient> {
+        private final HashSet<String> nodeNames;
+
+        NodeNamePredicate(String... nodeNames) {
+            this.nodeNames = Sets.newHashSet(nodeNames);
         }
 
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
-            if (DiscoveryNode.isMasterNode(nodeAndClient.node.settings()) == false) {
-                return false;
-            }
-            return masterNodeName.isPresent() == false || masterNodeName.get().equals(nodeAndClient.name);
+            return nodeNames.contains(nodeAndClient.getName());
         }
     }
 
@@ -2218,24 +2218,10 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Returns a predicate that only accepts settings of nodes with one of the given names.
      */
-    public static Predicate<Settings> nameFilter(String... nodeName) {
-        return new NodeNamePredicate(new HashSet<>(Arrays.asList(nodeName)));
+    public static Predicate<Settings> nameFilter(String... nodeNames) {
+        final Set<String> nodes = Sets.newHashSet(nodeNames);
+        return settings -> nodes.contains(settings.get("node.name"));
     }
-
-    private static final class NodeNamePredicate implements Predicate<Settings> {
-        private final HashSet<String> nodeNames;
-
-        NodeNamePredicate(HashSet<String> nodeNames) {
-            this.nodeNames = nodeNames;
-        }
-
-        @Override
-        public boolean test(Settings settings) {
-            return nodeNames.contains(settings.get("node.name"));
-
-        }
-    }
-
 
     /**
      * An abstract class that is called during {@link #rollingRestart(InternalTestCluster.RestartCallback)}

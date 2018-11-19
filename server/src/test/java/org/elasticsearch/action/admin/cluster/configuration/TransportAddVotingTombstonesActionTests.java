@@ -206,9 +206,10 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
     }
 
     public void testReturnsImmediatelyIfVoteAlreadyWithdrawn() throws InterruptedException {
-        setState(clusterService, builder(clusterService.state())
-            .metaData(MetaData.builder()
-                .coordinationMetaData(CoordinationMetaData.builder()
+        final ClusterState state = clusterService.state();
+        setState(clusterService, builder(state)
+            .metaData(MetaData.builder(state.metaData())
+                .coordinationMetaData(CoordinationMetaData.builder(state.coordinationMetaData())
                     .lastCommittedConfiguration(VotingConfiguration.of(localNode, otherNode2))
                     .lastAcceptedConfiguration(VotingConfiguration.of(localNode, otherNode2))
                 .build())));

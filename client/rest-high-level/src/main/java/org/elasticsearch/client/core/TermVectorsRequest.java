@@ -171,13 +171,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
     }
 
     /**
-     * Sets an artifical document on what to request _termvectors
-     */
-    public void setDoc(XContentBuilder docBuilder) {
-        this.docBuilder = docBuilder;
-    }
-
-    /**
      * Sets conditions for terms filtering
      */
     public void setFilterSettings(Map<String, Integer> filterSettings) {

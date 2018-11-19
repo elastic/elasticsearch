@@ -12,19 +12,22 @@ import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.joda.time.DateTime;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Objects;
 import java.util.TimeZone;
 
 abstract class BaseDateTimeFunction extends UnaryScalarFunction {
     
     private final TimeZone timeZone;
+    private final ZoneId zoneId;
     private final String name;
 
     BaseDateTimeFunction(Location location, Expression field, TimeZone timeZone) {
         super(location, field);
         this.timeZone = timeZone;
+        this.zoneId = timeZone != null ? timeZone.toZoneId() : null;
 
         StringBuilder sb = new StringBuilder(super.name());
         // add timezone as last argument
@@ -61,15 +64,15 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
 
     @Override
     public Object fold() {
-        DateTime folded = (DateTime) field().fold();
+        ZonedDateTime folded = (ZonedDateTime) field().fold();
         if (folded == null) {
             return null;
         }
 
-        return doFold(folded.getMillis(), timeZone().getID());
+        return doFold(folded.withZoneSameInstant(zoneId));
     }
 
-    protected abstract Object doFold(long millis, String tzId);
+    protected abstract Object doFold(ZonedDateTime dateTime);
     
 
     @Override

@@ -24,6 +24,8 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -178,8 +180,19 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         };
     }
 
+    static Query extractQuery(Query query) {
+        if (query instanceof BoostQuery) {
+            return extractQuery(((BoostQuery) query).getQuery());
+        } else if (query instanceof IndexOrDocValuesQuery) {
+            return extractQuery(((IndexOrDocValuesQuery) query).getIndexQuery());
+        } else {
+            return query;
+        }
+    }
+
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
+        query = extractQuery(query);
         if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
                 (query != null &&
                     query.getClass() != MatchAllDocsQuery.class &&

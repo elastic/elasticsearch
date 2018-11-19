@@ -200,7 +200,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
     private ClusterState.Builder randomCoordinationMetaData(ClusterState clusterState) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
-        CoordinationMetaData.Builder metaBuilder = CoordinationMetaData.builder();
+        CoordinationMetaData.Builder metaBuilder = CoordinationMetaData.builder(clusterState.coordinationMetaData());
         metaBuilder.term(randomNonNegativeLong());
         if (randomBoolean()) {
             metaBuilder.lastCommittedConfiguration(

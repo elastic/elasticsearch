@@ -175,7 +175,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
             throw new IllegalArgumentException("[" + WINDOW.getPreferredName() + "] must be a positive, non-zero integer.");
         }
         
-        doValidateParentAggregations(parent, name);
+        validateSequentiallyOrderedParentAggs(parent, NAME, name);
     }
 
     @Override

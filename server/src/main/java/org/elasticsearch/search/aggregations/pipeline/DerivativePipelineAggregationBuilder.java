@@ -31,11 +31,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.joda.time.DateTimeZone;
 
@@ -163,7 +160,7 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
                     + " must contain a single entry for aggregation [" + name + "]");
         }
         
-        doValidateParentAggregations(parent, name);
+        validateSequentiallyOrderedParentAggs(parent, NAME, name);
     }
 
     @Override

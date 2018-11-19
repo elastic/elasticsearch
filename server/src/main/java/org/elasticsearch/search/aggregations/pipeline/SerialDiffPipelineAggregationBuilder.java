@@ -142,7 +142,7 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
     @Override
     public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
             Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {        
-        doValidateParentAggregations(parent, name);
+        validateSequentiallyOrderedParentAggs(parent, NAME, name);
     }
 
     @Override

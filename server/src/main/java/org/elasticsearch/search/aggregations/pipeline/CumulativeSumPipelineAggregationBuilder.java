@@ -100,7 +100,7 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
                     + " must contain a single entry for aggregation [" + name + "]");
         }
         
-        doValidateParentAggregations(parent, name);
+        validateSequentiallyOrderedParentAggs(parent, NAME, name);
     }
 
     @Override

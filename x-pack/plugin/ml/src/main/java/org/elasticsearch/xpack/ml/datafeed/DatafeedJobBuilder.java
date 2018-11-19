@@ -8,22 +8,22 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
-import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
-import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -52,21 +52,21 @@ public class DatafeedJobBuilder {
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
     }
 
-    void build(String datafeedId, ActionListener<DatafeedJob> listener) {
+    void build(String datafeedId, ClusterState state, ActionListener<DatafeedJob> listener) {
 
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client);
-        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
+        DatafeedConfigReader datafeedConfigReader = new DatafeedConfigReader(client, xContentRegistry);
 
-        build(datafeedId, jobResultsProvider, jobConfigProvider, datafeedConfigProvider, listener);
+        build(datafeedId, jobResultsProvider, jobConfigProvider, datafeedConfigReader, state, listener);
     }
 
     /**
      * For testing only.
-     * Use {@link #build(String, ActionListener)} instead
+     * Use {@link #build(String, ClusterState, ActionListener)} instead
      */
     void build(String datafeedId, JobResultsProvider jobResultsProvider, JobConfigProvider jobConfigProvider,
-               DatafeedConfigProvider datafeedConfigProvider, ActionListener<DatafeedJob> listener) {
+               DatafeedConfigReader datafeedConfigReader, ClusterState state, ActionListener<DatafeedJob> listener) {
 
         AtomicReference<Job> jobHolder = new AtomicReference<>();
         AtomicReference<DatafeedConfig> datafeedConfigHolder = new AtomicReference<>();
@@ -134,10 +134,10 @@ public class DatafeedJobBuilder {
         // Get the job config and re-validate
         // Re-validation is required as the config has been re-read since
         // the previous validation
-        ActionListener<Job.Builder> jobConfigListener = ActionListener.wrap(
-                jobBuilder -> {
+        ActionListener<Job> jobConfigListener = ActionListener.wrap(
+                job -> {
                     try {
-                        jobHolder.set(jobBuilder.build());
+                        jobHolder.set(job);
                         DatafeedJobValidator.validate(datafeedConfigHolder.get(), jobHolder.get());
                         jobIdConsumer.accept(jobHolder.get().getId());
                     } catch (Exception e) {
@@ -148,11 +148,20 @@ public class DatafeedJobBuilder {
         );
 
         // Get the datafeed config
-        ActionListener<DatafeedConfig.Builder> datafeedConfigListener = ActionListener.wrap(
-                configBuilder -> {
+        ActionListener<DatafeedConfig> datafeedConfigListener = ActionListener.wrap(
+                datafeedConfig -> {
                     try {
-                        datafeedConfigHolder.set(configBuilder.build());
-                        jobConfigProvider.getJob(datafeedConfigHolder.get().getJobId(), jobConfigListener);
+                        datafeedConfigHolder.set(datafeedConfig);
+                        // Is the job in the cluster state?
+                        Job job = MlMetadata.getMlMetadata(state).getJobs().get(datafeedConfig.getJobId());
+                        if (job != null) {
+                            jobConfigListener.onResponse(job);
+                        } else {
+                            jobConfigProvider.getJob(datafeedConfigHolder.get().getJobId(), ActionListener.wrap(
+                                    jobBuilder -> jobConfigListener.onResponse(jobBuilder.build()),
+                                    jobConfigListener::onFailure
+                            ));
+                        }
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
@@ -160,7 +169,7 @@ public class DatafeedJobBuilder {
                 listener::onFailure
         );
 
-        datafeedConfigProvider.getDatafeedConfig(datafeedId, datafeedConfigListener);
+        datafeedConfigReader.datafeedConfig(datafeedId, state, datafeedConfigListener);
     }
 
     private static TimeValue getFrequencyOrDefault(DatafeedConfig datafeed, Job job) {

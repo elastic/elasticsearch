@@ -1429,7 +1429,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } else  {
             channelStats = clientChannels.get(channel);
         }
-        assert channelStats != null || channel.isOpen() == false : "Channel stats was null when channel was not closed";
         return channelStats;
     }
 

@@ -105,6 +105,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private boolean isRetry = false;
 
+    private boolean autoCreateIndexIfPermitted = true;
 
     public IndexRequest() {
     }
@@ -454,6 +455,24 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return resolveVersionDefaults();
     }
 
+    @Override
+    public boolean isAutoCreateIndexIfPermitted() {
+        return autoCreateIndexIfPermitted;
+    }
+
+    /**
+     * Auto index creation for a request. Default is {@code true}
+     * It has to be permitted by {@link org.elasticsearch.action.support.AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
+     */
+    public void setAutoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
+        this.autoCreateIndexIfPermitted = autoCreateIndexIfPermitted;
+    }
+
+    public IndexRequest autoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
+        this.autoCreateIndexIfPermitted = autoCreateIndexIfPermitted;
+        return this;
+    }
+
     /**
      * Resolves the version based on operation type {@link #opType()}.
      */
@@ -533,6 +552,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             contentType = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            autoCreateIndexIfPermitted = in.readBoolean();
+        }
     }
 
     @Override
@@ -563,6 +585,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeEnum(contentType);
         } else {
             out.writeBoolean(false);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeBoolean(autoCreateIndexIfPermitted);
         }
     }
 

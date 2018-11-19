@@ -338,4 +338,42 @@ public class BulkRequestTests extends ESTestCase {
                 XContentType.JSON);
         assertEquals(3, bulkRequestWithNewLine.numberOfActions());
     }
+
+    public void testSimpleBulk12() throws Exception {
+        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk12.json");
+        BulkRequest bulkRequest = new BulkRequest("index", "_doc");
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(),
+            null, null, XContentType.JSON);
+        assertThat(bulkRequest.numberOfActions(), equalTo(8));
+        final DocWriteRequest request0 = bulkRequest.requests().get(0);
+        assertThat(request0.id(), equalTo("0"));
+        assertThat(request0.isAutoCreateIndexIfPermitted(), equalTo(false));
+
+        final DocWriteRequest request1 = bulkRequest.requests().get(1);
+        assertThat(request1.id(), equalTo("1"));
+        assertThat(request1.isAutoCreateIndexIfPermitted(), equalTo(true));
+
+        final UpdateRequest request2 = (UpdateRequest) bulkRequest.requests().get(2);
+        assertThat(request2.id(), equalTo("1"));
+        assertThat(request2.isAutoCreateIndexIfPermitted(), equalTo(true));
+        assertThat(request2.doc().isAutoCreateIndexIfPermitted(), equalTo(true));
+
+        final UpdateRequest request3 = (UpdateRequest) bulkRequest.requests().get(3);
+        assertThat(request3.id(), equalTo("1"));
+        assertThat(request3.isAutoCreateIndexIfPermitted(), equalTo(false));
+        assertThat(request3.doc().isAutoCreateIndexIfPermitted(), equalTo(false));
+
+        final UpdateRequest request4 = (UpdateRequest) bulkRequest.requests().get(4);
+        assertThat(request4.id(), equalTo("0"));
+        assertThat(request4.isAutoCreateIndexIfPermitted(), equalTo(false));
+        assertThat(request4.upsertRequest().isAutoCreateIndexIfPermitted(), equalTo(false));
+
+        final DeleteRequest request5 = (DeleteRequest) bulkRequest.requests().get(5);
+        assertThat(request5.id(), equalTo("1"));
+        assertThat(request5.isAutoCreateIndexIfPermitted(), equalTo(true));
+
+        final DeleteRequest request6 = (DeleteRequest) bulkRequest.requests().get(6);
+        assertThat(request6.id(), equalTo("2"));
+        assertThat(request6.isAutoCreateIndexIfPermitted(), equalTo(false));
+    }
 }

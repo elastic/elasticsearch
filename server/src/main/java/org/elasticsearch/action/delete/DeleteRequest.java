@@ -56,6 +56,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     private String routing;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
+    private boolean autoCreateIndexIfPermitted = true;
 
     public DeleteRequest() {
     }
@@ -179,6 +180,24 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     @Override
+    public boolean isAutoCreateIndexIfPermitted() {
+        return autoCreateIndexIfPermitted;
+    }
+
+    /**
+     * Auto index creation for a request. Default is {@code true}
+     * It has to be permitted by {@link org.elasticsearch.action.support.AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
+     */
+    public void setAutoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
+        this.autoCreateIndexIfPermitted = autoCreateIndexIfPermitted;
+    }
+
+    public DeleteRequest autoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
+        this.autoCreateIndexIfPermitted = autoCreateIndexIfPermitted;
+        return this;
+    }
+
+    @Override
     public OpType opType() {
         return OpType.DELETE;
     }
@@ -194,6 +213,9 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         }
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            autoCreateIndexIfPermitted = in.readBoolean();
+        }
     }
 
     @Override
@@ -207,6 +229,9 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         }
         out.writeLong(version);
         out.writeByte(versionType.getValue());
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeBoolean(autoCreateIndexIfPermitted);
+        }
     }
 
     @Override

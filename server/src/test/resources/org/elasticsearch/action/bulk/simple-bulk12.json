@@ -1,0 +1,14 @@
+{ "index":{"_index":"test1","_type":"_doc","_id":"0", "auto_create_index": "false"} }
+{ "field" : "value0" }
+{ "index":{"_index":"test1","_type":"_doc","_id":"1"} }
+{ "field" : "value1" }
+{ "update" : { "_id" : "1", "_type" : "_doc", "_index" : "test1"} }
+{ "doc" : {"field" : "value2"} }
+{ "update" : { "_id" : "1", "_type" : "_doc", "_index" : "test1", "auto_create_index": "false"} }
+{ "doc" : {"field" : "value2"} }
+{ "update" : { "_id" : "0", "_type" : "type1", "_index" : "test1", "auto_create_index": "false" } }
+{ "script" : { "source" : "counter += param1", "lang" : "javascript", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
+{ "delete" : { "_id" : "1"} }
+{ "delete" : { "_id" : "2", "_index" : "test1", "auto_create_index": "false"} }
+{ "create" : { "_id" : "3" } }
+{ "field1" : "value3" }

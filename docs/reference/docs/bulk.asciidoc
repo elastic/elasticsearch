@@ -227,22 +227,26 @@ example.
 [[bulk-auto-create-index]]
 === Disable auto create index
 
-To disable automatic index creation for a single bulk request set request
-parameter `auto_create_index` to `false` or skip this parameter to follow
-default behaviour defined by <<index-creation,`action.auto_create_index`>>:
+To disable automatic index creation for a single request set field `auto_create_index`
+to `false` in action meta data, `true` value is not allowed - skip this parameter to follow
+default behaviour defined by <<index-creation,`action.auto_create_index`>>):
 
 [source,js]
 --------------------------------------------------
 POST _bulk?auto_create_index=false
-{ "index" : { "_index" : "non_existed_index", "_type" : "_doc", "_id" : "1" } }
+{ "index" : { "_index" : "non_existed_index", "_type" : "_doc", "_id" : "1", "auto_create_index": "false" } }
 { "field1" : "value1" }
 { "index" : { "_index" : "existed_index", "_type" : "_doc", "_id" : "1" } }
 { "field1" : "value1" }
 --------------------------------------------------
 // CONSOLE
 
-Result of index operation for non existed index is failure and does not affect indexing
-to already existed index.
+Result of an operation for non existed index is failure and does not affect indexing
+to other indices.
+
+[WARNING]
+Note: Default behaviour for automatic index creation is applied in case of
+mixed values of `auto_create_index` for the *same* index.
 
 [float]
 [[bulk-refresh]]

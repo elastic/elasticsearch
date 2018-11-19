@@ -144,15 +144,6 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     /**
-     * Auto index creation for a request. Default is {@code true}
-     * It has to be permitted by {@link org.elasticsearch.action.support.AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
-     */
-    public final BulkRequestBuilder setAutoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
-        request.setAutoCreateIndexIfPermitted(autoCreateIndexIfPermitted);
-        return this;
-    }
-
-    /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     public final BulkRequestBuilder setTimeout(String timeout) {

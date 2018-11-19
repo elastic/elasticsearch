@@ -115,6 +115,12 @@ public interface DocWriteRequest<T> extends IndicesRequest {
     OpType opType();
 
     /**
+     * Auto index creation for a request. Default is {@code true}
+     * It has to be permitted by {@link org.elasticsearch.action.support.AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
+     */
+    boolean isAutoCreateIndexIfPermitted();
+
+    /**
      * Requested operation type to perform on the document
      */
     enum OpType {

@@ -333,8 +333,9 @@ See <<search-request-source-filtering, `source filtering`>> for details.
 
 `auto_create_index`::
 
-To disable automatic index creation this parameter has to be set to `false`,
-skip this parameter to follow default behaviour defined by <<index-creation,`action.auto_create_index`>>.
+To disable automatic index creation `auto_create_index` request parameter has
+to be set to `false`, skip this parameter to follow default behaviour
+defined by <<index-creation,`action.auto_create_index`>>.
 
 `version`::
 

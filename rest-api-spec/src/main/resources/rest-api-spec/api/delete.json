@@ -51,6 +51,10 @@
           "type" : "enum",
           "options" : ["internal", "external", "external_gte", "force"],
           "description" : "Specific version type"
+        },
+        "auto_create_index": {
+          "type": "boolean",
+          "description": "false to disable auto create index"
         }
       }
     },

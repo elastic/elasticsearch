@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -78,6 +77,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private static final ParseField RETRY_ON_CONFLICT = new ParseField("retry_on_conflict");
     private static final ParseField PIPELINE = new ParseField("pipeline");
     private static final ParseField SOURCE = new ParseField("_source");
+    private static final ParseField AUTO_CREATE_INDEX = new ParseField("auto_create_index");
 
     /**
      * Requests that are part of this request. It is only possible to add things that are both {@link ActionRequest}s and
@@ -87,7 +87,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     final List<DocWriteRequest<?>> requests = new ArrayList<>();
     private final Set<String> indices = new HashSet<>();
     List<Object> payloads = null;
-    private boolean autoCreateIndexIfPermitted = true;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
@@ -356,6 +355,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                 // or START_OBJECT which will have another set of parameters
                 token = parser.nextToken();
 
+                boolean autoCreateIndexPerRequest = true;
                 if (token == XContentParser.Token.START_OBJECT) {
                     String currentFieldName = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -385,6 +385,12 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 pipeline = parser.text();
                             } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
+                            } else if (AUTO_CREATE_INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
+                                final boolean value = parser.booleanValue();
+                                if (value) {
+                                    throw new IllegalArgumentException("field [auto_create_index] could not be set to [true]");
+                                }
+                                autoCreateIndexPerRequest = value;
                             } else {
                                 throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter ["
                                     + currentFieldName + "]");
@@ -406,7 +412,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                 }
 
                 if ("delete".equals(action)) {
-                    add(new DeleteRequest(index, type, id).routing(routing).version(version).versionType(versionType), payload);
+                    add(new DeleteRequest(index, type, id).routing(routing)
+                        .version(version).versionType(versionType).autoCreateIndexIfPermitted(autoCreateIndexPerRequest), payload);
                 } else {
                     nextMarker = findNextMarker(marker, from, data, length);
                     if (nextMarker == -1) {
@@ -417,23 +424,23 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                     // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
                     // of index request.
                     if ("index".equals(action)) {
-                        if (opType == null) {
-                            internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
-                                    .setPipeline(pipeline)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType), payload);
-                        } else {
-                            internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
-                                    .create("create".equals(opType)).setPipeline(pipeline)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
+                        final IndexRequest indexRequest = new IndexRequest(index, type, id).routing(routing)
+                            .version(version).versionType(versionType).setPipeline(pipeline)
+                            .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                            .autoCreateIndexIfPermitted(autoCreateIndexPerRequest);
+                        if (opType != null) {
+                            indexRequest.create("create".equals(opType));
                         }
+                        internalAdd(indexRequest, payload);
                     } else if ("create".equals(action)) {
-                        internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
-                                .create(true).setPipeline(pipeline)
-                                .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
+                        internalAdd(new IndexRequest(index, type, id).routing(routing)
+                            .version(version).versionType(versionType).create(true).setPipeline(pipeline)
+                            .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                            .autoCreateIndexIfPermitted(autoCreateIndexPerRequest), payload);
                     } else if ("update".equals(action)) {
                         UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).retryOnConflict(retryOnConflict)
-                                .version(version).versionType(versionType)
-                                .routing(routing);
+                            .version(version).versionType(versionType)
+                            .routing(routing).autoCreateIndexIfPermitted(autoCreateIndexPerRequest);
                         // EMPTY is safe here because we never call namedObject
                         try (InputStream dataStream = sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType).streamInput();
                              XContentParser sliceParser = xContent.createParser(NamedXContentRegistry.EMPTY,
@@ -448,11 +455,13 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                             upsertRequest.version(version);
                             upsertRequest.versionType(versionType);
                             upsertRequest.setPipeline(defaultPipeline);
+                            upsertRequest.setAutoCreateIndexIfPermitted(autoCreateIndexPerRequest);
                         }
                         IndexRequest doc = updateRequest.doc();
                         if (doc != null) {
                             doc.version(version);
                             doc.versionType(versionType);
+                            doc.setAutoCreateIndexIfPermitted(autoCreateIndexPerRequest);
                         }
 
                         internalAdd(updateRequest, payload);
@@ -510,18 +519,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     @Override
     public RefreshPolicy getRefreshPolicy() {
         return refreshPolicy;
-    }
-
-    public boolean isAutoCreateIndexIfPermitted() {
-        return autoCreateIndexIfPermitted;
-    }
-
-    /**
-     * Auto index creation for a request. Default is {@code true}
-     * It has to be permitted by {@link org.elasticsearch.action.support.AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
-     */
-    public void setAutoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
-        this.autoCreateIndexIfPermitted = autoCreateIndexIfPermitted;
     }
 
     /**
@@ -606,9 +603,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            autoCreateIndexIfPermitted = in.readBoolean();
-        }
     }
 
     @Override
@@ -621,9 +615,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(autoCreateIndexIfPermitted);
-        }
     }
 
     @Override

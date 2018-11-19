@@ -56,6 +56,13 @@ public class RestDeleteAction extends BaseRestHandler {
         deleteRequest.version(RestActions.parseVersion(request));
         deleteRequest.versionType(VersionType.fromString(request.param("version_type"), deleteRequest.versionType()));
 
+        if (request.hasParam("auto_create_index")) {
+            final Boolean autoCreateIndex = request.paramAsBoolean("auto_create_index", null);
+            if (Boolean.TRUE.equals(autoCreateIndex)) {
+                throw new IllegalArgumentException("request parameter [auto_create_index] could not be set to [true]");
+            }
+            deleteRequest.setAutoCreateIndexIfPermitted(false);
+        }
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
             deleteRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));

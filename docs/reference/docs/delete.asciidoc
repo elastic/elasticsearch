@@ -97,6 +97,9 @@ dynamic type mapping for the specific type if it has not been created
 before (check out the <<indices-put-mapping,put mapping>>
 API for manually creating type mapping).
 
+Another option to disable automatic index creation for a single
+request is to set `auto_create_index` request parameter to `false`.
+
 [float]
 [[delete-distributed]]
 === Distributed

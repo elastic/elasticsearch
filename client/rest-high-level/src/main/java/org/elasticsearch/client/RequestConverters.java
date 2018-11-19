@@ -107,6 +107,9 @@ final class RequestConverters {
         parameters.withVersionType(deleteRequest.versionType());
         parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
+        if (deleteRequest.isAutoCreateIndexIfPermitted() == false) {
+            parameters.putParam("auto_create_index", Boolean.toString(deleteRequest.isAutoCreateIndexIfPermitted()));
+        }
         return request;
     }
 
@@ -122,9 +125,6 @@ final class RequestConverters {
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
         parameters.withPipeline(bulkRequest.pipeline());
         parameters.withRouting(bulkRequest.routing());
-        if (bulkRequest.isAutoCreateIndexIfPermitted() == false) {
-            parameters.putParam("auto_create_index", Boolean.toString(bulkRequest.isAutoCreateIndexIfPermitted()));
-        }
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
         // and this content-type is supported by the Bulk API.
@@ -202,6 +202,9 @@ final class RequestConverters {
                         if (updateRequest.fetchSource() != null) {
                             metadata.field("_source", updateRequest.fetchSource());
                         }
+                    }
+                    if (action.isAutoCreateIndexIfPermitted() == false) {
+                        metadata.field("auto_create_index", Boolean.toString(action.isAutoCreateIndexIfPermitted()));
                     }
                     metadata.endObject();
                 }
@@ -306,6 +309,9 @@ final class RequestConverters {
         parameters.withPipeline(indexRequest.getPipeline());
         parameters.withRefreshPolicy(indexRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(indexRequest.waitForActiveShards());
+        if (indexRequest.isAutoCreateIndexIfPermitted() == false) {
+            parameters.putParam("auto_create_index", Boolean.toString(indexRequest.isAutoCreateIndexIfPermitted()));
+        }
 
         BytesRef source = indexRequest.source().toBytesRef();
         ContentType contentType = createContentType(indexRequest.getContentType());

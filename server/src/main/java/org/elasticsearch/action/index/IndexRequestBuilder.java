@@ -206,4 +206,13 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         request.setPipeline(pipeline);
         return this;
     }
+
+    /**
+     * Auto index creation for a request. Default is {@code true}
+     * It has to be permitted by {@link org.elasticsearch.action.support.AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
+     */
+    public final IndexRequestBuilder setAutoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
+        request.setAutoCreateIndexIfPermitted(autoCreateIndexIfPermitted);
+        return this;
+    }
 }

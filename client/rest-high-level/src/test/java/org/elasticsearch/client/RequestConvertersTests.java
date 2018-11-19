@@ -528,6 +528,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         setRandomTimeout(indexRequest::timeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomRefreshPolicy(indexRequest::setRefreshPolicy, expectedParams);
+        setRandomlyDisableAutoCreateIndex(indexRequest::setAutoCreateIndexIfPermitted, expectedParams);
 
         // There is some logic around _create endpoint and version/version type
         if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
@@ -699,7 +700,6 @@ public class RequestConvertersTests extends ESTestCase {
         }
 
         setRandomRefreshPolicy(bulkRequest::setRefreshPolicy, expectedParams);
-        setRandomlyDisableAutoCreateIndex(bulkRequest::setAutoCreateIndexIfPermitted, expectedParams);
 
         XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
 
@@ -712,18 +712,23 @@ public class RequestConvertersTests extends ESTestCase {
             BytesReference source = RandomObjects.randomSource(random(), xContentType);
             DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
 
+            final boolean autoCreateIndex = randomBoolean();
+
             DocWriteRequest<?> docWriteRequest;
             if (opType == DocWriteRequest.OpType.INDEX) {
                 IndexRequest indexRequest = new IndexRequest(index, type, id).source(source, xContentType);
+                indexRequest.setAutoCreateIndexIfPermitted(autoCreateIndex);
                 docWriteRequest = indexRequest;
                 if (randomBoolean()) {
                     indexRequest.setPipeline(randomAlphaOfLength(5));
                 }
             } else if (opType == DocWriteRequest.OpType.CREATE) {
                 IndexRequest createRequest = new IndexRequest(index, type, id).source(source, xContentType).create(true);
+                createRequest.setAutoCreateIndexIfPermitted(autoCreateIndex);
                 docWriteRequest = createRequest;
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
                 final UpdateRequest updateRequest = new UpdateRequest(index, type, id).doc(new IndexRequest().source(source, xContentType));
+                updateRequest.setAutoCreateIndexIfPermitted(autoCreateIndex);
                 docWriteRequest = updateRequest;
                 if (randomBoolean()) {
                     updateRequest.retryOnConflict(randomIntBetween(1, 5));
@@ -732,7 +737,8 @@ public class RequestConvertersTests extends ESTestCase {
                     randomizeFetchSourceContextParams(updateRequest::fetchSource, new HashMap<>());
                 }
             } else if (opType == DocWriteRequest.OpType.DELETE) {
-                docWriteRequest = new DeleteRequest(index, type, id);
+                docWriteRequest = new DeleteRequest(index, type, id)
+                    .autoCreateIndexIfPermitted(autoCreateIndex);
             } else {
                 throw new UnsupportedOperationException("optype [" + opType + "] not supported");
             }
@@ -774,6 +780,7 @@ public class RequestConvertersTests extends ESTestCase {
             assertEquals(originalRequest.routing(), parsedRequest.routing());
             assertEquals(originalRequest.version(), parsedRequest.version());
             assertEquals(originalRequest.versionType(), parsedRequest.versionType());
+            assertEquals(originalRequest.isAutoCreateIndexIfPermitted(), parsedRequest.isAutoCreateIndexIfPermitted());
 
             DocWriteRequest.OpType opType = originalRequest.opType();
             if (opType == DocWriteRequest.OpType.INDEX) {

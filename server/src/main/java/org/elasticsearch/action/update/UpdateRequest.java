@@ -512,6 +512,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return refreshPolicy;
     }
 
+    @Override
     public boolean isAutoCreateIndexIfPermitted() {
         return autoCreateIndexIfPermitted;
     }
@@ -522,6 +523,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public void setAutoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
         this.autoCreateIndexIfPermitted = autoCreateIndexIfPermitted;
+    }
+
+    public UpdateRequest autoCreateIndexIfPermitted(boolean autoCreateIndexIfPermitted) {
+        this.autoCreateIndexIfPermitted = autoCreateIndexIfPermitted;
+        return this;
     }
 
     public ActiveShardCount waitForActiveShards() {

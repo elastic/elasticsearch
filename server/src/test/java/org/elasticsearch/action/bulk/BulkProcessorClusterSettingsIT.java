@@ -63,9 +63,10 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
 
         final BulkRequestBuilder bulkBuilder = client().prepareBulk()
             .add(client().prepareIndex(indexName1, "type", "1").setSource("field", "2"))
-            .add(client().prepareIndex(indexName2, "type", "1").setSource("field", "2"))
-            .add(client().prepareUpdate(indexName2, "type", "1").setDoc("{\"foo\":3}", XContentType.JSON))
-            .setAutoCreateIndexIfPermitted(false);
+            .add(client().prepareIndex(indexName2, "type", "1").setSource("field", "2")
+                .setAutoCreateIndexIfPermitted(false))
+            .add(client().prepareUpdate(indexName2, "type", "1").setDoc("{\"foo\":3}", XContentType.JSON)
+                .setAutoCreateIndexIfPermitted(false));
 
         final BulkResponse bulkResponse = bulkBuilder.get();
         assertThat(bulkResponse.hasFailures(), equalTo(true));

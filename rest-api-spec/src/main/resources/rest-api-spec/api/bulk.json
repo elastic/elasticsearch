@@ -52,10 +52,6 @@
         "pipeline" : {
           "type" : "string",
           "description" : "The pipeline id to preprocess incoming documents with"
-        },
-        "auto_create_index": {
-          "type": "boolean",
-          "description": "false to disable auto create index"
         }
       }
     },

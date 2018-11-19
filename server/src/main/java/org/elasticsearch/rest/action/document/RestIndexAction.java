@@ -101,6 +101,13 @@ public class RestIndexAction extends BaseRestHandler {
         if (sOpType != null) {
             indexRequest.opType(sOpType);
         }
+        if (request.hasParam("auto_create_index")) {
+            final Boolean autoCreateIndex = request.paramAsBoolean("auto_create_index", null);
+            if (Boolean.TRUE.equals(autoCreateIndex)) {
+                throw new IllegalArgumentException("request parameter [auto_create_index] could not be set to [true]");
+            }
+            indexRequest.setAutoCreateIndexIfPermitted(false);
+        }
 
         return channel ->
                 client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));

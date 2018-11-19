@@ -19,8 +19,9 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
@@ -43,7 +44,9 @@ import java.util.stream.Stream;
  * 67.81.244.11:9305
  * 67.81.244.15:9400
  */
-public class FileBasedUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
+public class FileBasedUnicastHostsProvider implements UnicastHostsProvider {
+
+    private static final Logger logger = LogManager.getLogger(FileBasedUnicastHostsProvider.class);
 
     public static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
 

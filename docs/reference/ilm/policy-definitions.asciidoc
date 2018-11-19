@@ -71,6 +71,9 @@ index is rolled over, then `min_age` is the time elapsed from the time the index
 is rolled over. The intention here is to execute following phases and actions
 relative to when data was written last to a rolled over index.
 
+The previous phase's actions must complete before {ILM} will check `min_age` and
+transition into the next phase.
+
 === Actions
 
 beta[]
@@ -448,6 +451,41 @@ PUT _ilm/policy/my_policy
 --------------------------------------------------
 // CONSOLE
 
+
+===== Example: Rollover condition stalls phase transition
+
+The Rollover action will only complete once one of its conditions is
+met. This means that any proceeding phases will be blocked until Rollover
+succeeds.
+
+[source,js]
+--------------------------------------------------
+PUT /_ilm/policy/rollover_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_size": "50G"
+          }
+        }
+      },
+      "delete": {
+        "min_age": "1d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+The above example illustrates a policy which attempts to delete an
+index one day after the index has been rolled over. It does not
+delete the index one day after it has been created.
 
 [[ilm-shrink-action]]
 ==== Shrink

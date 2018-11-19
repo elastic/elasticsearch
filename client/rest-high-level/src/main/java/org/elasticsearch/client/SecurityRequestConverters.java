@@ -29,7 +29,7 @@ import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
-import org.elasticsearch.client.security.DeleteRoleRequest;;
+import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;

@@ -9,9 +9,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion.Conversion;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.time.ZonedDateTime;
+
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 
 public class DataTypeConversionTests extends ESTestCase {
@@ -22,7 +24,7 @@ public class DataTypeConversionTests extends ESTestCase {
 
         conversion = DataTypeConversion.conversionFor(DataType.DATE, DataType.KEYWORD);
         assertNull(conversion.convert(null));
-        assertEquals("1970-01-01T00:00:00.000Z", conversion.convert(new DateTime(0, DateTimeZone.UTC)));
+        assertEquals("1970-01-01T00:00:00.000Z", conversion.convert(dateTime(0)));
     }
 
     /**
@@ -64,33 +66,33 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Conversion conversion = DataTypeConversion.conversionFor(DataType.DOUBLE, to);
             assertNull(conversion.convert(null));
-            assertEquals(new DateTime(10L, DateTimeZone.UTC), conversion.convert(10.0));
-            assertEquals(new DateTime(10L, DateTimeZone.UTC), conversion.convert(10.1));
-            assertEquals(new DateTime(11L, DateTimeZone.UTC), conversion.convert(10.6));
+            assertEquals(dateTime(10L), conversion.convert(10.0));
+            assertEquals(dateTime(10L), conversion.convert(10.1));
+            assertEquals(dateTime(11L), conversion.convert(10.6));
             Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [Long] range", e.getMessage());
         }
         {
             Conversion conversion = DataTypeConversion.conversionFor(DataType.INTEGER, to);
             assertNull(conversion.convert(null));
-            assertEquals(new DateTime(10L, DateTimeZone.UTC), conversion.convert(10));
-            assertEquals(new DateTime(-134L, DateTimeZone.UTC), conversion.convert(-134));
+            assertEquals(dateTime(10L), conversion.convert(10));
+            assertEquals(dateTime(-134L), conversion.convert(-134));
         }
         {
             Conversion conversion = DataTypeConversion.conversionFor(DataType.BOOLEAN, to);
             assertNull(conversion.convert(null));
-            assertEquals(new DateTime(1, DateTimeZone.UTC), conversion.convert(true));
-            assertEquals(new DateTime(0, DateTimeZone.UTC), conversion.convert(false));
+            assertEquals(dateTime(1), conversion.convert(true));
+            assertEquals(dateTime(0), conversion.convert(false));
         }
         Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, to);
         assertNull(conversion.convert(null));
 
-        assertEquals(new DateTime(1000L, DateTimeZone.UTC), conversion.convert("1970-01-01T00:00:01Z"));
-        assertEquals(new DateTime(1483228800000L, DateTimeZone.UTC), conversion.convert("2017-01-01T00:00:00Z"));
-        assertEquals(new DateTime(18000000L, DateTimeZone.UTC), conversion.convert("1970-01-01T00:00:00-05:00"));
+        assertEquals(dateTime(1000L), conversion.convert("1970-01-01T00:00:01Z"));
+        assertEquals(dateTime(1483228800000L), conversion.convert("2017-01-01T00:00:00Z"));
+        assertEquals(dateTime(18000000L), conversion.convert("1970-01-01T00:00:00-05:00"));
         
         // double check back and forth conversion
-        DateTime dt = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime dt = ZonedDateTime.now(DateUtils.UTC);
         Conversion forward = DataTypeConversion.conversionFor(DataType.DATE, DataType.KEYWORD);
         Conversion back = DataTypeConversion.conversionFor(DataType.KEYWORD, DataType.DATE);
         assertEquals(dt, back.convert(forward.convert(dt)));

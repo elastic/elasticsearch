@@ -833,7 +833,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         MetaDataDiff(StreamInput in) throws IOException {
             clusterUUID = in.readString();
             version = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) { //TODO revisit after Zen2 BWC is implemented
                 coordinationMetaData = new CoordinationMetaData(in);
             } else {
                 coordinationMetaData = CoordinationMetaData.EMPTY_META_DATA;

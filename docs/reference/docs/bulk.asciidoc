@@ -228,8 +228,8 @@ example.
 === Disable auto create index
 
 To disable automatic index creation for a single request set field `auto_create_index`
-to `false` in action meta data, `true` value is not allowed - skip this parameter to follow
-default behaviour defined by <<index-creation,`action.auto_create_index`>>):
+to `false` in action meta data. To follow default behaviour defined by
+<<index-creation,`action.auto_create_index`>>) skip this field:
 
 [source,js]
 --------------------------------------------------

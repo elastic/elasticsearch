@@ -252,7 +252,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     boolean shouldAutoCreate(String index, ClusterState state, boolean autoCreateIndexIfPermitted) {
-        return this.autoCreateIndex.shouldAutoCreate(index, state, autoCreateIndexIfPermitted);
+        return autoCreateIndex.shouldAutoCreate(index, state, autoCreateIndexIfPermitted);
     }
 
     void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {

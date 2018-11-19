@@ -727,8 +727,8 @@ public class RequestConvertersTests extends ESTestCase {
                 createRequest.setAutoCreateIndexIfPermitted(autoCreateIndex);
                 docWriteRequest = createRequest;
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                final UpdateRequest updateRequest = new UpdateRequest(index, type, id).doc(new IndexRequest().source(source, xContentType));
-                updateRequest.setAutoCreateIndexIfPermitted(autoCreateIndex);
+                final UpdateRequest updateRequest = new UpdateRequest(index, type, id).doc(new IndexRequest()
+                    .source(source, xContentType)).autoCreateIndexIfPermitted(autoCreateIndex);
                 docWriteRequest = updateRequest;
                 if (randomBoolean()) {
                     updateRequest.retryOnConflict(randomIntBetween(1, 5));

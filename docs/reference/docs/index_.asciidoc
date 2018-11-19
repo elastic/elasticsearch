@@ -79,8 +79,19 @@ Automatic index creation can include a pattern based white/black list,
 for example, set `action.auto_create_index` to `+aaa*,-bbb*,+ccc*,-*` (+
 meaning allowed, and - meaning disallowed).
 
-Another option to disable automatic index creation for a single
-request is to set `auto_create_index` request parameter to `false`.
+There is an option to disable automatic index creation for a single
+request is to set `auto_create_index` request parameter to `false`:
+
+[source,js]
+--------------------------------------------------
+PUT twitter/_doc/1?auto_create_index=false
+{
+    "user" : "kimchy",
+    "post_date" : "2009-11-15T14:12:12",
+    "message" : "trying out Elasticsearch"
+}
+--------------------------------------------------
+// CONSOLE
 
 [float]
 [[index-versioning]]

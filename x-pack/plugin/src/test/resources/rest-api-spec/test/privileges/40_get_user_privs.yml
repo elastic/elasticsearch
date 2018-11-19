@@ -204,7 +204,7 @@ teardown:
 "Test get_user_privileges for single role":
   - skip:
           reason: "contains is a newly added assertion"
-          features: contains  
+          features: contains
   - do:
       headers: { Authorization: "Basic dGVzdC0xOjEyMzQ1Njc4" } # test-1
       xpack.security.get_user_privileges: {}

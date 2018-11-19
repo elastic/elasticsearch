@@ -55,6 +55,11 @@ public class ClusterService extends AbstractLifecycleComponent {
     public static final org.elasticsearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_META_DATA =
         Setting.prefixKeySetting("cluster.metadata.", (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
 
+    /**
+     * The node's settings.
+     */
+    private final Settings settings;
+
     private final ClusterName clusterName;
 
     private final OperationRouting operationRouting;
@@ -65,6 +70,7 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         super(settings);
+        this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.masterService = new MasterService(nodeName, settings, threadPool);
         this.operationRouting = new OperationRouting(settings, clusterSettings);
@@ -199,6 +205,9 @@ public class ClusterService extends AbstractLifecycleComponent {
         return clusterSettings;
     }
 
+    /**
+     * The node's settings.
+     */
     public Settings getSettings() {
         return settings;
     }

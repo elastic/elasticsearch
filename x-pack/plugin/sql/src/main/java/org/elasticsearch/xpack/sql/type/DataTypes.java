@@ -6,9 +6,13 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.joda.time.DateTime;
 
-public abstract class DataTypes {
+import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
+
+public final class DataTypes {
+
+    private DataTypes() {}
 
     public static boolean isNull(DataType from) {
         return from == DataType.NULL;
@@ -43,7 +47,7 @@ public abstract class DataTypes {
         if (value instanceof Short) {
             return DataType.SHORT;
         }
-        if (value instanceof DateTime) {
+        if (value instanceof ZonedDateTime || value instanceof OffsetDateTime) {
             return DataType.DATE;
         }
         if (value instanceof String || value instanceof Character) {

@@ -109,7 +109,7 @@ public class MasterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(clusterStateSupplier, "please set a cluster state supplier before starting");
         threadPoolExecutor = EsExecutors.newSinglePrioritizing(
                 nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
-                daemonThreadFactory(settings, MASTER_UPDATE_THREAD_NAME),
+                daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
                 threadPool.getThreadContext(),
                 threadPool.scheduler());
         taskBatcher = new Batcher(logger, threadPoolExecutor);

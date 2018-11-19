@@ -41,7 +41,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     private Ticker ticker;
 
     public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
-        super(settings, scheduleRegistry, clock);
+        super(scheduleRegistry, clock);
         this.tickInterval = TICKER_INTERVAL_SETTING.get(settings);
         this.schedules = new ConcurrentHashMap<>();
         this.ticker = new Ticker(Node.NODE_DATA_SETTING.get(settings));

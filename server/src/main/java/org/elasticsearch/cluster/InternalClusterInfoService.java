@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -35,7 +36,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -62,8 +62,9 @@ import java.util.function.Consumer;
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
  */
-public class InternalClusterInfoService extends AbstractComponent
-    implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
+public class InternalClusterInfoService implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
+
+    private static final Logger logger = LogManager.getLogger(InternalClusterInfoService.class);
 
     public static final Setting<TimeValue> INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING =
         Setting.timeSetting("cluster.info.update.interval", TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(10),
@@ -88,7 +89,6 @@ public class InternalClusterInfoService extends AbstractComponent
 
     public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client,
                                       Consumer<ClusterInfo> listener) {
-        super(settings);
         this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
         this.mostAvailableSpaceUsages = ImmutableOpenMap.of();
         this.shardRoutingToDataPath = ImmutableOpenMap.of();

@@ -19,8 +19,11 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory;
@@ -37,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -93,23 +97,23 @@ public class OpenLdapTests extends ESTestCase {
             mockSecureSettings.setString("xpack.ssl.truststore.secure_password", "changeit");
 
             // configure realm to load config with certificate verification mode
-            builder.put("xpack.security.authc.realms." + REALM_NAME + ".ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.security.authc.realms." + REALM_NAME + ".ssl.truststore.secure_password", "changeit");
-            builder.put("xpack.security.authc.realms." + REALM_NAME + ".ssl.verification_mode", VerificationMode.CERTIFICATE);
+            builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.path", truststore);
+            mockSecureSettings.setString("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.secure_password", "changeit");
+            builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.verification_mode", VerificationMode.CERTIFICATE);
         } else {
             // fake realms so ssl will get loaded
-            builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.security.authc.realms.foo.ssl.truststore.secure_password", "changeit");
-            builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
-            builder.put("xpack.security.authc.realms." + REALM_NAME + ".ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.security.authc.realms." + REALM_NAME + ".ssl.truststore.secure_password", "changeit");
-            builder.put("xpack.security.authc.realms." + REALM_NAME + ".ssl.verification_mode", VerificationMode.CERTIFICATE);
+            builder.put("xpack.security.authc.realms.ldap.foo.ssl.truststore.path", truststore);
+            mockSecureSettings.setString("xpack.security.authc.realms.ldap.foo.ssl.truststore.secure_password", "changeit");
+            builder.put("xpack.security.authc.realms.ldap.foo.ssl.verification_mode", VerificationMode.FULL);
+            builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.path", truststore);
+            mockSecureSettings.setString("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.secure_password", "changeit");
+            builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.verification_mode", VerificationMode.CERTIFICATE);
 
             // If not using global ssl, need to set the truststore for the "full verification" realm
-            builder.put("xpack.security.authc.realms.vmode_full.ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.security.authc.realms.vmode_full.ssl.truststore.secure_password", "changeit");
+            builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.truststore.path", truststore);
+            mockSecureSettings.setString("xpack.security.authc.realms.ldap.vmode_full.ssl.truststore.secure_password", "changeit");
         }
-        builder.put("xpack.security.authc.realms.vmode_full.ssl.verification_mode", VerificationMode.FULL);
+        builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.verification_mode", VerificationMode.FULL);
 
         globalSettings = builder.setSecureSettings(mockSecureSettings).build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
@@ -120,12 +124,13 @@ public class OpenLdapTests extends ESTestCase {
         //openldap does not use cn as naming attributes by default
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        RealmConfig config = new RealmConfig("oldap-test", buildLdapSettings(OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase,
-            LdapSearchScope.ONE_LEVEL), globalSettings, TestEnvironment.newEnvironment(globalSettings),
-            new ThreadContext(Settings.EMPTY));
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
+        RealmConfig config = new RealmConfig(realmId,
+            buildLdapSettings(realmId, OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL),
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
-        String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
+        String[] users = new String[]{"blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor"};
         for (String user : users) {
             logger.info("testing connect as user [{}]", user);
             try (LdapSession ldap = session(sessionFactory, user, PASSWORD_SECURE_STRING)) {
@@ -139,11 +144,13 @@ public class OpenLdapTests extends ESTestCase {
 
         String groupSearchBase = "cn=Avengers,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        RealmConfig config = new RealmConfig(REALM_NAME, buildLdapSettings(OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase,
-            LdapSearchScope.BASE), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", REALM_NAME);
+        RealmConfig config = new RealmConfig(realmId,
+                buildLdapSettings(realmId, OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.BASE),
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
-        String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
+        String[] users = new String[]{"blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor"};
         for (String user : users) {
             try (LdapSession ldap = session(sessionFactory, user, PASSWORD_SECURE_STRING)) {
                 assertThat(groups(ldap), hasItem(containsString("Avengers")));
@@ -154,13 +161,14 @@ public class OpenLdapTests extends ESTestCase {
     public void testCustomFilter() throws Exception {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         Settings settings = Settings.builder()
-            .put(buildLdapSettings(OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
-            .put("group_search.filter", "(&(objectclass=posixGroup)(memberUid={0}))")
-            .put("group_search.user_attribute", "uid")
+            .put(buildLdapSettings(realmId, OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+            .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.FILTER), "(&(objectclass=posixGroup)(memberUid={0}))")
+            .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid")
             .build();
-        RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-            new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(realmId, settings,
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         try (LdapSession ldap = session(sessionFactory, "selvig", PASSWORD_SECURE_STRING)) {
@@ -170,16 +178,17 @@ public class OpenLdapTests extends ESTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29758")
     public void testTcpTimeout() throws Exception {
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = Settings.builder()
-            .put(buildLdapSettings(OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-            .put("group_search.filter", "(objectClass=*)")
-            .put("ssl.verification_mode", VerificationMode.CERTIFICATE)
-            .put(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
+            .put(buildLdapSettings(realmId, OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.FILTER), "(objectClass=*)")
+            .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+            .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "1ms")
             .build();
-        RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-            new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(realmId, settings,
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         LDAPException expected = expectThrows(LDAPException.class,
@@ -191,14 +200,13 @@ public class OpenLdapTests extends ESTestCase {
         //openldap does not use cn as naming attributes by default
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "vmode_full");
         Settings settings = Settings.builder()
             // The certificate used in the vagrant box is valid for "localhost", but not for "127.0.0.1"
-            .put(buildLdapSettings(OPEN_LDAP_IP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+            .put(buildLdapSettings(realmId, OPEN_LDAP_IP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
             .build();
-
-        // Pick up the "full" verification mode config
-        RealmConfig config = new RealmConfig("vmode_full", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-            new ThreadContext(Settings.EMPTY));
+        final Environment env = TestEnvironment.newEnvironment(globalSettings);
+        RealmConfig config = new RealmConfig(realmId, settings, env, new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         String user = "blackwidow";
@@ -214,14 +222,14 @@ public class OpenLdapTests extends ESTestCase {
         //openldap does not use cn as naming attributes by default
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "vmode_full");
         Settings settings = Settings.builder()
             // The certificate used in the vagrant box is valid for "localhost" (but not for "127.0.0.1")
-            .put(buildLdapSettings(OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+            .put(buildLdapSettings(realmId, OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
             .build();
 
-        // Pick up the "full" verification mode config
-        RealmConfig config = new RealmConfig("vmode_full", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-            new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(realmId, settings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         final String user = "blackwidow";
@@ -232,7 +240,13 @@ public class OpenLdapTests extends ESTestCase {
     }
 
     public void testResolveSingleValuedAttributeFromConnection() throws Exception {
-        LdapMetaDataResolver resolver = new LdapMetaDataResolver(Settings.builder().putList("metadata", "cn", "sn").build(), true);
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
+        final Settings settings = Settings.builder()
+                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), "cn", "sn")
+                .build();
+        final RealmConfig config = new RealmConfig(realmId, settings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+        LdapMetaDataResolver resolver = new LdapMetaDataResolver(config, true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
             assertThat(map.size(), equalTo(2));
@@ -242,7 +256,13 @@ public class OpenLdapTests extends ESTestCase {
     }
 
     public void testResolveMultiValuedAttributeFromConnection() throws Exception {
-        LdapMetaDataResolver resolver = new LdapMetaDataResolver(Settings.builder().putList("metadata", "objectClass").build(), true);
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
+        final Settings settings = Settings.builder()
+                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), "objectClass")
+                .build();
+        final RealmConfig config = new RealmConfig(realmId, settings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+        LdapMetaDataResolver resolver = new LdapMetaDataResolver(config, true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
             assertThat(map.size(), equalTo(1));
@@ -252,23 +272,33 @@ public class OpenLdapTests extends ESTestCase {
     }
 
     public void testResolveMissingAttributeFromConnection() throws Exception {
-        LdapMetaDataResolver resolver = new LdapMetaDataResolver(Settings.builder().putList("metadata", "alias").build(), true);
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
+        final Settings settings = Settings.builder()
+                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), "alias")
+                .build();
+        final RealmConfig config = new RealmConfig(realmId, settings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+        LdapMetaDataResolver resolver = new LdapMetaDataResolver(config, true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
             assertThat(map.size(), equalTo(0));
         }
     }
 
-    private Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, LdapSearchScope scope) {
+    private Settings buildLdapSettings(RealmConfig.RealmIdentifier realmId, String ldapUrl, String userTemplate,
+                                       String groupSearchBase, LdapSearchScope scope) {
+        final String[] urls = {ldapUrl};
+        final String[] templates = {userTemplate};
         Settings.Builder builder = Settings.builder()
-            .put(LdapTestCase.buildLdapSettings(ldapUrl, userTemplate, groupSearchBase, scope));
-        builder.put("group_search.user_attribute", "uid");
+                .put(LdapTestCase.buildLdapSettings(realmId, urls, templates, groupSearchBase, scope, null, false));
+        builder.put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid");
         if (useGlobalSSL) {
             return builder.build();
         }
         return builder
-            .put("ssl.truststore.path", getDataPath(LDAPTRUST_PATH))
-            .put("ssl.truststore.password", "changeit")
+            .put(getFullSettingKey(realmId, SSLConfigurationSettings.TRUST_STORE_PATH_REALM), getDataPath(LDAPTRUST_PATH))
+            .put(getFullSettingKey(realmId, SSLConfigurationSettings.LEGACY_TRUST_STORE_PASSWORD_REALM), "changeit")
+            .put(globalSettings)
             .build();
     }
 

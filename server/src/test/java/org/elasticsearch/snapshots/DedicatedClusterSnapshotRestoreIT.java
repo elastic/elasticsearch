@@ -977,7 +977,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final String repo = "repo";
         final AdminClient admin = client().admin();
 
-        final IndexNameExpressionResolver nameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
+        final IndexNameExpressionResolver nameExpressionResolver = new IndexNameExpressionResolver();
         final String snapshotName = "<snapshot-{now/d}>";
 
         logger.info("-->  creating repository");

@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.NioIntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.common.logging.Loggers;
@@ -37,12 +38,12 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
     public void setUp() throws Exception {
         super.setUp();
         appender = new MockLogAppender();
-        Loggers.addAppender(Loggers.getLogger(TransportLogger.class), appender);
+        Loggers.addAppender(LogManager.getLogger(TransportLogger.class), appender);
         appender.start();
     }
 
     public void tearDown() throws Exception {
-        Loggers.removeAppender(Loggers.getLogger(TransportLogger.class), appender);
+        Loggers.removeAppender(LogManager.getLogger(TransportLogger.class), appender);
         appender.stop();
         super.tearDown();
     }

@@ -20,22 +20,40 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.ingest.IngestTestPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BulkIntegrationIT extends ESIntegTestCase {
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(IngestTestPlugin.class);
+    }
+
     public void testBulkIndexCreatesMapping() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/bulk-log.json");
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
@@ -75,10 +93,58 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         assertThat(client().prepareGet("index3", "type", "id").setRouting("1").get().getSource().get("foo"), equalTo("baz"));
 
         bulkResponse = client().prepareBulk().add(client().prepareUpdate("alias1", "type", "id").setDoc("foo", "updated")).get();
-        assertFalse(bulkResponse.hasFailures());
+        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
         assertThat(client().prepareGet("index3", "type", "id").setRouting("1").get().getSource().get("foo"), equalTo("updated"));
         bulkResponse = client().prepareBulk().add(client().prepareDelete("alias1", "type", "id")).get();
-        assertFalse(bulkResponse.hasFailures());
+        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
         assertFalse(client().prepareGet("index3", "type", "id").setRouting("1").get().isExists());
+    }
+
+    public void testBulkWithGlobalDefaults() throws Exception {
+        // all requests in the json are missing index and type parameters: "_index" : "test", "_type" : "type1",
+        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk-missing-index-type.json");
+        {
+            BulkRequestBuilder bulkBuilder = client().prepareBulk();
+            bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
+            ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class, bulkBuilder::get);
+
+            assertThat(ex.validationErrors(), containsInAnyOrder(
+                "index is missing",
+                "index is missing",
+                "index is missing",
+                "type is missing",
+                "type is missing",
+                "type is missing"));
+        }
+
+        {
+            createSamplePipeline("pipeline");
+            BulkRequestBuilder bulkBuilder = client().prepareBulk("test","type1")
+                .routing("routing")
+                .pipeline("pipeline");
+
+            bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
+            BulkResponse bulkItemResponses = bulkBuilder.get();
+            assertFalse(bulkItemResponses.hasFailures());
+        }
+    }
+
+    private void createSamplePipeline(String pipelineId) throws IOException, ExecutionException, InterruptedException {
+        XContentBuilder pipeline = jsonBuilder()
+            .startObject()
+                .startArray("processors")
+                    .startObject()
+                        .startObject("test")
+                        .endObject()
+                    .endObject()
+                .endArray()
+            .endObject();
+
+        AcknowledgedResponse acknowledgedResponse = client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(pipeline), XContentType.JSON))
+            .get();
+
+        assertTrue(acknowledgedResponse.isAcknowledged());
     }
 }

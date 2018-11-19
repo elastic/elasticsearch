@@ -100,8 +100,8 @@ public class BroadcastReplicationTests extends ESTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, clusterService, transportService,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), null);
+        broadcastReplicationAction = new TestBroadcastReplicationAction(clusterService, transportService,
+                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(), null);
     }
 
     @Override
@@ -171,7 +171,8 @@ public class BroadcastReplicationTests extends ESTestCase {
                 if (shardsSucceeded == 1 && randomBoolean()) {
                     //sometimes add failure (no failure means shard unavailable)
                     failures = new ReplicationResponse.ShardInfo.Failure[1];
-                    failures[0] = new ReplicationResponse.ShardInfo.Failure(shardRequests.v1(), null, new Exception("pretend shard failed"), RestStatus.GATEWAY_TIMEOUT, false);
+                    failures[0] = new ReplicationResponse.ShardInfo.Failure(shardRequests.v1(), null,
+                        new Exception("pretend shard failed"), RestStatus.GATEWAY_TIMEOUT, false);
                     failed++;
                 }
                 replicationResponse.setShardInfo(new ReplicationResponse.ShardInfo(2, shardsSucceeded, failures));
@@ -204,14 +205,16 @@ public class BroadcastReplicationTests extends ESTestCase {
         assertThat(shards.get(0), equalTo(shardId));
     }
 
-    private class TestBroadcastReplicationAction extends TransportBroadcastReplicationAction<DummyBroadcastRequest, BroadcastResponse, BasicReplicationRequest, ReplicationResponse> {
-        protected final Set<Tuple<ShardId, ActionListener<ReplicationResponse>>> capturedShardRequests = ConcurrentCollections.newConcurrentSet();
+    private class TestBroadcastReplicationAction extends TransportBroadcastReplicationAction<DummyBroadcastRequest, BroadcastResponse,
+            BasicReplicationRequest, ReplicationResponse> {
+        protected final Set<Tuple<ShardId, ActionListener<ReplicationResponse>>> capturedShardRequests =
+            ConcurrentCollections.newConcurrentSet();
 
-        TestBroadcastReplicationAction(Settings settings, ClusterService clusterService, TransportService transportService,
+        TestBroadcastReplicationAction(ClusterService clusterService, TransportService transportService,
                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                TransportReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse> replicatedBroadcastShardAction) {
-            super("internal:test-broadcast-replication-action", DummyBroadcastRequest::new, settings, clusterService, transportService,
-                    actionFilters, indexNameExpressionResolver, replicatedBroadcastShardAction);
+                TransportReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse> action) {
+            super("internal:test-broadcast-replication-action", DummyBroadcastRequest::new, clusterService, transportService,
+                    actionFilters, indexNameExpressionResolver, action);
         }
 
         @Override
@@ -231,7 +234,8 @@ public class BroadcastReplicationTests extends ESTestCase {
         }
 
         @Override
-        protected void shardExecute(Task task, DummyBroadcastRequest request, ShardId shardId, ActionListener<ReplicationResponse> shardActionListener) {
+        protected void shardExecute(Task task, DummyBroadcastRequest request, ShardId shardId,
+                                    ActionListener<ReplicationResponse> shardActionListener) {
             capturedShardRequests.add(new Tuple<>(shardId, shardActionListener));
         }
     }
@@ -241,7 +245,8 @@ public class BroadcastReplicationTests extends ESTestCase {
         FlushResponse flushResponse = ActionTestUtils.executeBlocking(flushAction, new FlushRequest(index));
         Date endDate = new Date();
         long maxTime = 500;
-        assertThat("this should not take longer than " + maxTime + " ms. The request hangs somewhere", endDate.getTime() - beginDate.getTime(), lessThanOrEqualTo(maxTime));
+        assertThat("this should not take longer than " + maxTime + " ms. The request hangs somewhere",
+            endDate.getTime() - beginDate.getTime(), lessThanOrEqualTo(maxTime));
         return flushResponse;
     }
 

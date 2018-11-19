@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ByteArrayEntity;
@@ -29,9 +30,10 @@ import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
+import org.elasticsearch.client.watcher.WatcherStatsRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
+import org.elasticsearch.client.watcher.DeleteWatchRequest;
+import org.elasticsearch.client.watcher.PutWatchRequest;
 
 final class WatcherRequestConverters {
 
@@ -59,9 +61,7 @@ final class WatcherRequestConverters {
 
     static Request putWatch(PutWatchRequest putWatchRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("watch")
+            .addPathPartAsIs("_xpack", "watcher", "watch")
             .addPathPart(putWatchRequest.getId())
             .build();
 
@@ -89,9 +89,7 @@ final class WatcherRequestConverters {
 
     static Request deleteWatch(DeleteWatchRequest deleteWatchRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("watch")
+            .addPathPartAsIs("_xpack", "watcher", "watch")
             .addPathPart(deleteWatchRequest.getId())
             .build();
 
@@ -101,9 +99,7 @@ final class WatcherRequestConverters {
 
     public static Request ackWatch(AckWatchRequest ackWatchRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("watch")
+            .addPathPartAsIs("_xpack", "watcher", "watch")
             .addPathPart(ackWatchRequest.getWatchId())
             .addPathPartAsIs("_ack")
             .addCommaSeparatedPathParts(ackWatchRequest.getActionIds())
@@ -114,13 +110,32 @@ final class WatcherRequestConverters {
 
     static Request activateWatch(ActivateWatchRequest activateWatchRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("watch")
+            .addPathPartAsIs("_xpack", "watcher", "watch")
             .addPathPart(activateWatchRequest.getWatchId())
             .addPathPartAsIs("_activate")
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        return request;
+    }
+
+    static Request watcherStats(WatcherStatsRequest watcherStatsRequest) {
+        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder().addPathPartAsIs("_xpack", "watcher", "stats");
+        String endpoint = builder.build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        StringBuilder metric = new StringBuilder();
+        if (watcherStatsRequest.includeCurrentWatches()) {
+            metric.append("current_watches");
+        }
+        if (watcherStatsRequest.includeQueuedWatches()) {
+            if (metric.length() > 0) {
+                metric.append(",");
+            }
+            metric.append("queued_watches");
+        }
+        if (metric.length() > 0) {
+            parameters.putParam("metric", metric.toString());
+        }
         return request;
     }
 }

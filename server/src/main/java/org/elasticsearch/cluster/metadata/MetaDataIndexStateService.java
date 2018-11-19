@@ -39,10 +39,8 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
@@ -60,7 +58,7 @@ import java.util.Set;
 /**
  * Service responsible for submitting open/close index requests
  */
-public class MetaDataIndexStateService extends AbstractComponent {
+public class MetaDataIndexStateService {
     private static final Logger logger = LogManager.getLogger(MetaDataIndexStateService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
@@ -76,15 +74,14 @@ public class MetaDataIndexStateService extends AbstractComponent {
     private final ActiveShardsObserver activeShardsObserver;
 
     @Inject
-    public MetaDataIndexStateService(Settings settings, ClusterService clusterService, AllocationService allocationService,
+    public MetaDataIndexStateService(ClusterService clusterService, AllocationService allocationService,
                                      MetaDataIndexUpgradeService metaDataIndexUpgradeService,
                                      IndicesService indicesService, ThreadPool threadPool) {
-        super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
-        this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
+        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
 
     public void closeIndex(final CloseIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {

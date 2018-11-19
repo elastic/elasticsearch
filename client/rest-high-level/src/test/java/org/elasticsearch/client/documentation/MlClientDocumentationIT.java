@@ -40,6 +40,7 @@ import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
+import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -50,10 +51,14 @@ import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
+import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
+import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsResponse;
+import org.elasticsearch.client.ml.GetFiltersRequest;
+import org.elasticsearch.client.ml.GetFiltersResponse;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetInfluencersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -74,6 +79,8 @@ import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
+import org.elasticsearch.client.ml.PutFilterRequest;
+import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
@@ -81,12 +88,14 @@ import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.client.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -94,10 +103,12 @@ import org.elasticsearch.client.ml.job.config.DetectionRule;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
+import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.client.ml.job.config.Operator;
 import org.elasticsearch.client.ml.job.config.RuleCondition;
 import org.elasticsearch.client.ml.job.process.DataCounts;
+import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.client.ml.job.results.AnomalyRecord;
 import org.elasticsearch.client.ml.job.results.Bucket;
 import org.elasticsearch.client.ml.job.results.CategoryDefinition;
@@ -572,6 +583,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-datafeed-config-set-query-delay
             datafeedBuilder.setQueryDelay(TimeValue.timeValueMinutes(1)); // <1>
             // end::put-datafeed-config-set-query-delay
+
+            // tag::put-datafeed-config-set-delayed-data-check-config
+            datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig
+                .enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1))); // <1>
+            // end::put-datafeed-config-set-delayed-data-check-config
+
+            // no need to accidentally trip internal validations due to job bucket size
+            datafeedBuilder.setDelayedDataCheckConfig(null);
 
             List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
             // tag::put-datafeed-config-set-script-fields
@@ -1858,6 +1877,169 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testDeleteModelSnapshot() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-delete-model-snapshot";
+        String snapshotId = "1541587919";
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a snapshot
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"" + snapshotId + "\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"" + jobId + "\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+        {
+            client.index(indexRequest, RequestOptions.DEFAULT);
+
+            // tag::delete-model-snapshot-request
+            DeleteModelSnapshotRequest request = new DeleteModelSnapshotRequest(jobId, snapshotId); // <1>
+            // end::delete-model-snapshot-request
+
+            // tag::delete-model-snapshot-execute
+            AcknowledgedResponse response = client.machineLearning().deleteModelSnapshot(request, RequestOptions.DEFAULT);
+            // end::delete-model-snapshot-execute
+
+            // tag::delete-model-snapshot-response
+            boolean isAcknowledged = response.isAcknowledged(); // <1>
+            // end::delete-model-snapshot-response
+
+            assertTrue(isAcknowledged);
+        }
+        {
+            client.index(indexRequest, RequestOptions.DEFAULT);
+
+            // tag::delete-model-snapshot-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-model-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            DeleteModelSnapshotRequest deleteModelSnapshotRequest = new DeleteModelSnapshotRequest(jobId, "1541587919");
+
+            // tag::delete-model-snapshot-execute-async
+            client.machineLearning().deleteModelSnapshotAsync(deleteModelSnapshotRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-model-snapshot-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetModelSnapshots() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-get-model-snapshots";
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a snapshot
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"test-get-model-snapshots\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"test-get-model-snapshots\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+        client.index(indexRequest, RequestOptions.DEFAULT);
+
+        {
+            // tag::get-model-snapshots-request
+            GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(jobId); // <1>
+            // end::get-model-snapshots-request
+
+            // tag::get-model-snapshots-snapshot-id
+            request.setSnapshotId("1541587919"); // <1>
+            // end::get-model-snapshots-snapshot-id
+
+            // Set snapshot id to null as it is incompatible with other args
+            request.setSnapshotId(null);
+
+            // tag::get-model-snapshots-desc
+            request.setDesc(true); // <1>
+            // end::get-model-snapshots-desc
+
+            // tag::get-model-snapshots-end
+            request.setEnd("2018-11-07T21:00:00Z"); // <1>
+            // end::get-model-snapshots-end
+
+            // tag::get-model-snapshots-page
+            request.setPageParams(new PageParams(100, 200)); // <1>
+            // end::get-model-snapshots-page
+
+            // Set page params back to null so the response contains the snapshot we indexed
+            request.setPageParams(null);
+
+            // tag::get-model-snapshots-sort
+            request.setSort("latest_result_time_stamp"); // <1>
+            // end::get-model-snapshots-sort
+
+            // tag::get-model-snapshots-start
+            request.setStart("2018-11-07T00:00:00Z"); // <1>
+            // end::get-model-snapshots-start
+
+            // tag::get-model-snapshots-execute
+            GetModelSnapshotsResponse response = client.machineLearning().getModelSnapshots(request, RequestOptions.DEFAULT);
+            // end::get-model-snapshots-execute
+
+            // tag::get-model-snapshots-response
+            long count = response.count(); // <1>
+            List<ModelSnapshot> modelSnapshots = response.snapshots(); // <2>
+            // end::get-model-snapshots-response
+
+            assertEquals(1, modelSnapshots.size());
+        }
+        {
+            GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(jobId);
+
+            // tag::get-model-snapshots-execute-listener
+            ActionListener<GetModelSnapshotsResponse> listener =
+                new ActionListener<GetModelSnapshotsResponse>() {
+                    @Override
+                    public void onResponse(GetModelSnapshotsResponse getModelSnapshotsResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-model-snapshots-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-model-snapshots-execute-async
+            client.machineLearning().getModelSnapshotsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-model-snapshots-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testPutCalendar() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -2006,5 +2188,185 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::delete-calendar-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testCreateFilter() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::put-filter-config
+            MlFilter.Builder filterBuilder = MlFilter.builder("my_safe_domains") // <1>
+                .setDescription("A list of safe domains")   // <2>
+                .setItems("*.google.com", "wikipedia.org"); // <3>
+            // end::put-filter-config
+
+            // tag::put-filter-request
+            PutFilterRequest request = new PutFilterRequest(filterBuilder.build()); // <1>
+            // end::put-filter-request
+
+            // tag::put-filter-execute
+            PutFilterResponse response = client.machineLearning().putFilter(request, RequestOptions.DEFAULT);
+            // end::put-filter-execute
+
+            // tag::put-filter-response
+            MlFilter createdFilter = response.getResponse(); // <1>
+            // end::put-filter-response
+            assertThat(createdFilter.getId(), equalTo("my_safe_domains"));
+        }
+        {
+            MlFilter.Builder filterBuilder = MlFilter.builder("safe_domains_async")
+                .setDescription("A list of safe domains")
+                .setItems("*.google.com", "wikipedia.org");
+
+            PutFilterRequest request = new PutFilterRequest(filterBuilder.build());
+            // tag::put-filter-execute-listener
+            ActionListener<PutFilterResponse> listener = new ActionListener<PutFilterResponse>() {
+                @Override
+                public void onResponse(PutFilterResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::put-filter-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-filter-execute-async
+            client.machineLearning().putFilterAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-filter-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetFilters() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        String filterId = "get-filter-doc-test";
+        MlFilter.Builder filterBuilder = MlFilter.builder(filterId).setDescription("test").setItems("*.google.com", "wikipedia.org");
+
+        client.machineLearning().putFilter(new PutFilterRequest(filterBuilder.build()), RequestOptions.DEFAULT);
+
+        {
+            // tag::get-filters-request
+            GetFiltersRequest request = new GetFiltersRequest(); // <1>
+            // end::get-filters-request
+
+            // tag::get-filters-filter-id
+            request.setFilterId("get-filter-doc-test"); // <1>
+            // end::get-filters-filter-id
+
+            // tag::get-filters-page-params
+            request.setFrom(100); // <1>
+            request.setSize(200); // <2>
+            // end::get-filters-page-params
+
+            request.setFrom(null);
+            request.setSize(null);
+
+            // tag::get-filters-execute
+            GetFiltersResponse response = client.machineLearning().getFilter(request, RequestOptions.DEFAULT);
+            // end::get-filters-execute
+
+            // tag::get-filters-response
+            long count = response.count(); // <1>
+            List<MlFilter> filters = response.filters(); // <2>
+            // end::get-filters-response
+            assertEquals(1, filters.size());
+        }
+        {
+            GetFiltersRequest request = new GetFiltersRequest();
+            request.setFilterId(filterId);
+
+            // tag::get-filters-execute-listener
+            ActionListener<GetFiltersResponse> listener = new ActionListener<GetFiltersResponse>() {
+                    @Override
+                    public void onResponse(GetFiltersResponse getfiltersResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-filters-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-filters-execute-async
+            client.machineLearning().getFilterAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-filters-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testUpdateFilter() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        String filterId = "update-filter-doc-test";
+        MlFilter.Builder filterBuilder = MlFilter.builder(filterId).setDescription("test").setItems("*.google.com", "wikipedia.org");
+
+        client.machineLearning().putFilter(new PutFilterRequest(filterBuilder.build()), RequestOptions.DEFAULT);
+
+        {
+            // tag::update-filter-request
+            UpdateFilterRequest request = new UpdateFilterRequest(filterId); // <1>
+            // end::update-filter-request
+
+            // tag::update-filter-description
+            request.setDescription("my new description"); // <1>
+            // end::update-filter-description
+
+            // tag::update-filter-add-items
+            request.setAddItems(Arrays.asList("*.bing.com", "*.elastic.co")); // <1>
+            // end::update-filter-add-items
+
+            // tag::update-filter-remove-items
+            request.setRemoveItems(Arrays.asList("*.google.com")); // <1>
+            // end::update-filter-remove-items
+
+            // tag::update-filter-execute
+            PutFilterResponse response = client.machineLearning().updateFilter(request, RequestOptions.DEFAULT);
+            // end::update-filter-execute
+
+            // tag::update-filter-response
+            MlFilter updatedFilter = response.getResponse(); // <1>
+            // end::update-filter-response
+            assertEquals(request.getDescription(), updatedFilter.getDescription());
+        }
+        {
+            UpdateFilterRequest request = new UpdateFilterRequest(filterId);
+
+            // tag::update-filter-execute-listener
+            ActionListener<PutFilterResponse> listener = new ActionListener<PutFilterResponse>() {
+                @Override
+                public void onResponse(PutFilterResponse putFilterResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::update-filter-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::update-filter-execute-async
+            client.machineLearning().updateFilterAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::update-filter-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
     }
 }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +45,7 @@ public class MockNioTransportPlugin extends Plugin implements NetworkPlugin {
                                                           NamedWriteableRegistry namedWriteableRegistry,
                                                           NetworkService networkService) {
         return Collections.singletonMap(MOCK_NIO_TRANSPORT_NAME,
-            () -> new MockNioTransport(settings, threadPool, networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry,
-                circuitBreakerService));
+            () -> new MockNioTransport(settings, Version.CURRENT, threadPool, networkService, bigArrays, pageCacheRecycler,
+                namedWriteableRegistry, circuitBreakerService));
     }
 }

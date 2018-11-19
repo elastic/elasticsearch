@@ -26,6 +26,9 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.HeadBucketRequest;
 import com.amazonaws.services.s3.model.HeadBucketResult;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -68,11 +71,9 @@ public class RepositoryCredentialsTests extends ESTestCase {
         }
 
         static final class ProxyS3Service extends S3Service {
-
-            ProxyS3Service(Settings settings) {
-                super(settings);
-            }
-
+            
+            private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
+            
             @Override
             AmazonS3 buildClient(final S3ClientSettings clientSettings) {
                 final AmazonS3 client = super.buildClient(clientSettings);
@@ -82,7 +83,7 @@ public class RepositoryCredentialsTests extends ESTestCase {
         }
 
         ProxyS3RepositoryPlugin(Settings settings) {
-            super(settings, new ProxyS3Service(settings));
+            super(settings, new ProxyS3Service());
         }
 
         @Override

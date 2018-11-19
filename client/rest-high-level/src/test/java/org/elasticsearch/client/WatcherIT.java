@@ -32,17 +32,22 @@ import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.ActivateWatchResponse;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
+import org.elasticsearch.client.watcher.WatcherState;
+import org.elasticsearch.client.watcher.WatcherStatsRequest;
+import org.elasticsearch.client.watcher.WatcherStatsResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.client.watcher.DeleteWatchRequest;
+import org.elasticsearch.client.watcher.DeleteWatchResponse;
+import org.elasticsearch.client.watcher.PutWatchRequest;
+import org.elasticsearch.client.watcher.PutWatchResponse;
 import org.elasticsearch.rest.RestStatus;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 public class WatcherIT extends ESRestHighLevelClientTestCase {
 
@@ -50,12 +55,22 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse response =
                 highLevelClient().watcher().startWatchService(new StartWatchServiceRequest(), RequestOptions.DEFAULT);
         assertTrue(response.isAcknowledged());
+
+        WatcherStatsResponse stats = highLevelClient().watcher().watcherStats(new WatcherStatsRequest(), RequestOptions.DEFAULT);
+        assertFalse(stats.getWatcherMetaData().manuallyStopped());
+        assertThat(stats.getNodes(), not(empty()));
+        for(WatcherStatsResponse.Node node : stats.getNodes()) {
+            assertEquals(WatcherState.STARTED, node.getWatcherState());
+        }
     }
 
     public void testStopWatchService() throws Exception {
         AcknowledgedResponse response =
                 highLevelClient().watcher().stopWatchService(new StopWatchServiceRequest(), RequestOptions.DEFAULT);
         assertTrue(response.isAcknowledged());
+
+        WatcherStatsResponse stats = highLevelClient().watcher().watcherStats(new WatcherStatsRequest(), RequestOptions.DEFAULT);
+        assertTrue(stats.getWatcherMetaData().manuallyStopped());
     }
 
     public void testPutWatch() throws Exception {
@@ -168,5 +183,16 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         ElasticsearchStatusException exception =  expectThrows(ElasticsearchStatusException.class, () ->
             highLevelClient().watcher().activateWatch(new ActivateWatchRequest(watchId), RequestOptions.DEFAULT));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+    public void testWatcherStatsMetrics() throws Exception {
+        boolean includeCurrent = randomBoolean();
+        boolean includeQueued = randomBoolean();
+        WatcherStatsRequest request = new WatcherStatsRequest(includeCurrent, includeQueued);
+
+        WatcherStatsResponse stats = highLevelClient().watcher().watcherStats(request, RequestOptions.DEFAULT);
+        assertThat(stats.getNodes(), not(empty()));
+        assertEquals(includeCurrent, stats.getNodes().get(0).getSnapshots() != null);
+        assertEquals(includeQueued, stats.getNodes().get(0).getQueuedWatches() != null);
     }
 }

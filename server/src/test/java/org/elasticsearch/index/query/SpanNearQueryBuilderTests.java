@@ -222,6 +222,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
                 "}";
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(), equalTo("span_near [clauses] can't have non-default boost value [2.0]"));
+        assertThat(exception.getMessage(),
+            equalTo("span_near [clauses] as a nested span clause can't have non-default boost value [2.0]"));
     }
 }

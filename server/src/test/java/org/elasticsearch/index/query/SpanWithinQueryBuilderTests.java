@@ -133,7 +133,8 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
                 "}";
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(), equalTo("span_within [big] can't have non-default boost value [2.0]"));
+        assertThat(exception.getMessage(),
+            equalTo("span_within [big] as a nested span clause can't have non-default boost value [2.0]"));
     }
 
     public void testFromJson_withNonDefaultBoost_inLittleQuery() {
@@ -175,6 +176,7 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
                 "}";
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(), equalTo("span_within [little] can't have non-default boost value [2.0]"));
+        assertThat(exception.getMessage(),
+            equalTo("span_within [little] as a nested span clause can't have non-default boost value [2.0]"));
     }
 }

@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;

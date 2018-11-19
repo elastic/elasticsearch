@@ -6,6 +6,8 @@
 <titleabbrev>Retry Policy</titleabbrev>
 ++++
 
+beta[]
+
 Retry executing the policy for an index that is in the ERROR step.
 
 ==== Request

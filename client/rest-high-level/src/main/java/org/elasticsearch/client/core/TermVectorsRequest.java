@@ -33,6 +33,8 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
     private final String index;
     private final String type;
     private String id = null;
+    private XContentBuilder docBuilder = null;
+
     private String routing = null;
     private String preference = null;
     private boolean realtime = true;
@@ -44,7 +46,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
     private boolean requestTermStatistics = false;
     private Map<String, String> perFieldAnalyzer = null;
     private Map<String, Integer> filterSettings = null;
-    private XContentBuilder docBuilder = null;
 
 
     /**
@@ -54,7 +55,8 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
      * @param docId - id of the document
      */
     public TermVectorsRequest(String index, String type, String docId) {
-        this(index, type);
+        this.index = index;
+        this.type = type;
         this.id = docId;
     }
 
@@ -62,10 +64,12 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
      * Constructs TermVectorRequest for an artificial document
      * @param index - index of the document
      * @param type - type of the document
+     * @param docBuilder - an artificial document
      */
-    public TermVectorsRequest(String index, String type) {
+    public TermVectorsRequest(String index, String type, XContentBuilder docBuilder) {
         this.index = index;
         this.type = type;
+        this.docBuilder = docBuilder;
     }
 
     /**

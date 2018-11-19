@@ -68,14 +68,17 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
             termVectorsRequest.routing(clusterState.metaData().resolveIndexRouting(termVectorsRequest.routing(),
                 termVectorsRequest.index()));
             if (!clusterState.metaData().hasConcreteIndex(termVectorsRequest.index())) {
-                responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(termVectorsRequest.index(),
-                        termVectorsRequest.type(), termVectorsRequest.id(), new IndexNotFoundException(termVectorsRequest.index()))));
+                responses.set(i, new MultiTermVectorsItemResponse(null,
+                    new MultiTermVectorsResponse.Failure(termVectorsRequest.index(), termVectorsRequest.type(), termVectorsRequest.id(),
+                        new IndexNotFoundException(termVectorsRequest.index()))));
                 continue;
             }
             String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, termVectorsRequest).getName();
-            if (termVectorsRequest.routing() == null && clusterState.getMetaData().routingRequired(concreteSingleIndex, termVectorsRequest.type())) {
-                responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id(),
-                    new RoutingMissingException(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id()))));
+            if (termVectorsRequest.routing() == null &&
+                clusterState.getMetaData().routingRequired(concreteSingleIndex, termVectorsRequest.type())) {
+                responses.set(i, new MultiTermVectorsItemResponse(null,
+                    new MultiTermVectorsResponse.Failure(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id(),
+                        new RoutingMissingException(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id()))));
                 continue;
             }
             ShardId shardId = clusterService.operationRouting().shardId(clusterState, concreteSingleIndex,

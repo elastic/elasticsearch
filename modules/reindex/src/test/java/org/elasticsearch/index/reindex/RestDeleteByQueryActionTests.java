@@ -19,23 +19,70 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonMap;
 import static org.mockito.Mockito.mock;
 
 public class RestDeleteByQueryActionTests extends ESTestCase {
+    private static NamedXContentRegistry xContentRegistry;
+    private static RestDeleteByQueryAction action;
+
+    @BeforeClass
+    public static void init() {
+        xContentRegistry = new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents());
+        action = new RestDeleteByQueryAction(Settings.EMPTY, mock(RestController.class));
+    }
+
+    @AfterClass
+    public static void cleanup() {
+        xContentRegistry = null;
+        action = null;
+    }
+
     public void testParseEmpty() throws IOException {
-        RestDeleteByQueryAction action = new RestDeleteByQueryAction(Settings.EMPTY, mock(RestController.class));
         DeleteByQueryRequest request = action.buildRequest(new FakeRestRequest.Builder(new NamedXContentRegistry(emptyList()))
                 .build());
         assertEquals(AbstractBulkByScrollRequest.SIZE_ALL_MATCHES, request.getSize());
         assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE, request.getSearchRequest().source().size());
+    }
+
+    public void testParseWithSize() throws IOException {
+        {
+            FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+                .withPath("index/type/_delete_by_query")
+                .withParams(singletonMap("size", "2"))
+                .build();
+            DeleteByQueryRequest request = action.buildRequest(restRequest);
+            assertEquals(2, request.getSize());
+        }
+        {
+            final String requestContent = "{\"query\" : {\"match_all\": {}}, \"size\": 2 }";
+            FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+                .withMethod(RestRequest.Method.POST)
+                .withPath("index/type/_delete_by_query")
+                .withContent(new BytesArray(requestContent), XContentType.JSON)
+                .build();
+            DeleteByQueryRequest request = action.buildRequest(restRequest);
+            assertEquals(2, request.getSize());
+        }
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 }

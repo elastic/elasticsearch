@@ -22,7 +22,8 @@ package org.elasticsearch.action.admin.cluster.settings;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class ClusterUpdateSettingsAction extends Action<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse, ClusterUpdateSettingsRequestBuilder> {
+public class ClusterUpdateSettingsAction
+    extends Action<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse, ClusterUpdateSettingsRequestBuilder> {
 
     public static final ClusterUpdateSettingsAction INSTANCE = new ClusterUpdateSettingsAction();
     public static final String NAME = "cluster:admin/settings/update";

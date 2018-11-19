@@ -69,6 +69,9 @@ public class ScriptScoreFunction extends ScoreFunction {
                 scorer.docid = docId;
                 scorer.score = subQueryScore;
                 double result = leafScript.execute();
+                if (result < 0f) {
+                    throw new IllegalArgumentException("script score function must not produce negative scores, but got: [" + result + "]");
+                }
                 return result;
             }
 

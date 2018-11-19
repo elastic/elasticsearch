@@ -21,7 +21,6 @@ package org.elasticsearch.common.xcontent.json;
 
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonStreamContext;
 import com.fasterxml.jackson.core.JsonToken;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -245,48 +244,4 @@ public class JsonXContentParser extends AbstractXContentParser {
     public boolean isClosed() {
         return parser.isClosed();
     }
-
-    @Override
-    public Mark markParent() {
-        if (currentToken() != Token.START_OBJECT && currentToken() != Token.START_ARRAY) {
-            throw new IllegalStateException("markParent() has to be called on the start of an object or an array");
-        }
-        JsonStreamContext context = parser.getParsingContext();
-        JsonStreamContext parentContext = context.getParent();
-        if (parentContext == null) {
-            // we cannot be here because we already checked for the first token, but just in case we double check
-            throw new IllegalStateException("Cannot mark root");
-        }
-        return () -> {
-            JsonStreamContext currentContext;
-            Token token = currentToken();
-            // First we skip all tokens until we are back to the parsing context that we started with
-            for (currentContext = parser.getParsingContext();
-                 currentContext != null && parentContext.equals(parser.getParsingContext()) == false;
-                 currentContext = parser.getParsingContext()
-            ) {
-                token = nextToken();
-            }
-            if (currentContext == null) {
-                throw new IllegalStateException("Didn't find parent context");
-            }
-            // Now we are going to skip all children of the current structure
-            int level = 1;
-            while (true) {
-                if (token == null) {
-                    throw new IllegalStateException("Unexpected end of the stream");
-                }
-                if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
-                    level++;
-                } else if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
-                    if (--level == 0) {
-                        return;
-                    }
-                }
-                token = nextToken();
-            }
-
-        };
-    }
-
 }

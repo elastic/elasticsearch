@@ -329,15 +329,10 @@ public class XContentParserTests extends ESTestCase {
         }
     }
 
-    public void testMarkParent() throws IOException {
+    public void testSubParser() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        boolean testObject = randomBoolean();
         int numberOfTokens;
-        if (testObject) {
-            numberOfTokens = generateRandomObjectForMarking(builder);
-        } else {
-            numberOfTokens = generateRandomArrayForMarking(builder);
-        }
+        numberOfTokens = generateRandomObjectForMarking(builder);
         String content = Strings.toString(builder);
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
@@ -347,19 +342,18 @@ public class XContentParserTests extends ESTestCase {
             assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken()); // foo
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // marked field
             assertEquals("marked_field", parser.currentName());
-            if (testObject) {
-                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken()); // {
-            } else {
-                assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken()); // [
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken()); // {
+            try (XContentParser subParser = new XContentSubParser(parser)) {
+                int tokensToSkip = randomInt(numberOfTokens - 1);
+                for (int i = 0; i < tokensToSkip; i++) {
+                    // Simulate incomplete parsing
+                    assertNotNull(subParser.nextToken());
+                }
+                if (randomBoolean()) {
+                    // And sometimes skipping children
+                    subParser.skipChildren();
+                }
             }
-            XContentParser.Mark mark = parser.markParent();
-            int tokensToSkip = randomInt(numberOfTokens - 1);
-            for (int i = 0; i < tokensToSkip; i++) {
-                // Simulate incomplete parsing
-                assertNotNull(parser.nextToken());
-            }
-            // now skip to the end of the marked_field
-            mark.skipChildren();
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // last field
             assertEquals("last_field", parser.currentName());
             assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
@@ -368,7 +362,7 @@ public class XContentParserTests extends ESTestCase {
         }
     }
 
-    public void testMarkAtWrongPlace() throws IOException {
+    public void testCreateSubParserAtAWrongPlace() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         generateRandomObjectForMarking(builder);
         String content = Strings.toString(builder);
@@ -377,26 +371,26 @@ public class XContentParserTests extends ESTestCase {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // first field
             assertEquals("first_field", parser.currentName());
-            IllegalStateException exception = expectThrows(IllegalStateException.class, parser::markParent);
-            assertEquals("markParent() has to be called on the start of an object or an array", exception.getMessage());
+            IllegalStateException exception = expectThrows(IllegalStateException.class, () -> new XContentSubParser(parser));
+            assertEquals("The sub parser has to be created on the start of an object", exception.getMessage());
         }
     }
 
 
-    public void testMarkRoot() throws IOException {
+    public void testCreateRootSubParser() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         int numberOfTokens = generateRandomObjectForMarking(builder);
         String content = Strings.toString(builder);
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            XContentParser.Mark mark = parser.markParent();
-            int tokensToSkip = randomInt(numberOfTokens + 3);
-            for (int i = 0; i < tokensToSkip; i++) {
-                // Simulate incomplete parsing
-                assertNotNull(parser.nextToken());
+            try (XContentParser subParser = new XContentSubParser(parser)) {
+                int tokensToSkip = randomInt(numberOfTokens + 3);
+                for (int i = 0; i < tokensToSkip; i++) {
+                    // Simulate incomplete parsing
+                    assertNotNull(subParser.nextToken());
+                }
             }
-            mark.skipChildren();
             assertNull(parser.nextToken());
         }
 
@@ -412,21 +406,6 @@ public class XContentParserTests extends ESTestCase {
             .field("first_field", "foo")
             .field("marked_field");
         int numberOfTokens = generateRandomObject(builder, 0);
-        builder.field("last_field", "bar").endObject();
-        return numberOfTokens;
-    }
-
-
-    /**
-     * Generates a random object {"first_field": "foo", "marked_field": [...random...], "last_field": "bar}
-     *
-     * Returns the number of tokens in the marked field
-     */
-    private int generateRandomArrayForMarking(XContentBuilder builder) throws IOException {
-        builder.startObject()
-            .field("first_field", "foo")
-            .field("marked_field");
-        int numberOfTokens = generateRandomArray(builder, 0);
         builder.field("last_field", "bar").endObject();
         return numberOfTokens;
     }

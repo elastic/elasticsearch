@@ -42,8 +42,6 @@ import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.Period;
-import org.joda.time.PeriodType;
 import org.junit.Assert;
 
 import java.io.IOException;

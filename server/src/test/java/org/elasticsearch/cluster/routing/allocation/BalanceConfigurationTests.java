@@ -44,23 +44,36 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BalanceConfigurationTests extends ESAllocationTestCase {
 
     private final Logger logger = LogManager.getLogger(BalanceConfigurationTests.class);
-    // TODO maybe we can randomize these numbers somehow
-    final int numberOfNodes = 25;
-    final int numberOfIndices = 12;
-    final int numberOfShards = 2;
-    final int numberOfReplicas = 2;
+
+    int numberOfNodes;
+    int numberOfIndices;
+    int numberOfShards;
+    int numberOfReplicas;
+
+    @Before
+    public void setup() {
+        numberOfNodes = randomIntBetween(15, 30);
+        numberOfIndices = randomIntBetween(5, 15);
+        numberOfShards = randomIntBetween(2, 5);
+        numberOfReplicas = randomIntBetween(1, 3);
+    }
 
     public void testIndexBalance() {
         /* Tests balance over indices only */
@@ -78,24 +91,32 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         AllocationService strategy = createAllocationService(settings.build(), new TestGatewayAllocator());
 
         ClusterState clusterState = initCluster(strategy);
+        final int maxNumberOfPrimaryShards = numberOfIndices * numberOfShards;
         assertIndexBalance(clusterState.getRoutingTable(), clusterState.getRoutingNodes(), numberOfNodes,
-            numberOfIndices, numberOfIndices,
+            maxNumberOfPrimaryShards, maxNumberOfPrimaryShards,
             numberOfReplicas, numberOfShards, balanceThreshold);
 
         clusterState = addNode(clusterState, strategy);
         final int newNumberOfNodes = numberOfNodes + 1;
         assertIndexBalance(clusterState.getRoutingTable(), clusterState.getRoutingNodes(), newNumberOfNodes,
-            numberOfIndices, numberOfIndices,
+            maxNumberOfPrimaryShards, maxNumberOfPrimaryShards,
             numberOfReplicas, numberOfShards, balanceThreshold);
 
-        clusterState = removeNodes(clusterState, strategy);
-        final int halfNodes = newNumberOfNodes / 2;
+        // drop sometimes half of cluster, in some cases less than size of a shard group
+        final int nodesToRemove = randomBoolean() ? newNumberOfNodes / 2 : randomIntBetween(1, numberOfReplicas);
+        clusterState = removeNodes(clusterState, strategy, nodesToRemove);
+
+        final int minNumberOfPrimaryShards =
+            // the worst case: all index shards were allocated on dropped nodes
+            nodesToRemove >= (numberOfShards * (numberOfReplicas + 1)) ? 0 :
+                // otherwise we can lose entire shard group (primary + all replicas) but not entire index
+                numberOfIndices * (numberOfShards -
+                    // Note: dropped nodes less that (numberOfReplicas + 1) means there is at least one replica is alive =>
+                    // => it is possible to recover all shards == zero loss
+                    Math.round(Math.round(1.0f * nodesToRemove / (numberOfReplicas + 1))));
         assertIndexBalance(clusterState.getRoutingTable(), clusterState.getRoutingNodes(),
-            newNumberOfNodes - halfNodes,
-            numberOfIndices
-            // in the worst case we can make several shard groups (primary + all replicas) entirely unassigned = lost index
-                - Math.round(Math.round(Math.floor(1.0f * halfNodes  / (numberOfShards * (numberOfReplicas + 1))))),
-            numberOfIndices,
+            newNumberOfNodes - nodesToRemove,
+            minNumberOfPrimaryShards, maxNumberOfPrimaryShards,
             numberOfReplicas, numberOfShards, balanceThreshold);
     }
 
@@ -118,22 +139,26 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
         final int totalNumberOfShards = numberOfIndices * numberOfShards * (numberOfReplicas + 1);
 
-        assertReplicaBalance(logger, clusterState.getRoutingNodes(), numberOfNodes,
+        assertReplicaBalance(clusterState.getRoutingNodes(), numberOfNodes,
             totalNumberOfShards, totalNumberOfShards, balanceThreshold);
 
         clusterState = addNode(clusterState, strategy);
         final int newNumberOfNodes = numberOfNodes + 1;
-        assertReplicaBalance(logger, clusterState.getRoutingNodes(), newNumberOfNodes,
+        assertReplicaBalance(clusterState.getRoutingNodes(), newNumberOfNodes,
             totalNumberOfShards, totalNumberOfShards, balanceThreshold);
 
-        clusterState = removeNodes(clusterState, strategy);
-        final int halfNodes = newNumberOfNodes / 2;
-        assertReplicaBalance(logger, clusterState.getRoutingNodes(),
-            newNumberOfNodes - halfNodes,
-            // in the worst case we can make several shard groups (primary + all replicas) entirely unassigned
+        // drop sometimes half of cluster, in some cases less than size of a shard group
+        final int nodesToRemove = randomBoolean() ? newNumberOfNodes / 2 : randomIntBetween(1, numberOfReplicas);
+
+        clusterState = removeNodes(clusterState, strategy, nodesToRemove);
+        assertReplicaBalance(clusterState.getRoutingNodes(),
+            newNumberOfNodes - nodesToRemove,
             (totalNumberOfShards -
+                // it is possible to recover all shards when number of removed nodes less than size of a shard group == zero loss
+                nodesToRemove <= numberOfReplicas ? 0 :
+                // in the worst case we can make several shard groups (primary + all replicas) entirely unassigned
                 // number_of_dropped_nodes * (avg number of shards per node)
-                Math.round(Math.round(Math.floor(1.0f * halfNodes * totalNumberOfShards / numberOfNodes)))),
+                Math.round(Math.round(Math.floor(1.0f * nodesToRemove * totalNumberOfShards / numberOfNodes)))),
             totalNumberOfShards, balanceThreshold);
 
     }
@@ -191,20 +216,22 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         return applyStartedShardsUntilNoChange(clusterState, strategy);
     }
 
-    private ClusterState removeNodes(ClusterState clusterState, AllocationService strategy) {
-        logger.info("Removing half the nodes (" + (numberOfNodes + 1) / 2 + ")");
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
+    private ClusterState removeNodes(ClusterState clusterState, AllocationService strategy, int nodesToRemove) {
+        assertThat(nodesToRemove, greaterThan(0));
+        logger.info("Removing {} the nodes", nodesToRemove);
+        final DiscoveryNodes discoveryNodes = clusterState.nodes();
+        final DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(discoveryNodes);
 
-        boolean removed = false;
-        for (int i = (numberOfNodes + 1) / 2; i <= numberOfNodes; i++) {
-            nodes.remove("node" + i);
-            removed = true;
+        final List<String> nodesName = IntStream.range(0, discoveryNodes.getSize())
+            .mapToObj(i -> "node" + i).collect(Collectors.toList());
+        Collections.shuffle(nodesName, random());
+
+        for (int i = 0; i < nodesToRemove; i++) {
+            nodes.remove(nodesName.get(i));
         }
 
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
-        if (removed) {
-            clusterState = strategy.deassociateDeadNodes(clusterState, randomBoolean(), "removed nodes");
-        }
+        clusterState = strategy.deassociateDeadNodes(clusterState, randomBoolean(), "removed nodes");
 
         logger.info("start all the primary shards, replicas will start initializing");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
@@ -222,7 +249,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     }
 
 
-    private void assertReplicaBalance(Logger logger, RoutingNodes nodes, int numberOfNodes,
+    private void assertReplicaBalance(RoutingNodes nodes, int numberOfNodes,
                                       int minTotalNumberOfShards, int maxTotalNumberOfShards, float threshold) {
         int totalNumberOfStartedShards = 0;
         for (RoutingNode node : nodes) {
@@ -244,27 +271,26 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     }
 
     private void assertIndexBalance(RoutingTable routingTable, RoutingNodes nodes, int numberOfNodes,
-                                    int minNumberOfIndices, int maxNumberOfIndices,
+                                    int minNumberOfPrimaryShards, int maxNumberOfPrimaryShards,
                                     int numberOfReplicas, int numberOfShards, float threshold) {
 
         final int numShards = numberOfShards * (numberOfReplicas + 1);
         final float avgNumShards = (float) (numShards) / (float) (numberOfNodes);
-        final int minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards)));
-        final int maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards)));
+        final int minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - threshold)));
+        final int maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + threshold)));
 
-        int totalNumberOfPrimaryShards = 0;
+        int actualNumberOfPrimaryShards = 0;
         for (ObjectCursor<String> index : routingTable.indicesRouting().keys()) {
             for (RoutingNode node : nodes) {
                 final List<ShardRouting> shardRoutings = node.shardsWithState(index.value, STARTED);
-                totalNumberOfPrimaryShards += (int) shardRoutings.stream().filter(ShardRouting::primary).count();
+                actualNumberOfPrimaryShards += (int) shardRoutings.stream().filter(ShardRouting::primary).count();
                 assertThat(node.node().getName(), shardRoutings.size(),
                     allOf(greaterThanOrEqualTo(minAvgNumberOfShards), lessThanOrEqualTo(maxAvgNumberOfShards)));
             }
         }
-        int actualNumberOfIndices = totalNumberOfPrimaryShards / numberOfShards;
-        // check that expected number of indices are allocated and started
-        assertThat(actualNumberOfIndices,
-            allOf(greaterThanOrEqualTo(minNumberOfIndices), lessThanOrEqualTo(maxNumberOfIndices)));
+        // check that expected number of primaries are allocated and started
+        assertThat(actualNumberOfPrimaryShards,
+            allOf(greaterThanOrEqualTo(minNumberOfPrimaryShards), lessThanOrEqualTo(maxNumberOfPrimaryShards)));
     }
 
     public void testPersistedSettings() {

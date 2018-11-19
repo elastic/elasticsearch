@@ -45,23 +45,24 @@ The following is a list of the events that can be generated:
 [[audit-event-attributes]]
 === Audit event attributes
 
-A new <<audit-log-output, `logfile` audit output>> format has been added in the
-6.5.0 version. This format also brings in a few changes for audit event attributes.
+In 6.5.0, there is a new <<audit-log-output, `logfile` audit output>> format.
+This format also brings in a few changes for audit event attributes.
 
 The new format is output to the `<clustername>_audit.log` file.
-The audit entries are formatted as flat (that is, no nested objects) JSON documents,
-one per line. Hence, the attribute names are JSON keys and they follow a dotted
-name syntax. Any attribute that lacks a value (`null`) will not be output.
+The audit entries are formatted as flat JSON documents (that is to say, no
+nested objects), one per line. Hence, the attribute names are JSON keys and they
+follow a dotted name syntax. Any attributes that lack a value (`null`) are not
+output.
 
 The following list shows attributes that are common to all audit events.
 Their names and values are analogous to those in the deprecated `logfile` or
 `index` output formats. However, it is expected that the formats will evolve
-independetly during the 6.x releases, so it is advisable to follow the attribute
+independently during the 6.x releases, so it is advisable to follow the attribute
 descriptions for the format that you are using.
 
 `@timestamp`      ::    The time, in ISO9601 format, when the event occurred.
 `node.name`       ::    The name of the node. This can be changed
-                        from the `elasticsearch.yml` config file.
+                        in the `elasticsearch.yml` config file.
 `node.id`         ::    The node id. This is automatically generated and is
                         persistent across full cluster restarts.
 `host.ip`         ::    The bound IP address of the node, with which the node
@@ -77,7 +78,7 @@ descriptions for the format that you are using.
 `origin.type`     ::    The origin type of the request associated with this event:
                         `rest` (request originated from a REST API request),
                         `transport` (request was received on the transport channel),
-                        `local_node` (the local node issued the request).
+                        or `local_node` (the local node issued the request).
 `event.type`      ::    The internal processing layer that generated the event:
                         `rest`, `transport` or `ip_filter`.
                         This is different from `origin.type` because a request
@@ -88,7 +89,7 @@ descriptions for the format that you are using.
                         `authentication_failed`, `authentication_success`,
                         `realm_authentication_failed`, `access_denied`, `access_granted`,
                         `connection_denied`, `connection_granted`, `tampered_request`,
-                        `run_as_denied` or `run_as_granted`.
+                        `run_as_denied`, or `run_as_granted`.
 `opaque_id`       ::    The value of the `X-Opaque-Id` HTTP header (if present) of
                         the request associated with this event. This header can
                         be used freely by the client to mark API calls, as it has
@@ -99,8 +100,8 @@ descriptions for the format that you are using.
 The events with `event.type` equal to `rest` have one of the following `event.action`
 attribute values: `authentication_success`, `anonymous_access_denied`, `authentication_failed`,
 `realm_authentication_failed`, `tampered_request` or `run_as_denied`.
-These event types also have the following extra attributes (in addition to the common
-ones):
+These event types also have the following extra attributes (in addition to the
+common ones):
 
 `url.path`        ::    The path part of the URL (between the port and the query
                         string) of the REST request associated with this event.
@@ -116,12 +117,12 @@ ones):
 The events with `event.type` equal to `transport` have one of the following `event.action`
 attribute values: `authentication_success`, `anonymous_access_denied`, `authentication_failed`,
 `realm_authentication_failed`, `access_granted`, `access_denied`, `run_as_granted`,
-`run_as_denied` or `tampered_request`.
+`run_as_denied`, or `tampered_request`.
 These event types also have the following extra attributes (in addition to the common
 ones):
 
 `action`              ::    The name of the transport action that was executed.
-                            This is alike the URL for a REST request.
+                            This is like the URL for a REST request.
 `indices`             ::    The indices names array that the request associated
                             with this event pertains to (when applicable).
 `request.name`        ::    The name of the request handler that was executed.
@@ -139,11 +140,11 @@ ones):
 
 ==== Extra audit event attributes for specific events
 
-There are a few events that have yet some more attributes in addition to those
+There are a few events that have some more attributes in addition to those
 that have been previously described:
 
 * `authentication_success`:
-  `realm`              ::   The name of the realm that had successfully
+  `realm`              ::   The name of the realm that successfully
                             authenticated the user.
   `user.name`          ::   The name of the _effective_ user. This is usually the
                             same as the _authenticated_ user, but if using the
@@ -151,13 +152,13 @@ that have been previously described:
                             this instead denotes the name of the  _impersonated_ user.
   `user.run_by.name`   ::   This attribute is present only if the request is
                             using the <<run-as-privilege, run as authorization functionality>>
-                            and denotes the name of the  _authenticated_ user, aka
-                            the _impersonator_.
+                            and denotes the name of the  _authenticated_ user, 
+                            which is also known as the _impersonator_.
 
 * `authentication_failed`:
-  `user.name`          ::    The name of the user that failed authentication. Could
-                             be missing if the request authentication token is
-                             invalid or unparsable.
+  `user.name`          ::    The name of the user that failed authentication.
+                             If the request authentication token is invalid or 
+                             unparsable, this information might be missing.
 
 * `realm_authentication_failed`:
   `user.name`          ::    The name of the user that failed authentication.
@@ -168,23 +169,23 @@ that have been previously described:
 * `run_as_denied` and `run_as_granted`:
   `user.roles`         ::    The role names of the user as an array.
   `user.name`          ::    The name of the _authenticated_ user which is being
-                             granted/denied the _impersonation_ action.
+                             granted or denied the _impersonation_ action.
   `user.realm`         ::    The realm name that the _authenticated_ user belongs to.
   `user.run_as.name`   ::    The name of the user as which the _impersonation_
-                             action is granted/denied.
+                             action is granted or denied.
   `user.run_as.realm`  ::    The realm name of that the _impersonated_ user belongs to.
 
 * `access_granted` or `access_denied`:
   `user.roles`         ::    The role names of the user as an array.
   `user.name`          ::    The name of the _effective_ user that is being
-                             authorized/unauthorized. This is usually the _authenticated_
+                             authorized or unauthorized. This is usually the _authenticated_
                              user, but if using the <<run-as-privilege, run as authorization functionality>>
                              this instead denotes the name of the  _impersonated_ user.
   `user.realm`         ::    The realm name that the _effective_ user belongs to.
   `user.run_by.name`   ::    This attribute is present only if the request is
                              using the <<run-as-privilege, run as authorization functionality>>
-                             and denoted the name of the _authenticated_ user, aka
-                             the _impersonator_.
+                             and denoted the name of the _authenticated_ user,
+                             which is also known as the _impersonator_.
   `user.run_by.realm`  ::    This attribute is present only if the request is
                              using the <<run-as-privilege, run as authorization functionality>>
                              and denotes the name of the realm that the _authenticated_
@@ -215,8 +216,8 @@ every event, when it is output to the `<clustername>_access.log` file or to the
                         `run_as_denied`, `run_as_granted`.
 |======
 
-For an event in the <<audit-log-output,audit log file output>> these are
-positional attributes, which are printed at the begining of each log line and
+For an event in the <<audit-log-output,audit log file output>>, these are
+positional attributes, which are printed at the beginning of each log line and
 are not adjoined by the attribute name. As a matter of course, the names are
 present for each attribute when the event is forwarded to the <<audit-index, index audit output>>.
 
@@ -224,9 +225,9 @@ The attribute `origin_address` is also common to every audit event. It is always
 named, that is, it is not positional. It denotes the source IP address of the
 request associated with this event. This might be the address of the client, the
 address of another cluster node, or the local node's bound address (if the request
-originated locally). Unless the  client connects directly to the cluster, the
-_client  address_ will actually be the address of the first OSI layer 3 proxy
-in front of the cluster.
+originated locally). Unless the client connects directly to the cluster, the
+_client  address_ is the address of the first OSI layer 3 proxy in front of the
+cluster.
 
 In addition, every event might have the `opaque_id` attribute, with the value as
 it has been passed in by the `X-Opaque-Id` HTTP request header. This header can
@@ -268,8 +269,8 @@ of event, in addition to the common ones previously described:
 |======
 | Attribute            | Description
 | `principal`          | The principal (username) that failed authentication.
-                         Could be missing if the request's authentication token
-                         is invalid.
+                         If the request's authentication token is invalid, this
+                         information might be missing.
 | `uri`                | The REST endpoint URI.
 | `request_body`       | The body of the request, if enabled.
 |======
@@ -299,7 +300,7 @@ of event, in addition to the common ones previously described:
 | Attribute            | Description
 | `origin_type`        | Where the request originated: `rest` (request
                          originated from a REST API request), `transport`
-                         (request was received on the transport channel),
+                         (request was received on the transport channel), or
                          `local_node` (the local node issued the request).
 | `action`             | The name of the action that was executed.
 | `indices`            | A comma-separated list of indices this request
@@ -313,7 +314,7 @@ of event, in addition to the common ones previously described:
 | Attribute            | Description
 | `origin_type`        | Where the request originated: `rest` (request
                          originated from a REST API request), `transport`
-                         (request was received on the transport channel),
+                         (request was received on the transport channel), or
                          `local_node` (the local node issued the request).
 | `principal`          | The _effective_ (impersonated) username. Usually this is
                          the same as the _authenticated_ username.
@@ -336,11 +337,12 @@ of event, in addition to the common ones previously described:
 | Attribute            | Description
 | `origin_type`        | Where the request originated: `rest` (request
                          originated from a REST API request), `transport`
-                         (request was received on the transport channel),
+                         (request was received on the transport channel), or
                          `local_node` (the local node issued the request).
 | `principal`          | The _effective_ (impersonated) username. Usually this is
-                         the same as the _authenticated_ username. It could be
-                         missing if the request's authentication token is invalid.
+                         the same as the _authenticated_ username. If the
+                         request's authentication token is invalid, this
+                         information might be missing.  
 | `run_by_principal`   | The _authenticated_ (impersonator) username.
                          This attribute is present only if the request is
                          using the <<run-as-privilege, run as authorization functionality>>.
@@ -361,7 +363,7 @@ of event, in addition to the common ones previously described:
                          **A separate entry is logged for each consulted realm.**
 | `origin_type`        | Where the request originated: `rest` (request
                          originated from a REST API request), `transport`
-                         (request was received on the transport channel),
+                         (request was received on the transport channel), or
                          `local_node` (the local node issued the request).
 | `principal`          | The principal (username) that failed authentication.
 | `action`             | The name of the action that was executed.
@@ -376,7 +378,7 @@ of event, in addition to the common ones previously described:
 | Attribute            | Description
 | `origin_type`        | Where the request originated: `rest` (request
                          originated from a REST API request), `transport`
-                         (request was received on the transport channel),
+                         (request was received on the transport channel), or
                          `local_node` (the local node issued the request).
 | `principal`          | The _effective_ (impersonated) username for which
                          authorization succeeded. Unless the request is using
@@ -404,7 +406,7 @@ of event, in addition to the common ones previously described:
 | Attribute            | Description
 | `origin_type`        | Where the request originated: `rest` (request
                          originated from a REST API request), `transport`
-                         (request was received on the transport channel),
+                         (request was received on the transport channel), or
                          `local_node` (the local node issued the request).
 | `principal`          | The _effective_ (impersonated) username for which
                          authorization failed. Unless the request is using
@@ -433,7 +435,7 @@ of event, in addition to the common ones previously described:
 | Attribute            | Description
 | `origin_type`        | Where the request originated: `rest` (request
                          originated from a REST API request), `transport`
-                         (request was received on the transport channel),
+                         (request was received on the transport channel), or
                          `local_node` (the local node issued the request).
 | `principal`          | The _authenticated_ (_impersonator_) username for which
                          the impersonation operation was granted.
@@ -453,7 +455,7 @@ of event, in addition to the common ones previously described:
 | Attribute            | Description
 | `origin_type`        | Where the request originated: `rest` (request
                          originated from a REST API request), `transport`
-                         (request was received on the transport channel),
+                         (request was received on the transport channel), or
                          `local_node` (the local node issued the request).
 | `principal`          | The _authenticated_ (_impersonator_) username for which
                          the impersonation operation was denied.
@@ -473,13 +475,13 @@ of event, in addition to the common ones previously described:
 | Attribute            | Description
 | `origin_type`        | Where the request originated: `rest` (request
                          originated from a REST API request), `transport`
-                         (request was received on the transport channel),
+                         (request was received on the transport channel), or
                          `local_node` (the local node issued the request).
 | `principal`          | The _effective_ (impersonated) username. Unless the request
                          is using the <<run-as-privilege, run as authorization functionality>>,
-                         the _effective_ and the _authenticated_ usernames are equivalent.
-                         It could be missing if the requests's authentication token
-                         is invalid.
+                         the _effective_ and the _authenticated_ usernames are 
+                         equivalent. If the requests's authentication token is
+                         invalid, this information might be missing. 
 | `run_by_principal`   | The _authenticated_ (impersonator) username.
                          This attribute is present only if the request is
                          using the <<run-as-privilege, run as authorization functionality>>.

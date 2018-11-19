@@ -55,3 +55,4 @@ GET /seats/_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:seats]

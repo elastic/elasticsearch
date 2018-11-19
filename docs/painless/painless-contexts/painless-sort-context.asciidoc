@@ -58,3 +58,4 @@ GET /_search
 
 ----
 // CONSOLE
+// TEST[setup:seats]

@@ -102,13 +102,8 @@ appender.index_indexing_slowlog_rolling.type = RollingFile
 appender.index_indexing_slowlog_rolling.name = index_indexing_slowlog_rolling
 appender.index_indexing_slowlog_rolling.fileName = ${sys:es.logs}_index_indexing_slowlog.log
 appender.index_indexing_slowlog_rolling.layout.type = PatternLayout
-<<<<<<< HEAD
-appender.index_indexing_slowlog_rolling.layout.pattern = [%d{ISO8601}][%-5p][%-25c] %marker%.10000m%n
-appender.index_indexing_slowlog_rolling.filePattern = ${sys:es.logs}_index_indexing_slowlog-%d{yyyy-MM-dd}.log
-=======
 appender.index_indexing_slowlog_rolling.layout.pattern = [%d{ISO8601}][%-5p][%-25c] [%node_name]%marker %.-10000m%n
-appender.index_indexing_slowlog_rolling.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}_index_indexing_slowlog-%i.log.gz
->>>>>>> 22459576d75... Logging: Make node name consistent in logger (#31588)
+appender.index_indexing_slowlog_rolling.filePattern = ${sys:es.logs}_index_indexing_slowlog-%d{yyyy-MM-dd}.log
 appender.index_indexing_slowlog_rolling.policies.type = Policies
 appender.index_indexing_slowlog_rolling.policies.time.type = TimeBasedTriggeringPolicy
 appender.index_indexing_slowlog_rolling.policies.time.interval = 1

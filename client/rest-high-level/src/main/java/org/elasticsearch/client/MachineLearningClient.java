@@ -37,6 +37,8 @@ import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.ForecastJobResponse;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
+import org.elasticsearch.client.ml.GetCalendarEventsRequest;
+import org.elasticsearch.client.ml.GetCalendarEventsResponse;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
@@ -1385,6 +1387,47 @@ public final class MachineLearningClient {
                 AcknowledgedResponse::fromXContent,
                 listener,
                 Collections.emptySet());
+    }
+
+    /**
+     * Gets the events for a machine learning calendar
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar-event.html">
+     *  GET Calendar Events API</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The {@link PostCalendarEventRequest} containing the scheduled events
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetCalendarEventsResponse getCalendarEvents(GetCalendarEventsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getCalendarEvents,
+            options,
+            GetCalendarEventsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets the events for a a machine learning calendar asynchronously, notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar-event.html">
+     *  GET Calendar Events API</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getCalendarEventsAsync(GetCalendarEventsRequest request, RequestOptions options,
+                                       ActionListener<GetCalendarEventsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getCalendarEvents,
+            options,
+            GetCalendarEventsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 
     /**

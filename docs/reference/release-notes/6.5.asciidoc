@@ -49,7 +49,7 @@
 
 coming[6.5.1]
 
-Also see <<breaking-changes-6.5>>.
+Also see <<breaking-changes-6.5,Breaking changes in 6.5>>.
 
 [float]
 [[enhancement-6.5.1]]
@@ -95,7 +95,7 @@ SQL JDBC Driver::
 * The nodeps jar published to maven central does not contain associated dependencies. 
 Attempts to run using this jar will result in a `NoClassDefFound` error.
 
-Also see <<breaking-changes-6.5>>.
+Also see <<breaking-changes-6.5,Breaking changes in 6.5>>.
 
 [[breaking-6.5.0]]
 [float]

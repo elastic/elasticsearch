@@ -33,11 +33,11 @@ import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -65,8 +65,8 @@ public class ScriptConditionTests extends ESTestCase {
         scripts.put("return new Object()", s -> new Object());
 
         scripts.put("ctx.trigger.scheduled_time.getMillis() < new Date().time", vars -> {
-            DateTime scheduledTime = (DateTime) XContentMapValues.extractValue("ctx.trigger.scheduled_time", vars);
-            return scheduledTime.getMillis() < new Date().getTime();
+            ZonedDateTime scheduledTime = (ZonedDateTime) XContentMapValues.extractValue("ctx.trigger.scheduled_time", vars);
+            return scheduledTime.toInstant().toEpochMilli() < new Date().getTime();
         });
 
         scripts.put("null.foo", s -> {
@@ -196,7 +196,7 @@ public class ScriptConditionTests extends ESTestCase {
                 scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
-        WatchExecutionContext ctx = mockExecutionContext("_name", new DateTime(DateTimeZone.UTC), new Payload.XContent(response));
+        WatchExecutionContext ctx = mockExecutionContext("_name", ZonedDateTime.now(ZoneOffset.UTC), new Payload.XContent(response));
         Thread.sleep(10);
         assertThat(condition.execute(ctx).met(), is(true));
     }

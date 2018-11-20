@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.actions.throttler;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -15,7 +16,6 @@ import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -32,10 +32,10 @@ import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -134,7 +134,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testDifferentThrottlePeriods() throws Exception {
-        timeWarp().clock().setTime(DateTime.now(DateTimeZone.UTC));
+        timeWarp().clock().setTime(ZonedDateTime.now(ZoneOffset.UTC));
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval("60m")));
 
@@ -185,11 +185,11 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                 watchSourceBuilder.buildAsBytes(XContentType.JSON), XContentType.JSON)).actionGet();
         refresh(Watch.INDEX);
 
-        timeWarp().clock().setTime(new DateTime(DateTimeZone.UTC));
+        timeWarp().clock().setTime(ZonedDateTime.now(ZoneOffset.UTC));
 
         ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_id")
                 .setTriggerEvent(new ManualTriggerEvent("execute_id",
-                        new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC))))
+                        new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC))))
                 .setActionMode("default_global_throttle", ActionExecutionMode.SIMULATE)
                 .setRecordExecution(true)
                 .get();
@@ -201,7 +201,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
 
         executeWatchResponse = watcherClient().prepareExecuteWatch("_id")
                 .setTriggerEvent(new ManualTriggerEvent("execute_id",
-                        new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC))))
+                        new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC))))
                 .setActionMode("default_global_throttle", ActionExecutionMode.SIMULATE)
                 .setRecordExecution(true)
                 .get();
@@ -214,7 +214,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
             try {
                 ExecuteWatchResponse executeWatchResponse1 = watcherClient().prepareExecuteWatch("_id")
                         .setTriggerEvent(new ManualTriggerEvent("execute_id",
-                                new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC))))
+                                new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC))))
                         .setActionMode("default_global_throttle", ActionExecutionMode.SIMULATE)
                         .setRecordExecution(true)
                         .get();
@@ -238,11 +238,11 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                 watchSourceBuilder.buildAsBytes(XContentType.JSON), XContentType.JSON)).actionGet();
         refresh(Watch.INDEX);
 
-        timeWarp().clock().setTime(new DateTime(DateTimeZone.UTC));
+        timeWarp().clock().setTime(ZonedDateTime.now(ZoneOffset.UTC));
 
         ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_id")
                 .setTriggerEvent(new ManualTriggerEvent("execute_id",
-                        new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC))))
+                        new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC))))
                 .setActionMode("default_global_throttle", ActionExecutionMode.SIMULATE)
                 .setRecordExecution(true)
                 .get();
@@ -253,7 +253,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
 
         executeWatchResponse = watcherClient().prepareExecuteWatch("_id")
                 .setTriggerEvent(new ManualTriggerEvent("execute_id",
-                        new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC))))
+                        new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC))))
                 .setActionMode("default_global_throttle", ActionExecutionMode.SIMULATE)
                 .setRecordExecution(true)
                 .get();
@@ -267,7 +267,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                 //Since the default throttle period is 5 seconds but we have overridden the period in the watch this should trigger
                 ExecuteWatchResponse executeWatchResponse1 = watcherClient().prepareExecuteWatch("_id")
                         .setTriggerEvent(new ManualTriggerEvent("execute_id",
-                                new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC))))
+                                new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC))))
                         .setActionMode("default_global_throttle", ActionExecutionMode.SIMULATE)
                         .setRecordExecution(true)
                         .get();

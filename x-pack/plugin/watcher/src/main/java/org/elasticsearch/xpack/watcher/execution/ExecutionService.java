@@ -52,10 +52,11 @@ import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -71,7 +72,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class ExecutionService extends AbstractComponent {
 
@@ -230,7 +230,7 @@ public class ExecutionService extends AbstractComponent {
         final LinkedList<TriggeredWatch> triggeredWatches = new LinkedList<>();
         final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
 
-        DateTime now = new DateTime(clock.millis(), UTC);
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         for (TriggerEvent event : events) {
             GetResponse response = getWatch(event.jobName());
             if (response.isExists() == false) {
@@ -479,7 +479,7 @@ public class ExecutionService extends AbstractComponent {
                 historyStore.forcePut(record);
                 triggeredWatchStore.delete(triggeredWatch.id());
             } else {
-                DateTime now = new DateTime(clock.millis(), UTC);
+                ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
                 TriggeredExecutionContext ctx = new TriggeredExecutionContext(triggeredWatch.id().watchId(), now,
                     triggeredWatch.triggerEvent(), defaultThrottlePeriod, true);
                 executeAsync(ctx, triggeredWatch);

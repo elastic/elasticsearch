@@ -12,12 +12,17 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import javax.mail.MessagingException;
+import javax.mail.internet.AddressException;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -25,11 +30,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-
-import javax.mail.MessagingException;
-import javax.mail.internet.AddressException;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -39,7 +39,7 @@ public class Email implements ToXContentObject {
     final Address from;
     final AddressList replyTo;
     final Priority priority;
-    final DateTime sentDate;
+    final ZonedDateTime sentDate;
     final AddressList to;
     final AddressList cc;
     final AddressList bcc;
@@ -48,7 +48,7 @@ public class Email implements ToXContentObject {
     final String htmlBody;
     final Map<String, Attachment> attachments;
 
-    public Email(String id, Address from, AddressList replyTo, Priority priority, DateTime sentDate,
+    public Email(String id, Address from, AddressList replyTo, Priority priority, ZonedDateTime sentDate,
                  AddressList to, AddressList cc, AddressList bcc, String subject, String textBody, String htmlBody,
                  Map<String, Attachment> attachments) {
 
@@ -56,7 +56,7 @@ public class Email implements ToXContentObject {
         this.from = from;
         this.replyTo = replyTo;
         this.priority = priority;
-        this.sentDate = sentDate != null ? sentDate : new DateTime(DateTimeZone.UTC);
+        this.sentDate = sentDate != null ? sentDate : ZonedDateTime.now(ZoneOffset.UTC);
         this.to = to;
         this.cc = cc;
         this.bcc = bcc;
@@ -82,7 +82,7 @@ public class Email implements ToXContentObject {
         return priority;
     }
 
-    public DateTime sentDate() {
+    public ZonedDateTime sentDate() {
         return sentDate;
     }
 
@@ -196,7 +196,7 @@ public class Email implements ToXContentObject {
                 } else if (Field.PRIORITY.match(currentFieldName, parser.getDeprecationHandler())) {
                     email.priority(Email.Priority.resolve(parser.text()));
                 } else if (Field.SENT_DATE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    email.sentDate(new DateTime(parser.text(), DateTimeZone.UTC));
+                    email.sentDate(Instant.ofEpochMilli(Long.parseLong(parser.text())).atZone(ZoneOffset.UTC));
                 } else if (Field.SUBJECT.match(currentFieldName, parser.getDeprecationHandler())) {
                     email.subject(parser.text());
                 } else if (Field.BODY.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -233,7 +233,7 @@ public class Email implements ToXContentObject {
         private Address from;
         private AddressList replyTo;
         private Priority priority;
-        private DateTime sentDate;
+        private ZonedDateTime sentDate;
         private AddressList to;
         private AddressList cc;
         private AddressList bcc;
@@ -289,7 +289,7 @@ public class Email implements ToXContentObject {
             return this;
         }
 
-        public Builder sentDate(DateTime sentDate) {
+        public Builder sentDate(ZonedDateTime sentDate) {
             this.sentDate = sentDate;
             return this;
         }

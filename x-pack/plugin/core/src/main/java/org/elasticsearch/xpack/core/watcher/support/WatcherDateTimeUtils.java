@@ -9,55 +9,59 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.JavaDateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 public class WatcherDateTimeUtils {
 
-    public static final FormatDateTimeFormatter dateTimeFormatter = Joda.forPattern("strict_date_optional_time||epoch_millis");
-    public static final DateMathParser dateMathParser = dateTimeFormatter.toDateMathParser();
+    //TODO merge from java-time
+    public static final DateFormatter dateTimeFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER2;
+    public static final JavaDateMathParser dateMathParser = new JavaDateMathParser(dateTimeFormatter);
 
     private WatcherDateTimeUtils() {
     }
 
-    public static DateTime convertToDate(Object value, Clock clock) {
-        if (value instanceof DateTime) {
-            return (DateTime) value;
+    public static ZonedDateTime convertToDate(Object value, Clock clock) {
+        if (value instanceof ZonedDateTime) {
+            return (ZonedDateTime) value;
         }
         if (value instanceof String) {
-            return parseDateMath((String) value, DateTimeZone.UTC, clock);
+            return parseDateMath((String) value, ZoneOffset.UTC, clock);
         }
         if (value instanceof Number) {
-            return new DateTime(((Number) value).longValue(), DateTimeZone.UTC);
+            return Instant.ofEpochMilli(((Number) value).longValue()).atZone(ZoneOffset.UTC);
         }
         return null;
     }
 
-    public static DateTime parseDate(String dateAsText) {
+    public static ZonedDateTime parseDate(String dateAsText) {
         return parseDate(dateAsText, null);
     }
 
-    public static DateTime parseDate(String format, DateTimeZone timeZone) {
-        DateTime dateTime = dateTimeFormatter.parser().parseDateTime(format);
-        return timeZone != null ? dateTime.toDateTime(timeZone) : dateTime;
+    public static ZonedDateTime parseDate(String format, ZoneId timeZone) {
+        ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(dateTimeFormatter.parse(format));
+        return timeZone != null ? zonedDateTime.withZoneSameInstant(timeZone) : zonedDateTime;
     }
 
-    public static String formatDate(DateTime date) {
-        return dateTimeFormatter.printer().print(date);
+    public static String formatDate(ZonedDateTime date) {
+        return dateTimeFormatter.format(date);
     }
 
-    public static DateTime parseDateMath(String fieldName, XContentParser parser, DateTimeZone timeZone, Clock clock) throws IOException {
+    public static ZonedDateTime parseDateMath(String fieldName, XContentParser parser, ZoneId timeZone, Clock clock) throws IOException {
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             throw new ElasticsearchParseException("could not parse date/time expected date field [{}] to not be null but was null",
                     fieldName);
@@ -65,11 +69,11 @@ public class WatcherDateTimeUtils {
         return parseDateMathOrNull(fieldName, parser, timeZone, clock);
     }
 
-    public static DateTime parseDateMathOrNull(String fieldName, XContentParser parser, DateTimeZone timeZone,
+    public static ZonedDateTime parseDateMathOrNull(String fieldName, XContentParser parser, ZoneId timeZone,
                                                Clock clock) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NUMBER) {
-            return new DateTime(parser.longValue(), timeZone);
+            return Instant.ofEpochMilli(parser.longValue()).atZone(timeZone);
         }
         if (token == XContentParser.Token.VALUE_STRING) {
             try {
@@ -86,14 +90,14 @@ public class WatcherDateTimeUtils {
                 "found [{}] instead", fieldName, token);
     }
 
-    public static DateTime parseDateMath(String valueString, DateTimeZone timeZone, final Clock clock) {
-        return new DateTime(dateMathParser.parse(valueString, clock::millis).toEpochMilli(), timeZone);
+    public static ZonedDateTime parseDateMath(String valueString, ZoneId timeZone, final Clock clock) {
+        return Instant.ofEpochMilli(dateMathParser.parse(valueString, clock::millis)).atZone(timeZone);
     }
 
-    public static DateTime parseDate(String fieldName, XContentParser parser, DateTimeZone timeZone) throws IOException {
+    public static ZonedDateTime parseDate(String fieldName, XContentParser parser, ZoneId timeZone) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NUMBER) {
-            return new DateTime(parser.longValue(), timeZone);
+            return Instant.ofEpochMilli(parser.longValue()).atZone(timeZone);
         }
         if (token == XContentParser.Token.VALUE_STRING) {
             return parseDate(parser.text(), timeZone);
@@ -105,32 +109,32 @@ public class WatcherDateTimeUtils {
                 "found [{}] instead", fieldName, token);
     }
 
-    public static XContentBuilder writeDate(String fieldName, XContentBuilder builder, DateTime date) throws IOException {
+    public static XContentBuilder writeDate(String fieldName, XContentBuilder builder, ZonedDateTime date) throws IOException {
         if (date == null) {
             return builder.nullField(fieldName);
         }
         return builder.field(fieldName, formatDate(date));
     }
 
-    public static void writeDate(StreamOutput out, DateTime date) throws IOException {
-        out.writeLong(date.getMillis());
+    public static void writeDate(StreamOutput out, ZonedDateTime date) throws IOException {
+        out.writeLong(date.toInstant().toEpochMilli());
     }
 
-    public static DateTime readDate(StreamInput in, DateTimeZone timeZone) throws IOException {
-        return new DateTime(in.readLong(), timeZone);
+    public static ZonedDateTime readDate(StreamInput in, ZoneId timeZone) throws IOException {
+        return  Instant.ofEpochMilli(in.readLong()).atZone(timeZone);
     }
 
-    public static void writeOptionalDate(StreamOutput out, DateTime date) throws IOException {
+    public static void writeOptionalDate(StreamOutput out, ZonedDateTime date) throws IOException {
         if (date == null) {
             out.writeBoolean(false);
             return;
         }
         out.writeBoolean(true);
-        out.writeLong(date.getMillis());
+        out.writeLong(date.toInstant().toEpochMilli());
     }
 
-    public static DateTime readOptionalDate(StreamInput in, DateTimeZone timeZone) throws IOException {
-        return in.readBoolean() ? new DateTime(in.readLong(), timeZone) : null;
+    public static ZonedDateTime readOptionalDate(StreamInput in, ZoneId timeZone) throws IOException {
+        return in.readBoolean() ? Instant.ofEpochMilli(in.readLong()).atZone(timeZone) : null;
     }
 
     public static TimeValue parseTimeValue(XContentParser parser, String settingName) throws IOException {

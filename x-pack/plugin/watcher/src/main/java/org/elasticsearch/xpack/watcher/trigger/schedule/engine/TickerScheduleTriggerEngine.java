@@ -17,9 +17,11 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.joda.time.DateTime;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -29,7 +31,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
@@ -99,9 +100,9 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             long scheduledTime = schedule.check(triggeredTime);
             if (scheduledTime > 0) {
                 logger.debug("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name,
-                    new DateTime(triggeredTime, UTC), new DateTime(scheduledTime, UTC));
-                events.add(new ScheduleTriggerEvent(schedule.name, new DateTime(triggeredTime, UTC),
-                    new DateTime(scheduledTime, UTC)));
+                    utcDateTimeAtEpochMillis(triggeredTime), utcDateTimeAtEpochMillis(scheduledTime));
+                events.add(new ScheduleTriggerEvent(schedule.name, utcDateTimeAtEpochMillis(triggeredTime),
+                    utcDateTimeAtEpochMillis(scheduledTime)));
                 if (events.size() >= 1000) {
                     notifyListeners(events);
                     events.clear();
@@ -111,6 +112,10 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         if (events.isEmpty() == false) {
             notifyListeners(events);
         }
+    }
+
+    private ZonedDateTime utcDateTimeAtEpochMillis(long triggeredTime) {
+        return Instant.ofEpochMilli(triggeredTime).atZone(ZoneOffset.UTC);
     }
 
     protected void notifyListeners(List<TriggerEvent> events) {
@@ -165,7 +170,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         @Override
         public void run() {
             while (active) {
-                logger.trace("checking jobs [{}]", new DateTime(clock.millis(), UTC));
+                logger.trace("checking jobs [{}]", clock.instant().atZone(ZoneOffset.UTC));
                 checkJobs();
                 try {
                     sleep(tickInterval.millis());

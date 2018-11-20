@@ -15,9 +15,10 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition.Op;
-import org.joda.time.DateTime;
 
 import java.time.Clock;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Locale;
 
@@ -178,7 +179,7 @@ public class CompareConditionTests extends ESTestCase {
         Op op = met ? randomFrom(CompareCondition.Op.GT, CompareCondition.Op.GTE, CompareCondition.Op.NOT_EQ) :
                 randomFrom(CompareCondition.Op.LT, CompareCondition.Op.LTE, CompareCondition.Op.EQ);
         String value = "<{now-1d}>";
-        DateTime payloadValue = new DateTime(clock.millis());
+        ZonedDateTime payloadValue = clock.instant().atZone(ZoneId.systemDefault());
 
         CompareCondition condition = new CompareCondition("ctx.payload.value", op, value, clock);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.Simple("value", payloadValue));

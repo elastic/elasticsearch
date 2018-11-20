@@ -83,7 +83,11 @@ public class VersionHttpResource extends HttpResource {
         // the response should be filtered to just '{"version":{"number":"xyz"}}', so this is cheap and guaranteed
         @SuppressWarnings("unchecked")
         final String versionNumber = (String) ((Map<String, Object>) map.get("version")).get("number");
-        final Version version = Version.fromString(versionNumber);
+        final Version version = Version.fromString(
+            versionNumber
+                .replace("-SNAPSHOT", "")
+                .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
+        );
 
         if (version.onOrAfter(minimumVersion)) {
             logger.debug("version [{}] >= [{}] and supported for [{}]", version, minimumVersion, resourceOwnerName);

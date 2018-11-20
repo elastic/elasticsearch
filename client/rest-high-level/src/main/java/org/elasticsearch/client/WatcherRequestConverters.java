@@ -35,6 +35,11 @@ import org.elasticsearch.client.watcher.WatcherStatsRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.client.watcher.DeleteWatchRequest;
 import org.elasticsearch.client.watcher.PutWatchRequest;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+
+import java.io.IOException;
 
 final class WatcherRequestConverters {
 
@@ -98,7 +103,7 @@ final class WatcherRequestConverters {
         return request;
     }
 
-    static Request executeWatch(ExecuteWatchRequest executeWatchRequest) {
+    static Request executeWatch(ExecuteWatchRequest executeWatchRequest) throws IOException {
         RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder()
             .addPathPart("_xpack", "watcher", "watch");
         if (executeWatchRequest.getId() != null) {
@@ -111,14 +116,17 @@ final class WatcherRequestConverters {
         if (executeWatchRequest.isDebug()) {
             params.putParam("debug", "true");
         }
-        if (executeWatchRequest.isIgnoreCondition()) {
+        if (executeWatchRequest.ignoreCondition()) {
             params.putParam("ignore_condition", "true");
         }
-        if (executeWatchRequest.isRecordExecution()) {
+        if (executeWatchRequest.recordExecution()) {
             params.putParam("record_execution", "true");
         }
 
-        request.setEntity(executeWatchRequest.toHttpEntity());
+        ContentType contentType = RequestConverters.createContentType(XContentType.JSON);
+        XContentBuilder xcontentBuilder = XContentFactory.jsonBuilder();
+        BytesReference source = BytesReference.bytes(executeWatchRequest.toXContent(xcontentBuilder, null));
+        request.setEntity(new ByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
         return request;
     }
 

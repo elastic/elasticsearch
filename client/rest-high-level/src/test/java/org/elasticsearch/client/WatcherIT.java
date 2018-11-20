@@ -44,6 +44,7 @@ import org.elasticsearch.client.watcher.PutWatchRequest;
 import org.elasticsearch.client.watcher.PutWatchResponse;
 import org.elasticsearch.rest.RestStatus;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -192,6 +193,7 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
 
         ExecuteWatchResponse response = highLevelClient().watcher().executeWatch(new ExecuteWatchRequest(watchId),
             RequestOptions.DEFAULT);
+        assertThat(response.getRecordId(), containsString(watchId));
 
     }
 

@@ -26,26 +26,22 @@ import java.util.Optional;
  */
 public class ExecuteWatchRequest implements Validatable, ToXContentObject {
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return null;
-    }
-
     public enum ActionExecutionMode {
         SIMULATE, FORCE_SIMULATE, EXECUTE, FORCE_EXECUTE, SKIP
     }
 
     private final String id;
+    private final BytesReference watchContent;
 
     private boolean ignoreCondition = false;
     private boolean recordExecution = false;
     private boolean debug = false;
 
     @Nullable
-    private XContentBuilder triggerData = null;
+    private BytesReference triggerData = null;
 
     @Nullable
-    private XContentBuilder alternativeInput = null;
+    private BytesReference alternativeInput = null;
 
     private Map<String, ActionExecutionMode> actionModes = new HashMap<>();
 
@@ -54,6 +50,16 @@ public class ExecuteWatchRequest implements Validatable, ToXContentObject {
      */
     public ExecuteWatchRequest(String id) {
         this.id = Objects.requireNonNull(id, "Watch id cannot be null");
+        this.watchContent = null;
+    }
+
+    public ExecuteWatchRequest(BytesReference watchContent) {
+        this.id = null;
+        this.watchContent = Objects.requireNonNull(watchContent, "Watch content cannot be null");
+    }
+
+    public String getId() {
+        return this.id;
     }
 
     /**
@@ -63,6 +69,10 @@ public class ExecuteWatchRequest implements Validatable, ToXContentObject {
         this.ignoreCondition = ignoreCondition;
     }
 
+    public boolean ignoreCondition() {
+        return ignoreCondition;
+    }
+
     /**
      * @param recordExecution Sets if this execution be recorded in the history index
      */
@@ -70,17 +80,21 @@ public class ExecuteWatchRequest implements Validatable, ToXContentObject {
         this.recordExecution = recordExecution;
     }
 
+    public boolean recordExecution() {
+        return recordExecution;
+    }
+
     /**
      * @param alternativeInput Set's the alternative input
      */
-    public void setAlternativeInput(XContentBuilder alternativeInput) {
+    public void setAlternativeInput(BytesReference alternativeInput) {
         this.alternativeInput = alternativeInput;
     }
 
     /**
      * @param data The data that should be associated with the trigger event.
      */
-    public void setTriggerData(XContentBuilder data) throws IOException {
+    public void setTriggerData(BytesReference data) {
         this.triggerData = data;
     }
 
@@ -95,6 +109,10 @@ public class ExecuteWatchRequest implements Validatable, ToXContentObject {
         actionModes.put(actionId, actionMode);
     }
 
+    public Map<String, ActionExecutionMode> getActionModes() {
+        return this.actionModes;
+    }
+
     /**
      * @param debug indicates whether the watch should execute in debug mode. In debug mode the
      *              returned watch record will hold the execution {@code vars}
@@ -103,9 +121,34 @@ public class ExecuteWatchRequest implements Validatable, ToXContentObject {
         this.debug = debug;
     }
 
+    public boolean isDebug() {
+        return debug;
+    }
+
     @Override
     public String toString() {
         return "execute[" + id + "]";
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (triggerData != null) {
+            builder.rawField("trigger_data", triggerData.streamInput(), XContentType.JSON);
+        }
+        if (alternativeInput != null) {
+            builder.rawField("alternative_input", alternativeInput.streamInput(), XContentType.JSON);
+        }
+        if (actionModes.size() > 0) {
+            builder.startObject("action_modes");
+            builder.map(actionModes);
+            builder.endObject();
+        }
+        if (watchContent != null) {
+            builder.rawField("watch", watchContent.streamInput(), XContentType.JSON);
+        }
+        builder.endObject();
+        return builder;
     }
 }
 

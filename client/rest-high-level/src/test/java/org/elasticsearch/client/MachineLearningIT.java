@@ -41,6 +41,8 @@ import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.ForecastJobResponse;
+import org.elasticsearch.client.ml.GetCalendarEventsRequest;
+import org.elasticsearch.client.ml.GetCalendarEventsResponse;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
@@ -97,6 +99,7 @@ import org.elasticsearch.client.ml.job.config.JobState;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
@@ -919,6 +922,47 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 () -> execute(new DeleteCalendarRequest(calendar.getId()), machineLearningClient::deleteCalendar,
                         machineLearningClient::deleteCalendarAsync));
         assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    public void testGetCalendarEvent() throws Exception {
+        Calendar calendar = new Calendar("get-calendar-event-id", Collections.singletonList("get-calendar-event-job"), null);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putCalendar(new PutCalendarRequest(calendar), RequestOptions.DEFAULT);
+
+        List<ScheduledEvent> events = new ArrayList<>(3);
+        for (int i = 0; i < 3; i++) {
+            events.add(ScheduledEventTests.testInstance(calendar.getId(), null));
+        }
+        machineLearningClient.postCalendarEvent(new PostCalendarEventRequest(calendar.getId(), events), RequestOptions.DEFAULT);
+
+        {
+            GetCalendarEventsRequest getCalendarEventsRequest = new GetCalendarEventsRequest(calendar.getId());
+
+            GetCalendarEventsResponse getCalendarEventsResponse = execute(getCalendarEventsRequest,
+                machineLearningClient::getCalendarEvents,
+                machineLearningClient::getCalendarEventsAsync);
+            assertThat(getCalendarEventsResponse.events().size(), equalTo(3));
+            assertThat(getCalendarEventsResponse.count(), equalTo(3L));
+        }
+        {
+            GetCalendarEventsRequest getCalendarEventsRequest = new GetCalendarEventsRequest(calendar.getId());
+            getCalendarEventsRequest.setPageParams(new PageParams(1, 2));
+            GetCalendarEventsResponse getCalendarEventsResponse = execute(getCalendarEventsRequest,
+                machineLearningClient::getCalendarEvents,
+                machineLearningClient::getCalendarEventsAsync);
+            assertThat(getCalendarEventsResponse.events().size(), equalTo(2));
+            assertThat(getCalendarEventsResponse.count(), equalTo(3L));
+        }
+        {
+            machineLearningClient.putJob(new PutJobRequest(buildJob("get-calendar-event-job")), RequestOptions.DEFAULT);
+            GetCalendarEventsRequest getCalendarEventsRequest = new GetCalendarEventsRequest("_all");
+            getCalendarEventsRequest.setJobId("get-calendar-event-job");
+            GetCalendarEventsResponse getCalendarEventsResponse = execute(getCalendarEventsRequest,
+                machineLearningClient::getCalendarEvents,
+                machineLearningClient::getCalendarEventsAsync);
+            assertThat(getCalendarEventsResponse.events().size(), equalTo(3));
+            assertThat(getCalendarEventsResponse.count(), equalTo(3L));
+        }
     }
 
     public void testPostCalendarEvent() throws Exception {

@@ -20,6 +20,8 @@ package org.elasticsearch.transport;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -112,6 +114,7 @@ import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnec
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
+    private static final Logger logger = LogManager.getLogger(TcpTransport.class);
 
     public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = "transport_worker";
 

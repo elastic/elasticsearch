@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -66,6 +68,8 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
  * Basic service for accessing remote clusters via gateway nodes
  */
 public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
     static {
         // remove search.remote.* settings in 8.0.0

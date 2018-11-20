@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -59,6 +61,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
  * implementation of the SSL/TLS layer is in the {@link SSLChannelContext} and {@link SSLDriver} classes.
  */
 public class SecurityNioTransport extends NioTransport {
+    private static final Logger logger = LogManager.getLogger(SecurityNioTransport.class);
 
     private final IPFilter authenticator;
     private final SSLService sslService;

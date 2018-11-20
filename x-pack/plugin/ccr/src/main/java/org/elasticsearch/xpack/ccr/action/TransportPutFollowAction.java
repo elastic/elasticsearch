@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.Snapshot;
@@ -52,9 +50,7 @@ public final class TransportPutFollowAction
     extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
     private final Client client;
-    private final AllocationService allocationService;
     private final RestoreService restoreService;
-    private final RepositoriesService repositoriesService;
     private final ActiveShardsObserver activeShardsObserver;
     private final CcrLicenseChecker ccrLicenseChecker;
 
@@ -66,9 +62,7 @@ public final class TransportPutFollowAction
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Client client,
-        final AllocationService allocationService,
         final RestoreService restoreService,
-        final RepositoriesService repositoriesService,
         final CcrLicenseChecker ccrLicenseChecker) {
         super(
             PutFollowAction.NAME,
@@ -79,9 +73,7 @@ public final class TransportPutFollowAction
             PutFollowAction.Request::new,
             indexNameExpressionResolver);
         this.client = client;
-        this.allocationService = allocationService;
         this.restoreService = restoreService;
-        this.repositoriesService = repositoriesService;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
@@ -207,6 +199,7 @@ public final class TransportPutFollowAction
                                 // Clean up listener in that case and acknowledge completion of restore operation to client.
                                 clusterService.removeListener(this);
                                 listener.onResponse(null);
+                                tearDownRepository();
                             } else if (newEntry == null) {
                                 clusterService.removeListener(this);
                                 ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
@@ -217,6 +210,7 @@ public final class TransportPutFollowAction
                                 RestoreSnapshotResponse response = new RestoreSnapshotResponse(restoreInfo);
                                 logger.debug("restore of [{}] completed", snapshot);
                                 listener.onResponse(response);
+                                tearDownRepository();
                             } else {
                                 // restore not completed yet, wait for next cluster state update
                             }
@@ -229,6 +223,11 @@ public final class TransportPutFollowAction
                 @Override
                 public void onFailure(Exception t) {
                     listener.onFailure(t);
+                    tearDownRepository();
+                }
+
+                private void tearDownRepository() {
+                    client.admin().cluster().prepareDeleteRepository(restoreRequest.repositoryName()).execute();
                 }
             }, false, false));
 

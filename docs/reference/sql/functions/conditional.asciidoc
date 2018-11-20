@@ -14,6 +14,8 @@ Functions that return one of their arguments by evaluating in an if-else manner.
 COALESCE ( expression<1>, expression<2>, ... )
 ----
 
+*Input*:
+
 <1> 1st expression
 
 <2> 2nd expression
@@ -24,6 +26,7 @@ COALESCE ( expression<1>, expression<2>, ... )
 
 COALESCE can take an arbitrary number of arguments.
 
+*Output*: one of the expressions or `null`
 
 .Description
 

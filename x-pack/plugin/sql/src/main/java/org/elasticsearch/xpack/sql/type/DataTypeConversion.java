@@ -8,12 +8,9 @@ package org.elasticsearch.xpack.sql.type;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableInstant;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
@@ -31,8 +28,6 @@ import static org.elasticsearch.xpack.sql.type.DataType.NULL;
  * errors inside SQL as oppose to the rest of ES.
  */
 public abstract class DataTypeConversion {
-
-    private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateOptionalTimeParser().withZoneUTC();
 
     /**
      * Returns the type compatible with both left and right types
@@ -374,7 +369,7 @@ public abstract class DataTypeConversion {
         IDENTITY(Function.identity()),
         NULL(value -> null),
         
-        DATE_TO_STRING(Object::toString),
+        DATE_TO_STRING(o -> DateUtils.toString((ZonedDateTime) o)),
         OTHER_TO_STRING(String::valueOf),
 
         RATIONAL_TO_LONG(fromDouble(DataTypeConversion::safeToLong)),
@@ -416,7 +411,7 @@ public abstract class DataTypeConversion {
         RATIONAL_TO_DATE(toDate(RATIONAL_TO_LONG)),
         INTEGER_TO_DATE(toDate(INTEGER_TO_LONG)),
         BOOL_TO_DATE(toDate(BOOL_TO_INT)),
-        STRING_TO_DATE(fromString(UTC_DATE_FORMATTER::parseDateTime, "Date")),
+        STRING_TO_DATE(fromString(DateUtils::of, "Date")),
 
         NUMERIC_TO_BOOLEAN(fromLong(value -> value != 0)),
         STRING_TO_BOOLEAN(fromString(DataTypeConversion::convertToBoolean, "Boolean")),
@@ -462,11 +457,11 @@ public abstract class DataTypeConversion {
         }
         
         private static Function<Object, Object> fromDate(Function<Long, Object> converter) {
-            return l -> ((ReadableInstant) l).getMillis();
+            return l -> ((ZonedDateTime) l).toEpochSecond();
         }
 
         private static Function<Object, Object> toDate(Conversion conversion) {
-            return l -> new DateTime(((Number) conversion.convert(l)).longValue(), DateTimeZone.UTC);
+            return l -> DateUtils.of(((Number) conversion.convert(l)).longValue());
         }
 
         public Object convert(Object l) {

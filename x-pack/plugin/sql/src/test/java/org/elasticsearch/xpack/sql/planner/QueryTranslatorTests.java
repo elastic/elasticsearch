@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
-import org.joda.time.DateTime;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -150,7 +150,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
-        assertEquals(DateTime.parse("1969-05-13T12:34:56Z"), rq.lower());
+        assertEquals(DateUtils.of("1969-05-13T12:34:56Z"), rq.lower());
     }
     
     public void testLikeConstructsNotSupported() {

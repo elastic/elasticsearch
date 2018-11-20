@@ -76,6 +76,7 @@ import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedResponse;
+import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
@@ -2081,6 +2082,58 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::put-calendar-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testPutCalendarJob() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays", Collections.singletonList("job_1"), "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        {
+            // tag::put-calendar-job-request
+            PutCalendarJobRequest request = new PutCalendarJobRequest("holidays", // <1>
+                "job_2", "job_group_1"); // <2>
+            // end::put-calendar-job-request
+
+            // tag::put-calendar-job-execute
+            PutCalendarResponse response = client.machineLearning().putCalendarJob(request, RequestOptions.DEFAULT);
+            // end::put-calendar-job-execute
+
+            // tag::put-calendar-job-response
+            Calendar updatedCalendar = response.getCalendar(); // <1>
+            // end::put-calendar-job-response
+
+            assertThat(updatedCalendar.getJobIds(), containsInAnyOrder("job_1", "job_2", "job_group_1"));
+        }
+        {
+            PutCalendarJobRequest request = new PutCalendarJobRequest("holidays", "job_4");
+
+            // tag::put-calendar-job-execute-listener
+            ActionListener<PutCalendarResponse> listener =
+                new ActionListener<PutCalendarResponse>() {
+                    @Override
+                    public void onResponse(PutCalendarResponse putCalendarsResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::put-calendar-job-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-calendar-job-execute-async
+            client.machineLearning().putCalendarJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-calendar-job-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
     }
 
     public void testGetCalendar() throws IOException, InterruptedException {

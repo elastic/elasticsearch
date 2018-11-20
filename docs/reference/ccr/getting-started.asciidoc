@@ -274,11 +274,11 @@ POST /server-metrics-copy/_ccr/unfollow
 [[ccr-getting-started-auto-follow]]
 === Automatically create follower indices
 
-The auto-follow feature in {ccr} helps for time series use cases where you want
-to follow new indices that are periodically created in the remote cluster
-(such as daily Beats indices). Auto-following is configured using the
-{ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API]. With an
-auto-follow pattern, you reference the
+The <<ccr-auto-follow,auto-follow>> feature in {ccr} helps for time series use
+cases where you want to follow new indices that are periodically created in the
+remote cluster (such as daily Beats indices). Auto-following is configured using
+the {ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API]. With
+an auto-follow pattern, you reference the
 <<ccr-getting-started-remote-cluster,remote cluster>> that you connected your
 local cluster to. You must also specify a collection of  patterns that match the
 indices you want to automatically follow.

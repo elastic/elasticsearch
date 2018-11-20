@@ -19,7 +19,7 @@ import java.util.Objects;
  * Unconditionally rolls over an index using the Rollover API.
  */
 public class RolloverStep extends AsyncActionStep {
-    public static final String NAME = "attempt_rollover";
+    public static final String NAME = "attempt-rollover";
 
     public RolloverStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);

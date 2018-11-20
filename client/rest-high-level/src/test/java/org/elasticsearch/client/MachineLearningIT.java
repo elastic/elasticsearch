@@ -52,6 +52,8 @@ import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
+import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
+import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
@@ -74,6 +76,8 @@ import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotResponse;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
@@ -1047,10 +1051,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     public void createModelSnapshot(String jobId, String snapshotId) throws IOException {
+        String documentId = jobId + "_model_snapshot_" + snapshotId;
         Job job = MachineLearningIT.buildJob(jobId);
         highLevelClient().machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc", documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
             "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -1078,5 +1083,41 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 machineLearningClient::deleteModelSnapshotAsync);
 
         assertTrue(response.isAcknowledged());
+    }
+
+    public void testUpdateModelSnapshot() throws Exception {
+        String jobId = "test-update-model-snapshot";
+
+        String snapshotId = "1541587919";
+        createModelSnapshot(jobId, snapshotId);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        GetModelSnapshotsRequest getModelSnapshotsRequest = new GetModelSnapshotsRequest(jobId);
+
+        GetModelSnapshotsResponse getModelSnapshotsResponse1 = execute(getModelSnapshotsRequest, machineLearningClient::getModelSnapshots,
+            machineLearningClient::getModelSnapshotsAsync);
+
+        assertEquals(getModelSnapshotsResponse1.count(), 1L);
+        assertEquals("State persisted due to job close at 2018-11-07T10:51:59+0000",
+            getModelSnapshotsResponse1.snapshots().get(0).getDescription());
+
+        UpdateModelSnapshotRequest request = new UpdateModelSnapshotRequest(jobId, snapshotId);
+        request.setDescription("Updated description");
+        request.setRetain(true);
+
+        UpdateModelSnapshotResponse response = execute(request, machineLearningClient::updateModelSnapshot,
+            machineLearningClient::updateModelSnapshotAsync);
+
+        assertTrue(response.getAcknowledged());
+        assertEquals("Updated description", response.getModel().getDescription());
+        assertTrue(response.getModel().getRetain());
+
+        GetModelSnapshotsResponse getModelSnapshotsResponse2 = execute(getModelSnapshotsRequest, machineLearningClient::getModelSnapshots,
+            machineLearningClient::getModelSnapshotsAsync);
+
+        assertEquals(getModelSnapshotsResponse2.count(), 1L);
+        assertEquals("Updated description",
+            getModelSnapshotsResponse2.snapshots().get(0).getDescription());
     }
 }

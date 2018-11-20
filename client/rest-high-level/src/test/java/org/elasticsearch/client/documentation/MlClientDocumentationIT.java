@@ -92,6 +92,8 @@ import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotResponse;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
@@ -2037,6 +2039,82 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-model-snapshots-execute-async
             client.machineLearning().getModelSnapshotsAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::get-model-snapshots-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testUpdateModelSnapshot() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-update-model-snapshot";
+        String snapshotId = "1541587919";
+        String documentId = jobId + "_model_snapshot_" + snapshotId;
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a snapshot
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc", documentId);
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"test-update-model-snapshot\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"test-update-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+        client.index(indexRequest, RequestOptions.DEFAULT);
+
+        {
+            // tag::update-model-snapshot-request
+            UpdateModelSnapshotRequest request = new UpdateModelSnapshotRequest(jobId, snapshotId); // <1>
+            // end::update-model-snapshot-request
+
+            // tag::update-model-snapshot-description
+            request.setDescription("My Snapshot"); // <1>
+            // end::update-model-snapshot-description
+
+            // tag::update-model-snapshot-retain
+            request.setRetain(true); // <1>
+            // end::update-model-snapshot-retain
+
+            // tag::update-model-snapshot-execute
+            UpdateModelSnapshotResponse response = client.machineLearning().updateModelSnapshot(request, RequestOptions.DEFAULT);
+            // end::update-model-snapshot-execute
+
+            // tag::update-model-snapshot-response
+            boolean acknowledged = response.getAcknowledged(); // <1>
+            ModelSnapshot modelSnapshot = response.getModel(); // <2>
+            // end::update-model-snapshot-response
+
+            assertTrue(acknowledged);
+            assertEquals("My Snapshot", modelSnapshot.getDescription());        }
+        {
+            UpdateModelSnapshotRequest request = new UpdateModelSnapshotRequest(jobId, snapshotId);
+
+            // tag::update-model-snapshot-execute-listener
+            ActionListener<UpdateModelSnapshotResponse> listener =
+                new ActionListener<UpdateModelSnapshotResponse>() {
+                    @Override
+                    public void onResponse(UpdateModelSnapshotResponse updateModelSnapshotResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::update-model-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::update-model-snapshot-execute-async
+            client.machineLearning().updateModelSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::update-model-snapshot-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

@@ -109,19 +109,18 @@ public final class AuthenticateResponse {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final AuthenticateResponse that = (AuthenticateResponse) o;
-        return user.equals(that.user) && enabled == that.enabled;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AuthenticateResponse that = (AuthenticateResponse) o;
+        return enabled == that.enabled &&
+            Objects.equals(user, that.user) &&
+            Objects.equals(authenticationRealm, that.authenticationRealm) &&
+            Objects.equals(lookupRealm, that.lookupRealm);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(user, enabled);
+        return Objects.hash(user, enabled, authenticationRealm, lookupRealm);
     }
 
     public static AuthenticateResponse fromXContent(XContentParser parser) throws IOException {

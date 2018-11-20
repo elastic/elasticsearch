@@ -143,17 +143,6 @@ public class Authentication implements ToXContentObject {
         }
     }
 
-    public static void writeTo(Authentication authentication, StreamOutput out) throws IOException {
-        User.writeTo(authentication.getUser(), out);
-        authentication.getAuthenticatedBy().writeTo(out);
-        if (authentication.getLookedUpBy() != null) {
-            out.writeBoolean(true);
-            authentication.getLookedUpBy().writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -185,9 +174,15 @@ public class Authentication implements ToXContentObject {
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
         builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());
-        builder.field(User.Fields.AUTHENTICATION_REALM.getPreferredName(), getAuthenticatedBy().getName());
-        final String lookedUpBy = getLookedUpBy() != null ? getLookedUpBy().getName() : getAuthenticatedBy().getName();
-        builder.field(User.Fields.LOOKUP_REALM.getPreferredName(), lookedUpBy);
+        builder.field(User.Fields.AUTHENTICATION_REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
+        builder.field(User.Fields.AUTHENTICATION_REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+        if (getLookedUpBy() != null) {
+            builder.field(User.Fields.LOOKUP_REALM_NAME.getPreferredName(), getLookedUpBy().getName());
+            builder.field(User.Fields.LOOKUP_REALM_TYPE.getPreferredName(), getLookedUpBy().getType());
+        } else {
+            builder.field(User.Fields.LOOKUP_REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
+            builder.field(User.Fields.LOOKUP_REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+        }
         return builder.endObject();
     }
 

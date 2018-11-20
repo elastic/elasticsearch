@@ -54,6 +54,9 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
     private final String remoteClusterAlias;
     private final Client remoteClient;
     private final CcrLicenseChecker ccrLicenseChecker;
+    // The snapshot will be compatible because remote cluster connections must be compatible with our cluster
+    // version. So the snapshot version is not too important.
+    private final Version version = Version.CURRENT;
 
     public RemoteClusterRepository(RepositoryMetaData metadata, Client client, CcrLicenseChecker ccrLicenseChecker, Settings settings) {
         super(settings);
@@ -86,8 +89,7 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
     @Override
     public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
         assert SNAPSHOT_UUID.equals(snapshotId.getUUID()) : "RemoteClusterRepository only supports the _latest_ as the UUID";
-        // TODO: Perhaps add version
-        return new SnapshotInfo(snapshotId, Collections.singletonList(snapshotId.getName()), SnapshotState.SUCCESS);
+        return new SnapshotInfo(snapshotId, Collections.singletonList(snapshotId.getName()), SnapshotState.SUCCESS, version);
     }
 
     @Override
@@ -115,12 +117,12 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
         PlainActionFuture<String[]> future = PlainActionFuture.newFuture();
         IndexMetaData leaderIndexMetaData = response.getState().metaData().index(leaderIndex);
         ccrLicenseChecker.fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetaData, future::onFailure, future::onResponse);
-        String[] leaderHistoryUuids = future.actionGet();
+        String[] leaderHistoryUUIDs = future.actionGet();
 
         IndexMetaData.Builder imdBuilder = IndexMetaData.builder(leaderIndexMetaData);
         // Adding the leader index uuid for each shard as custom metadata:
         Map<String, String> metadata = new HashMap<>();
-        metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", leaderHistoryUuids));
+        metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", leaderHistoryUUIDs));
         metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetaData.getIndexUUID());
         metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetaData.getIndex().getName());
         metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, remoteClusterAlias);

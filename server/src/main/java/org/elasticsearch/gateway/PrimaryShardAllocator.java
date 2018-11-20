@@ -99,7 +99,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         final Set<String> inSyncAllocationIds = indexMetaData.inSyncAllocationIds(unassignedShard.id());
         final boolean snapshotRestore = unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
 
-//        assert inSyncAllocationIds.isEmpty() == false;
+        assert inSyncAllocationIds.isEmpty() == false;
         // use in-sync allocation ids to select nodes
         final NodeShardsResult nodeShardsResult = buildNodeShardsResult(unassignedShard, snapshotRestore,
             allocation.getIgnoreNodes(unassignedShard.shardId()), inSyncAllocationIds, shardState, logger);

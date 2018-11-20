@@ -28,6 +28,9 @@ import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.StorageException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -36,7 +39,6 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.ByteArrayOutputStream;
@@ -56,7 +58,9 @@ import java.util.stream.Collectors;
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 
-class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore {
+class GoogleCloudStorageBlobStore implements BlobStore {
+    
+    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageBlobStore.class);
 
     // The recommended maximum size of a blob that should be uploaded in a single
     // request. Larger files should be uploaded over multiple requests (this is

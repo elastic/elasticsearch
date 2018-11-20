@@ -44,7 +44,7 @@ The following example output provides information about the "rdeniro" user:
   "enabled": true,
   "authentication_realm_name" : "default_file",
   "authentication_realm_type" : "file",
-  "lookup_realm_name" : "default_file"
+  "lookup_realm_name" : "default_file",
   "lookup_realm_type" : "file"
 }
 --------------------------------------------------

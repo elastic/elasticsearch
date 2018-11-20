@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
@@ -536,13 +537,23 @@ public class MLRequestConvertersTests extends ESTestCase {
         }
     }
 
-    public void testPutCalendarJob() throws IOException {
+    public void testPutCalendarJob() {
         String calendarId = randomAlphaOfLength(10);
         String job1 = randomAlphaOfLength(5);
         String job2 = randomAlphaOfLength(5);
         PutCalendarJobRequest putCalendarJobRequest = new PutCalendarJobRequest(calendarId, job1, job2);
         Request request = MLRequestConverters.putCalendarJob(putCalendarJobRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/calendars/" + calendarId + "/jobs/" + job1 + "," + job2, request.getEndpoint());
+    }
+
+    public void testDeleteCalendarJob() {
+        String calendarId = randomAlphaOfLength(10);
+        String job1 = randomAlphaOfLength(5);
+        String job2 = randomAlphaOfLength(5);
+        DeleteCalendarJobRequest deleteCalendarJobRequest = new DeleteCalendarJobRequest(calendarId, job1, job2);
+        Request request = MLRequestConverters.deleteCalendarJob(deleteCalendarJobRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/calendars/" + calendarId + "/jobs/" + job1 + "," + job2, request.getEndpoint());
     }
 

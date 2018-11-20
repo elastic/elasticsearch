@@ -28,6 +28,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
@@ -512,6 +513,18 @@ final class MLRequestConverters {
             .addPathPart(Strings.collectionToCommaDelimitedString(putCalendarJobRequest.getJobIds()))
             .build();
         return new Request(HttpPut.METHOD_NAME, endpoint);
+    }
+
+    static Request deleteCalendarJob(DeleteCalendarJobRequest deleteCalendarJobRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("calendars")
+            .addPathPart(deleteCalendarJobRequest.getCalendarId())
+            .addPathPartAsIs("jobs")
+            .addPathPart(Strings.collectionToCommaDelimitedString(deleteCalendarJobRequest.getJobIds()))
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 
     static Request deleteCalendar(DeleteCalendarRequest deleteCalendarRequest) {

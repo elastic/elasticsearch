@@ -206,7 +206,8 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         ActionListener<GetLifecyclePolicyResponse> listener =
             new ActionListener<GetLifecyclePolicyResponse>() {
                 @Override
-                public void onResponse(GetLifecyclePolicyResponse response) {
+                public void onResponse(GetLifecyclePolicyResponse response)
+                {
                     ImmutableOpenMap<String, LifecyclePolicyMetadata>
                         policies = response.getPolicies(); // <1>
                 }
@@ -239,11 +240,6 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             Map<String, LifecycleAction> warmActions = new HashMap<>();
             warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
             phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
-
-            Map<String, LifecycleAction> deleteActions =
-                Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
-            phases.put("delete", new Phase("delete",
-                new TimeValue(90, TimeUnit.DAYS), deleteActions));
 
             LifecyclePolicy policy = new LifecyclePolicy("my_policy",
                 phases);

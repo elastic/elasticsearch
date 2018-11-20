@@ -18,7 +18,7 @@ that encountered errors in certain indices.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> retries execution of `my_index`'s policy
+<1> Retries execution of `my_index`'s policy
 
 [id="{upid}-{api}-response"]
 ==== Response

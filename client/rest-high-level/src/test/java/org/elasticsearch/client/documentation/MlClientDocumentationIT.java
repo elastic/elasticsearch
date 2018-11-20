@@ -35,6 +35,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
@@ -2214,6 +2215,60 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testDeleteCalendarJob() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays",
+            Arrays.asList("job_1", "job_group_1", "job_2"),
+            "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        {
+            // tag::delete-calendar-job-request
+            DeleteCalendarJobRequest request = new DeleteCalendarJobRequest("holidays", // <1>
+                "job_1", "job_group_1"); // <2>
+            // end::delete-calendar-job-request
+
+            // tag::delete-calendar-job-execute
+            PutCalendarResponse response = client.machineLearning().deleteCalendarJob(request, RequestOptions.DEFAULT);
+            // end::delete-calendar-job-execute
+
+            // tag::delete-calendar-job-response
+            Calendar updatedCalendar = response.getCalendar(); // <1>
+            // end::delete-calendar-job-response
+
+            assertThat(updatedCalendar.getJobIds(), containsInAnyOrder("job_2"));
+        }
+        {
+            DeleteCalendarJobRequest request = new DeleteCalendarJobRequest("holidays", "job_2");
+
+            // tag::delete-calendar-job-execute-listener
+            ActionListener<PutCalendarResponse> listener =
+                new ActionListener<PutCalendarResponse>() {
+                    @Override
+                    public void onResponse(PutCalendarResponse deleteCalendarsResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::delete-calendar-job-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-calendar-job-execute-async
+            client.machineLearning().deleteCalendarJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-calendar-job-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+    
     public void testGetCalendar() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 

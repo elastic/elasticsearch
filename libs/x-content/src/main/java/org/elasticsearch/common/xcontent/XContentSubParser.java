@@ -35,6 +35,7 @@ public class XContentSubParser implements XContentParser {
 
     private final XContentParser parser;
     private int level;
+    private boolean closed;
 
     public XContentSubParser(XContentParser parser) {
         this.parser = parser;
@@ -261,7 +262,7 @@ public class XContentSubParser implements XContentParser {
 
     @Override
     public boolean isClosed() {
-        return parser.isClosed();
+        return closed;
     }
 
     @Override
@@ -271,9 +272,12 @@ public class XContentSubParser implements XContentParser {
 
     @Override
     public void close() throws IOException {
-        while (true) {
-            if (nextToken() == null) {
-                return;
+        if (closed == false) {
+            closed = true;
+            while (true) {
+                if (nextToken() == null) {
+                    return;
+                }
             }
         }
     }

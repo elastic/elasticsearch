@@ -343,7 +343,8 @@ public class XContentParserTests extends ESTestCase {
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // marked field
             assertEquals("marked_field", parser.currentName());
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken()); // {
-            try (XContentParser subParser = new XContentSubParser(parser)) {
+            XContentParser subParser = new XContentSubParser(parser);
+            try {
                 int tokensToSkip = randomInt(numberOfTokens - 1);
                 for (int i = 0; i < tokensToSkip; i++) {
                     // Simulate incomplete parsing
@@ -353,6 +354,10 @@ public class XContentParserTests extends ESTestCase {
                     // And sometimes skipping children
                     subParser.skipChildren();
                 }
+            }  finally {
+                assertFalse(subParser.isClosed());
+                subParser.close();
+                assertTrue(subParser.isClosed());
             }
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // last field
             assertEquals("last_field", parser.currentName());

@@ -10,7 +10,7 @@ setup:
         index: airline-data
         body:
           mappings:
-            _doc:
+            doc:
               properties:
                 time:
                   type: date

@@ -227,6 +227,7 @@ public final class TransportPutFollowAction
                 }
 
                 private void tearDownRepository() {
+                    // TODO: At least some logging if this fails
                     client.admin().cluster().prepareDeleteRepository(restoreRequest.repositoryName()).execute();
                 }
             }, false, false));

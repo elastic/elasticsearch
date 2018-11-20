@@ -270,8 +270,8 @@ public class ElasticsearchGeoAssertions {
             assert (unwrapJTS(shape) instanceof MultiLineString) : "expected MultiLineString but found "
                 + unwrapJTS(shape).getClass().getName();
         } else {
-            assert(shape instanceof org.apache.lucene.geo.Line[])
-                : "expected Line[] but found " + shape.getClass().getName();
+            assertTrue("expected Line[] but found " + shape.getClass().getName(),
+                shape instanceof org.apache.lucene.geo.Line[]);
         }
     }
 

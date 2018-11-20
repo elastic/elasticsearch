@@ -69,13 +69,9 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                     .field("type", "Point")
                     .startArray("coordinates").value(100.0).value(0.0).endArray()
                 .endObject();
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
-            Point expected = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));
-            assertGeometryEquals(new JtsPoint(expected, SPATIAL_CONTEXT), pointGeoJson, useJTS);
-        } else {
-            assertGeometryEquals(new GeoPoint(0d, 100d), pointGeoJson, useJTS);
-        }
+        Point expected = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));
+        assertGeometryEquals(new JtsPoint(expected, SPATIAL_CONTEXT), pointGeoJson, true);
+        assertGeometryEquals(new GeoPoint(0d, 100d), pointGeoJson, false);
     }
 
     @Override
@@ -95,17 +91,14 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(lineGeoJson)) {
             parser.nextToken();
-
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertLineString(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertLineString(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertLineString(shape, true);
         }
 
-
+        try (XContentParser parser = createParser(lineGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertLineString(ShapeParser.parse(parser).buildLucene(), false);
+        }
     }
 
     @Override
@@ -135,15 +128,11 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                         new Coordinate(103, 3),
                 }),
         });
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
-            assertGeometryEquals(jtsGeom(expected), multilinesGeoJson, useJTS);
-        } else {
-            assertGeometryEquals(new Line[] {
+        assertGeometryEquals(jtsGeom(expected), multilinesGeoJson, true);
+        assertGeometryEquals(new Line[] {
                 new Line(new double[] {0d, 1d}, new double[] {100d, 101d}),
                 new Line(new double[] {2d, 3d}, new double[] {102d, 103d})},
-                multilinesGeoJson, useJTS);
-        }
+            multilinesGeoJson, false);
     }
 
     public void testParseCircle() throws IOException {
@@ -196,14 +185,10 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                 .startArray().value(50).value(-30).endArray()
                 .endArray()
                 .endObject();
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
-            Rectangle expected = SPATIAL_CONTEXT.makeRectangle(-50, 50, -30, 30);
-            assertGeometryEquals(expected, multilinesGeoJson, useJTS);
-        } else {
-            assertGeometryEquals(new org.apache.lucene.geo.Rectangle(-30, 30, -50, 50),
-                multilinesGeoJson, useJTS);
-        }
+        Rectangle expected = SPATIAL_CONTEXT.makeRectangle(-50, 50, -30, 30);
+        assertGeometryEquals(expected, multilinesGeoJson, true);
+        assertGeometryEquals(new org.apache.lucene.geo.Rectangle(-30, 30, -50, 50),
+            multilinesGeoJson, false);
 
         // test #2: envelope that spans dateline
         multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
@@ -213,13 +198,10 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                 .endArray()
                 .endObject();
 
-        if (useJTS) {
-            Rectangle expected = SPATIAL_CONTEXT.makeRectangle(50, -50, -30, 30);
-            assertGeometryEquals(expected, multilinesGeoJson, useJTS);
-        } else {
-            assertGeometryEquals(new org.apache.lucene.geo.Rectangle(-30, 30, 50, -50),
-                multilinesGeoJson, useJTS);
-        }
+        expected = SPATIAL_CONTEXT.makeRectangle(50, -50, -30, 30);
+        assertGeometryEquals(expected, multilinesGeoJson, true);
+        assertGeometryEquals(new org.apache.lucene.geo.Rectangle(-30, 30, 50, -50),
+            multilinesGeoJson, false);
 
         // test #3: "envelope" (actually a triangle) with invalid number of coordinates (TopRight, BottomLeft, BottomRight)
         multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
@@ -270,17 +252,14 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         shellCoordinates.add(new Coordinate(100, 1));
         shellCoordinates.add(new Coordinate(100, 0));
         Coordinate[] coordinates = shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]);
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
-            LinearRing shell = GEOMETRY_FACTORY.createLinearRing(coordinates);
-            Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
-            assertGeometryEquals(jtsGeom(expected), polygonGeoJson, useJTS);
-        } else {
-            org.apache.lucene.geo.Polygon p = new org.apache.lucene.geo.Polygon(
-                Arrays.stream(coordinates).mapToDouble(i->i.y).toArray(),
-                Arrays.stream(coordinates).mapToDouble(i->i.x).toArray());
-            assertGeometryEquals(p, polygonGeoJson, useJTS);
-        }
+        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(coordinates);
+        Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
+        assertGeometryEquals(jtsGeom(expected), polygonGeoJson, true);
+
+        org.apache.lucene.geo.Polygon p = new org.apache.lucene.geo.Polygon(
+            new double[] {0d, 0d, 1d, 1d, 0d},
+            new double[] {100d, 101d, 101d, 100d, 100d});
+        assertGeometryEquals(p, polygonGeoJson, false);
     }
 
     public void testParse3DPolygon() throws IOException {
@@ -313,24 +292,19 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
 
-        boolean useJTS = randomVersion.before(Version.V_6_6_0);
-
-        if (useJTS) {
-            LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
-            Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
-            Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
-            final GeoShapeFieldMapper mapperBuilder =
-                (GeoShapeFieldMapper) (new GeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext));
-            try (XContentParser parser = createParser(polygonGeoJson)) {
-                parser.nextToken();
-                ElasticsearchGeoAssertions.assertEquals(jtsGeom(expected), ShapeParser.parse(parser, mapperBuilder).buildS4J());
-            }
-        } else {
-            org.apache.lucene.geo.Polygon p = new org.apache.lucene.geo.Polygon(
-                Arrays.stream(coordinates).mapToDouble(i->i.y).toArray(),
-                Arrays.stream(coordinates).mapToDouble(i->i.x).toArray());
-            assertGeometryEquals(p, polygonGeoJson, useJTS);
+        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
+        Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
+        Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
+        final GeoShapeFieldMapper mapperBuilder = new GeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext);
+        try (XContentParser parser = createParser(polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertEquals(jtsGeom(expected), ShapeParser.parse(parser, mapperBuilder).buildS4J());
         }
+
+        org.apache.lucene.geo.Polygon p = new org.apache.lucene.geo.Polygon(
+            Arrays.stream(coordinates).mapToDouble(i->i.y).toArray(),
+            Arrays.stream(coordinates).mapToDouble(i->i.x).toArray());
+        assertGeometryEquals(p, polygonGeoJson, false);
     }
 
     public void testInvalidDimensionalPolygon() throws IOException {
@@ -520,13 +494,13 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertPolygon(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertPolygon(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertPolygon(shape, true);
+        }
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertPolygon(ShapeParser.parse(parser).buildLucene(), false);
         }
 
         // test 2: ccw poly crossing dateline
@@ -545,13 +519,13 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertMultiPolygon(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertMultiPolygon(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertMultiPolygon(shape, true);
+        }
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertMultiPolygon(ShapeParser.parse(parser).buildLucene(), false);
         }
 
         // test 3: cw poly not crossing dateline
@@ -570,13 +544,13 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertPolygon(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertPolygon(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertPolygon(shape, true);
+        }
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertPolygon(ShapeParser.parse(parser).buildLucene(), false);
         }
 
         // test 4: cw poly crossing dateline
@@ -595,13 +569,13 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertMultiPolygon(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertMultiPolygon(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertMultiPolygon(shape, true);
+        }
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertMultiPolygon(ShapeParser.parse(parser).buildLucene(), false);
         }
     }
 
@@ -628,13 +602,13 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertPolygon(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertPolygon(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertPolygon(shape, true);
+        }
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertPolygon(ShapeParser.parse(parser).buildLucene(), false);
         }
 
         // test 2: ccw poly crossing dateline
@@ -659,13 +633,13 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertMultiPolygon(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertMultiPolygon(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertMultiPolygon(shape, true);
+        }
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertMultiPolygon(ShapeParser.parse(parser).buildLucene(), false);
         }
 
         // test 3: cw poly not crossing dateline
@@ -690,15 +664,14 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertPolygon(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertPolygon(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertPolygon(shape, true);
         }
 
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertPolygon(ShapeParser.parse(parser).buildLucene(), false);
+        }
 
         // test 4: cw poly crossing dateline
         polygonGeoJson = Strings.toString(XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
@@ -722,13 +695,13 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertMultiPolygon(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertMultiPolygon(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertMultiPolygon(shape, true);
+        }
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertMultiPolygon(ShapeParser.parse(parser).buildLucene(), false);
         }
     }
 
@@ -872,24 +845,21 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         holeCoordinates.add(new Coordinate(100.2, 0.8));
         holeCoordinates.add(new Coordinate(100.2, 0.2));
 
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
-            LinearRing shell = GEOMETRY_FACTORY.createLinearRing(
-                shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
-            LinearRing[] holes = new LinearRing[1];
-            holes[0] = GEOMETRY_FACTORY.createLinearRing(
-                holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
-            Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, holes);
-            assertGeometryEquals(jtsGeom(expected), polygonGeoJson, useJTS);
-        } else {
-            org.apache.lucene.geo.Polygon hole =
-                new org.apache.lucene.geo.Polygon(
-                    new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d}, new double[] {100.8d, 100.8d, 100.2d, 100.2d, 100.8d});
-            org.apache.lucene.geo.Polygon p =
-                new org.apache.lucene.geo.Polygon(
-                    new double[] {0d, 0d, 1d, 1d, 0d}, new double[] {100d, 101d, 101d, 100d, 100d}, hole);
-            assertGeometryEquals(p, polygonGeoJson, useJTS);
-        }
+        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(
+            shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
+        LinearRing[] holes = new LinearRing[1];
+        holes[0] = GEOMETRY_FACTORY.createLinearRing(
+            holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
+        Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, holes);
+        assertGeometryEquals(jtsGeom(expected), polygonGeoJson, true);
+
+        org.apache.lucene.geo.Polygon hole =
+            new org.apache.lucene.geo.Polygon(
+                new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d}, new double[] {100.8d, 100.8d, 100.2d, 100.2d, 100.8d});
+        org.apache.lucene.geo.Polygon p =
+            new org.apache.lucene.geo.Polygon(
+                new double[] {0d, 0d, 1d, 1d, 0d}, new double[] {100d, 101d, 101d, 100d, 100d}, hole);
+        assertGeometryEquals(p, polygonGeoJson, false);
     }
 
     public void testParseSelfCrossingPolygon() throws IOException {
@@ -925,17 +895,15 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                         .startArray().value(101.0).value(1.0).endArray()
                     .endArray()
                 .endObject();
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
-            ShapeCollection<?> expected = shapeCollection(
-                SPATIAL_CONTEXT.makePoint(100, 0),
-                SPATIAL_CONTEXT.makePoint(101, 1.0));
-            assertGeometryEquals(expected, multiPointGeoJson, useJTS);
-        } else {
-            assertGeometryEquals(new double[][]{
-                new double[] {100d, 0d},
-                new double[] {101d, 1d}}, multiPointGeoJson, useJTS);
-        }
+
+        ShapeCollection<?> expected = shapeCollection(
+            SPATIAL_CONTEXT.makePoint(100, 0),
+            SPATIAL_CONTEXT.makePoint(101, 1.0));
+        assertGeometryEquals(expected, multiPointGeoJson, true);
+
+        assertGeometryEquals(new double[][]{
+            new double[] {100d, 0d},
+            new double[] {101d, 1d}}, multiPointGeoJson, false);
     }
 
     @Override
@@ -999,27 +967,25 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         shellCoordinates.add(new Coordinate(102, 2));
         shellCoordinates.add(new Coordinate(102, 3));
 
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
-            shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
-            Polygon withoutHoles = GEOMETRY_FACTORY.createPolygon(shell, null);
 
-            Shape expected = shapeCollection(withoutHoles, withHoles);
+        shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
+        Polygon withoutHoles = GEOMETRY_FACTORY.createPolygon(shell, null);
 
-            assertGeometryEquals(expected, multiPolygonGeoJson, useJTS);
-        } else {
-            org.apache.lucene.geo.Polygon hole =
-                new org.apache.lucene.geo.Polygon(
-                    new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d}, new double[] {100.8d, 100.8d, 100.2d, 100.2d, 100.8d});
+        Shape expected = shapeCollection(withoutHoles, withHoles);
 
-            org.apache.lucene.geo.Polygon[] polygons = new org.apache.lucene.geo.Polygon[] {
-                new org.apache.lucene.geo.Polygon(
-                    new double[] {2d, 3d, 3d, 2d, 2d}, new double[] {103d, 103d, 102d, 102d, 103d}),
-                new org.apache.lucene.geo.Polygon(
-                    new double[] {0d, 1d, 1d, 0d, 0d}, new double[] {101d, 101d, 100d, 100d, 101d}, hole)
-               };
-            assertGeometryEquals(polygons, multiPolygonGeoJson, useJTS);
-        }
+        assertGeometryEquals(expected, multiPolygonGeoJson, true);
+
+        org.apache.lucene.geo.Polygon hole =
+            new org.apache.lucene.geo.Polygon(
+                new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d}, new double[] {100.8d, 100.8d, 100.2d, 100.2d, 100.8d});
+
+        org.apache.lucene.geo.Polygon[] polygons = new org.apache.lucene.geo.Polygon[] {
+            new org.apache.lucene.geo.Polygon(
+                new double[] {2d, 3d, 3d, 2d, 2d}, new double[] {103d, 103d, 102d, 102d, 103d}),
+            new org.apache.lucene.geo.Polygon(
+                new double[] {0d, 1d, 1d, 0d, 0d}, new double[] {101d, 101d, 100d, 100d, 101d}, hole)
+        };
+        assertGeometryEquals(polygons, multiPolygonGeoJson, false);
 
         // test #2: multipolygon; one polygon with one hole
         // this test converting the multipolygon from a ShapeCollection type
@@ -1061,24 +1027,22 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         holeCoordinates.add(new Coordinate(100.8, 0.8));
         holeCoordinates.add(new Coordinate(100.2, 0.8));
 
-        if (useJTS) {
-            shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
-            holes = new LinearRing[1];
-            holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
-            withHoles = GEOMETRY_FACTORY.createPolygon(shell, holes);
+        shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
+        holes = new LinearRing[1];
+        holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
+        withHoles = GEOMETRY_FACTORY.createPolygon(shell, holes);
 
-            assertGeometryEquals(jtsGeom(withHoles), multiPolygonGeoJson, useJTS);
-        } else {
-            org.apache.lucene.geo.Polygon hole =
-                new org.apache.lucene.geo.Polygon(
-                    new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d}, new double[] {100.8d, 100.8d, 100.2d, 100.2d, 100.8d});
+        assertGeometryEquals(jtsGeom(withHoles), multiPolygonGeoJson, true);
 
-            org.apache.lucene.geo.Polygon[] polygons = new org.apache.lucene.geo.Polygon[] {
-                new org.apache.lucene.geo.Polygon(
-                    new double[] {0d, 0d, 1d, 1d, 0d}, new double[] {100d, 101d, 101d, 100d, 100d}, hole)
-            };
-            assertGeometryEquals(polygons, multiPolygonGeoJson, useJTS);
-        }
+        org.apache.lucene.geo.Polygon luceneHole =
+            new org.apache.lucene.geo.Polygon(
+                new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d}, new double[] {100.8d, 100.8d, 100.2d, 100.2d, 100.8d});
+
+        org.apache.lucene.geo.Polygon[] lucenePolygons = new org.apache.lucene.geo.Polygon[] {
+            new org.apache.lucene.geo.Polygon(
+                new double[] {0d, 0d, 1d, 1d, 0d}, new double[] {100d, 101d, 101d, 100d, 100d}, luceneHole)
+        };
+        assertGeometryEquals(lucenePolygons, multiPolygonGeoJson, false);
     }
 
     @Override
@@ -1100,26 +1064,23 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                         .endObject()
                     .endArray()
                 .endObject();
-        boolean useJTS = randomBoolean();
 
-        if (useJTS) {
-            Shape[] expected = new Shape[2];
-            LineString expectedLineString = GEOMETRY_FACTORY.createLineString(new Coordinate[]{
-                new Coordinate(100, 0),
-                new Coordinate(101, 1),
-            });
-            expected[0] = jtsGeom(expectedLineString);
-            Point expectedPoint = GEOMETRY_FACTORY.createPoint(new Coordinate(102.0, 2.0));
-            expected[1] = new JtsPoint(expectedPoint, SPATIAL_CONTEXT);
+        Shape[] expected = new Shape[2];
+        LineString expectedLineString = GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+            new Coordinate(100, 0),
+            new Coordinate(101, 1),
+        });
+        expected[0] = jtsGeom(expectedLineString);
+        Point expectedPoint = GEOMETRY_FACTORY.createPoint(new Coordinate(102.0, 2.0));
+        expected[1] = new JtsPoint(expectedPoint, SPATIAL_CONTEXT);
 
-            //equals returns true only if geometries are in the same order
-            assertGeometryEquals(shapeCollection(expected), geometryCollectionGeoJson, useJTS);
-        } else {
-            Object[] expected = new Object[] {
-                new Line(new double[] {0d, 1d}, new double[] {100d, 101d}),
-                new GeoPoint(2d, 102d)};
-            assertGeometryEquals(expected, geometryCollectionGeoJson, useJTS);
-        }
+        //equals returns true only if geometries are in the same order
+        assertGeometryEquals(shapeCollection(expected), geometryCollectionGeoJson, true);
+
+        Object[] luceneExpected = new Object[] {
+            new Line(new double[] {0d, 1d}, new double[] {100d, 101d}),
+            new GeoPoint(2d, 102d)};
+        assertGeometryEquals(luceneExpected, geometryCollectionGeoJson, false);
     }
 
     public void testThatParserExtractsCorrectTypeAndCoordinatesFromArbitraryJson() throws IOException {
@@ -1138,14 +1099,12 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                     .startObject("nested").startArray("coordinates").value(200.0).value(0.0).endArray().endObject()
                     .startObject("lala").field("type", "NotAPoint").endObject()
                 .endObject();
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
+
             Point expected = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));
-            assertGeometryEquals(new JtsPoint(expected, SPATIAL_CONTEXT), pointGeoJson, useJTS);
-        } else {
-            GeoPoint expected = new GeoPoint(0, 100);
-            assertGeometryEquals(expected, pointGeoJson, useJTS);
-        }
+            assertGeometryEquals(new JtsPoint(expected, SPATIAL_CONTEXT), pointGeoJson, true);
+
+            GeoPoint expectedPt = new GeoPoint(0, 100);
+            assertGeometryEquals(expectedPt, pointGeoJson, false);
     }
 
     public void testParseOrientationOption() throws IOException {
@@ -1174,13 +1133,13 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertPolygon(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertPolygon(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertPolygon(shape, true);
+        }
+
+        try (XContentParser parser = createParser(polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertPolygon(ShapeParser.parse(parser).buildLucene(), false);
         }
 
         // test 2: valid ccw (right handed system) poly not crossing dateline (with 'ccw' field)
@@ -1208,13 +1167,13 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertPolygon(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertPolygon(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertPolygon(shape, true);
+        }
+
+        try (XContentParser parser = createParser(polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertPolygon(ShapeParser.parse(parser).buildLucene(), false);
         }
 
         // test 3: valid ccw (right handed system) poly not crossing dateline (with 'counterclockwise' field)
@@ -1242,13 +1201,13 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertPolygon(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertPolygon(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertPolygon(shape, true);
+        }
+
+        try (XContentParser parser = createParser(polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertPolygon(ShapeParser.parse(parser).buildLucene(), false);
         }
 
         // test 4: valid cw (left handed system) poly crossing dateline (with 'left' field)
@@ -1276,13 +1235,13 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertMultiPolygon(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertMultiPolygon(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertMultiPolygon(shape, true);
+        }
+
+        try (XContentParser parser = createParser(polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertMultiPolygon(ShapeParser.parse(parser).buildLucene(), false);
         }
 
         // test 5: valid cw multipoly (left handed system) poly crossing dateline (with 'cw' field)
@@ -1310,13 +1269,13 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertMultiPolygon(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertMultiPolygon(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertMultiPolygon(shape, true);
+        }
+
+        try (XContentParser parser = createParser(polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertMultiPolygon(ShapeParser.parse(parser).buildLucene(), false);
         }
 
         // test 6: valid cw multipoly (left handed system) poly crossing dateline (with 'clockwise' field)
@@ -1344,13 +1303,13 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                Shape shape = ShapeParser.parse(parser).buildS4J();
-                ElasticsearchGeoAssertions.assertMultiPolygon(shape, useJTS);
-            } else {
-                ElasticsearchGeoAssertions.assertMultiPolygon(ShapeParser.parse(parser).buildLucene(), useJTS);
-            }
+            Shape shape = ShapeParser.parse(parser).buildS4J();
+            ElasticsearchGeoAssertions.assertMultiPolygon(shape, true);
+        }
+
+        try (XContentParser parser = createParser(polygonGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertMultiPolygon(ShapeParser.parse(parser).buildLucene(), false);
         }
     }
 

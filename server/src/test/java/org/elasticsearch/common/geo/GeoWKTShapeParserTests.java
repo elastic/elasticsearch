@@ -101,12 +101,8 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         GeoPoint p = RandomShapeGenerator.randomPoint(random());
         Coordinate c = new Coordinate(p.lon(), p.lat());
         Point expected = GEOMETRY_FACTORY.createPoint(c);
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
-            assertExpected(new JtsPoint(expected, SPATIAL_CONTEXT), new PointBuilder().coordinate(c), useJTS);
-        } else {
-            assertExpected(new GeoPoint(p.lat(), p.lon()), new PointBuilder().coordinate(c), useJTS);
-        }
+        assertExpected(new JtsPoint(expected, SPATIAL_CONTEXT), new PointBuilder().coordinate(c), true);
+        assertExpected(new GeoPoint(p.lat(), p.lon()), new PointBuilder().coordinate(c), false);
         assertMalformed(new PointBuilder().coordinate(c));
     }
 
@@ -114,27 +110,25 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
     public void testParseMultiPoint() throws IOException {
         int numPoints = randomIntBetween(2, 100);
         List<Coordinate> coordinates = new ArrayList<>(numPoints);
-        boolean useJTS = randomBoolean();
         for (int i = 0; i < numPoints; ++i) {
             coordinates.add(new Coordinate(GeoTestUtil.nextLongitude(), GeoTestUtil.nextLatitude()));
         }
-        if (useJTS) {
-            Shape[] shapes = new Shape[numPoints];
-            for (int i = 0; i < numPoints; ++i) {
-                Coordinate c = coordinates.get(i);
-                shapes[i] = SPATIAL_CONTEXT.makePoint(c.x, c.y);
-            }
-            ShapeCollection<?> expected = shapeCollection(shapes);
-            assertExpected(expected, new MultiPointBuilder(coordinates), useJTS);
-        } else {
-            double[][] shapes = new double[numPoints][2];
-            for (int i = 0; i < numPoints; ++i) {
-                Coordinate c = coordinates.get(i);
-                shapes[i][0] = c.x;
-                shapes[i][1] = c.y;
-            }
-            assertExpected(shapes, new MultiPointBuilder(coordinates), useJTS);
+
+        Shape[] shapes = new Shape[numPoints];
+        for (int i = 0; i < numPoints; ++i) {
+            Coordinate c = coordinates.get(i);
+            shapes[i] = SPATIAL_CONTEXT.makePoint(c.x, c.y);
         }
+        ShapeCollection<?> expected = shapeCollection(shapes);
+        assertExpected(expected, new MultiPointBuilder(coordinates), true);
+
+        double[][] luceneShapes = new double[numPoints][2];
+        for (int i = 0; i < numPoints; ++i) {
+            Coordinate c = coordinates.get(i);
+            luceneShapes[i][0] = c.x;
+            luceneShapes[i][1] = c.y;
+        }
+        assertExpected(luceneShapes, new MultiPointBuilder(coordinates), false);
         assertMalformed(new MultiPointBuilder(coordinates));
     }
 
@@ -152,19 +146,17 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
     @Override
     public void testParseLineString() throws IOException {
         List<Coordinate> coordinates = randomLineStringCoords();
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
-            LineString expected = GEOMETRY_FACTORY.createLineString(coordinates.toArray(new Coordinate[coordinates.size()]));
-            assertExpected(jtsGeom(expected), new LineStringBuilder(coordinates), useJTS);
-        } else {
-            double[] lats = new double[coordinates.size()];
-            double[] lons = new double[lats.length];
-            for (int i = 0; i < lats.length; ++i) {
-                lats[i] = coordinates.get(i).y;
-                lons[i] = coordinates.get(i).x;
-            }
-            assertExpected(new Line(lats, lons), new LineStringBuilder(coordinates), useJTS);
+
+        LineString expected = GEOMETRY_FACTORY.createLineString(coordinates.toArray(new Coordinate[coordinates.size()]));
+        assertExpected(jtsGeom(expected), new LineStringBuilder(coordinates), true);
+
+        double[] lats = new double[coordinates.size()];
+        double[] lons = new double[lats.length];
+        for (int i = 0; i < lats.length; ++i) {
+            lats[i] = coordinates.get(i).y;
+            lons[i] = coordinates.get(i).x;
         }
+        assertExpected(new Line(lats, lons), new LineStringBuilder(coordinates), false);
     }
 
     @Override
@@ -178,20 +170,18 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             lineStrings.add(GEOMETRY_FACTORY.createLineString(coords));
             builder.linestring(new LineStringBuilder(lsc));
         }
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
-            MultiLineString expected = GEOMETRY_FACTORY.createMultiLineString(
-                lineStrings.toArray(new LineString[lineStrings.size()]));
-            assertExpected(jtsGeom(expected), builder, useJTS);
-        } else {
-            Line[] lines = new Line[lineStrings.size()];
-            for (int j = 0; j < lineStrings.size(); ++j) {
-                Coordinate[] c = lineStrings.get(j).getCoordinates();
-                lines[j] = new Line(Arrays.stream(c).mapToDouble(i->i.y).toArray(),
-                    Arrays.stream(c).mapToDouble(i->i.x).toArray());
-            }
-            assertExpected(lines, builder, useJTS);
+
+        MultiLineString expected = GEOMETRY_FACTORY.createMultiLineString(
+            lineStrings.toArray(new LineString[lineStrings.size()]));
+        assertExpected(jtsGeom(expected), builder, true);
+
+        Line[] lines = new Line[lineStrings.size()];
+        for (int j = 0; j < lineStrings.size(); ++j) {
+            Coordinate[] c = lineStrings.get(j).getCoordinates();
+            lines[j] = new Line(Arrays.stream(c).mapToDouble(i->i.y).toArray(),
+                Arrays.stream(c).mapToDouble(i->i.x).toArray());
         }
+        assertExpected(lines, builder, false);
         assertMalformed(builder);
     }
 
@@ -201,15 +191,9 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.POLYGON));
         Coordinate[] coords = builder.coordinates()[0][0];
 
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
-            LinearRing shell = GEOMETRY_FACTORY.createLinearRing(coords);
-            Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
-            assertExpected(jtsGeom(expected), builder, useJTS);
-        } else {
-            assertExpected(new org.apache.lucene.geo.Polygon(Arrays.stream(coords).mapToDouble(i->i.y).toArray(),
-                Arrays.stream(coords).mapToDouble(i->i.x).toArray()), builder, useJTS);
-        }
+        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(coords);
+        Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
+        assertExpected(jtsGeom(expected), builder, true);
         assertMalformed(builder);
     }
 
@@ -229,19 +213,8 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             shapes[i] = GEOMETRY_FACTORY.createPolygon(shell, null);
         }
 
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
-            Shape expected = shapeCollection(shapes);
-            assertExpected(expected, builder, useJTS);
-        } else {
-            org.apache.lucene.geo.Polygon[] polygons = new org.apache.lucene.geo.Polygon[shapes.length];
-            for (int j = 0; j < polygons.length; ++j) {
-                Coordinate[] c = shapes[j].getCoordinates();
-                polygons[j] = new org.apache.lucene.geo.Polygon(Arrays.stream(c).mapToDouble(i->i.y).toArray(),
-                    Arrays.stream(c).mapToDouble(i->i.x).toArray());
-            }
-            assertExpected(polygons, builder, useJTS);
-        }
+        Shape expected = shapeCollection(shapes);
+        assertExpected(expected, builder, true);
         assertMalformed(builder);
     }
 
@@ -264,24 +237,21 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         PolygonBuilder polygonWithHole = new PolygonBuilder(new CoordinatesBuilder().coordinates(shellCoordinates));
         polygonWithHole.hole(new LineStringBuilder(holeCoordinates));
 
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
-            LinearRing shell = GEOMETRY_FACTORY.createLinearRing(
-                shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
-            LinearRing[] holes = new LinearRing[1];
-            holes[0] = GEOMETRY_FACTORY.createLinearRing(
-                holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
-            Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, holes);
-            assertExpected(jtsGeom(expected), polygonWithHole, useJTS);
-        } else {
-            org.apache.lucene.geo.Polygon hole =
-                new org.apache.lucene.geo.Polygon(
-                    new double[] {0.8d, 0.8d, 0.2d, 0.2d, 0.8d}, new double[] {100.2d, 100.8d, 100.8d, 100.2d, 100.2d});
-            org.apache.lucene.geo.Polygon p =
-                new org.apache.lucene.geo.Polygon(
-                    new double[] {0d, 1d, 1d, 0d, 0d}, new double[] {101d, 101d, 100d, 100d, 101d}, hole);
-            assertExpected(p, polygonWithHole, useJTS);
-        }
+        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(
+            shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
+        LinearRing[] holes = new LinearRing[1];
+        holes[0] = GEOMETRY_FACTORY.createLinearRing(
+            holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
+        Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, holes);
+        assertExpected(jtsGeom(expected), polygonWithHole, true);
+
+        org.apache.lucene.geo.Polygon hole =
+            new org.apache.lucene.geo.Polygon(
+                new double[] {0.8d, 0.8d, 0.2d, 0.2d, 0.8d}, new double[] {100.2d, 100.8d, 100.8d, 100.2d, 100.2d});
+        org.apache.lucene.geo.Polygon p =
+            new org.apache.lucene.geo.Polygon(
+                new double[] {0d, 1d, 1d, 0d, 0d}, new double[] {101d, 101d, 100d, 100d, 101d}, hole);
+        assertExpected(p, polygonWithHole, false);
         assertMalformed(polygonWithHole);
     }
 
@@ -440,13 +410,10 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
     public void testParseEnvelope() throws IOException {
         org.apache.lucene.geo.Rectangle r = GeoTestUtil.nextBox();
         EnvelopeBuilder builder = new EnvelopeBuilder(new Coordinate(r.minLon, r.maxLat), new Coordinate(r.maxLon, r.minLat));
-        boolean useJTS = randomBoolean();
-        if (useJTS) {
-            Rectangle expected = SPATIAL_CONTEXT.makeRectangle(r.minLon, r.maxLon, r.minLat, r.maxLat);
-            assertExpected(expected, builder, useJTS);
-        } else {
-            assertExpected(r, builder, useJTS);
-        }
+
+        Rectangle expected = SPATIAL_CONTEXT.makeRectangle(r.minLon, r.maxLon, r.minLat, r.maxLat);
+        assertExpected(expected, builder, true);
+        assertExpected(r, builder, false);
         assertMalformed(builder);
     }
 
@@ -468,12 +435,8 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             }
         } else {
             GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
-            boolean useJTS = randomBoolean();
-            if (useJTS) {
-                assertExpected(gcb.buildS4J(), gcb, useJTS);
-            } else {
-                assertExpected(gcb.buildLucene(), gcb, useJTS);
-            }
+            assertExpected(gcb.buildS4J(), gcb, true);
+            assertExpected(gcb.buildLucene(), gcb, false);
         }
     }
 

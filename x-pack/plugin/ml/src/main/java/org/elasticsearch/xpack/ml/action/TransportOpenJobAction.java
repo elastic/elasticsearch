@@ -158,6 +158,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                                                                             int maxMachineMemoryPercent,
                                                                             MlMemoryTracker memoryTracker,
                                                                             Logger logger) {
+        if (job == null) {
+            logger.debug("[{}] select node job is null", jobId);
+        }
+
         String resultsIndexName = job != null ? job.getResultsIndexName() : null;
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(resultsIndexName, clusterState);
         if (unavailableIndices.size() != 0) {
@@ -830,8 +834,16 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         @Override
         public PersistentTasksCustomMetaData.Assignment getAssignment(OpenJobAction.JobParams params, ClusterState clusterState) {
+            Job foundJob = params.getJob();
+            if (foundJob == null) {
+                // The job was added to the persistent task parameters in 6.6.0
+                // if the field is not present the task was created before 6.6.0.
+                // In which case the job should still be in the clusterstate
+                foundJob = MlMetadata.getMlMetadata(clusterState).getJobs().get(params.getJobId());
+            }
+
             PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(params.getJobId(),
-                params.getJob(),
+                foundJob,
                 clusterState,
                 maxConcurrentJobAllocations,
                 fallbackMaxNumberOfOpenJobs,

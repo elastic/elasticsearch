@@ -14,7 +14,9 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -29,23 +31,20 @@ public class DatafeedNodeSelector {
     private final String datafeedId;
     private final String jobId;
     private final List<String> datafeedIndices;
-    private final PersistentTasksCustomMetaData.PersistentTask<?> jobTask;
     private final ClusterState clusterState;
     private final IndexNameExpressionResolver resolver;
 
     public DatafeedNodeSelector(ClusterState clusterState, IndexNameExpressionResolver resolver, String datafeedId,
                                 String jobId, List<String> datafeedIndices) {
-        PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         this.datafeedId = datafeedId;
         this.jobId = jobId;
         this.datafeedIndices = datafeedIndices;
-        this.jobTask = MlTasks.getJobTask(jobId, tasks);
         this.clusterState = Objects.requireNonNull(clusterState);
         this.resolver = Objects.requireNonNull(resolver);
     }
 
     public void checkDatafeedTaskCanBeCreated() {
-        AssignmentFailure assignmentFailure = checkAssignment();
+        AssignmentFailure assignmentFailure = checkAssignment(findJobTask());
         if (assignmentFailure != null && assignmentFailure.isCriticalForTaskCreation) {
             String msg = "No node found to start datafeed [" + datafeedId + "], " +
                     "allocation explanation [" + assignmentFailure.reason + "]";
@@ -55,7 +54,8 @@ public class DatafeedNodeSelector {
     }
 
     public PersistentTasksCustomMetaData.Assignment selectNode() {
-        AssignmentFailure assignmentFailure = checkAssignment();
+        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = findJobTask();
+        AssignmentFailure assignmentFailure = checkAssignment(jobTask);
         if (assignmentFailure == null) {
             return new PersistentTasksCustomMetaData.Assignment(jobTask.getExecutorNode(), "");
         }
@@ -64,7 +64,7 @@ public class DatafeedNodeSelector {
     }
 
     @Nullable
-    private AssignmentFailure checkAssignment() {
+    private AssignmentFailure checkAssignment(PersistentTasksCustomMetaData.PersistentTask<?> jobTask) {
         PriorityFailureCollector priorityFailureCollector = new PriorityFailureCollector();
         priorityFailureCollector.add(verifyIndicesActive());
 
@@ -124,6 +124,22 @@ public class DatafeedNodeSelector {
             }
         }
         return null;
+    }
+
+    private PersistentTasksCustomMetaData.PersistentTask<?> findJobTask() {
+        String foundJobId = jobId;
+        if (jobId == null) {
+            // This is because the datafeed persistent task was created before 6.6.0
+            // and is missing the additional fields in the task parameters.
+            // In which case the datafeed config should still be in the clusterstate
+            DatafeedConfig datafeedConfig = MlMetadata.getMlMetadata(clusterState).getDatafeed(datafeedId);
+            if (datafeedConfig != null) {
+                foundJobId = datafeedConfig.getJobId();
+            }
+        }
+
+        PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        return MlTasks.getJobTask(foundJobId, tasks);
     }
 
     private static class AssignmentFailure {

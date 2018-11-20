@@ -163,6 +163,7 @@ subprojects {
             extraConfigFile 'x-pack/system_key', "${mainProject.projectDir}/src/test/resources/system_key"
         }
         setting 'xpack.watcher.encrypt_sensitive_data', 'true'
+        setting 'logger.org.elasticsearch.xpack.ml.action', 'DEBUG'
       }
 
       // Old versions of the code contain an invalid assertion that trips
@@ -217,6 +218,7 @@ subprojects {
           setting 'xpack.watcher.encrypt_sensitive_data', 'true'
           keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
         }
+        setting 'logger.org.elasticsearch.xpack.ml.action', 'DEBUG'
       }
     }
 

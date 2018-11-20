@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import java.util.stream.StreamSupport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -658,10 +659,58 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 removeFinishedSnapshotFromClusterState(event);
                 finalizeSnapshotDeletionFromPreviousMaster(event);
+                assert assertConsistency(event.state());
             }
         } catch (Exception e) {
             logger.warn("Failed to update snapshot state ", e);
         }
+    }
+
+    private boolean assertConsistency(ClusterState state) {
+        SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+        if (snapshotsInProgress != null) {
+            assert snapshotsInProgress == updateWithRoutingTable(
+                snapshotsInProgress.entries().stream().flatMap(entry -> {
+                    Iterable<ShardId> iterable = () -> entry.shards().keysIt();
+                    return StreamSupport.stream(iterable.spliterator(), false);
+                }).collect(Collectors.toSet()),
+                snapshotsInProgress, state.routingTable()
+            ) : "SnapshotsInProgress state [" + snapshotsInProgress + "] not in sync with routing table [" + state.routingTable() + "].";
+            for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+                switch (entry.state()) {
+                    case INIT:
+                        // check that all items are actually aborted
+                        assert entry.shards().isEmpty() : "expected empty entry list but was: " + entry.shards();
+                        break;
+                    case ABORTED:
+                        // check that all items are actually aborted
+                        entry.shards().values().iterator().forEachRemaining(cur -> {
+                            assert cur.value.state().completed() || cur.value.state() == State.ABORTED :
+                                "aborted snapshot with inconsistent item state: " + cur.value.state();
+                        });
+
+                        assert completed(entry.shards().values()) == false :
+                            "state completion " + entry.state() + " does not match entry completion " + entry.shards();
+                        break;
+                    case STARTED:
+                        // check that there are no aborted items
+                        entry.shards().values().iterator().forEachRemaining(cur -> {
+                            assert cur.value.state() != State.ABORTED :
+                                "aborted entries should not exist in started state: " + cur.value.state();
+                        });
+
+                        assert completed(entry.shards().values()) == false :
+                            "state completion " + entry.state() + " does not match entry completion " + entry.shards();
+                        break;
+                    default:
+                        assert entry.state() == State.FAILED || entry.state() == State.SUCCESS;
+                        assert completed(entry.shards().values()) :
+                            "state completion " + entry.state() + " does not match entry completion " + entry.shards();
+                        break;
+                }
+            }
+        }
+        return true;
     }
 
     /**
@@ -1552,112 +1601,112 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         protected void onChanged(ShardId shardId) {
             shardChanges.add(shardId);
         }
+    }
 
-        private static SnapshotsInProgress updateWithRoutingTable(Set<ShardId> shardIds, SnapshotsInProgress oldSnapshot,
-            RoutingTable newRoutingTable) {
-            if (oldSnapshot == null || shardIds.isEmpty()) {
-                return oldSnapshot;
-            }
-            List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
-            boolean snapshotsInProgressChanged = false;
-            for (SnapshotsInProgress.Entry entry : oldSnapshot.entries()) {
-                ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = null;
-                for (ShardId shardId : shardIds) {
-                    ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = entry.shards();
-                    ShardSnapshotStatus currentStatus = shards.get(shardId);
-                    if (currentStatus != null && currentStatus.state().completed() == false) {
-                        final ShardSnapshotStatus newStatus = Optional
-                            .ofNullable(newRoutingTable.shardRoutingTableOrNull(shardId))
-                            .map(IndexShardRoutingTable::primaryShard)
-                            .map(
-                                primaryShardRouting -> determineShardSnapshotStatus(currentStatus, primaryShardRouting)
-                            )
-                            .orElse(failedStatus(null, "missing shard"));
-                        if (newStatus != currentStatus) {
-                            if (shardsBuilder == null) {
-                                shardsBuilder = ImmutableOpenMap.builder(shards);
-                            }
-                            shardsBuilder.put(shardId, newStatus);
-                        }
-                    }
-                }
-                if (shardsBuilder == null) {
-                    entries.add(entry);
-                } else {
-                    snapshotsInProgressChanged = true;
-                    ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = shardsBuilder.build();
-                    entries.add(
-                        new SnapshotsInProgress.Entry(
-                            entry,
-                            completed(shards.values()) ? State.SUCCESS : entry.state(),
-                            shards
-                        )
-                    );
-                }
-            }
-            if (snapshotsInProgressChanged) {
-                return new SnapshotsInProgress(entries);
-            }
+    private static SnapshotsInProgress updateWithRoutingTable(Set<ShardId> shardIds, SnapshotsInProgress oldSnapshot,
+        RoutingTable newRoutingTable) {
+        if (oldSnapshot == null || shardIds.isEmpty()) {
             return oldSnapshot;
         }
-
-        private static ShardSnapshotStatus determineShardSnapshotStatus(final ShardSnapshotStatus currentStatus,
-            final ShardRouting primaryShardRouting) {
-            final State currentState = currentStatus.state();
-            final ShardSnapshotStatus newStatus;
-            if (primaryShardRouting == null) {
-                newStatus = failedStatus(null, "missing shard");
-            } else if (primaryShardRouting.active() == false) {
-                if (primaryShardRouting.initializing() && currentState == State.WAITING) {
-                    newStatus = currentStatus;
-                } else {
-                    newStatus = failedStatus(
-                        primaryShardRouting.currentNodeId(),
-                        primaryShardRouting.unassignedInfo().getReason().toString()
-                    );
-                }
-            } else if (primaryShardRouting.started()) {
-                switch (currentState) {
-                    case WAITING:
-                        newStatus = new ShardSnapshotStatus(primaryShardRouting.currentNodeId());
-                        break;
-                    case INIT: {
-                        String currentNodeId = currentStatus.nodeId();
-                        assert currentNodeId != null;
-                        if (primaryShardRouting.currentNodeId().equals(currentNodeId)) {
-                            newStatus = currentStatus;
-                        } else {
-                            newStatus = failedStatus(currentNodeId);
+        List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
+        boolean snapshotsInProgressChanged = false;
+        for (SnapshotsInProgress.Entry entry : oldSnapshot.entries()) {
+            ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = null;
+            for (ShardId shardId : shardIds) {
+                ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = entry.shards();
+                ShardSnapshotStatus currentStatus = shards.get(shardId);
+                if (currentStatus != null && currentStatus.state().completed() == false) {
+                    final ShardSnapshotStatus newStatus = Optional
+                        .ofNullable(newRoutingTable.shardRoutingTableOrNull(shardId))
+                        .map(IndexShardRoutingTable::primaryShard)
+                        .map(
+                            primaryShardRouting -> determineShardSnapshotStatus(currentStatus, primaryShardRouting)
+                        )
+                        .orElse(failedStatus(null, "missing shard"));
+                    if (newStatus != currentStatus) {
+                        if (shardsBuilder == null) {
+                            shardsBuilder = ImmutableOpenMap.builder(shards);
                         }
-                        break;
+                        shardsBuilder.put(shardId, newStatus);
                     }
-                    case ABORTED:
-                        String currentNodeId = currentStatus.nodeId();
-                        if (currentNodeId.equals(primaryShardRouting.currentNodeId())) {
-                            newStatus = currentStatus;
-                        } else {
-                            newStatus = failedStatus(currentNodeId);
-                        }
-                        break;
-                    default:
-                        newStatus = currentStatus;
-                        break;
                 }
-            } else if (currentState == State.INIT || currentStatus.state() == State.ABORTED) {
-                newStatus = failedStatus(currentStatus.nodeId());
-            } else {
-                newStatus = currentStatus;
             }
-            return newStatus;
+            if (shardsBuilder == null) {
+                entries.add(entry);
+            } else {
+                snapshotsInProgressChanged = true;
+                ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = shardsBuilder.build();
+                entries.add(
+                    new SnapshotsInProgress.Entry(
+                        entry,
+                        completed(shards.values()) ? State.SUCCESS : entry.state(),
+                        shards
+                    )
+                );
+            }
         }
+        if (snapshotsInProgressChanged) {
+            return new SnapshotsInProgress(entries);
+        }
+        return oldSnapshot;
+    }
 
-        private static ShardSnapshotStatus failedStatus(String nodeId) {
-            return failedStatus(nodeId, "shard failed");
+    private static ShardSnapshotStatus determineShardSnapshotStatus(final ShardSnapshotStatus currentStatus,
+        final ShardRouting primaryShardRouting) {
+        final State currentState = currentStatus.state();
+        final ShardSnapshotStatus newStatus;
+        if (primaryShardRouting == null) {
+            newStatus = failedStatus(null, "missing shard");
+        } else if (primaryShardRouting.active() == false) {
+            if (primaryShardRouting.initializing() && currentState == State.WAITING) {
+                newStatus = currentStatus;
+            } else {
+                newStatus = failedStatus(
+                    primaryShardRouting.currentNodeId(),
+                    primaryShardRouting.unassignedInfo().getReason().toString()
+                );
+            }
+        } else if (primaryShardRouting.started()) {
+            switch (currentState) {
+                case WAITING:
+                    newStatus = new ShardSnapshotStatus(primaryShardRouting.currentNodeId());
+                    break;
+                case INIT: {
+                    String currentNodeId = currentStatus.nodeId();
+                    assert currentNodeId != null;
+                    if (primaryShardRouting.currentNodeId().equals(currentNodeId)) {
+                        newStatus = currentStatus;
+                    } else {
+                        newStatus = failedStatus(currentNodeId);
+                    }
+                    break;
+                }
+                case ABORTED:
+                    String currentNodeId = currentStatus.nodeId();
+                    if (currentNodeId.equals(primaryShardRouting.currentNodeId())) {
+                        newStatus = currentStatus;
+                    } else {
+                        newStatus = failedStatus(currentNodeId);
+                    }
+                    break;
+                default:
+                    newStatus = currentStatus;
+                    break;
+            }
+        } else if (currentState == State.INIT || currentStatus.state() == State.ABORTED) {
+            newStatus = failedStatus(currentStatus.nodeId());
+        } else {
+            newStatus = currentStatus;
         }
+        return newStatus;
+    }
 
-        private static ShardSnapshotStatus failedStatus(String nodeId, String reason) {
-            return new ShardSnapshotStatus(nodeId, State.FAILED, reason);
-        }
+    private static ShardSnapshotStatus failedStatus(String nodeId) {
+        return failedStatus(nodeId, "shard failed");
+    }
+
+    private static ShardSnapshotStatus failedStatus(String nodeId, String reason) {
+        return new ShardSnapshotStatus(nodeId, State.FAILED, reason);
     }
 
     /**

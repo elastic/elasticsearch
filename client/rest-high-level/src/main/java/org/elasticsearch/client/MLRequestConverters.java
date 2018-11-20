@@ -58,6 +58,7 @@ import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
@@ -406,6 +407,21 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(updateModelSnapshotRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request revertModelSnapshot(RevertModelSnapshotRequest revertModelSnapshotsRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(revertModelSnapshotsRequest.getJobId())
+            .addPathPartAsIs("model_snapshots")
+            .addPathPart(revertModelSnapshotsRequest.getSnapshotId())
+            .addPathPart("_revert")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(revertModelSnapshotsRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

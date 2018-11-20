@@ -63,6 +63,7 @@ import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedResponse;
+import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
@@ -1216,6 +1217,47 @@ public final class MachineLearningClient {
                 listener,
                 Collections.emptySet());
     }
+
+    /**
+     * Adds Machine Learning Job(s) to a calendar
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar-job.html">
+     * ML Put calendar job documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The {@link PutCalendarResponse} containing the updated calendar
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutCalendarResponse putCalendarJob(PutCalendarJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::putCalendarJob,
+            options,
+            PutCalendarResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Adds Machine Learning Job(s) to a calendar, notifies listener when completed
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar-job.html">
+     * ML Put calendar job documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void putCalendarJobAsync(PutCalendarJobRequest request, RequestOptions options, ActionListener<PutCalendarResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::putCalendarJob,
+            options,
+            PutCalendarResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
 
     /**
      * Deletes the given Machine Learning Calendar

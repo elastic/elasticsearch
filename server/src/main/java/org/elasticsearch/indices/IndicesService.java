@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
@@ -154,6 +155,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 
 public class IndicesService extends AbstractLifecycleComponent
     implements IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>, IndexService.ShardStoreDeleter {
+    private static final Logger logger = LogManager.getLogger(IndicesService.class);
 
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
     public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING =
@@ -242,7 +244,8 @@ public class IndicesService extends AbstractLifecycleComponent
         this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
             @Override
             public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
-                assert sizeInBytes >= 0 : "When reducing circuit breaker, it should be adjusted with a number higher or equal to 0 and not [" + sizeInBytes + "]";
+                assert sizeInBytes >= 0 : "When reducing circuit breaker, it should be adjusted with a number higher or " +
+                    "equal to 0 and not [" + sizeInBytes + "]";
                 circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(-sizeInBytes);
             }
         });
@@ -263,7 +266,8 @@ public class IndicesService extends AbstractLifecycleComponent
 
     @Override
     protected void doStop() {
-        ExecutorService indicesStopExecutor = Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory(settings, "indices_shutdown"));
+        ExecutorService indicesStopExecutor =
+            Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory(settings, "indices_shutdown"));
 
         // Copy indices because we modify it asynchronously in the body of the loop
         final Set<Index> indices = this.indices.values().stream().map(s -> s.index()).collect(Collectors.toSet());
@@ -290,7 +294,13 @@ public class IndicesService extends AbstractLifecycleComponent
 
     @Override
     protected void doClose() {
-        IOUtils.closeWhileHandlingException(analysisRegistry, indexingMemoryController, indicesFieldDataCache, cacheCleaner, indicesRequestCache, indicesQueryCache);
+        IOUtils.closeWhileHandlingException(
+            analysisRegistry,
+            indexingMemoryController,
+            indicesFieldDataCache,
+            cacheCleaner,
+            indicesRequestCache,
+            indicesQueryCache);
     }
 
     /**
@@ -426,7 +436,8 @@ public class IndicesService extends AbstractLifecycleComponent
         if (indexService == null) {
             throw new IndexNotFoundException(index);
         }
-        assert indexService.indexUUID().equals(index.getUUID()) : "uuid mismatch local: " + indexService.indexUUID() + " incoming: " + index.getUUID();
+        assert indexService.indexUUID().equals(index.getUUID()) : "uuid mismatch local: " + indexService.indexUUID() +
+            " incoming: " + index.getUUID();
         return indexService;
     }
 
@@ -564,7 +575,8 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * This method verifies that the given {@code metaData} holds sane values to create an {@link IndexService}.
-     * This method tries to update the meta data of the created {@link IndexService} if the given {@code metaDataUpdate} is different from the given {@code metaData}.
+     * This method tries to update the meta data of the created {@link IndexService} if the given {@code metaDataUpdate}
+     * is different from the given {@code metaData}.
      * This method will throw an exception if the creation or the update fails.
      * The created {@link IndexService} will not be registered and will be closed immediately.
      */
@@ -700,7 +712,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
                 deleteIndexStore(reason, metaData, clusterState);
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete unassigned index (reason [{}])", metaData.getIndex(), reason), e);
+                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete unassigned index (reason [{}])",
+                    metaData.getIndex(), reason), e);
             }
         }
     }
@@ -717,7 +730,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 Index index = metaData.getIndex();
                 if (hasIndex(index)) {
                     String localUUid = indexService(index).indexUUID();
-                    throw new IllegalStateException("Can't delete index store for [" + index.getName() + "] - it's still part of the indices service [" + localUUid + "] [" + metaData.getIndexUUID() + "]");
+                    throw new IllegalStateException("Can't delete index store for [" + index.getName() +
+                        "] - it's still part of the indices service [" + localUUid + "] [" + metaData.getIndexUUID() + "]");
                 }
 
                 if (clusterState.metaData().hasIndex(index.getName()) && (clusterState.nodes().getLocalNode().isMasterNode() == true)) {
@@ -752,7 +766,8 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             success = true;
         } catch (LockObtainFailedException ex) {
-            logger.debug(() -> new ParameterizedMessage("{} failed to delete index store - at least one shards is still locked", index), ex);
+            logger.debug(() -> new ParameterizedMessage("{} failed to delete index store - at least one shards is still locked", index),
+                ex);
         } catch (Exception ex) {
             logger.warn(() -> new ParameterizedMessage("{} failed to delete index", index), ex);
         } finally {
@@ -784,7 +799,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * is prevented by {@link #canDeleteShardContent(ShardId, IndexSettings)}
      * of if the shards lock can not be acquired.
      *
-     * On data nodes, if the deleted shard is the last shard folder in its index, the method will attempt to remove the index folder as well.
+     * On data nodes, if the deleted shard is the last shard folder in its index, the method will attempt to remove
+     * the index folder as well.
      *
      * @param reason the reason for the shard deletion
      * @param shardId the shards ID to delete
@@ -803,7 +819,8 @@ public class IndicesService extends AbstractLifecycleComponent
         nodeEnv.deleteShardDirectorySafe(shardId, indexSettings);
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
-        if (clusterState.nodes().getLocalNode().isMasterNode() == false && // master nodes keep the index meta data, even if having no shards..
+        // master nodes keep the index meta data, even if having no shards..
+        if (clusterState.nodes().getLocalNode().isMasterNode() == false &&
                 canDeleteIndexContents(shardId.getIndex(), indexSettings)) {
             if (nodeEnv.findAllShardIds(shardId.getIndex()).isEmpty()) {
                 try {
@@ -857,7 +874,8 @@ public class IndicesService extends AbstractLifecycleComponent
             try {
                 metaData = metaStateService.loadIndexState(index);
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to load state file from a stale deleted index, folders will be left on disk", index), e);
+                logger.warn(() -> new ParameterizedMessage("[{}] failed to load state file from a stale deleted index, " +
+                    "folders will be left on disk", index), e);
                 return null;
             }
             final IndexSettings indexSettings = buildIndexSettings(metaData);
@@ -1089,8 +1107,9 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Checks if all pending deletes have completed. Used by tests to ensure we don't check directory contents while deletion still ongoing.
-     * The reason is that, on Windows, browsing the directory contents can interfere with the deletion process and delay it unnecessarily.
+     * Checks if all pending deletes have completed. Used by tests to ensure we don't check directory contents
+     * while deletion still ongoing. * The reason is that, on Windows, browsing the directory contents can interfere
+     * with the deletion process and delay it unnecessarily.
      */
     public boolean hasUncompletedPendingDeletes() {
         return numUncompletedDeletes.get() > 0;
@@ -1115,7 +1134,11 @@ public class IndicesService extends AbstractLifecycleComponent
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final IndicesRequestCache requestCache;
 
-        CacheCleaner(IndicesFieldDataCache cache, IndicesRequestCache requestCache, Logger logger, ThreadPool threadPool, TimeValue interval) {
+        CacheCleaner(IndicesFieldDataCache cache,
+                     IndicesRequestCache requestCache,
+                     Logger logger,
+                     ThreadPool threadPool,
+                     TimeValue interval) {
             this.cache = cache;
             this.requestCache = requestCache;
             this.logger = logger;
@@ -1135,7 +1158,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 logger.warn("Exception during periodic field data cache cleanup:", e);
             }
             if (logger.isTraceEnabled()) {
-                logger.trace("periodic field data cache cleanup finished in {} milliseconds", TimeValue.nsecToMSec(System.nanoTime() - startTimeNS));
+                logger.trace("periodic field data cache cleanup finished in {} milliseconds",
+                    TimeValue.nsecToMSec(System.nanoTime() - startTimeNS));
             }
 
             try {

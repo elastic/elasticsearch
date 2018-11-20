@@ -57,6 +57,8 @@ import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
+import org.elasticsearch.client.ml.PostCalendarEventRequest;
+import org.elasticsearch.client.ml.PostCalendarEventResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
@@ -81,6 +83,8 @@ import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotResponse;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
+import org.elasticsearch.client.ml.calendars.ScheduledEvent;
+import org.elasticsearch.client.ml.calendars.ScheduledEventTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedState;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
@@ -915,6 +919,24 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 () -> execute(new DeleteCalendarRequest(calendar.getId()), machineLearningClient::deleteCalendar,
                         machineLearningClient::deleteCalendarAsync));
         assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    public void testPostCalendarEvent() throws Exception {
+        Calendar calendar = CalendarTests.testInstance();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putCalendar(new PutCalendarRequest(calendar), RequestOptions.DEFAULT);
+
+        List<ScheduledEvent> events = new ArrayList<>(3);
+        for (int i = 0; i < 3; i++) {
+            events.add(ScheduledEventTests.testInstance(calendar.getId(), null));
+        }
+
+        PostCalendarEventRequest postCalendarEventRequest = new PostCalendarEventRequest(calendar.getId(), events);
+
+        PostCalendarEventResponse postCalendarEventResponse = execute(postCalendarEventRequest,
+            machineLearningClient::postCalendarEvent,
+            machineLearningClient::postCalendarEventAsync);
+        assertThat(postCalendarEventResponse.getScheduledEvents(), containsInAnyOrder(events.toArray()));
     }
 
     public void testPutFilter() throws Exception {

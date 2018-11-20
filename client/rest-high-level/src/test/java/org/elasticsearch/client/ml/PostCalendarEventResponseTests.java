@@ -17,36 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.client.ml.calendars;
+package org.elasticsearch.client.ml;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.client.ml.calendars.ScheduledEvent;
+import org.elasticsearch.client.ml.calendars.ScheduledEventTests;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
-import java.util.Date;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
-public class ScheduledEventTests extends AbstractXContentTestCase<ScheduledEvent> {
-
-    public static ScheduledEvent testInstance(String calendarId, @Nullable String eventId) {
-        Date start = new Date(randomNonNegativeLong());
-        Date end = new Date(start.getTime() + randomIntBetween(1, 10000) * 1000);
-
-        return new ScheduledEvent(randomAlphaOfLength(10), start, end, calendarId, eventId);
-    }
-
-    public static ScheduledEvent testInstance() {
-        return testInstance(randomAlphaOfLengthBetween(1, 20),
-            randomBoolean() ? null : randomAlphaOfLength(7));
+public class PostCalendarEventResponseTests extends AbstractXContentTestCase<PostCalendarEventResponse> {
+    @Override
+    protected PostCalendarEventResponse createTestInstance() {
+        int numberOfEvents = randomIntBetween(1, 10);
+        List<ScheduledEvent> events = new ArrayList<>(numberOfEvents);
+        for (int i = 0; i < numberOfEvents; i++) {
+            events.add(ScheduledEventTests.testInstance());
+        }
+        return new PostCalendarEventResponse(events);
     }
 
     @Override
-    protected ScheduledEvent createTestInstance() {
-        return testInstance();
-    }
-
-    @Override
-    protected ScheduledEvent doParseInstance(XContentParser parser) {
-        return ScheduledEvent.PARSER.apply(parser, null);
+    protected PostCalendarEventResponse doParseInstance(XContentParser parser) throws IOException {
+        return PostCalendarEventResponse.fromXContent(parser);
     }
 
     @Override

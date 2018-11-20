@@ -160,6 +160,12 @@ public class QueryStringQueryParser extends XQueryParser {
         queryBuilder.setOccur(op == Operator.AND ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD);
     }
 
+    @Override
+    public void setPhraseSlop(int phraseSlop) {
+        super.setPhraseSlop(phraseSlop);
+        queryBuilder.setPhraseSlop(phraseSlop);
+    }
+
     /**
      * @param type Sets how multiple fields should be combined to build textual part queries.
      */

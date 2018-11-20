@@ -85,18 +85,11 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
             return false;
         }
         final HasPrivilegesResponse response = (HasPrivilegesResponse) o;
-        if (completeMatch == response.completeMatch) {
-            if (Objects.equals(username, response.username)) {
-                if (Objects.equals(cluster, response.cluster)) {
-                    if (Objects.equals(index, response.index)) {
-                        if (Objects.equals(application, response.application)) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        return false;
+        return completeMatch == response.completeMatch
+            && Objects.equals(username, response.username)
+            && Objects.equals(cluster, response.cluster)
+            && Objects.equals(index, response.index)
+            && Objects.equals(application, response.application);
     }
 
     @Override

@@ -403,7 +403,8 @@ public final class QueryBuilders {
      * @param filterFunctionBuilders the filters and functions to execute
      * @return the function score query
      */
-    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder,
+                                                               FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
         return new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
     }
 

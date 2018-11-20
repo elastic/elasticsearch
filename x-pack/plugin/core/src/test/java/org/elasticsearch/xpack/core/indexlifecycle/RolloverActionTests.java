@@ -80,17 +80,21 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
                 randomAlphaOfLengthBetween(1, 10));
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(2, steps.size());
-        StepKey expectedFirstStepKey = new StepKey(phase, RolloverAction.NAME, RolloverStep.NAME);
-        StepKey expectedSecondStepKey = new StepKey(phase, RolloverAction.NAME, UpdateRolloverLifecycleDateStep.NAME);
-        RolloverStep firstStep = (RolloverStep) steps.get(0);
-        UpdateRolloverLifecycleDateStep secondStep = (UpdateRolloverLifecycleDateStep) steps.get(1);
+        assertEquals(3, steps.size());
+        StepKey expectedFirstStepKey = new StepKey(phase, RolloverAction.NAME, WaitForRolloverReadyStep.NAME);
+        StepKey expectedSecondStepKey = new StepKey(phase, RolloverAction.NAME, RolloverStep.NAME);
+        StepKey expectedThirdStepKey = new StepKey(phase, RolloverAction.NAME, UpdateRolloverLifecycleDateStep.NAME);
+        WaitForRolloverReadyStep firstStep = (WaitForRolloverReadyStep) steps.get(0);
+        RolloverStep secondStep = (RolloverStep) steps.get(1);
+        UpdateRolloverLifecycleDateStep thirdStep = (UpdateRolloverLifecycleDateStep) steps.get(2);
         assertEquals(expectedFirstStepKey, firstStep.getKey());
         assertEquals(expectedSecondStepKey, secondStep.getKey());
+        assertEquals(expectedThirdStepKey, thirdStep.getKey());
         assertEquals(secondStep.getKey(), firstStep.getNextStepKey());
+        assertEquals(thirdStep.getKey(), secondStep.getNextStepKey());
         assertEquals(action.getMaxSize(), firstStep.getMaxSize());
         assertEquals(action.getMaxAge(), firstStep.getMaxAge());
         assertEquals(action.getMaxDocs(), firstStep.getMaxDocs());
-        assertEquals(nextStepKey, secondStep.getNextStepKey());
+        assertEquals(nextStepKey, thirdStep.getNextStepKey());
     }
 }

@@ -28,8 +28,10 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
@@ -48,8 +50,10 @@ import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
+import org.elasticsearch.client.ml.PostCalendarEventRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
+import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
@@ -59,6 +63,7 @@ import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -389,6 +394,21 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request updateModelSnapshot(UpdateModelSnapshotRequest updateModelSnapshotRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(updateModelSnapshotRequest.getJobId())
+            .addPathPartAsIs("model_snapshots")
+            .addPathPart(updateModelSnapshotRequest.getSnapshotId())
+            .addPathPartAsIs("_update")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(updateModelSnapshotRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request getOverallBuckets(GetOverallBucketsRequest getOverallBucketsRequest) throws IOException {
         String endpoint = new EndpointBuilder()
                 .addPathPartAsIs("_xpack")
@@ -484,6 +504,30 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request putCalendarJob(PutCalendarJobRequest putCalendarJobRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("calendars")
+            .addPathPart(putCalendarJobRequest.getCalendarId())
+            .addPathPartAsIs("jobs")
+            .addPathPart(Strings.collectionToCommaDelimitedString(putCalendarJobRequest.getJobIds()))
+            .build();
+        return new Request(HttpPut.METHOD_NAME, endpoint);
+    }
+
+    static Request deleteCalendarJob(DeleteCalendarJobRequest deleteCalendarJobRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("calendars")
+            .addPathPart(deleteCalendarJobRequest.getCalendarId())
+            .addPathPartAsIs("jobs")
+            .addPathPart(Strings.collectionToCommaDelimitedString(deleteCalendarJobRequest.getJobIds()))
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
+    }
+
     static Request deleteCalendar(DeleteCalendarRequest deleteCalendarRequest) {
         String endpoint = new EndpointBuilder()
                 .addPathPartAsIs("_xpack")
@@ -492,6 +536,21 @@ final class MLRequestConverters {
                 .addPathPart(deleteCalendarRequest.getCalendarId())
                 .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        return request;
+    }
+
+    static Request postCalendarEvents(PostCalendarEventRequest postCalendarEventRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("calendars")
+            .addPathPart(postCalendarEventRequest.getCalendarId())
+            .addPathPartAsIs("events")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(postCalendarEventRequest,
+            REQUEST_BODY_CONTENT_TYPE,
+            PostCalendarEventRequest.EXCLUDE_CALENDAR_ID_PARAMS));
         return request;
     }
 
@@ -535,6 +594,15 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(updateFilterRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteFilter(DeleteFilterRequest deleteFilterRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack", "ml", "filters")
+            .addPathPart(deleteFilterRequest.getId())
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         return request;
     }
 }

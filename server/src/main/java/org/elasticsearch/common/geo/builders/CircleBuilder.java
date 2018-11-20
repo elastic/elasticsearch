@@ -165,7 +165,7 @@ public class CircleBuilder extends ShapeBuilder<Circle, CircleBuilder> {
 
     @Override
     public Object buildLucene() {
-        throw new UnsupportedOperationException("CIRCLE geometry not yet supported");
+        throw new UnsupportedOperationException("CIRCLE geometry is not supported");
     }
 
     @Override

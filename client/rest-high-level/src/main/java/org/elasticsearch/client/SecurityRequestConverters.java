@@ -175,11 +175,11 @@ final class SecurityRequestConverters {
         return request;
     }
 
-    static Request getPrivileges(GetPrivilegesRequest getPrivilegesRequest) throws IOException {
+    static Request getPrivileges(GetPrivilegesRequest getPrivilegesRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_xpack/security/privilege")
             .addPathPart(getPrivilegesRequest.getApplicationName())
-            .addPathPart(getPrivilegesRequest.getPrivilegeName())
+            .addCommaSeparatedPathParts(getPrivilegesRequest.getPrivilegeNames())
             .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }

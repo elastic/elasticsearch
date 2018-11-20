@@ -265,6 +265,19 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
+    public void testGetMultipleApplicationPrivileges() throws Exception {
+        final String application = randomAlphaOfLength(6);
+        final int numberOfPrivileges = randomIntBetween(1, 5);
+        final String[] privilegeNames =
+            randomArray(numberOfPrivileges, numberOfPrivileges, String[]::new, () -> randomAlphaOfLength(5));
+        GetPrivilegesRequest getPrivilegesRequest = new GetPrivilegesRequest(application, privilegeNames);
+        Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/privilege/" + application + "/" + Strings.arrayToCommaDelimitedString(privilegeNames), request.getEndpoint());
+        assertEquals(Collections.emptyMap(), request.getParameters());
+        assertNull(request.getEntity());
+    }
+
     public void testGetAllPrivileges() throws Exception {
         GetPrivilegesRequest getPrivilegesRequest = GetPrivilegesRequest.getAllPrivileges();
         Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);

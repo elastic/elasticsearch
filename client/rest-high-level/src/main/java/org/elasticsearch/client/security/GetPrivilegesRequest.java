@@ -22,7 +22,9 @@ package org.elasticsearch.client.security;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.CollectionUtils;
 
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -30,14 +32,14 @@ import java.util.Objects;
  */
 public final class GetPrivilegesRequest implements Validatable {
     private final String applicationName;
-    private final String privilegeName;
+    private final String[] privilegeNames;
 
-    public GetPrivilegesRequest(@Nullable final String applicationName, @Nullable final String privilegeNames) {
-        if (Strings.hasText(privilegeNames) && Strings.isNullOrEmpty(applicationName)) {
+    public GetPrivilegesRequest(@Nullable final String applicationName, @Nullable final String... privilegeNames) {
+        if ((CollectionUtils.isEmpty(privilegeNames) == false) && Strings.isNullOrEmpty(applicationName)) {
             throw new IllegalArgumentException("privilege cannot be specified when application is missing");
         }
         this.applicationName = applicationName;
-        this.privilegeName = privilegeNames;
+        this.privilegeNames = privilegeNames;
     }
 
     /**
@@ -59,12 +61,18 @@ public final class GetPrivilegesRequest implements Validatable {
         return new GetPrivilegesRequest(applicationName, null);
     }
 
+    /**
+     * @return the name of the application for which to return certain privileges
+     */
     public String getApplicationName() {
         return applicationName;
     }
 
-    public String getPrivilegeName() {
-        return privilegeName;
+    /**
+     * @return an array of privilege names to return or null if all should be returned
+     */
+    public String[] getPrivilegeNames() {
+        return privilegeNames;
     }
 
     @Override
@@ -73,11 +81,13 @@ public final class GetPrivilegesRequest implements Validatable {
         if (o == null || getClass() != o.getClass()) return false;
         GetPrivilegesRequest that = (GetPrivilegesRequest) o;
         return Objects.equals(applicationName, that.applicationName) &&
-            Objects.equals(privilegeName, that.privilegeName);
+            Arrays.equals(privilegeNames, that.privilegeNames);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(applicationName, privilegeName);
+        int result = Objects.hash(applicationName);
+        result = 31 * result + Arrays.hashCode(privilegeNames);
+        return result;
     }
 }

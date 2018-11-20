@@ -62,7 +62,7 @@ public class TransportPutFeatureIndexBuilderJobAction
     @Override
     protected void masterOperation(Request request, ClusterState clusterState, ActionListener<Response> listener) throws Exception {
 
-        if (!licenseState.isMachineLearningAllowed()) {
+        if (!licenseState.isDataFrameAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.DATA_FRAME));
             return;
         }

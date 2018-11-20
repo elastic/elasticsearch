@@ -38,31 +38,45 @@ import static org.hamcrest.Matchers.equalTo;
 public class ManifestTests extends ESTestCase {
 
     private Manifest copyState(Manifest state, boolean introduceErrors) {
+        long currentTerm = state.getCurrentTerm();
+        long clusterStateVersion = state.getClusterStateVersion();
         long generation = state.getGlobalGeneration();
         Map<Index, Long> indices = new HashMap<>(state.getIndexGenerations());
         if (introduceErrors) {
             switch (randomInt(3)) {
                 case 0: {
-                    generation = generation + 1;
+                    currentTerm = randomValueOtherThan(currentTerm, () -> randomNonNegativeLong());
                     break;
                 }
                 case 1: {
-                    indices.remove(randomFrom(indices.keySet()));
-                    break;
+                    clusterStateVersion = randomValueOtherThan(clusterStateVersion, () -> randomNonNegativeLong());
                 }
                 case 2: {
-                    Tuple<Index, Long> indexEntry = randomIndexEntry();
-                    indices.put(indexEntry.v1(), indexEntry.v2());
+                    generation = randomValueOtherThan(generation, () -> randomNonNegativeLong());
                     break;
                 }
                 case 3: {
-                    Index index = randomFrom(indices.keySet());
-                    indices.compute(index, (i, g) -> g + 1);
+                    switch (randomInt(2)) {
+                        case 0: {
+                            indices.remove(randomFrom(indices.keySet()));
+                            break;
+                        }
+                        case 1: {
+                            Tuple<Index, Long> indexEntry = randomIndexEntry();
+                            indices.put(indexEntry.v1(), indexEntry.v2());
+                            break;
+                        }
+                        case 2: {
+                            Index index = randomFrom(indices.keySet());
+                            indices.compute(index, (i, g) -> randomValueOtherThan(g, () -> randomNonNegativeLong()));
+                            break;
+                        }
+                    }
                     break;
                 }
             }
         }
-        return new Manifest(generation, indices);
+        return new Manifest(currentTerm, clusterStateVersion, generation, indices);
     }
 
     private Tuple<Index, Long> randomIndexEntry() {
@@ -74,13 +88,15 @@ public class ManifestTests extends ESTestCase {
     }
 
     private Manifest randomManifest() {
+        long currentTerm = randomNonNegativeLong();
+        long clusterStateVersion = randomNonNegativeLong();
         long generation = randomNonNegativeLong();
         Map<Index, Long> indices = new HashMap<>();
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             Tuple<Index, Long> indexEntry = randomIndexEntry();
             indices.put(indexEntry.v1(), indexEntry.v2());
         }
-        return new Manifest(generation, indices);
+        return new Manifest(currentTerm, clusterStateVersion, generation, indices);
     }
 
     public void testEqualsAndHashCode() {

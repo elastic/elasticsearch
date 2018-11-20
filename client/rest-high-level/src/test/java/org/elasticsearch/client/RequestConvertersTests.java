@@ -102,6 +102,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -889,6 +890,21 @@ public class RequestConvertersTests extends ESTestCase {
             assertEquals("Unsupported content-type found for request with content-type [" + xContentType
                     + "], only JSON and SMILE are supported", exception.getMessage());
         }
+    }
+
+    public void testGlobalPipelineOnBulkRequest() throws IOException {
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.pipeline("xyz");
+        bulkRequest.add(new IndexRequest("test", "doc", "11")
+            .source(XContentType.JSON, "field", "bulk1"));
+        bulkRequest.add(new IndexRequest("test", "doc", "12")
+            .source(XContentType.JSON, "field", "bulk2"));
+        bulkRequest.add(new IndexRequest("test", "doc", "13")
+            .source(XContentType.JSON, "field", "bulk3"));
+
+        Request request = RequestConverters.bulk(bulkRequest);
+
+        assertThat(request.getParameters(), Matchers.hasEntry("pipeline","xyz"));
     }
 
     public void testSearchNullSource() throws IOException {

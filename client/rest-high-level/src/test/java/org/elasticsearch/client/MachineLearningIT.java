@@ -60,6 +60,7 @@ import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedResponse;
+import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
@@ -828,6 +829,26 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 machineLearningClient::putCalendarAsync);
 
         assertThat(putCalendarResponse.getCalendar(), equalTo(calendar));
+    }
+
+    public void testPutCalendarJob() throws IOException {
+        Calendar calendar = new Calendar("put-calendar-job-id", Collections.singletonList("put-calendar-job-0"), null);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        PutCalendarResponse putCalendarResponse =
+            machineLearningClient.putCalendar(new PutCalendarRequest(calendar), RequestOptions.DEFAULT);
+
+        assertThat(putCalendarResponse.getCalendar().getJobIds(), containsInAnyOrder( "put-calendar-job-0"));
+
+        String jobId1 = "put-calendar-job-1";
+        String jobId2 = "put-calendar-job-2";
+
+        PutCalendarJobRequest putCalendarJobRequest = new PutCalendarJobRequest(calendar.getId(), jobId1, jobId2);
+
+        putCalendarResponse = execute(putCalendarJobRequest,
+            machineLearningClient::putCalendarJob,
+            machineLearningClient::putCalendarJobAsync);
+
+        assertThat(putCalendarResponse.getCalendar().getJobIds(), containsInAnyOrder(jobId1, jobId2, "put-calendar-job-0"));
     }
 
     public void testGetCalendars() throws Exception {

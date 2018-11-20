@@ -80,7 +80,8 @@ public class TermVectorsService  {
 
     static TermVectorsResponse getTermVectors(IndexShard indexShard, TermVectorsRequest request, LongSupplier nanoTimeSupplier) {
         final long startTime = nanoTimeSupplier.getAsLong();
-        final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(indexShard.shardId().getIndex().getName(), request.type(), request.id());
+        final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(indexShard.shardId().getIndex().getName(),
+            request.type(), request.id());
         final Term uidTerm = indexShard.mapperService().createUidTerm(request.type(), request.id());
         if (uidTerm == null) {
             termVectorsResponse.setExists(false);
@@ -96,7 +97,8 @@ public class TermVectorsService  {
             handleFieldWildcards(indexShard, request);
         }
 
-        try (Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), false, request.type(), request.id(), uidTerm)
+        try (Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), false, request.type(),
+            request.id(), uidTerm)
                 .version(request.version()).versionType(request.versionType()));
                 Engine.Searcher searcher = indexShard.acquireSearcher("term_vector")) {
             Fields topLevelFields = fields(get.searcher() != null ? get.searcher().reader() : searcher.reader());
@@ -192,7 +194,8 @@ public class TermVectorsService  {
         return true;
     }
 
-    private static Fields addGeneratedTermVectors(IndexShard indexShard, Engine.GetResult get, Fields termVectorsByField, TermVectorsRequest request, Set<String> selectedFields) throws IOException {
+    private static Fields addGeneratedTermVectors(IndexShard indexShard, Engine.GetResult get, Fields termVectorsByField,
+                                                        TermVectorsRequest request, Set<String> selectedFields) throws IOException {
         /* only keep valid fields */
         Set<String> validFields = new HashSet<>();
         for (String field : selectedFields) {
@@ -217,7 +220,8 @@ public class TermVectorsService  {
         getFields[getFields.length - 1] = SourceFieldMapper.NAME;
         GetResult getResult = indexShard.getService().get(
                 get, request.id(), request.type(), getFields, null);
-        Fields generatedTermVectors = generateTermVectors(indexShard, getResult.sourceAsMap(), getResult.getFields().values(), request.offsets(), request.perFieldAnalyzer(), validFields);
+        Fields generatedTermVectors = generateTermVectors(indexShard, getResult.sourceAsMap(), getResult.getFields().values(),
+            request.offsets(), request.perFieldAnalyzer(), validFields);
 
         /* merge with existing Fields */
         if (termVectorsByField == null) {
@@ -257,7 +261,12 @@ public class TermVectorsService  {
         return selectedFields;
     }
 
-    private static Fields generateTermVectors(IndexShard indexShard, Map<String, Object> source, Collection<DocumentField> getFields, boolean withOffsets, @Nullable Map<String, String> perFieldAnalyzer, Set<String> fields) throws IOException {
+    private static Fields generateTermVectors(IndexShard indexShard,
+                                              Map<String, Object> source,
+                                              Collection<DocumentField> getFields,
+                                              boolean withOffsets,
+                                              @Nullable Map<String, String> perFieldAnalyzer,
+                                              Set<String> fields) throws IOException {
         Map<String, Collection<Object>> values = new HashMap<>();
         for (DocumentField getField : getFields) {
             String field = getField.getName();
@@ -319,8 +328,9 @@ public class TermVectorsService  {
             String[] values = doc.getValues(field.name());
             documentFields.add(new DocumentField(field.name(), Arrays.asList((Object[]) values)));
         }
-        return generateTermVectors(indexShard, XContentHelper.convertToMap(parsedDocument.source(), true, request.xContentType()).v2(),
-            documentFields, request.offsets(), request.perFieldAnalyzer(), seenFields);
+        return generateTermVectors(indexShard,
+            XContentHelper.convertToMap(parsedDocument.source(), true, request.xContentType()).v2(), documentFields,
+                request.offsets(), request.perFieldAnalyzer(), seenFields);
     }
 
     private static ParsedDocument parseDocument(IndexShard indexShard, String index, String type, BytesReference doc,

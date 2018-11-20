@@ -21,6 +21,8 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
@@ -102,6 +104,7 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  * </ul>
  */
 public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
+    private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
     private final ClusterService clusterService;
 

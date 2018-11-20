@@ -203,7 +203,14 @@ public class MultiSearchRequestTests extends ESTestCase {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(data), XContentType.JSON).build();
-        return RestMultiSearchAction.parseRequest(restRequest, true);
+
+        MultiSearchRequest request = new MultiSearchRequest();
+        RestMultiSearchAction.parseMultiLineRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS, true,
+            (searchRequest, parser) -> {
+                searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
+                request.add(searchRequest);
+            });
+        return request;
     }
 
     @Override

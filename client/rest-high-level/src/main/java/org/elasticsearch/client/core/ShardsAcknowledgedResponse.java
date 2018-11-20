@@ -16,9 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client;
+package org.elasticsearch.client.core;
 
-import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -27,22 +26,23 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-public class ShardAcknowledgedResponse extends AcknowledgedResponse implements Validatable {
+public class ShardsAcknowledgedResponse extends AcknowledgedResponse {
 
-    private static ConstructingObjectParser<ShardAcknowledgedResponse, Void> buildParser() {
+    protected static final String SHARDS_PARSE_FIELD_NAME = "shards_acknowledged";
+    private static ConstructingObjectParser<ShardsAcknowledgedResponse, Void> buildParser() {
 
-        ConstructingObjectParser<ShardAcknowledgedResponse, Void> p = new ConstructingObjectParser<>("freeze", true,
-            args -> new ShardAcknowledgedResponse((boolean) args[0], (boolean) args[1]));
+        ConstructingObjectParser<ShardsAcknowledgedResponse, Void> p = new ConstructingObjectParser<>("freeze", true,
+            args -> new ShardsAcknowledgedResponse((boolean) args[0], (boolean) args[1]));
         p.declareBoolean(constructorArg(), new ParseField(AcknowledgedResponse.PARSE_FIELD_NAME));
-        p.declareBoolean(constructorArg(), new ParseField("shards_acknowledged"));
+        p.declareBoolean(constructorArg(), new ParseField(SHARDS_PARSE_FIELD_NAME));
         return p;
     }
 
-    private static final ConstructingObjectParser<ShardAcknowledgedResponse, Void> PARSER = buildParser();
+    private static final ConstructingObjectParser<ShardsAcknowledgedResponse, Void> PARSER = buildParser();
 
     private final boolean shardsAcknowledged;
 
-    public ShardAcknowledgedResponse(boolean acknowledged, boolean shardsAcknowledged) {
+    public ShardsAcknowledgedResponse(boolean acknowledged, boolean shardsAcknowledged) {
         super(acknowledged);
         this.shardsAcknowledged = shardsAcknowledged;
     }
@@ -51,7 +51,7 @@ public class ShardAcknowledgedResponse extends AcknowledgedResponse implements V
         return shardsAcknowledged;
     }
 
-    public static ShardAcknowledgedResponse fromXContent(XContentParser parser) throws IOException {
+    public static ShardsAcknowledgedResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 }

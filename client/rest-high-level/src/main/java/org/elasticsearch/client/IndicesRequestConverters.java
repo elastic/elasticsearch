@@ -405,18 +405,24 @@ final class IndicesRequestConverters {
     }
 
     static Request freezeIndex(FreezeIndexRequest freezeIndexRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPart(freezeIndexRequest.getIndices())
-            .addPathPartAsIs("_freeze")
-            .build();
-        return new Request(HttpPost.METHOD_NAME, endpoint);
+        String endpoint = RequestConverters.endpoint(freezeIndexRequest.getIndices(), "_freeze");
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        parameters.withTimeout(freezeIndexRequest.getTimeout());
+        parameters.withMasterTimeout(freezeIndexRequest.getMasterNodeTimeout());
+        parameters.withIndicesOptions(freezeIndexRequest.indicesOptions());
+        parameters.withWaitForActiveShards(freezeIndexRequest.getWaitForActiveShards());
+        return request;
     }
 
-    static Request unFreezeIndex(UnfreezeIndexRequest unFreezeIndexRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPart(unFreezeIndexRequest.getIndices())
-            .addPathPartAsIs("_unfreeze")
-            .build();
-        return new Request(HttpPost.METHOD_NAME, endpoint);
+    static Request unfreezeIndex(UnfreezeIndexRequest unfreezeIndexRequest) {
+        String endpoint = RequestConverters.endpoint(unfreezeIndexRequest.getIndices(), "_unfreeze");
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        parameters.withTimeout(unfreezeIndexRequest.getTimeout());
+        parameters.withMasterTimeout(unfreezeIndexRequest.getMasterNodeTimeout());
+        parameters.withIndicesOptions(unfreezeIndexRequest.indicesOptions());
+        parameters.withWaitForActiveShards(unfreezeIndexRequest.getWaitForActiveShards());
+        return request;
     }
 }

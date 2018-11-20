@@ -70,6 +70,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -1376,11 +1377,11 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         createIndex("test", Settings.EMPTY);
         RestHighLevelClient client = highLevelClient();
 
-        ShardAcknowledgedResponse freeze = execute(new FreezeIndexRequest("test"), client.indices()::freeze, client.indices()::freezeAsync);
+        ShardsAcknowledgedResponse freeze = execute(new FreezeIndexRequest("test"), client.indices()::freeze, client.indices()::freezeAsync);
         assertTrue(freeze.isShardsAcknowledged());
         assertTrue(freeze.isAcknowledged());
 
-        ShardAcknowledgedResponse unfreeze = execute(new UnfreezeIndexRequest("test"), client.indices()::unfreeze,
+        ShardsAcknowledgedResponse unfreeze = execute(new UnfreezeIndexRequest("test"), client.indices()::unfreeze,
             client.indices()::unfreezeAsync);
         assertTrue(unfreeze.isShardsAcknowledged());
         assertTrue(unfreeze.isAcknowledged());

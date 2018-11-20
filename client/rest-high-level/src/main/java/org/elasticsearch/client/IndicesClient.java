@@ -59,6 +59,7 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -844,9 +845,9 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void freezeAsync(FreezeIndexRequest request, RequestOptions options, ActionListener<ShardAcknowledgedResponse> listener) {
+    public void freezeAsync(FreezeIndexRequest request, RequestOptions options, ActionListener<ShardsAcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::freezeIndex, options,
-            ShardAcknowledgedResponse::fromXContent, listener, emptySet());
+            ShardsAcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -856,9 +857,9 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void unfreezeAsync(UnfreezeIndexRequest request, RequestOptions options, ActionListener<ShardAcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::unFreezeIndex, options,
-            ShardAcknowledgedResponse::fromXContent, listener, emptySet());
+    public void unfreezeAsync(UnfreezeIndexRequest request, RequestOptions options, ActionListener<ShardsAcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::unfreezeIndex, options,
+            ShardsAcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -867,9 +868,9 @@ public final class IndicesClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
-    public ShardAcknowledgedResponse freeze(FreezeIndexRequest request, RequestOptions options) throws IOException {
+    public ShardsAcknowledgedResponse freeze(FreezeIndexRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::freezeIndex, options,
-            ShardAcknowledgedResponse::fromXContent, emptySet());
+            ShardsAcknowledgedResponse::fromXContent, emptySet());
     }
 
     /**
@@ -878,8 +879,8 @@ public final class IndicesClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
-    public ShardAcknowledgedResponse unfreeze(UnfreezeIndexRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::unFreezeIndex, options,
-            ShardAcknowledgedResponse::fromXContent, emptySet());
+    public ShardsAcknowledgedResponse unfreeze(UnfreezeIndexRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::unfreezeIndex, options,
+            ShardsAcknowledgedResponse::fromXContent, emptySet());
     }
 }

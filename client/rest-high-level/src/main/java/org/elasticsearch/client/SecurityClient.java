@@ -44,6 +44,8 @@ import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetSslCertificatesRequest;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.HasPrivilegesRequest;
+import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -244,6 +246,34 @@ public final class SecurityClient {
     public void authenticateAsync(RequestOptions options, ActionListener<AuthenticateResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(AuthenticateRequest.INSTANCE, AuthenticateRequest::getRequest, options,
                 AuthenticateResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Determine whether the current user has a specified list of privileges
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-has-privileges.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with the privileges to check
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the has privileges call
+     */
+    public HasPrivilegesResponse hasPrivileges(HasPrivilegesRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::hasPrivileges, options,
+            HasPrivilegesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously determine whether the current user has a specified list of privileges
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-has-privileges.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with the privileges to check
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void hasPrivilegesAsync(HasPrivilegesRequest request, RequestOptions options, ActionListener<HasPrivilegesResponse> listener) {
+         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::hasPrivileges, options,
+            HasPrivilegesResponse::fromXContent, listener, emptySet());
     }
 
     /**

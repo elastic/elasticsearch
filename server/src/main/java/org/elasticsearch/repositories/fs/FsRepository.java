@@ -19,6 +19,8 @@
 
 package org.elasticsearch.repositories.fs;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -46,6 +48,7 @@ import java.util.function.Function;
  * </dl>
  */
 public class FsRepository extends BlobStoreRepository {
+    private static final Logger logger = LogManager.getLogger(FsRepository.class);
 
     public static final String TYPE = "fs";
 

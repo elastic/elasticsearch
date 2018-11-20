@@ -96,8 +96,8 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
         List<GetJobsStatsAction.Response.JobStats> stats = new ArrayList<>();
         for (QueryPage<GetJobsStatsAction.Response.JobStats> task : tasks) {
             stats.addAll(task.results());
-            Collections.sort(stats, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
         }
+        Collections.sort(stats, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
         return new GetJobsStatsAction.Response(taskOperationFailures, failedNodeExceptions, new QueryPage<>(stats, stats.size(),
                 Job.RESULTS_FIELD));
     }

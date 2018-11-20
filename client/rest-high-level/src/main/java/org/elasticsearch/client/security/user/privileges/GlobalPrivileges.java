@@ -80,7 +80,7 @@ public final class GlobalPrivileges implements ToXContentObject {
      */
     public GlobalPrivileges(Collection<? extends GlobalOperationPrivilege> privileges) {
         if (privileges == null || privileges.isEmpty()) {
-            throw new IllegalArgumentException("privileges cannot be empty or null");
+            throw new IllegalArgumentException("Privileges cannot be empty or null");
         }
         // duplicates are just ignored
         this.privileges = Collections.unmodifiableSet(new HashSet<>(Objects.requireNonNull(privileges)));
@@ -91,7 +91,7 @@ public final class GlobalPrivileges implements ToXContentObject {
             final Set<String> allOperations = privilegesByCategory.getValue().stream().map(p -> p.getOperation())
                     .collect(Collectors.toSet());
             if (allOperations.size() != privilegesByCategory.getValue().size()) {
-                throw new IllegalArgumentException("different privileges for the same category and operation are not permitted");
+                throw new IllegalArgumentException("Different privileges for the same category and operation are not permitted");
             }
         }
     }

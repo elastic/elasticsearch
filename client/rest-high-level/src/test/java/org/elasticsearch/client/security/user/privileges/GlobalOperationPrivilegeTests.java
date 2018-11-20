@@ -32,8 +32,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class GlobalOperationPrivilegeTests extends ESTestCase {
 
     public void testConstructor() {
-        final String category = randomFrom(Arrays.asList("", "   ", null, randomAlphaOfLength(5)));
-        final String operation = randomFrom(Arrays.asList("", "   ", null, randomAlphaOfLength(5)));
+        final String category = randomFrom(Arrays.asList(null, randomAlphaOfLength(5)));
+        final String operation = randomFrom(Arrays.asList(null, randomAlphaOfLength(5)));
         final Map<String, Object> privilege = randomFrom(Arrays.asList(null, Collections.emptyMap(), Collections.singletonMap("k1", "v1")));
 
         if (Strings.hasText(category) && Strings.hasText(operation) && privilege != null && privilege.isEmpty() == false) {
@@ -42,13 +42,12 @@ public class GlobalOperationPrivilegeTests extends ESTestCase {
             assertThat(globalOperationPrivilege.getOperation(), equalTo(operation));
             assertThat(globalOperationPrivilege.getRaw(), equalTo(privilege));
         } else {
-            final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class,
-                    () -> new GlobalOperationPrivilege(category, operation, privilege));
-            if (Strings.hasText(category) == false) {
-                assertThat(ile.getMessage(), equalTo("category is required"));
-            } else if (Strings.hasText(operation) == false) {
-                assertThat(ile.getMessage(), equalTo("operation is required"));
+            if (category == null || operation == null) {
+                expectThrows(NullPointerException.class,
+                        () -> new GlobalOperationPrivilege(category, operation, privilege));
             } else {
+                final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class,
+                        () -> new GlobalOperationPrivilege(category, operation, privilege));
                 assertThat(ile.getMessage(), equalTo("privileges cannot be empty or null"));
             }
         }

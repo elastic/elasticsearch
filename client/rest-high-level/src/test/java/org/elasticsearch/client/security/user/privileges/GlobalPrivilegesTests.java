@@ -52,7 +52,7 @@ public class GlobalPrivilegesTests extends AbstractXContentTestCase<GlobalPrivil
     protected boolean supportsUnknownFields() {
         return false; // true really means inserting bogus privileges
     }
-    
+
     public void testEmptyOrNullGlobalOperationPrivilege() {
         final Map<String, Object> privilege = randomBoolean() ? null : Collections.emptyMap();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -63,7 +63,7 @@ public class GlobalPrivilegesTests extends AbstractXContentTestCase<GlobalPrivil
     public void testEmptyOrNullGlobalPrivileges() {
         final List<GlobalOperationPrivilege> privileges = randomBoolean() ? null : Collections.emptyList();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GlobalPrivileges(privileges));
-        assertThat(e.getMessage(), is("privileges cannot be empty or null"));
+        assertThat(e.getMessage(), is("Privileges cannot be empty or null"));
     }
 
     public void testDuplicateGlobalOperationPrivilege() {
@@ -82,7 +82,7 @@ public class GlobalPrivilegesTests extends AbstractXContentTestCase<GlobalPrivil
                 privilege.getOperation(), buildRandomGlobalScopedPrivilege().getRaw());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new GlobalPrivileges(Arrays.asList(privilege, sameOperationPrivilege)));
-        assertThat(e.getMessage(), is("different privileges for the same category and operation are not permitted"));
+        assertThat(e.getMessage(), is("Different privileges for the same category and operation are not permitted"));
     }
 
     private static GlobalOperationPrivilege buildRandomGlobalScopedPrivilege() {

@@ -1,0 +1,33 @@
+--
+:api: delete-filter
+:request: DeleteFilterRequest
+:response: AcknowledgedResponse
+--
+[id="{upid}-{api}"]
+=== Delete Filter API
+Delete a {ml} filter.
+The API accepts a +{request}+ and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Delete Filter Request
+
+A +{request}+ object requires a non-null `filterId`.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new request referencing an existing filter
+
+[id="{upid}-{api}-response"]
+==== Delete Filter Response
+
+The returned +{response}+ object indicates the acknowledgement of the request:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+---------------------------------------------------
+<1> `isAcknowledged` was the deletion request acknowledged or not
+
+include::../execution.asciidoc[]

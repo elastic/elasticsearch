@@ -470,7 +470,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         processorUnderTest.process(process);
         processorUnderTest.awaitCompletion();
         assertEquals(0, processorUnderTest.completionLatch.getCount());
-        assertEquals(1, processorUnderTest.updateModelSnapshotIdSemaphore.availablePermits());
+        assertEquals(1, processorUnderTest.jobUpdateSemaphore.availablePermits());
     }
 
     public void testPersisterThrowingDoesntBlockProcessing() {
@@ -525,7 +525,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
         processorUnderTest.awaitCompletion();
         assertEquals(0, processorUnderTest.completionLatch.getCount());
-        assertEquals(1, processorUnderTest.updateModelSnapshotIdSemaphore.availablePermits());
+        assertEquals(1, processorUnderTest.jobUpdateSemaphore.availablePermits());
 
         verify(persister, times(1)).commitResultWrites(JOB_ID);
         verify(persister, times(1)).commitStateWrites(JOB_ID);

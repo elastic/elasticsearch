@@ -13,7 +13,7 @@ Creates an auto-follow pattern.
 ==== Description
 
 This API creates a new named collection of
-<<ccr-auto-follow,auto-follow patterns>> against the remote cluster specified in
+{stack-ov}/ccr-auto-follow.html[auto-follow patterns] against the remote cluster specified in
 the request body. Newly created indices on the remote cluster matching any of
 the specified patterns will be automatically configured as follower indices.
 

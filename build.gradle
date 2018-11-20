@@ -629,11 +629,11 @@ allprojects {
 allprojects {
   task checkPart1
   task checkPart2 
-  tasks.matching {it.name == "check"}.all { task ->
-    if (task.path.startsWith(":x-pack:")) {
-      checkPart2.dependsOn task
+  tasks.matching { it.name == "check" }.all { check ->
+    if (check.path.startsWith(":x-pack:")) {
+      checkPart2.dependsOn check
     } else {
-      checkPart1.dependsOn task
+      checkPart1.dependsOn check
     }
   } 
 }

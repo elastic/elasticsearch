@@ -25,6 +25,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -37,6 +39,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
@@ -180,24 +183,41 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         };
     }
 
-    static Query extractQuery(Query query) {
+    private static Query extractQuery(Query query) {
         if (query instanceof BoostQuery) {
             return extractQuery(((BoostQuery) query).getQuery());
         } else if (query instanceof IndexOrDocValuesQuery) {
             return extractQuery(((IndexOrDocValuesQuery) query).getIndexQuery());
+        } else if (query instanceof ConstantScoreQuery){
+            return extractQuery(((ConstantScoreQuery) query).getQuery());
         } else {
             return query;
         }
     }
 
+    /**
+     * Returns true if we can use <code>query</code> with a {@link SortedDocsProducer} on <code>fieldName</code>.
+     */
+    private static boolean checkQuery(Query query, String fieldName) {
+        query = extractQuery(query);
+        if (query == null) {
+            return true;
+        } else if (query.getClass() == MatchAllDocsQuery.class) {
+            return true;
+        } else if (query instanceof PointRangeQuery) {
+            PointRangeQuery pointQuery = (PointRangeQuery) query;
+            return fieldName.equals(pointQuery.getField());
+        } else if (query instanceof DocValuesFieldExistsQuery) {
+            DocValuesFieldExistsQuery existsQuery = (DocValuesFieldExistsQuery) query;
+            return fieldName.equals(existsQuery.getField());
+        } else {
+            return false;
+        }
+    }
+
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
-        query = extractQuery(query);
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                (query != null &&
-                    query.getClass() != MatchAllDocsQuery.class &&
-                    // if the query is a range query over the same field
-                    (query instanceof PointRangeQuery && fieldType.name().equals((((PointRangeQuery) query).getField()))) == false)) {
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false || checkQuery(query, fieldType.name()) == false) {
             return null;
         }
         final byte[] lowerPoint;

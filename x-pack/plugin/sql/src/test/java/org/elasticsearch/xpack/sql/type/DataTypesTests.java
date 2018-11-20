@@ -28,7 +28,6 @@ import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.sql.type.DataType.LONG;
 import static org.elasticsearch.xpack.sql.type.DataTypes.compatibleInterval;
 import static org.elasticsearch.xpack.sql.type.DataTypes.isInterval;
-import static org.elasticsearch.xpack.sql.type.DataTypes.isSingularInterval;
 import static org.elasticsearch.xpack.sql.type.DataTypes.metaSqlDataType;
 import static org.elasticsearch.xpack.sql.type.DataTypes.metaSqlDateTimeSub;
 import static org.elasticsearch.xpack.sql.type.DataTypes.metaSqlMaximumScale;
@@ -72,14 +71,9 @@ public class DataTypesTests extends ESTestCase {
 
     // type checks
     public void testIsInterval() throws Exception {
-        assertTrue(isInterval(randomFrom(EnumSet.range(INTERVAL_YEAR, INTERVAL_MINUTE_TO_SECOND))));
-    }
-
-    public void testIsSingularInterval() throws Exception {
-        assertTrue(
-                isSingularInterval(randomFrom(EnumSet.of(INTERVAL_YEAR, INTERVAL_DAY, INTERVAL_HOUR, INTERVAL_MINUTE, INTERVAL_SECOND))));
-        assertFalse(isSingularInterval(randomFrom(EnumSet.of(INTERVAL_YEAR_TO_MONTH, INTERVAL_DAY_TO_HOUR, INTERVAL_DAY_TO_MINUTE,
-                INTERVAL_DAY_TO_SECOND, INTERVAL_HOUR_TO_MINUTE, INTERVAL_HOUR_TO_SECOND, INTERVAL_MINUTE_TO_SECOND))));
+        for (DataType dataType : EnumSet.range(INTERVAL_YEAR, INTERVAL_MINUTE_TO_SECOND)) {
+            assertTrue(isInterval(dataType));
+        }
     }
 
     public void testIntervalCompatibilityYearMonth() throws Exception {
@@ -105,6 +99,13 @@ public class DataTypesTests extends ESTestCase {
         assertEquals(INTERVAL_HOUR_TO_SECOND, compatibleInterval(INTERVAL_SECOND, INTERVAL_HOUR_TO_MINUTE));
 
         assertEquals(INTERVAL_MINUTE_TO_SECOND, compatibleInterval(INTERVAL_SECOND, INTERVAL_MINUTE));
+    }
+
+    public void testIncompatibleInterval() throws Exception {
+        assertNull(compatibleInterval(INTERVAL_YEAR, INTERVAL_SECOND));
+        assertNull(compatibleInterval(INTERVAL_YEAR, INTERVAL_DAY_TO_HOUR));
+        assertNull(compatibleInterval(INTERVAL_HOUR, INTERVAL_MONTH));
+        assertNull(compatibleInterval(INTERVAL_MINUTE_TO_SECOND, INTERVAL_MONTH));
     }
 
     private DataType randomDataTypeNoDate() {

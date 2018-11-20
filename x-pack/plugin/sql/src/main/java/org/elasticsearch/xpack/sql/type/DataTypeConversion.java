@@ -83,18 +83,11 @@ public abstract class DataTypeConversion {
             if (right == DATE) {
                 return right;
             }
-            // single unit intervals and numbers
-            if (DataTypes.isSingularInterval(left) && right.isInteger()) {
-                return left;
-            }
         }
 
         if (DataTypes.isInterval(right)) {
             if (left == DATE) {
                 return left;
-            }
-            if (DataTypes.isSingularInterval(right) && left.isInteger()) {
-                return right;
             }
         }
 

@@ -91,11 +91,6 @@ public final class DataTypes {
         return ordinal >= INTERVAL_YEAR.ordinal() && ordinal <= INTERVAL_MINUTE_TO_SECOND.ordinal();
     }
 
-    public static boolean isSingularInterval(DataType type) {
-        int ordinal = type.ordinal();
-        return ordinal >= INTERVAL_YEAR.ordinal() && ordinal <= INTERVAL_SECOND.ordinal();
-    }
-
     // return the compatible interval between the two - it is assumed the types are intervals
     // YEAR and MONTH -> YEAR_TO_MONTH
     // DAY... SECOND -> DAY_TIME

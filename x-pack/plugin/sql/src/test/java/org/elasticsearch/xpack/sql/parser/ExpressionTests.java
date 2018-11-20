@@ -79,9 +79,9 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testLiteralLongNegative() {
-        Expression lt = parser.createExpression(String.valueOf(-Long.MAX_VALUE));
+        Expression lt = parser.createExpression(String.valueOf(Long.MIN_VALUE));
         assertTrue(lt.foldable());
-        assertEquals(-Long.MAX_VALUE, lt.fold());
+        assertEquals(Long.MIN_VALUE, lt.fold());
         assertEquals(DataType.LONG, lt.dataType());
     }
 

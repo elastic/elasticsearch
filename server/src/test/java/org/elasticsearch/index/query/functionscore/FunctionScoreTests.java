@@ -832,7 +832,8 @@ public class FunctionScoreTests extends ESTestCase {
         // test that field_value_factor function throws an exception on negative scores
         FieldValueFactorFunction.Modifier modifier = FieldValueFactorFunction.Modifier.NONE;
         final ScoreFunction fvfFunction = new FieldValueFactorFunction(FIELD, -10,  modifier, 1.0, new IndexNumericFieldDataStub());
-        FunctionScoreQuery fsQuery1 = new FunctionScoreQuery(termQuery, fvfFunction, CombineFunction.REPLACE, null, Float.POSITIVE_INFINITY);
+        FunctionScoreQuery fsQuery1 =
+            new FunctionScoreQuery(termQuery, fvfFunction, CombineFunction.REPLACE, null, Float.POSITIVE_INFINITY);
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> localSearcher.search(fsQuery1, 1));
         assertThat(exc.getMessage(), containsString("field value function must not produce negative scores"));
     }

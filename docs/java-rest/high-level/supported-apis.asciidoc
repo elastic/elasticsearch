@@ -266,7 +266,9 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-get-categories>>
 * <<{upid}-get-calendars>>
 * <<{upid}-put-calendar>>
+* <<{upid}-post-calendar-event>>
 * <<{upid}-put-calendar-job>>
+* <<{upid}-delete-calendar-job>>
 * <<{upid}-delete-calendar>>
 * <<{upid}-put-filter>>
 * <<{upid}-get-filters>>
@@ -302,7 +304,9 @@ include::ml/get-influencers.asciidoc[]
 include::ml/get-categories.asciidoc[]
 include::ml/get-calendars.asciidoc[]
 include::ml/put-calendar.asciidoc[]
+include::ml/post-calendar-event.asciidoc[]
 include::ml/put-calendar-job.asciidoc[]
+include::ml/delete-calendar-job.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
 include::ml/put-filter.asciidoc[]
 include::ml/get-model-snapshots.asciidoc[]
@@ -457,6 +461,7 @@ Management APIs:
 * <<{upid}-ilm-start-ilm>>
 * <<{upid}-ilm-stop-ilm>>
 * <<{upid}-ilm-status>>
+* <<{upid}-ilm-retry-lifecycle-policy>>
 
 
 include::ilm/put_lifecycle_policy.asciidoc[]
@@ -464,3 +469,4 @@ include::ilm/get_lifecycle_policy.asciidoc[]
 include::ilm/start_lifecycle_management.asciidoc[]
 include::ilm/stop_lifecycle_management.asciidoc[]
 include::ilm/lifecycle_management_status.asciidoc[]
+include::ilm/retry_lifecycle_policy.asciidoc[]

@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
@@ -59,6 +60,8 @@ import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
+import org.elasticsearch.client.ml.PostCalendarEventRequest;
+import org.elasticsearch.client.ml.PostCalendarEventResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
@@ -1301,6 +1304,47 @@ public final class MachineLearningClient {
             Collections.emptySet());
     }
 
+    /**
+     * Removes Machine Learning Job(s) from a calendar
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar-job.html">
+     * ML Delete calendar job documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The {@link PutCalendarResponse} containing the updated calendar
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutCalendarResponse deleteCalendarJob(DeleteCalendarJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteCalendarJob,
+            options,
+            PutCalendarResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Removes Machine Learning Job(s) from a calendar, notifies listener when completed
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar-job.html">
+     * ML Delete calendar job documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteCalendarJobAsync(DeleteCalendarJobRequest request,
+                                       RequestOptions options,
+                                       ActionListener<PutCalendarResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteCalendarJob,
+            options,
+            PutCalendarResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
 
     /**
      * Deletes the given Machine Learning Calendar
@@ -1340,6 +1384,47 @@ public final class MachineLearningClient {
                 AcknowledgedResponse::fromXContent,
                 listener,
                 Collections.emptySet());
+    }
+
+    /**
+     * Creates new events for a a machine learning calendar
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-calendar-event.html">
+     *  Add Events to Calendar API</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The {@link PostCalendarEventRequest} containing the scheduled events
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PostCalendarEventResponse postCalendarEvent(PostCalendarEventRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::postCalendarEvents,
+            options,
+            PostCalendarEventResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Creates new events for a a machine learning calendar asynchronously, notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-calendar-event.html">
+     *  Add Events to Calendar API</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void postCalendarEventAsync(PostCalendarEventRequest request, RequestOptions options,
+                                       ActionListener<PostCalendarEventResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::postCalendarEvents,
+            options,
+            PostCalendarEventResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 
     /**

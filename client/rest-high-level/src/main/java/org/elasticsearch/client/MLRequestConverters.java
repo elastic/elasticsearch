@@ -28,6 +28,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
@@ -49,6 +50,7 @@ import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
+import org.elasticsearch.client.ml.PostCalendarEventRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PutCalendarJobRequest;
@@ -514,6 +516,18 @@ final class MLRequestConverters {
         return new Request(HttpPut.METHOD_NAME, endpoint);
     }
 
+    static Request deleteCalendarJob(DeleteCalendarJobRequest deleteCalendarJobRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("calendars")
+            .addPathPart(deleteCalendarJobRequest.getCalendarId())
+            .addPathPartAsIs("jobs")
+            .addPathPart(Strings.collectionToCommaDelimitedString(deleteCalendarJobRequest.getJobIds()))
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
+    }
+
     static Request deleteCalendar(DeleteCalendarRequest deleteCalendarRequest) {
         String endpoint = new EndpointBuilder()
                 .addPathPartAsIs("_xpack")
@@ -522,6 +536,21 @@ final class MLRequestConverters {
                 .addPathPart(deleteCalendarRequest.getCalendarId())
                 .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        return request;
+    }
+
+    static Request postCalendarEvents(PostCalendarEventRequest postCalendarEventRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("calendars")
+            .addPathPart(postCalendarEventRequest.getCalendarId())
+            .addPathPartAsIs("events")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(postCalendarEventRequest,
+            REQUEST_BODY_CONTENT_TYPE,
+            PostCalendarEventRequest.EXCLUDE_CALENDAR_ID_PARAMS));
         return request;
     }
 

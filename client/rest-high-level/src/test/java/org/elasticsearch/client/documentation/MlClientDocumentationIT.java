@@ -49,6 +49,8 @@ import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.ForecastJobResponse;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
+import org.elasticsearch.client.ml.GetCalendarEventsRequest;
+import org.elasticsearch.client.ml.GetCalendarEventsResponse;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
@@ -2381,6 +2383,81 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    public void testGetCalendarEvent() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays", Collections.singletonList("job_1"), "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.testInstance(calendar.getId(), null));
+        client.machineLearning().postCalendarEvent(new PostCalendarEventRequest("holidays", events), RequestOptions.DEFAULT);
+        {
+            // tag::get-calendar-events-request
+            GetCalendarEventsRequest request = new GetCalendarEventsRequest("holidays"); // <1>
+            // end::get-calendar-events-request
+
+            // tag::get-calendar-events-page
+            request.setPageParams(new PageParams(10, 20)); // <1>
+            // end::get-calendar-events-page
+
+            // tag::get-calendar-events-start
+            request.setStart("2018-08-01T00:00:00Z"); // <1>
+            // end::get-calendar-events-start
+
+            // tag::get-calendar-events-end
+            request.setEnd("2018-08-02T00:00:00Z"); // <1>
+            // end::get-calendar-events-end
+
+            // tag::get-calendar-events-jobid
+            request.setJobId("job_1"); // <1>
+            // end::get-calendar-events-jobid
+
+            // reset params
+            request.setPageParams(null);
+            request.setJobId(null);
+            request.setStart(null);
+            request.setEnd(null);
+
+            // tag::get-calendar-events-execute
+            GetCalendarEventsResponse response = client.machineLearning().getCalendarEvents(request, RequestOptions.DEFAULT);
+            // end::get-calendar-events-execute
+
+            // tag::get-calendar-events-response
+            long count = response.count(); // <1>
+            List<ScheduledEvent> scheduledEvents = response.events(); // <2>
+            // end::get-calendar-events-response
+            assertEquals(1, scheduledEvents.size());
+        }
+        {
+            GetCalendarEventsRequest request = new GetCalendarEventsRequest("holidays");
+
+            // tag::get-calendar-events-execute-listener
+            ActionListener<GetCalendarEventsResponse> listener =
+                new ActionListener<GetCalendarEventsResponse>() {
+                    @Override
+                    public void onResponse(GetCalendarEventsResponse getCalendarsResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-calendar-events-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-calendar-events-execute-async
+            client.machineLearning().getCalendarEventsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-calendar-events-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+    
     public void testPostCalendarEvent() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 

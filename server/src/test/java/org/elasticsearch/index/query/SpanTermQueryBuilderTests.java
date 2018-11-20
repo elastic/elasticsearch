@@ -77,19 +77,15 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
 
     /**
      * @param amount a number of clauses that will be returned
-     * @param supportsBoost {@code true} if the span query supports boost
      * @return the array of random {@link SpanTermQueryBuilder} with same field name
      */
-    public SpanTermQueryBuilder[] createSpanTermQueryBuilders(int amount, boolean supportsBoost) {
+    public SpanTermQueryBuilder[] createSpanTermQueryBuilders(int amount) {
         SpanTermQueryBuilder[] clauses = new SpanTermQueryBuilder[amount];
-        SpanTermQueryBuilder first = createTestQueryBuilder(supportsBoost, true);
+        SpanTermQueryBuilder first = createTestQueryBuilder(false, true);
         clauses[0] = first;
         for (int i = 1; i < amount; i++) {
             // we need same field name in all clauses, so we only randomize value
             SpanTermQueryBuilder spanTermQuery = new SpanTermQueryBuilder(first.fieldName(), getRandomValueForFieldName(first.fieldName()));
-            if (supportsBoost && randomBoolean()) {
-                spanTermQuery.boost(2.0f / randomIntBetween(1, 20));
-            }
             if (randomBoolean()) {
                 spanTermQuery.queryName(randomAlphaOfLengthBetween(1, 10));
             }

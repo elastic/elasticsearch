@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQueryBuilder> {
     @Override
     protected SpanNotQueryBuilder doCreateTestQueryBuilder() {
-        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(2, false);
+        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(2);
         SpanNotQueryBuilder queryBuilder = new SpanNotQueryBuilder(spanTermQueries[0], spanTermQueries[1]);
         if (randomBoolean()) {
             // also test negative values, they should implicitly be changed to 0

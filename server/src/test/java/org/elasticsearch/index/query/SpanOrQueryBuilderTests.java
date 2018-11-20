@@ -35,8 +35,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBuilder> {
     @Override
     protected SpanOrQueryBuilder doCreateTestQueryBuilder() {
-        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(
-            randomIntBetween(1, 6), false);
+        SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(randomIntBetween(1, 6));
         SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder(spanTermQueries[0]);
         for (int i = 1; i < spanTermQueries.length; i++) {
             queryBuilder.addClause(spanTermQueries[i]);

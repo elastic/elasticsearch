@@ -13,8 +13,8 @@ authenticate a user and retrieve information about the authenticated user.
 
 ==== Description
 
-A successful call returns a JSON structure that shows what roles are assigned
-to the user as well as any assigned metadata.
+A successful call returns a JSON structure that shows user information such as their username, the roles that are
+assigned to the user, any assigned metadata, and information about the realms that authenticated and authorized the user.
 
 If the user cannot be authenticated, this API returns a 401 status code.
 
@@ -42,8 +42,10 @@ The following example output provides information about the "rdeniro" user:
   "email":  null,
   "metadata": { },
   "enabled": true,
-  "authentication_realm" : "default_file",
-  "lookup_realm" : "default_file"
+  "authentication_realm_name" : "default_file",
+  "authentication_realm_type" : "file",
+  "lookup_realm_name" : "default_file"
+  "lookup_realm_type" : "file"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"rdeniro"/"$body.username"/]

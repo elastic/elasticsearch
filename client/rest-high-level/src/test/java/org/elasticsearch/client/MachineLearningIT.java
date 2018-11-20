@@ -999,8 +999,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         machineLearningClient.postCalendarEvent(new PostCalendarEventRequest(calendar.getId(), events), RequestOptions.DEFAULT);
         GetCalendarEventsResponse getCalendarEventsResponse =
             machineLearningClient.getCalendarEvents(new GetCalendarEventsRequest(calendar.getId()), RequestOptions.DEFAULT);
+
         assertThat(getCalendarEventsResponse.events().size(), equalTo(3));
         String deletedEvent = getCalendarEventsResponse.events().get(0).getEventId();
+
         DeleteCalendarEventRequest deleteCalendarEventRequest = new DeleteCalendarEventRequest(calendar.getId(), deletedEvent);
 
         AcknowledgedResponse response = execute(deleteCalendarEventRequest,
@@ -1011,9 +1013,13 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         getCalendarEventsResponse =
             machineLearningClient.getCalendarEvents(new GetCalendarEventsRequest(calendar.getId()), RequestOptions.DEFAULT);
-        assertThat(getCalendarEventsResponse.events().size(), equalTo(2));
-        assertThat(getCalendarEventsResponse.events().stream().map(ScheduledEvent::getEventId).collect(Collectors.toList()),
-            not(hasItem(deletedEvent)));
+        List<String> remainingIds = getCalendarEventsResponse.events()
+            .stream()
+            .map(ScheduledEvent::getEventId)
+            .collect(Collectors.toList());
+
+        assertThat(remainingIds.size(), equalTo(2));
+        assertThat(remainingIds, not(hasItem(deletedEvent)));
     }
 
     public void testPutFilter() throws Exception {

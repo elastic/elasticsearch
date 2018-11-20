@@ -67,8 +67,8 @@ public class TransportStartFeatureIndexBuilderJobAction extends
     protected void doExecute(Task task, StartFeatureIndexBuilderJobAction.Request request,
             ActionListener<StartFeatureIndexBuilderJobAction.Response> listener) {
 
-        if (!licenseState.isMachineLearningAllowed()) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.FIB));
+        if (!licenseState.isDataFrameAllowed()) {
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.DATA_FRAME));
             return;
         }
 

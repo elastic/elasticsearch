@@ -63,9 +63,9 @@ Example response:
       "expiry_date_in_millis" : 1542665112332
    },
    "features" : {
-      "fib" : {
-          "description" : "Time series feature index creation",
-          "available" : false,
+      "data_frame" : {
+          "description" : "Data Frame for the Elastic Stack",
+          "available" : true,
           "enabled" : true
       },
       "graph" : {

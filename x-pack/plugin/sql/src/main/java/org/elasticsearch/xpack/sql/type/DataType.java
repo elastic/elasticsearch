@@ -222,7 +222,7 @@ public enum DataType {
     /**
      * Creates returns DataType enum corresponding to the specified es type
      * <p>
-     * For any dataType DataType.fromEsType(dataType.esType) == dataType
+     * For any dataType DataType.fromTypeName(dataType.esType) == dataType
      */
     public static DataType fromTypeName(String esType) {
         try {

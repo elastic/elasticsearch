@@ -26,9 +26,10 @@ import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.literal.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalUtils;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalUtils.TimeUnit;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;import org.elasticsearch.xpack.sql.expression.predicate.Range;
+import org.elasticsearch.xpack.sql.expression.literal.Intervals;
+import org.elasticsearch.xpack.sql.expression.literal.Intervals.TimeUnit;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
+import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
@@ -102,8 +103,9 @@ import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
-
-import org.elasticsearch.xpack.sql.util.DateUtils;import org.joda.time.DateTime;
+import org.elasticsearch.xpack.sql.util.DateUtils;
+import org.elasticsearch.xpack.sql.util.StringUtils;
+import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.DateTimeFormatterBuilder;
 import org.joda.time.format.ISODateTimeFormat;
@@ -529,7 +531,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             }
         }
 
-        DataType intervalType = IntervalUtils.intervalType(source(interval), leading, trailing);
+        DataType intervalType = Intervals.intervalType(source(interval), leading, trailing);
 
         boolean negative = interval.sign != null && interval.sign.getType() == SqlBaseParser.MINUS;
 
@@ -566,21 +568,21 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(source(valueNumeric), "Fractional values are not supported for intervals");
         }
 
-        return IntervalUtils.of(source(valueNumeric), numeric.longValue(), unit);
+        return Intervals.of(source(valueNumeric), numeric.longValue(), unit);
     }
 
     private TemporalAmount visitIntervalValue(StringContext valuePattern, boolean negative, DataType intervalType) {
         String valueString = string(valuePattern);
         Location loc = source(valuePattern);
-        TemporalAmount interval = IntervalUtils.parseInterval(loc, valueString, intervalType);
+        TemporalAmount interval = Intervals.parseInterval(loc, valueString, intervalType);
         if (negative) {
-            interval = IntervalUtils.negate(interval);
+            interval = Intervals.negate(interval);
         }
         return interval;
     }
 
     @Override
-    public IntervalUtils.TimeUnit visitIntervalField(IntervalFieldContext ctx) {
+    public Intervals.TimeUnit visitIntervalField(IntervalFieldContext ctx) {
         if (ctx == null) {
             return null;
         }
@@ -588,22 +590,22 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         switch (ctx.getChild(TerminalNode.class, 0).getSymbol().getType()) {
             case SqlBaseParser.YEAR:
             case SqlBaseParser.YEARS:
-                return IntervalUtils.TimeUnit.YEAR;
+                return Intervals.TimeUnit.YEAR;
             case SqlBaseParser.MONTH:
             case SqlBaseParser.MONTHS:
-                return IntervalUtils.TimeUnit.MONTH;
+                return Intervals.TimeUnit.MONTH;
             case SqlBaseParser.DAY:
             case SqlBaseParser.DAYS:
-                return IntervalUtils.TimeUnit.DAY;
+                return Intervals.TimeUnit.DAY;
             case SqlBaseParser.HOUR:
             case SqlBaseParser.HOURS:
-                return IntervalUtils.TimeUnit.HOUR;
+                return Intervals.TimeUnit.HOUR;
             case SqlBaseParser.MINUTE:
             case SqlBaseParser.MINUTES:
-                return IntervalUtils.TimeUnit.MINUTE;
+                return Intervals.TimeUnit.MINUTE;
             case SqlBaseParser.SECOND:
             case SqlBaseParser.SECONDS:
-                return IntervalUtils.TimeUnit.SECOND;
+                return Intervals.TimeUnit.SECOND;
         }
 
         throw new IllegalArgumentException("Unsupported interval field: " + ctx.getText());

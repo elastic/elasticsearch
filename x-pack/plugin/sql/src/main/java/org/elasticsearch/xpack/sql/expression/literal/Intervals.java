@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.sql.expression.literal;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -16,6 +18,7 @@ import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +31,7 @@ import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_HOUR_TO_SECOND;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_MINUTE_TO_SECOND;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_YEAR_TO_MONTH;
 
-public final class IntervalUtils {
+public final class Intervals {
 
     /**
      * Time unit definition - used to remember the initial declaration
@@ -38,7 +41,7 @@ public final class IntervalUtils {
         YEAR, MONTH, DAY, HOUR, MINUTE, SECOND, MILLISECOND;
     }
 
-    private IntervalUtils() {}
+    private Intervals() {}
 
     public static TemporalAmount of(Location source, long duration, TimeUnit unit) {
         // Cannot use Period.of since it accepts int so use plus which accepts long
@@ -368,5 +371,14 @@ public final class IntervalUtils {
 
     public static TemporalAmount parseInterval(Location source, String value, DataType intervalType) {
         return PARSERS.get(intervalType).parse(source, value);
+    }
+
+    public static Collection<? extends Entry> getNamedWriteables() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+
+        entries.add(new Entry(IntervalDayTime.class, IntervalDayTime.NAME, IntervalDayTime::new));
+        entries.add(new Entry(IntervalYearMonth.class, IntervalYearMonth.NAME, IntervalYearMonth::new));
+
+        return entries;
     }
 }

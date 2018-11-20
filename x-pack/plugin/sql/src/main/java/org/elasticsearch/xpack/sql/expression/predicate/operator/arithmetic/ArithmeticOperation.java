@@ -13,11 +13,8 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Bina
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-
-public abstract class ArithmeticOperation extends BinaryOperator<Number, Number, Number, BinaryArithmeticOperation> {
+public abstract class ArithmeticOperation extends BinaryOperator<Object, Object, Object, BinaryArithmeticOperation> {
 
     private DataType dataType;
 
@@ -25,39 +22,6 @@ public abstract class ArithmeticOperation extends BinaryOperator<Number, Number,
         super(location, left, right, operation);
     }
     
-    @Override
-    protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
-            return new TypeResolution("Unresolved children");
-        }
-
-        // arithmetic operation can work on:
-        // 1. numbers
-        // 2. intervals (of compatible types)
-        // 3. dates and intervals
-        // 4. single unit intervals and numbers
-
-        DataType l = left().dataType();
-        DataType r = right().dataType();
-
-        // 1. both are numbers
-        if (l.isNumeric() && r.isNumeric()) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-        // 2. 3. 4. intervals
-        if ((DataTypes.isInterval(l) || DataTypes.isInterval(r))) {
-            dataType = DataTypeConversion.commonType(l, r);
-            if (dataType == null) {
-                return new TypeResolution(format("[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
-            } else {
-                return TypeResolution.TYPE_RESOLVED;
-            }
-        }
-        
-        // fall-back to default checks
-        return super.resolveType();
-    }
-
     @Override
     protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
         return Expressions.typeMustBeNumeric(e, symbol(), paramOrdinal);

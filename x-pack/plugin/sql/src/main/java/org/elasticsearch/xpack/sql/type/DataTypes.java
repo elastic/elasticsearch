@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.literal.Interval;
-import org.joda.time.DateTime;
+
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.type.DataType.BYTE;
@@ -66,7 +67,7 @@ public final class DataTypes {
         if (value instanceof Short) {
             return SHORT;
         }
-        if (value instanceof DateTime) {
+        if (value instanceof ZonedDateTime) {
             return DATE;
         }
         if (value instanceof String || value instanceof Character) {

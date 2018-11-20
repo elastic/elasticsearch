@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.literal;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalUtils.TimeUnit;
+import org.elasticsearch.xpack.sql.expression.literal.Intervals.TimeUnit;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 
 import java.time.Duration;
@@ -16,9 +16,9 @@ import java.time.temporal.TemporalAmount;
 import java.util.Locale;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.literal.IntervalUtils.intervalType;
-import static org.elasticsearch.xpack.sql.expression.literal.IntervalUtils.of;
-import static org.elasticsearch.xpack.sql.expression.literal.IntervalUtils.parseInterval;
+import static org.elasticsearch.xpack.sql.expression.literal.Intervals.intervalType;
+import static org.elasticsearch.xpack.sql.expression.literal.Intervals.of;
+import static org.elasticsearch.xpack.sql.expression.literal.Intervals.parseInterval;
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY_TO_HOUR;
@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_SECOND;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_YEAR;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_YEAR_TO_MONTH;
 
-public class IntervalUtilsTests extends ESTestCase {
+public class IntervalsTests extends ESTestCase {
 
     public void testYearInterval() throws Exception {
         String randomSign = randomSign();
@@ -231,6 +231,6 @@ public class IntervalUtilsTests extends ESTestCase {
     }
 
     private Object maybeNegate(String randomSign, TemporalAmount interval) {
-        return "-".equals(randomSign) ? IntervalUtils.negate(interval) : interval;
+        return "-".equals(randomSign) ? Intervals.negate(interval) : interval;
     }
 }

@@ -131,3 +131,103 @@ interval
 ---------------
 +0 02:43:59.163  
 ;
+
+testDatePlusInterval
+SELECT MONTH(birth_date) AS m, MONTH(birth_date + INTERVAL '1-2' YEAR TO MONTH) AS f FROM test_emp GROUP BY birth_date ORDER BY birth_date ASC LIMIT 5;
+
+       m       |       f       
+---------------+---------------
+null           |null           
+2              |4              
+4              |6              
+5              |7              
+6              |8     
+;
+
+testDatePlusMixInterval
+SELECT birth_date, birth_date + INTERVAL '1-2' YEAR TO MONTH AS f FROM test_emp GROUP BY birth_date ORDER BY birth_date ASC LIMIT 5;
+
+     birth_date:ts  |         f:ts         
+--------------------+--------------------
+null                |null                
+1952-02-27T00:00:00Z|1953-04-27T00:00:00Z
+1952-04-19T00:00:00Z|1953-06-19T00:00:00Z
+1952-05-15T00:00:00Z|1953-07-15T00:00:00Z
+1952-06-13T00:00:00Z|1953-08-13T00:00:00Z
+;
+
+
+testDateMinusInterval
+SELECT YEAR(birth_date) AS y, YEAR(birth_date - INTERVAL 1 YEAR) AS f FROM test_emp GROUP BY birth_date ORDER BY birth_date ASC LIMIT 5;
+
+       y       |       f       
+---------------+---------------
+null           |null           
+1952           |1951           
+1952           |1951           
+1952           |1951           
+1952           |1951  
+;
+
+testDatePlusMixInterval
+SELECT birth_date, birth_date + INTERVAL '1-2' YEAR TO MONTH AS f FROM test_emp GROUP BY birth_date ORDER BY birth_date ASC LIMIT 5;
+
+     birth_date:ts  |         f:ts          
+--------------------+--------------------
+null                |null                
+1952-02-27T00:00:00Z|1953-04-27T00:00:00Z
+1952-04-19T00:00:00Z|1953-06-19T00:00:00Z
+1952-05-15T00:00:00Z|1953-07-15T00:00:00Z
+1952-06-13T00:00:00Z|1953-08-13T00:00:00Z
+;
+
+
+testDateAndMultipleIntervals
+SELECT birth_date, birth_date - INTERVAL 1 YEAR  + INTERVAL '2-3' YEAR TO MONTH AS f FROM test_emp GROUP BY birth_date ORDER BY birth_date ASC LIMIT 5;
+
+     birth_date:ts  |         f:ts          
+--------------------+--------------------
+null                |null                
+1952-02-27T00:00:00Z|1953-05-27T00:00:00Z
+1952-04-19T00:00:00Z|1953-07-19T00:00:00Z
+1952-05-15T00:00:00Z|1953-08-15T00:00:00Z
+1952-06-13T00:00:00Z|1953-09-13T00:00:00Z
+;
+
+
+testDatePlusIntervalWhereClause
+SELECT birth_date, YEAR(birth_date + INTERVAL 1 YEAR) AS f FROM test_emp WHERE YEAR(birth_date + INTERVAL 1 YEAR) > 1 GROUP BY birth_date ORDER BY birth_date ASC LIMIT 5;
+
+     birth_date:ts  |         f:i          
+--------------------+--------------------
+1952-02-27T00:00:00Z|1953           
+1952-04-19T00:00:00Z|1953           
+1952-05-15T00:00:00Z|1953           
+1952-06-13T00:00:00Z|1953           
+1952-07-08T00:00:00Z|1953   
+;
+
+testDateMinusIntervalOrder
+SELECT birth_date, MONTH(birth_date - INTERVAL 1 YEAR) AS f FROM test_emp GROUP BY birth_date ORDER BY MONTH(birth_date - INTERVAL 1 YEAR) ASC LIMIT 5;
+
+     birth_date:ts  |         f:i          
+--------------------+--------------------
+null                |null           
+1952-02-27T00:00:00Z|2              
+1952-04-19T00:00:00Z|4              
+1952-05-15T00:00:00Z|5              
+1952-06-13T00:00:00Z|6   
+;
+
+// see https://github.com/elastic/elasticsearch/issues/35745
+testDatePlusIntervalHavingClause-Ignore
+SELECT birth_date, MAX(hire_date) - INTERVAL 1 YEAR AS f FROM test_emp GROUP BY birth_date ORDER BY birth_date ASC LIMIT 5;
+
+     birth_date:ts  |         f:ts          
+--------------------+--------------------
+1952-02-27T00:00:00Z|1953           
+1952-04-19T00:00:00Z|1953           
+1952-05-15T00:00:00Z|1953           
+1952-06-13T00:00:00Z|1953           
+1952-07-08T00:00:00Z|1953   
+;

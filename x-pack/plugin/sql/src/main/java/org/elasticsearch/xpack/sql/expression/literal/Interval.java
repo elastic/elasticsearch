@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.sql.expression.literal;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -23,7 +24,7 @@ import java.util.Objects;
  * Unfortunately because the SQL interval type is not preserved accurately by the JDK TemporalAmount class
  * in both cases, the data type needs to be carried around as it cannot be inferred.
  */
-public abstract class Interval<I extends TemporalAmount> implements ToXContentObject {
+public abstract class Interval<I extends TemporalAmount> implements NamedWriteable, ToXContentObject {
 
     private final I interval;
     private final DataType intervalType;
@@ -40,6 +41,10 @@ public abstract class Interval<I extends TemporalAmount> implements ToXContentOb
     public DataType dataType() {
         return intervalType;
     }
+
+    public abstract Interval<I> add(Interval<I> interval);
+
+    public abstract Interval<I> sub(Interval<I> interval);
 
     @Override
     public int hashCode() {
@@ -63,8 +68,7 @@ public abstract class Interval<I extends TemporalAmount> implements ToXContentOb
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.value(interval);
-        return builder;
+        return builder.value(interval);
     }
 
     @Override

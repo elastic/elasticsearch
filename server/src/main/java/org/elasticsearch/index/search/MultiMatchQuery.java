@@ -56,16 +56,19 @@ public class MultiMatchQuery extends MatchQuery {
         super(context);
     }
 
-    private Query parseAndApply(Type type, String fieldName, Object value, String minimumShouldMatch, Float boostValue) throws IOException {
+    private Query parseAndApply(Type type, String fieldName, Object value,
+                                    String minimumShouldMatch, Float boostValue) throws IOException {
         Query query = parse(type, fieldName, value);
         query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
-        if (query != null && boostValue != null && boostValue != AbstractQueryBuilder.DEFAULT_BOOST && query instanceof MatchNoDocsQuery == false) {
+        if (query != null && boostValue != null &&
+                boostValue != AbstractQueryBuilder.DEFAULT_BOOST && query instanceof MatchNoDocsQuery == false) {
             query = new BoostQuery(query, boostValue);
         }
         return query;
     }
 
-    public Query parse(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException {
+    public Query parse(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
+                            Object value, String minimumShouldMatch) throws IOException {
         final Query result;
         // reset query builder
         queryBuilder = null;
@@ -103,7 +106,8 @@ public class MultiMatchQuery extends MatchQuery {
             this.tieBreaker = tieBreaker;
         }
 
-        public List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException{
+        public List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
+                                                    Object value, String minimumShouldMatch) throws IOException{
             List<Query> queries = new ArrayList<>();
             for (String fieldName : fieldNames.keySet()) {
                 Float boostValue = fieldNames.get(fieldName);
@@ -158,7 +162,8 @@ public class MultiMatchQuery extends MatchQuery {
         }
 
         @Override
-        public List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException {
+        public List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
+                                                    Object value, String minimumShouldMatch) throws IOException {
             Map<Analyzer, List<FieldAndFieldType>> groups = new HashMap<>();
             List<Query> queries = new ArrayList<>();
             for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {

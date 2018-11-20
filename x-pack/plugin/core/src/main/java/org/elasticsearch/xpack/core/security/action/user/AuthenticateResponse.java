@@ -9,14 +9,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 
-public class AuthenticateResponse extends ActionResponse implements ToXContent {
+public class AuthenticateResponse extends ActionResponse {
 
     private Authentication authentication;
 
@@ -44,14 +42,12 @@ public class AuthenticateResponse extends ActionResponse implements ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.getVersion().before(Version.V_6_6_0)) {
-            throw new IllegalArgumentException("Insufficient information to build the Authentication object");
+            final User user = User.readFrom(in);
+            final Authentication.RealmRef unknownRealm = new Authentication.RealmRef("__unknown", "__unknown", "__unknown");
+            authentication = new Authentication(user, unknownRealm, unknownRealm);
         } else {
             authentication = new Authentication(in);
         }
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return null;
-    }
 }

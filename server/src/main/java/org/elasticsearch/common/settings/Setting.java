@@ -80,7 +80,7 @@ import java.util.stream.Stream;
  *     RED, GREEN, BLUE;
  * }
  * public static final Setting<Color> MY_BOOLEAN =
- *     new Setting<>("my.color.setting", Color.RED.toString(), Color::valueOf, SettingsProperty.NodeScope);
+ *     new SettinIndicesAndAliasesResolverg<>("my.color.setting", Color.RED.toString(), Color::valueOf, SettingsProperty.NodeScope);
  * }
  * </pre>
  */

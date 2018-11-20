@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -160,8 +159,6 @@ public final class TransportPutFollowAction
                             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
                             // TODO: Figure out what to do with private setting SETTING_INDEX_PROVIDED_NAME
                             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex())
-                            // Overwriting UUID here, because otherwise we can't follow indices in the same cluster
-                            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
                         RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(remoteCluster,
                             leaderIndexMetaData.getIndex().getName(), new String[]{request.getLeaderIndex()}, request.indicesOptions(),
@@ -230,7 +227,7 @@ public final class TransportPutFollowAction
                     // TODO: At least some logging if this fails
                     client.admin().cluster().prepareDeleteRepository(restoreRequest.repositoryName()).execute();
                 }
-            }, false, false));
+            }, false));
 
     }
 

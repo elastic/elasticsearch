@@ -126,12 +126,6 @@ public class RestoreService implements ClusterStateApplier {
             SETTING_CREATION_DATE,
             IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey()));
 
-    private static final Set<String> NON_API_UNMODIFIABLE_SETTINGS = unmodifiableSet(newHashSet(
-        SETTING_NUMBER_OF_SHARDS,
-        SETTING_VERSION_CREATED,
-        SETTING_CREATION_DATE,
-        IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey()));
-
     // It's OK to change some settings, but we shouldn't allow simply removing them
     private static final Set<String> UNREMOVABLE_SETTINGS;
 
@@ -177,11 +171,9 @@ public class RestoreService implements ClusterStateApplier {
      *
      * @param request  restore request
      * @param listener restore listener
-     * @param apiRestore indicates if this restore was initiated through the snapshot/restore api
      */
-    public void restoreSnapshot(final RestoreRequest request, final ActionListener<RestoreCompletionResponse> listener,
-                                final boolean apiRestore) {
-        restoreSnapshot(request, listener, apiRestore, true);
+    public void restoreSnapshot(final RestoreRequest request, final ActionListener<RestoreCompletionResponse> listener) {
+        restoreSnapshot(request, listener, true);
     }
 
     /**
@@ -189,11 +181,10 @@ public class RestoreService implements ClusterStateApplier {
      *
      * @param request  restore request
      * @param listener restore listener
-     * @param apiRestore indicates if this restore was initiated through the snapshot/restore api
      * @param incrementIndexVersion indicates if index version of the restored index should be incremented
      */
     public void restoreSnapshot(final RestoreRequest request, final ActionListener<RestoreCompletionResponse> listener,
-                                final boolean apiRestore, final boolean incrementIndexVersion) {
+                                final boolean incrementIndexVersion) {
         try {
             // Read snapshot info and metadata from the repository
             Repository repository = repositoriesService.repository(request.repositoryName);
@@ -237,7 +228,8 @@ public class RestoreService implements ClusterStateApplier {
             // the key is the renamed index and the value is the original name
             final Map<String, String> renamedIndices = renamedIndices(request, indicesInSnapshot);
 
-
+            // Now we can start the actual restore process by adding shards to be recovered in the cluster state
+            // and updating cluster metadata (global and index) as needed
             clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
 
                 RestoreInfo restoreInfo = null;
@@ -279,7 +271,7 @@ public class RestoreService implements ClusterStateApplier {
                             SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(snapshot, snapshotInfo.version(), index);
                             String renamedIndexName = indexEntry.getKey();
                             IndexMetaData snapshotIndexMetaData = updateIndexSettings(metaData.index(index), request.indexSettings,
-                                request.ignoreIndexSettings, apiRestore);
+                                request.ignoreIndexSettings);
 
                             try {
                                 snapshotIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(snapshotIndexMetaData,
@@ -299,11 +291,9 @@ public class RestoreService implements ClusterStateApplier {
                                 MetaDataCreateIndexService.validateIndexName(renamedIndexName, currentState);
                                 createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings(),
                                     currentState, false);
-                                Settings.Builder indexSettingsBuilder = Settings.builder().put(snapshotIndexMetaData.getSettings());
-                                // If a specific UUID is specified, used that UUID
-                                if (request.indexSettings.hasValue(IndexMetaData.SETTING_INDEX_UUID) == false) {
-                                    indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
-                                }
+                                Settings.Builder indexSettingsBuilder = Settings.builder()
+                                    .put(snapshotIndexMetaData.getSettings())
+                                    .put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData)
                                     .state(IndexMetaData.State.OPEN)
@@ -352,7 +342,7 @@ public class RestoreService implements ClusterStateApplier {
                                 }
                                 Settings.Builder indexSettingsBuilder = Settings.builder()
                                     .put(snapshotIndexMetaData.getSettings())
-                                    .put(IndexMetaData.SETTING_INDEX_UUID, currentIndexMetaData.getIndexUUID());
+                                    .put(SETTING_INDEX_UUID, currentIndexMetaData.getIndexUUID());
                                 indexMdBuilder.settings(indexSettingsBuilder.build());
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndexName).build();
                                 rtBuilder.addAsRestore(updatedIndexMetaData, recoverySource);
@@ -492,8 +482,7 @@ public class RestoreService implements ClusterStateApplier {
                  * Optionally updates index settings in indexMetaData by removing settings listed in ignoreSettings and
                  * merging them with settings in changeSettings.
                  */
-                private IndexMetaData updateIndexSettings(IndexMetaData indexMetaData, Settings changeSettings, String[] ignoreSettings,
-                                                          boolean apiRestore) {
+                private IndexMetaData updateIndexSettings(IndexMetaData indexMetaData, Settings changeSettings, String[] ignoreSettings) {
                     if (changeSettings.names().isEmpty() && ignoreSettings.length == 0) {
                         return indexMetaData;
                     }
@@ -536,18 +525,10 @@ public class RestoreService implements ClusterStateApplier {
                     Settings.Builder settingsBuilder = Settings.builder()
                         .put(settings.filter(settingsFilter))
                         .put(normalizedChangeSettings.filter(k -> {
-                            if (apiRestore) {
-                                if (UNMODIFIABLE_SETTINGS.contains(k)) {
-                                    throw new SnapshotRestoreException(snapshot, "cannot modify setting [" + k + "] on restore");
-                                } else {
-                                    return true;
-                                }
+                            if (UNMODIFIABLE_SETTINGS.contains(k)) {
+                                throw new SnapshotRestoreException(snapshot, "cannot modify setting [" + k + "] on restore");
                             } else {
-                                if (NON_API_UNMODIFIABLE_SETTINGS.contains(k)) {
-                                    throw new SnapshotRestoreException(snapshot, "cannot modify setting [" + k + "] on restore");
-                                } else {
-                                    return true;
-                                }
+                                return true;
                             }
                         }));
 

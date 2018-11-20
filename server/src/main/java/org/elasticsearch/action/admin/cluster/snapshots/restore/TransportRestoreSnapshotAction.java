@@ -132,6 +132,6 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
             public void onFailure(Exception t) {
                 listener.onFailure(t);
             }
-        }, true);
+        });
     }
 }

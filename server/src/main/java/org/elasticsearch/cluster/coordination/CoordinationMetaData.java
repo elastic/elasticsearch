@@ -59,11 +59,13 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         return (long)termAndConfigs[0];
     }
 
+    @SuppressWarnings("unchecked")
     private static VotingConfiguration lastCommittedConfig(Object[] termAndConfig) {
         List<String> nodeIds = (List<String>) termAndConfig[1];
         return new VotingConfiguration(new HashSet<>(nodeIds));
     }
 
+    @SuppressWarnings("unchecked")
     private static VotingConfiguration lastAcceptedConfig(Object[] termAndConfig) {
         List<String> nodeIds = (List<String>) termAndConfig[2];
         return new VotingConfiguration(new HashSet<>(nodeIds));

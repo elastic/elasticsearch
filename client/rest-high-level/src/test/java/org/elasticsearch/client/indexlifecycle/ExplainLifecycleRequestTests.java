@@ -35,7 +35,7 @@ public class ExplainLifecycleRequestTests extends ESTestCase {
 
     public void testEmptyIndices() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, ExplainLifecycleRequest::new);
-        assertThat(exception.getMessage(), equalTo("Must at least specify one index to retry"));
+        assertThat(exception.getMessage(), equalTo("Must at least specify one index to explain"));
     }
 
     private ExplainLifecycleRequest createTestInstance() {

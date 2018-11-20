@@ -86,7 +86,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         this.term = term;
         this.lastCommittedConfiguration = lastCommittedConfiguration;
         this.lastAcceptedConfiguration = lastAcceptedConfiguration;
-        this.votingTombstones = votingTombstones;
+        this.votingTombstones = Collections.unmodifiableSet(new HashSet<>(votingTombstones));
     }
 
     public CoordinationMetaData(StreamInput in) throws IOException {
@@ -216,8 +216,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         }
 
         public CoordinationMetaData build() {
-            return new CoordinationMetaData(term, lastCommittedConfiguration, lastAcceptedConfiguration,
-                Collections.unmodifiableSet(new HashSet<>(votingTombstones)));
+            return new CoordinationMetaData(term, lastCommittedConfiguration, lastAcceptedConfiguration, votingTombstones);
         }
     }
 

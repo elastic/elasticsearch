@@ -190,7 +190,9 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                     p = xRandomPointIn(r, within);
                     coordinatesBuilder.coordinate(p.getX(), p.getY());
                 }
-                ShapeBuilder pcb = (st == ShapeType.MULTIPOINT) ? new MultiPointBuilder(coordinatesBuilder.build()) : new LineStringBuilder(coordinatesBuilder);
+                ShapeBuilder pcb = (st == ShapeType.MULTIPOINT)
+                    ? new MultiPointBuilder(coordinatesBuilder.build())
+                    : new LineStringBuilder(coordinatesBuilder);
                 return pcb;
             case MULTILINESTRING:
                 MultiLineStringBuilder mlsb = new MultiLineStringBuilder();

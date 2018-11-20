@@ -182,7 +182,8 @@ public class ElasticsearchGeoAssertions {
             assertEquals((MultiLineString) s1, (MultiLineString) s2);
 
         } else {
-            throw new RuntimeException("equality of shape types not supported [" + s1.getClass().getName() + " and " + s2.getClass().getName() + "]");
+            throw new RuntimeException("equality of shape types not supported [" + s1.getClass().getName() + " and " +
+                s2.getClass().getName() + "]");
         }
     }
 

@@ -102,7 +102,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    public final String getWriteableName() {
+    public String getWriteableName() {
         return getName();
     }
 
@@ -116,8 +116,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
         }
         @SuppressWarnings("unchecked")
         FB other = (FB) obj;
-        return Objects.equals(weight, other.getWeight()) &&
-                doEquals(other);
+        return Objects.equals(weight, other.getWeight()) && doEquals(other);
     }
 
     /**

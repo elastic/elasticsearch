@@ -156,7 +156,7 @@ public class DiscoveryUpgradeService {
     private class JoiningRound {
         private final boolean upgrading;
 
-        public JoiningRound(boolean upgrading) {
+        JoiningRound(boolean upgrading) {
             this.upgrading = upgrading;
         }
 

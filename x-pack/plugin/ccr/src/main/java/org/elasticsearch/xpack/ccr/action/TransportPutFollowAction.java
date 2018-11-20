@@ -6,11 +6,7 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -19,7 +15,6 @@ import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -28,10 +23,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -42,17 +33,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.respository.RemoteClusterRepository;
@@ -60,8 +46,6 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
 public final class TransportPutFollowAction
@@ -188,9 +172,9 @@ public final class TransportPutFollowAction
                             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
                         RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(remoteCluster,
-                            leaderIndexMetaData.getIndex().getName(), new String[]{request.getLeaderIndex()}, request.indicesOptions(), "^(.*)$",
-                            request.getFollowRequest().getFollowerIndex(), Settings.EMPTY, request.masterNodeTimeout(), false, false, true,
-                            settingsBuilder.build(), new String[0], "restore_snapshot[" + remoteCluster + "]");
+                            leaderIndexMetaData.getIndex().getName(), new String[]{request.getLeaderIndex()}, request.indicesOptions(),
+                            "^(.*)$", request.getFollowRequest().getFollowerIndex(), Settings.EMPTY, request.masterNodeTimeout(), false,
+                            false, true, settingsBuilder.build(), new String[0], "restore_snapshot[" + remoteCluster + "]");
                         initiateRestore(restoreRequest, restoreCompleteHandler);
                     } else {
                         listener.onFailure(new ElasticsearchException("remote cluster repository put not acknowledged"));
@@ -228,8 +212,8 @@ public final class TransportPutFollowAction
                                 ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
                                 assert prevEntry.state().completed() : "expected completed snapshot state but was " + prevEntry.state();
                                 assert RestoreService.completed(shards) : "expected all restore entries to be completed";
-                                RestoreInfo restoreInfo = new RestoreInfo(prevEntry.snapshot().getSnapshotId().getName(), prevEntry.indices(),
-                                    shards.size(), shards.size() - RestoreService.failedShards(shards));
+                                RestoreInfo restoreInfo = new RestoreInfo(prevEntry.snapshot().getSnapshotId().getName(),
+                                    prevEntry.indices(), shards.size(), shards.size() - RestoreService.failedShards(shards));
                                 RestoreSnapshotResponse response = new RestoreSnapshotResponse(restoreInfo);
                                 logger.debug("restore of [{}] completed", snapshot);
                                 listener.onResponse(response);

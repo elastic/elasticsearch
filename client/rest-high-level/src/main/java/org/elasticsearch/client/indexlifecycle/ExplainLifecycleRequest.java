@@ -37,7 +37,7 @@ public class ExplainLifecycleRequest extends TimedRequest {
 
     public ExplainLifecycleRequest(String... indices) {
         if (indices.length == 0) {
-            throw new IllegalArgumentException("Must at least specify one index to retry");
+            throw new IllegalArgumentException("Must at least specify one index to explain");
         }
         this.indices = indices;
     }

@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.time.temporal.ChronoField;
 import java.util.TimeZone;
 
 /**
@@ -18,7 +17,7 @@ import java.util.TimeZone;
  */
 public class DayOfMonth extends DateTimeFunction {
     public DayOfMonth(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+        super(location, field, timeZone, DateTimeExtractor.DAY_OF_MONTH);
     }
 
     @Override
@@ -34,15 +33,5 @@ public class DayOfMonth extends DateTimeFunction {
     @Override
     public String dateTimeFormat() {
         return "d";
-    }
-
-    @Override
-    protected ChronoField chronoField() {
-        return ChronoField.DAY_OF_MONTH;
-    }
-
-    @Override
-    protected DateTimeExtractor extractor() {
-        return DateTimeExtractor.DAY_OF_MONTH;
     }
 }

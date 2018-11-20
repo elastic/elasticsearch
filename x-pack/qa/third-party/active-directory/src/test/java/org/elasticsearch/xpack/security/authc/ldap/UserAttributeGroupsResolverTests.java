@@ -55,6 +55,7 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
                 containsString("Philanthropists")));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     @SuppressWarnings("unchecked")
     public void testResolveCustomGroupAttribute() throws Exception {
         Settings settings = Settings.builder()
@@ -66,6 +67,7 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
         assertThat(groups, hasItems(containsString("Avengers")));  //seeAlso only has Avengers
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     public void testResolveInvalidGroupAttribute() throws Exception {
         Settings settings = Settings.builder()
                 .put("user_group_attribute", "doesntExist")

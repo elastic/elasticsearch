@@ -12,6 +12,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -29,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -48,10 +50,14 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+
 public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJobAction.JobTask, CloseJobAction.Request,
         CloseJobAction.Response, CloseJobAction.Response> {
 
     private final ClusterService clusterService;
+    private final Client client;
     private final Auditor auditor;
     private final PersistentTasksService persistentTasksService;
     private final DatafeedConfigProvider datafeedConfigProvider;
@@ -61,11 +67,12 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
     public TransportCloseJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                    ClusterService clusterService, Auditor auditor, PersistentTasksService persistentTasksService,
-                                   DatafeedConfigProvider datafeedConfigProvider, JobManager jobManager) {
+                                   DatafeedConfigProvider datafeedConfigProvider, JobManager jobManager, Client client) {
         // We fork in innerTaskOperation(...), so we can use ThreadPool.Names.SAME here:
         super(settings, CloseJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 indexNameExpressionResolver, CloseJobAction.Request::new, CloseJobAction.Response::new, ThreadPool.Names.SAME);
         this.clusterService = clusterService;
+        this.client = client;
         this.auditor = auditor;
         this.persistentTasksService = persistentTasksService;
         this.datafeedConfigProvider = datafeedConfigProvider;
@@ -419,7 +426,10 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         }, request.getCloseTimeout(), new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean result) {
-                listener.onResponse(response);
+                FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(
+                        waitForCloseRequest.jobsToFinalize.toArray(new String[0]));
+                executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
+                        ActionListener.wrap(r -> listener.onResponse(response), listener::onFailure));
             }
 
             @Override

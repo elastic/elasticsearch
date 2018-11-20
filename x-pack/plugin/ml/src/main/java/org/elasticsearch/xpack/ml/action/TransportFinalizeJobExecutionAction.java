@@ -7,8 +7,12 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -24,23 +28,36 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
-// This action is only called from modes before version 6.6.0
-public class TransportFinalizeJobExecutionAction extends TransportMasterNodeAction<FinalizeJobExecutionAction.Request,
-    AcknowledgedResponse> {
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
+public class TransportFinalizeJobExecutionAction extends
+        TransportMasterNodeAction<FinalizeJobExecutionAction.Request, AcknowledgedResponse> {
+
+    private final Client client;
     @Inject
     public TransportFinalizeJobExecutionAction(Settings settings, TransportService transportService,
                                                ClusterService clusterService, ThreadPool threadPool,
                                                ActionFilters actionFilters,
-                                               IndexNameExpressionResolver indexNameExpressionResolver) {
+                                               IndexNameExpressionResolver indexNameExpressionResolver,
+                                               Client client) {
         super(settings, FinalizeJobExecutionAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, FinalizeJobExecutionAction.Request::new);
+        this.client = client;
     }
 
     @Override
@@ -58,20 +75,60 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
                                    ActionListener<AcknowledgedResponse> listener) {
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
-        List<String> jobsInClusterState = Arrays.stream(request.getJobIds())
+        Set<String> jobsInClusterState = Arrays.stream(request.getJobIds())
                 .filter(id -> mlMetadata.getJobs().containsKey(id))
-                .collect(Collectors.toList());
-
-        // This action should not be called for jobs that have
-        // their configuration in index documents
+                .collect(Collectors.toSet());
 
         if (jobsInClusterState.isEmpty()) {
-            // This action is a no-op for jobs not defined in the cluster state.
-            listener.onResponse(new AcknowledgedResponse(true));
-            return;
+            finalizeIndexJobs(Arrays.asList(request.getJobIds()), listener);
+        } else {
+            ActionListener<AcknowledgedResponse> finalizeClusterStateJobsListener = ActionListener.wrap(
+                    ack -> finalizeClusterStateJobs(jobsInClusterState, listener),
+                    listener::onFailure
+            );
+
+            Set<String> jobsInIndex = new HashSet<>(Arrays.asList(request.getJobIds()));
+            jobsInIndex.removeAll(jobsInClusterState);
+
+            finalizeIndexJobs(jobsInIndex, finalizeClusterStateJobsListener);
+        }
+    }
+
+    private void finalizeIndexJobs(Collection<String> jobIds, ActionListener<AcknowledgedResponse> listener) {
+        String jobIdString = String.join(",", jobIds);
+        logger.debug("finalizing jobs [{}]", jobIdString);
+
+        ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(threadPool.executor(
+                MachineLearning.UTILITY_THREAD_POOL_NAME), true);
+
+        Map<Object, Object> update = Collections.singletonMap(Job.FINISHED_TIME.getPreferredName(), new Date());
+
+        for (String jobId: jobIds) {
+            UpdateRequest updateRequest = new UpdateRequest(AnomalyDetectorsIndex.configIndexName(),
+                    ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
+            updateRequest.retryOnConflict(3);
+            updateRequest.doc(update);
+            updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+            chainTaskExecutor.add(chainedListener -> {
+                executeAsyncWithOrigin(client, ML_ORIGIN, UpdateAction.INSTANCE, updateRequest, ActionListener.wrap(
+                        updateResponse -> chainedListener.onResponse(null),
+                        chainedListener::onFailure
+                ));
+            });
         }
 
-        String jobIdString = String.join(",", jobsInClusterState);
+        chainTaskExecutor.execute(ActionListener.wrap(
+                aVoid ->  {
+                    logger.debug("finalized job [{}]", jobIdString);
+                    listener.onResponse(new AcknowledgedResponse(true));
+                },
+                listener::onFailure
+        ));
+    }
+
+    private void finalizeClusterStateJobs(Collection<String> jobIds, ActionListener<AcknowledgedResponse> listener) {
+        String jobIdString = String.join(",", jobIds);
         String source = "finalize_job_execution [" + jobIdString + "]";
         logger.debug("finalizing jobs [{}]", jobIdString);
         clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
@@ -82,7 +139,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
                 MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder(mlMetadata);
                 Date finishedTime = new Date();
 
-                for (String jobId : jobsInClusterState) {
+                for (String jobId : jobIds) {
                     Job.Builder jobBuilder = new Job.Builder(mlMetadata.getJobs().get(jobId));
                     jobBuilder.setFinishedTime(finishedTime);
                     mlMetadataBuilder.putJob(jobBuilder.build(), true);

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -108,7 +109,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
                 exceptionHolder::set
         );
 
-        closeJobAction.validate(Arrays.asList(jobId), false, startDataFeedTaskBuilder.build(), listener);
+        closeJobAction.validate(Collections.singletonList(jobId), false, startDataFeedTaskBuilder.build(), listener);
 
         assertNull(responseHolder.get());
         assertNotNull(exceptionHolder.get());
@@ -124,7 +125,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         }
 
         exceptionHolder.set(null);
-        closeJobAction.validate(Arrays.asList(jobId), false, dataFeedNotStartedTaskBuilder.build(), listener);
+        closeJobAction.validate(Collections.singletonList(jobId), false, dataFeedNotStartedTaskBuilder.build(), listener);
         assertNull(exceptionHolder.get());
         assertNotNull(responseHolder.get());
         assertThat(responseHolder.get().openJobIds, contains(jobId));
@@ -147,7 +148,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         );
 
         // force close so not an error for the failed job
-        closeJobAction.validate(Arrays.asList("job_id_failed"), true, tasksBuilder.build(), listener);
+        closeJobAction.validate(Collections.singletonList("job_id_failed"), true, tasksBuilder.build(), listener);
         assertNull(exceptionHolder.get());
         assertNotNull(responseHolder.get());
         assertThat(responseHolder.get().openJobIds, contains("job_id_failed"));
@@ -155,7 +156,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
         // not a force close so is an error
         responseHolder.set(null);
-        closeJobAction.validate(Arrays.asList("job_id_failed"), false, tasksBuilder.build(), listener);
+        closeJobAction.validate(Collections.singletonList("job_id_failed"), false, tasksBuilder.build(), listener);
         assertNull(responseHolder.get());
         assertNotNull(exceptionHolder.get());
         assertThat(exceptionHolder.get(), instanceOf(ElasticsearchStatusException.class));
@@ -193,16 +194,16 @@ public class TransportCloseJobActionTests extends ESTestCase {
         assertEquals(Arrays.asList("job_id_open-1", "job_id_open-2"), responseHolder.get().openJobIds);
         assertEquals(Collections.emptyList(), responseHolder.get().closingJobIds);
 
-        closeJobAction.validate(Arrays.asList("job_id_closing"), false, tasks, listener);
+        closeJobAction.validate(Collections.singletonList("job_id_closing"), false, tasks, listener);
         assertNull(exceptionHolder.get());
         assertNotNull(responseHolder.get());
         assertEquals(Collections.emptyList(), responseHolder.get().openJobIds);
-        assertEquals(Arrays.asList("job_id_closing"), responseHolder.get().closingJobIds);
+        assertEquals(Collections.singletonList("job_id_closing"), responseHolder.get().closingJobIds);
 
-        closeJobAction.validate(Arrays.asList("job_id_open-1"), false, tasks, listener);
+        closeJobAction.validate(Collections.singletonList("job_id_open-1"), false, tasks, listener);
         assertNull(exceptionHolder.get());
         assertNotNull(responseHolder.get());
-        assertEquals(Arrays.asList("job_id_open-1"), responseHolder.get().openJobIds);
+        assertEquals(Collections.singletonList("job_id_open-1"), responseHolder.get().openJobIds);
         assertEquals(Collections.emptyList(), responseHolder.get().closingJobIds);
     }
 
@@ -277,7 +278,8 @@ public class TransportCloseJobActionTests extends ESTestCase {
     private TransportCloseJobAction createAction() {
         return new TransportCloseJobAction(Settings.EMPTY,
                 mock(TransportService.class), mock(ThreadPool.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
-                clusterService, mock(Auditor.class), mock(PersistentTasksService.class), datafeedConfigProvider, jobManager);
+                clusterService, mock(Auditor.class), mock(PersistentTasksService.class), datafeedConfigProvider, jobManager,
+                mock(Client.class));
     }
 
     private void mockDatafeedConfigFindDatafeeds(Set<String> datafeedIds) {

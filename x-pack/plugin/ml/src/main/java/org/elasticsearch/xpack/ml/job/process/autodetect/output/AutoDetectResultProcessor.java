@@ -11,11 +11,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.update.UpdateAction;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -24,10 +20,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -48,11 +44,9 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.time.Duration;
-import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
@@ -100,7 +94,6 @@ public class AutoDetectResultProcessor {
     private final boolean restoredSnapshot;
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
-    volatile CountDownLatch onCloseActionsLatch;
     final Semaphore updateModelSnapshotIdSemaphore = new Semaphore(1);
     private final FlushListener flushListener;
     private volatile boolean processKilled;
@@ -116,18 +109,17 @@ public class AutoDetectResultProcessor {
     private volatile long latestEstablishedModelMemory;
     private volatile boolean haveNewLatestModelSizeStats;
     private Future<?> scheduledEstablishedModelMemoryUpdate; // only accessed in synchronized methods
-    private final boolean isConfigInClusterState;
 
     public AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
                                      JobResultsPersister persister, JobResultsProvider jobResultsProvider,
-                                     ModelSizeStats latestModelSizeStats, boolean restoredSnapshot, boolean isConfigInClusterState) {
+                                     ModelSizeStats latestModelSizeStats, boolean restoredSnapshot) {
         this(client, auditor, jobId, renormalizer, persister, jobResultsProvider, latestModelSizeStats,
-                restoredSnapshot, new FlushListener(), isConfigInClusterState);
+                restoredSnapshot, new FlushListener());
     }
 
     AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
                               JobResultsPersister persister, JobResultsProvider jobResultsProvider, ModelSizeStats latestModelSizeStats,
-                              boolean restoredSnapshot, FlushListener flushListener, boolean isConfigInClusterState) {
+                              boolean restoredSnapshot, FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
@@ -137,7 +129,6 @@ public class AutoDetectResultProcessor {
         this.flushListener = Objects.requireNonNull(flushListener);
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
         this.restoredSnapshot = restoredSnapshot;
-        this.isConfigInClusterState = isConfigInClusterState;
     }
 
     public void process(AutodetectProcess process) {
@@ -174,11 +165,9 @@ public class AutoDetectResultProcessor {
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
             }
-            if (processKilled == false) {
-                onAutodetectClose();
-            }
-
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
+            runEstablishedModelMemoryUpdate(true);
+
         } catch (Exception e) {
             failed = true;
 
@@ -350,6 +339,9 @@ public class AutoDetectResultProcessor {
     }
 
     protected void updateModelSnapshotIdOnJob(ModelSnapshot modelSnapshot) {
+        JobUpdate update = new JobUpdate.Builder(jobId).setModelSnapshotId(modelSnapshot.getSnapshotId()).build();
+        UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
+
         try {
             // This blocks the main processing thread in the unlikely event
             // there are 2 model snapshots queued up. But it also has the
@@ -361,23 +353,20 @@ public class AutoDetectResultProcessor {
             return;
         }
 
-        if (isConfigInClusterState == false) {
-            updateJob(jobId, Collections.singletonMap(Job.MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshot.getSnapshotId()),
-                    new ActionListener<UpdateResponse>() {
-                        @Override
-                        public void onResponse(UpdateResponse updateResponse) {
-                            updateModelSnapshotIdSemaphore.release();
-                            LOGGER.debug("[{}] Updated job with model snapshot id [{}]", jobId, modelSnapshot.getSnapshotId());
-                        }
+        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
+            @Override
+            public void onResponse(PutJobAction.Response response) {
+                updateModelSnapshotIdSemaphore.release();
+                LOGGER.debug("[{}] Updated job with model snapshot id [{}]", jobId, modelSnapshot.getSnapshotId());
+            }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            updateModelSnapshotIdSemaphore.release();
-                            LOGGER.error("[" + jobId + "] Failed to update job with new model snapshot id [" +
-                                    modelSnapshot.getSnapshotId() + "]", e);
-                        }
-                    });
-        }
+            @Override
+            public void onFailure(Exception e) {
+                updateModelSnapshotIdSemaphore.release();
+                LOGGER.error("[" + jobId + "] Failed to update job with new model snapshot id [" +
+                        modelSnapshot.getSnapshotId() + "]", e);
+            }
+        });
     }
 
     /**
@@ -424,12 +413,6 @@ public class AutoDetectResultProcessor {
      * to <code>null</code> by the first call.
      */
     private synchronized void runEstablishedModelMemoryUpdate(boolean cancelExisting) {
-        if (isConfigInClusterState) {
-            // TODO this check should is not necessary once established
-            // model memory is moved out of the job config
-            return;
-        }
-
         if (scheduledEstablishedModelMemoryUpdate != null) {
             if (cancelExisting) {
                 LOGGER.debug("[{}] Bringing forward previously scheduled established model memory update", jobId);
@@ -438,30 +421,6 @@ public class AutoDetectResultProcessor {
             scheduledEstablishedModelMemoryUpdate = null;
             updateEstablishedModelMemoryOnJob();
         }
-    }
-
-    private void onAutodetectClose() {
-        if (isConfigInClusterState) {
-            return;
-        }
-
-        onCloseActionsLatch = new CountDownLatch(1);
-
-        ActionListener<UpdateResponse> updateListener = ActionListener.wrap(
-                updateResponse -> {
-                    runEstablishedModelMemoryUpdate(true);
-                    onCloseActionsLatch.countDown();
-                },
-                e -> {
-                    LOGGER.error("[" + jobId + "] Failed to finalize job on autodetect close", e);
-                    onCloseActionsLatch.countDown();
-                }
-        );
-
-        updateJob(jobId, Collections.singletonMap(Job.FINISHED_TIME.getPreferredName(), new Date()),
-                new ThreadedActionListener<>(LOGGER, client.threadPool(),
-                        MachineLearning.UTILITY_THREAD_POOL_NAME, updateListener, false)
-        );
     }
 
     private void updateEstablishedModelMemoryOnJob() {
@@ -475,33 +434,26 @@ public class AutoDetectResultProcessor {
 
         jobResultsProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, modelSizeStatsForCalc, establishedModelMemory -> {
             if (latestEstablishedModelMemory != establishedModelMemory) {
-                updateJob(jobId, Collections.singletonMap(Job.ESTABLISHED_MODEL_MEMORY.getPreferredName(), establishedModelMemory),
-                    new ActionListener<UpdateResponse>() {
-                    @Override
-                    public void onResponse(UpdateResponse response) {
-                        latestEstablishedModelMemory = establishedModelMemory;
-                        LOGGER.debug("[{}] Updated job with established model memory [{}]", jobId, establishedModelMemory);
-                    }
+                JobUpdate update = new JobUpdate.Builder(jobId).setEstablishedModelMemory(establishedModelMemory).build();
+                UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
+                updateRequest.setWaitForAck(false);
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        LOGGER.error("[" + jobId + "] Failed to update job with new established model memory [" +
-                            establishedModelMemory + "]", e);
-                    }
-                });
+                executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
+                        new ActionListener<PutJobAction.Response>() {
+                            @Override
+                            public void onResponse(PutJobAction.Response response) {
+                                latestEstablishedModelMemory = establishedModelMemory;
+                                LOGGER.debug("[{}] Updated job with established model memory [{}]", jobId, establishedModelMemory);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                LOGGER.error("[" + jobId + "] Failed to update job with new established model memory [" +
+                                        establishedModelMemory + "]", e);
+                            }
+                        });
             }
         }, e -> LOGGER.error("[" + jobId + "] Failed to calculate established model memory", e));
-    }
-
-    private void updateJob(String jobId, Map<Object, Object> update, ActionListener<UpdateResponse> listener) {
-
-
-        UpdateRequest updateRequest = new UpdateRequest(AnomalyDetectorsIndex.configIndexName(),
-                ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
-        updateRequest.retryOnConflict(3);
-        updateRequest.doc(update);
-        updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateAction.INSTANCE, updateRequest, listener);
     }
 
     public void awaitCompletion() throws TimeoutException {
@@ -511,13 +463,6 @@ public class AutoDetectResultProcessor {
             if (completionLatch.await(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(),
                     TimeUnit.MINUTES) == false) {
                 throw new TimeoutException("Timed out waiting for results processor to complete for job " + jobId);
-            }
-
-            // Once completionLatch has passed then onCloseActionsLatch must either
-            // be set or null, it will not be set later.
-            if (onCloseActionsLatch != null && onCloseActionsLatch.await(
-                    MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(), TimeUnit.MINUTES) == false) {
-                throw new TimeoutException("Timed out waiting for results processor run post close actions " + jobId);
             }
 
             // Input stream has been completely processed at this point.

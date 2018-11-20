@@ -89,7 +89,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         renormalizer = mock(Renormalizer.class);
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
         resultProcessor = new AutoDetectResultProcessor(client(), auditor, JOB_ID, renormalizer,
-                new JobResultsPersister(client()), jobResultsProvider, new ModelSizeStats.Builder(JOB_ID).build(), false, true) {
+                new JobResultsPersister(client()), jobResultsProvider, new ModelSizeStats.Builder(JOB_ID).build(), false) {
             @Override
             protected void updateModelSnapshotIdOnJob(ModelSnapshot modelSnapshot) {
                 capturedUpdateModelSnapshotOnJobRequests.add(modelSnapshot);

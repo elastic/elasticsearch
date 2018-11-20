@@ -92,6 +92,7 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
+import org.elasticsearch.gateway.Zen1GatewayMetaState;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -463,8 +464,6 @@ public class Node implements Closeable {
             final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders, indexTemplateMetaDataUpgraders);
             final MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(settings, xContentRegistry,
                 indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), indexMetaDataUpgraders);
-            final GatewayMetaState gatewayMetaState = new GatewayMetaState(settings, nodeEnvironment, metaStateService,
-                metaDataIndexUpgradeService, metaDataUpgrader);
             new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetaDataUpgraders);
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
@@ -473,6 +472,8 @@ public class Node implements Closeable {
             ).collect(Collectors.toSet());
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings(), taskHeaders);
+            final GatewayMetaState gatewayMetaState = new Zen1GatewayMetaState(settings, nodeEnvironment, metaStateService,
+                    metaDataIndexUpgradeService, metaDataUpgrader, transportService);
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService =  new SearchTransportService(transportService,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
@@ -666,18 +667,14 @@ public class Node implements Closeable {
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
         final MetaData onDiskMetadata;
-        try {
-            // we load the global state here (the persistent part of the cluster state stored on disk) to
-            // pass it to the bootstrap checks to allow plugins to enforce certain preconditions based on the recovered state.
-            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
-                onDiskMetadata = injector.getInstance(GatewayMetaState.class).loadMetaData();
-            } else {
-                onDiskMetadata = MetaData.EMPTY_META_DATA;
-            }
-            assert onDiskMetadata != null : "metadata is null but shouldn't"; // this is never null
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        // we load the global state here (the persistent part of the cluster state stored on disk) to
+        // pass it to the bootstrap checks to allow plugins to enforce certain preconditions based on the recovered state.
+        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+            onDiskMetadata = injector.getInstance(GatewayMetaState.class).getMetaData();
+        } else {
+            onDiskMetadata = MetaData.EMPTY_META_DATA;
         }
+        assert onDiskMetadata != null : "metadata is null but shouldn't"; // this is never null
         validateNodeBeforeAcceptingRequests(new BootstrapContext(settings, onDiskMetadata), transportService.boundAddress(), pluginsService
             .filterPlugins(Plugin
             .class)

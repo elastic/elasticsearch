@@ -50,6 +50,7 @@ public class ManifestTests extends ESTestCase {
                 }
                 case 1: {
                     clusterStateVersion = randomValueOtherThan(clusterStateVersion, () -> randomNonNegativeLong());
+                    break;
                 }
                 case 2: {
                     generation = randomValueOtherThan(generation, () -> randomNonNegativeLong());

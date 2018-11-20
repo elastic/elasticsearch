@@ -23,17 +23,16 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -63,26 +63,26 @@ import java.util.function.UnaryOperator;
  * state upgrade if necessary. Also it checks that atomic move is supported on the filesystem level, because it's a must for metadata
  * store algorithm.
  * Please note that the state being loaded when constructing the instance of this class is NOT the state that will be used as a
- * {@link ClusterState#metaData()}. Instead when node is starting up, it calls {@link #loadMetaData()} method and if this node is
+ * {@link ClusterState#metaData()}. Instead when node is starting up, it calls {@link #getMetaData()} method and if this node is
  * elected as master, it requests metaData from other master eligible nodes. After that, master node performs re-conciliation on the
  * gathered results, re-creates {@link ClusterState} and broadcasts this state to other nodes in the cluster.
- * It means that the first time {@link #applyClusterState(ClusterChangedEvent)} method is called, it won't have any previous metaData in
- * memory and will iterate over all the indices in received {@link ClusterState} and store them to disk.
+ * Subclasses of this class are meant to use {@link #updateClusterState(ClusterState, ClusterState, boolean)} when new
+ * {@link ClusterState} is received.
  */
-public class GatewayMetaState implements ClusterStateApplier {
-    private static final Logger logger = LogManager.getLogger(GatewayMetaState.class);
+public abstract class GatewayMetaState {
+    protected static final Logger logger = LogManager.getLogger(GatewayMetaState.class);
 
     private final NodeEnvironment nodeEnv;
-    private final MetaStateService metaStateService;
+    protected final MetaStateService metaStateService;
     private final Settings settings;
 
-    @Nullable
-    //there is a single thread executing applyClusterState calls, hence no volatile modifier
-    private Manifest previousManifest;
-    private MetaData previousMetaData;
+    //there is a single thread executing updateClusterState calls, hence no volatile modifier
+    protected Manifest previousManifest;
+    protected ClusterState previousClusterState;
 
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
-                            MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) throws IOException {
+                            MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader,
+                            TransportService transportService) throws IOException {
         this.settings = settings;
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
@@ -90,13 +90,23 @@ public class GatewayMetaState implements ClusterStateApplier {
         ensureNoPre019State(); //TODO remove this check, it's Elasticsearch version 7 already
         ensureAtomicMoveSupported(); //TODO move this check to NodeEnvironment, because it's related to all types of metadata
         upgradeMetaData(metaDataIndexUpgradeService, metaDataUpgrader);
-        profileLoadMetaData();
+        initializeClusterState(ClusterName.CLUSTER_NAME_SETTING.get(settings), transportService.getLocalNode());
     }
 
-    private void profileLoadMetaData() throws IOException {
+    private void initializeClusterState(ClusterName clusterName, DiscoveryNode localNode) throws IOException {
         if (isMasterOrDataNode()) {
             long startNS = System.nanoTime();
-            metaStateService.loadFullState();
+            Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
+            previousManifest = manifestAndMetaData.v1();
+
+            ClusterState.Builder builder = ClusterState.builder(clusterName)
+                    .version(previousManifest.getClusterStateVersion())
+                    .metaData(manifestAndMetaData.v2());
+            if (localNode != null) {
+                builder.nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build());
+            }
+            previousClusterState = builder.build();
+
             logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
         }
     }
@@ -134,7 +144,8 @@ public class GatewayMetaState implements ClusterStateApplier {
                     }
                 }
 
-                final Manifest newManifest = new Manifest(globalStateGeneration, indices);
+                final Manifest newManifest = new Manifest(manifest.getCurrentTerm(), manifest.getClusterStateVersion(),
+                        globalStateGeneration, indices);
                 writer.writeManifestAndCleanup("startup", newManifest);
             } catch (Exception e) {
                 logger.error("failed to read or upgrade local state, exiting...", e);
@@ -143,7 +154,7 @@ public class GatewayMetaState implements ClusterStateApplier {
         }
     }
 
-    private boolean isMasterOrDataNode() {
+    protected boolean isMasterOrDataNode() {
         return DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings);
     }
 
@@ -153,31 +164,8 @@ public class GatewayMetaState implements ClusterStateApplier {
         }
     }
 
-    public MetaData loadMetaData() throws IOException {
-        return metaStateService.loadFullState().v2();
-    }
-
-    @Override
-    public void applyClusterState(ClusterChangedEvent event) {
-        if (isMasterOrDataNode() == false) {
-            return;
-        }
-
-        if (event.state().blocks().disableStatePersistence()) {
-            // reset the current state, we need to start fresh...
-            previousMetaData = null;
-            previousManifest = null;
-            return;
-        }
-
-        try {
-            if (previousManifest == null) {
-                previousManifest = metaStateService.loadManifestOrEmpty();
-            }
-            updateMetaData(event);
-        } catch (Exception e) {
-            logger.warn("Exception occurred when storing new meta data", e);
-        }
+    public MetaData getMetaData() {
+        return previousClusterState.metaData();
     }
 
     /**
@@ -255,39 +243,44 @@ public class GatewayMetaState implements ClusterStateApplier {
     }
 
     /**
-     * Updates meta state and meta data on disk according to {@link ClusterChangedEvent}.
+     * Updates manifest and meta data on disk.
      *
-     * @throws IOException if IOException occurs. It's recommended for the callers of this method to handle {@link WriteStateException},
-     *                     which is subclass of {@link IOException} explicitly. See also {@link WriteStateException#isDirty()}.
+     * @param newState new {@link ClusterState}
+     * @param previousState previous {@link ClusterState}
+     * @param writeWithoutComparingVersion if set to true even if previous {@link MetaData} and {@link IndexMetaData} have the same versions
+     *                                     as new {@link MetaData} and {@link IndexMetaData}, metadata will be written to disk.
+     *                                     We can only trust versions, as long as master does not change in the cluster.
+     * @throws WriteStateException if exception occurs. See also {@link WriteStateException#isDirty()}.
      */
-    private void updateMetaData(ClusterChangedEvent event) throws IOException {
-        ClusterState newState = event.state();
-        ClusterState previousState = event.previousState();
+    protected void updateClusterState(ClusterState newState, ClusterState previousState, boolean writeWithoutComparingVersion)
+            throws WriteStateException {
         MetaData newMetaData = newState.metaData();
 
         final AtomicClusterStateWriter writer = new AtomicClusterStateWriter(metaStateService, previousManifest);
-        long globalStateGeneration = writeGlobalState(writer, newMetaData);
-        Map<Index, Long> indexGenerations = writeIndicesMetadata(writer, newState, previousState);
-        Manifest manifest = new Manifest(globalStateGeneration, indexGenerations);
+        long globalStateGeneration = writeGlobalState(writer, writeWithoutComparingVersion, newMetaData);
+        Map<Index, Long> indexGenerations = writeIndicesMetadata(writer, writeWithoutComparingVersion, newState, previousState);
+        Manifest manifest = new Manifest(previousManifest.getCurrentTerm(), newState.version(), globalStateGeneration, indexGenerations);
         writeManifest(writer, manifest);
 
-        previousMetaData = newMetaData;
         previousManifest = manifest;
+        previousClusterState = newState;
     }
 
-    private void writeManifest(AtomicClusterStateWriter writer, Manifest manifest) throws IOException {
+    private void writeManifest(AtomicClusterStateWriter writer, Manifest manifest) throws WriteStateException {
         if (manifest.equals(previousManifest) == false) {
             writer.writeManifestAndCleanup("changed", manifest);
         }
     }
 
-    private Map<Index, Long> writeIndicesMetadata(AtomicClusterStateWriter writer, ClusterState newState, ClusterState previousState)
-            throws IOException {
+    private Map<Index, Long> writeIndicesMetadata(AtomicClusterStateWriter writer,
+                                                  boolean writeWithoutComparingVersion, ClusterState newState, ClusterState previousState)
+            throws WriteStateException {
         Map<Index, Long> previouslyWrittenIndices = previousManifest.getIndexGenerations();
         Set<Index> relevantIndices = getRelevantIndices(newState, previousState, previouslyWrittenIndices.keySet());
 
         Map<Index, Long> newIndices = new HashMap<>();
 
+        MetaData previousMetaData = writeWithoutComparingVersion ? null : previousState.metaData();
         Iterable<IndexMetaDataAction> actions = resolveIndexMetaDataActions(previouslyWrittenIndices, relevantIndices, previousMetaData,
                 newState.metaData());
 
@@ -299,8 +292,9 @@ public class GatewayMetaState implements ClusterStateApplier {
         return newIndices;
     }
 
-    private long writeGlobalState(AtomicClusterStateWriter writer, MetaData newMetaData) throws IOException {
-        if (previousMetaData == null || MetaData.isGlobalStateEquals(previousMetaData, newMetaData) == false) {
+    private long writeGlobalState(AtomicClusterStateWriter writer, boolean writeWithoutComparingVersion, MetaData newMetaData)
+            throws WriteStateException {
+        if (writeWithoutComparingVersion || MetaData.isGlobalStateEquals(previousClusterState.metaData(), newMetaData) == false) {
             return writer.writeGlobalState("changed", newMetaData);
         }
         return previousManifest.getGlobalGeneration();

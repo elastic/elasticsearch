@@ -140,9 +140,10 @@ public class MetaStateServiceTests extends ESTestCase {
     public void testLoadFullStateMissingGlobalMetaData() throws IOException {
         IndexMetaData index = indexMetaData("test1");
         long indexGeneration = metaStateService.writeIndex("test", index);
-        Manifest manifest = new Manifest(Manifest.empty().getGlobalGeneration(), new HashMap<Index, Long>() {{
-            put(index.getIndex(), indexGeneration);
-        }});
+        Manifest manifest = new Manifest(randomNonNegativeLong(), randomNonNegativeLong(),
+                Manifest.empty().getGlobalGeneration(), new HashMap<Index, Long>() {{
+                    put(index.getIndex(), indexGeneration);
+                }});
         assertTrue(manifest.isGlobalGenerationMissing());
         metaStateService.writeManifestAndCleanup("test", manifest);
 
@@ -164,10 +165,10 @@ public class MetaStateServiceTests extends ESTestCase {
         long globalGeneration = metaStateService.writeGlobalState("first global state write", metaData);
         long indexGeneration = metaStateService.writeIndex("first index state write", index);
 
-        Manifest manifest = new Manifest(globalGeneration, new HashMap<Index, Long>() {{
+        Manifest manifest = new Manifest(randomNonNegativeLong(), randomNonNegativeLong(),
+                globalGeneration, new HashMap<Index, Long>() {{
             put(index.getIndex(), indexGeneration);
         }});
-
         metaStateService.writeManifestAndCleanup("first manifest write", manifest);
 
         MetaData newMetaData = MetaData.builder()
@@ -184,7 +185,8 @@ public class MetaStateServiceTests extends ESTestCase {
         assertThat(loadedMetaData.hasIndex("test1"), equalTo(true));
         assertThat(loadedMetaData.index("test1"), equalTo(index));
 
-        manifest = new Manifest(globalGeneration, new HashMap<Index, Long>() {{
+        manifest = new Manifest(randomNonNegativeLong(), randomNonNegativeLong(),
+                globalGeneration, new HashMap<Index, Long>() {{
             put(index.getIndex(), indexGeneration);
         }});
 

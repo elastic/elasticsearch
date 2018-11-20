@@ -44,7 +44,11 @@ import java.util.stream.Collectors;
  * Index metadata generation could be obtained by calling {@link #getIndexGenerations()}.
  */
 public class Manifest implements ToXContentFragment {
-    private static final long MISSING = -1;
+    private static final long MISSING_GLOBAL_GENERATION = -1L;
+    private static final long MISSING_CURRENT_TERM = 0L;
+    private static final long UNKNOWN_CURRENT_TERM = MISSING_CURRENT_TERM;
+    private static final long MISSING_CLUSTER_STATE_VERSION = 0L;
+    private static final long UNKNOWN_CLUSTER_STATE_VERSION = MISSING_CLUSTER_STATE_VERSION;
 
     private final long globalGeneration;
     private final Map<Index, Long> indexGenerations;
@@ -58,8 +62,8 @@ public class Manifest implements ToXContentFragment {
         this.indexGenerations = indexGenerations;
     }
 
-    public Manifest(long globalGeneration, Map<Index, Long> indexGenerations) {
-        this(MISSING, MISSING, globalGeneration, indexGenerations);
+    public static Manifest unknownCurrentTermAndVersion(long globalGeneration, Map<Index, Long> indexGenerations) {
+        return new Manifest(UNKNOWN_CURRENT_TERM, UNKNOWN_CLUSTER_STATE_VERSION, globalGeneration, indexGenerations);
     }
 
     /**
@@ -145,8 +149,8 @@ public class Manifest implements ToXContentFragment {
         return builder;
     }
 
-    private static long requireNonNullElseMissing(Long value) {
-        return value != null ? value : MISSING;
+    private static long requireNonNullElseDefault(Long value, long defaultValue) {
+        return value != null ? value : defaultValue;
     }
 
     private List<IndexEntry> indexEntryList() {
@@ -156,15 +160,15 @@ public class Manifest implements ToXContentFragment {
     }
 
     private static long currentTerm(Object[] manifestFields) {
-        return requireNonNullElseMissing((Long) manifestFields[0]);
+        return requireNonNullElseDefault((Long) manifestFields[0], MISSING_CURRENT_TERM);
     }
 
     private static long clusterStateVersion(Object[] manifestFields) {
-        return requireNonNullElseMissing((Long) manifestFields[1]);
+        return requireNonNullElseDefault((Long) manifestFields[1], MISSING_CLUSTER_STATE_VERSION);
     }
 
     private static long generation(Object[] manifestFields) {
-        return requireNonNullElseMissing((Long) manifestFields[2]);
+        return requireNonNullElseDefault((Long) manifestFields[2], MISSING_GLOBAL_GENERATION);
     }
 
     private static Map<Index, Long> indices(Object[] manifestFields) {
@@ -190,15 +194,16 @@ public class Manifest implements ToXContentFragment {
     }
 
     public boolean isEmpty() {
-        return currentTerm == MISSING && clusterStateVersion == MISSING && globalGeneration == MISSING && indexGenerations.isEmpty();
+        return currentTerm == MISSING_CURRENT_TERM && clusterStateVersion == MISSING_CLUSTER_STATE_VERSION
+                && globalGeneration == MISSING_GLOBAL_GENERATION && indexGenerations.isEmpty();
     }
 
     public static Manifest empty() {
-        return new Manifest(MISSING, MISSING, MISSING, Collections.emptyMap());
+        return new Manifest(MISSING_CURRENT_TERM, MISSING_CLUSTER_STATE_VERSION, MISSING_GLOBAL_GENERATION, Collections.emptyMap());
     }
 
     public boolean isGlobalGenerationMissing() {
-        return globalGeneration == MISSING;
+        return globalGeneration == MISSING_GLOBAL_GENERATION;
     }
 
     private static final class IndexEntry implements ToXContentFragment {

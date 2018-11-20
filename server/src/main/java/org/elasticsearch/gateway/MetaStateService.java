@@ -138,7 +138,7 @@ public class MetaStateService {
             }
         }
 
-        Manifest manifest = new Manifest(globalStateGeneration, indices);
+        Manifest manifest = Manifest.unknownCurrentTermAndVersion(globalStateGeneration, indices);
         return new Tuple<>(manifest, metaDataBuilder.build());
     }
 
@@ -275,7 +275,7 @@ public class MetaStateService {
         Manifest manifest = loadManifestOrEmpty();
         Map<Index, Long> indices = new HashMap<>(manifest.getIndexGenerations());
         indices.put(metaData.getIndex(), generation);
-        manifest = new Manifest(manifest.getGlobalGeneration(), indices);
+        manifest = new Manifest(manifest.getCurrentTerm(), manifest.getClusterStateVersion(), manifest.getGlobalGeneration(), indices);
         writeManifestAndCleanup(reason, manifest);
         cleanupIndex(metaData.getIndex(), generation);
     }
@@ -287,7 +287,7 @@ public class MetaStateService {
     public void writeGlobalStateAndUpdateManifest(String reason, MetaData metaData) throws IOException {
         long generation = writeGlobalState(reason, metaData);
         Manifest manifest = loadManifestOrEmpty();
-        manifest = new Manifest(generation, manifest.getIndexGenerations());
+        manifest = new Manifest(manifest.getCurrentTerm(), manifest.getClusterStateVersion(), generation, manifest.getIndexGenerations());
         writeManifestAndCleanup(reason, manifest);
         cleanupGlobalState(generation);
     }

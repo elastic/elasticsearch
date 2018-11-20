@@ -103,7 +103,10 @@ phrase matches are required. Default value is `0`.
 
 |`boost` |Sets the boost value of the query. Defaults to `1.0`.
 
-|`auto_generate_phrase_queries` |Defaults to `false`.
+|`auto_generate_phrase_queries` | Deprecated setting. This setting is ignored,
+use [type=phrase] instead to make phrase queries out of all text that is
+within query operators, or use explicitly quoted strings if you need
+finer-grained control.
 
 |`analyze_wildcard` |By default, wildcards terms in a query string are
 not analyzed. By setting this value to `true`, a best effort will be

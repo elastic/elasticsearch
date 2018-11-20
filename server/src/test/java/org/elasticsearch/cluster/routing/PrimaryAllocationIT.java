@@ -226,13 +226,14 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             if (expectedAllocationIds.equals(allocationIds)) {
                 clusterStateChangeLatch.countDown();
             }
+            logger.info("expected allocation ids: {} actual allocation ids: {}", expectedAllocationIds, allocationIds);
         };
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, master);
         clusterService.addListener(clusterStateListener);
 
         rerouteBuilder.get();
 
-        assertThat(clusterStateChangeLatch.await(30, TimeUnit.SECONDS), equalTo(true));
+        assertTrue(clusterStateChangeLatch.await(30, TimeUnit.SECONDS));
         clusterService.removeListener(clusterStateListener);
 
         logger.info("--> check that the stale primary shard gets allocated and that documents are available");

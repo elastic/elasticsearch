@@ -33,7 +33,6 @@ public class QueryStringQuery extends LeafQuery {
         appliers.put("analyzer", (qb, s) -> qb.analyzer(s));
         appliers.put("quote_analyzer", (qb, s) -> qb.quoteAnalyzer(s));
         appliers.put("allow_leading_wildcard", (qb, s) -> qb.allowLeadingWildcard(Booleans.parseBoolean(s)));
-        appliers.put("auto_generate_phrase_queries", (qb, s) -> qb.autoGeneratePhraseQueries(Booleans.parseBoolean(s)));
         appliers.put("max_determinized_states", (qb, s) -> qb.maxDeterminizedStates(Integer.valueOf(s)));
         appliers.put("lowercase_expanded_terms", (qb, s) -> {});
         appliers.put("enable_position_increments", (qb, s) -> qb.enablePositionIncrements(Booleans.parseBoolean(s)));

@@ -303,7 +303,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
             processor.add(new IndexRequest("blogs", "post_type", "1") // <2>
                 .source(XContentType.JSON, "title", "some title"));
         }
-        // end::bulk-request-mix-pipeline
+        // end::bulk-processor-mix-parameters
         latch.await();
 
         Iterable<SearchHit> hits = searchAll(new SearchRequest("tweets").routing("routing"));

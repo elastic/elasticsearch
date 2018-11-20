@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.proto.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RestClient;
 import org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
@@ -62,7 +63,7 @@ public class HttpClient {
 
     public SqlQueryResponse queryInit(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.PLAIN, query, Collections.emptyList(), null,
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.PLAIN, RestClient.CLI, query, Collections.emptyList(), null,
             TimeZone.getTimeZone("UTC"), fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()),
             TimeValue.timeValueMillis(cfg.pageTimeout()));
         return query(sqlRequest);
@@ -73,14 +74,14 @@ public class HttpClient {
     }
 
     public SqlQueryResponse nextPage(String cursor) throws SQLException {
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.PLAIN, cursor, TimeValue.timeValueMillis(cfg.queryTimeout()),
-            TimeValue.timeValueMillis(cfg.pageTimeout()));
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.PLAIN, RestClient.CLI, cursor,
+                TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()));
         return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
     public boolean queryClose(String cursor) throws SQLException {
         SqlClearCursorResponse response = post(Protocol.CLEAR_CURSOR_REST_ENDPOINT,
-            new SqlClearCursorRequest(Mode.PLAIN, cursor),
+            new SqlClearCursorRequest(Mode.PLAIN, RestClient.CLI, cursor),
             SqlClearCursorResponse::fromXContent);
         return response.isSucceeded();
     }
@@ -89,7 +90,9 @@ public class HttpClient {
             CheckedFunction<XContentParser, Response, IOException> responseParser)
             throws SQLException {
         byte[] requestBytes = toXContent(request);
-        String query = "error_trace&mode=" + request.mode();
+        String query = "error_trace&mode=" +
+                        request.mode() +
+                        (request.restClient() != null ? "&client=" + request.restClient().toString() : "");
         Tuple<XContentType, byte[]> response =
             AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Tuple<XContentType, byte[]>>>) () ->
                 JreHttpUrlConnection.http(path, query, cfg, con ->

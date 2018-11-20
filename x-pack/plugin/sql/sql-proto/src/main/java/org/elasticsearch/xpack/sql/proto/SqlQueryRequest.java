@@ -33,9 +33,9 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final List<SqlTypedParamValue> params;
 
 
-    public SqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, TimeZone timeZone,
+    public SqlQueryRequest(Mode mode, RestClient restClient, String query, List<SqlTypedParamValue> params, TimeZone timeZone,
                            int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, String cursor) {
-        super(mode);
+        super(mode, restClient);
         this.query = query;
         this.params = params;
         this.timeZone = timeZone;
@@ -46,15 +46,15 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.cursor = cursor;
     }
 
-    public SqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, ToXContent filter, TimeZone timeZone,
-                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-        this(mode, query, params, timeZone, fetchSize, requestTimeout, pageTimeout, filter, null);
+    public SqlQueryRequest(Mode mode, RestClient restClient, String query, List<SqlTypedParamValue> params, ToXContent filter,
+                           TimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
+        this(mode, restClient, query, params, timeZone, fetchSize, requestTimeout, pageTimeout, filter, null);
     }
 
-    public SqlQueryRequest(Mode mode, String cursor, TimeValue requestTimeout, TimeValue pageTimeout) {
-        this(mode, "", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout, null, cursor);
+    public SqlQueryRequest(Mode mode, RestClient restClient, String cursor, TimeValue requestTimeout, TimeValue pageTimeout) {
+        this(mode, restClient, "", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout,
+             pageTimeout, null, cursor);
     }
-
 
     /**
      * The key that must be sent back to SQL to access the next page of

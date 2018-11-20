@@ -15,6 +15,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.RestClient;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.junit.Before;
@@ -31,10 +32,12 @@ import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull
 public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRequest> {
 
     public Mode testMode;
+    public RestClient restClient;
 
     @Before
     public void setup() {
         testMode = randomFrom(Mode.values());
+        restClient = randomFrom(RestClient.values());
     }
 
     @Override
@@ -51,7 +54,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
 
     @Override
     protected SqlQueryRequest createTestInstance() {
-        return new SqlQueryRequest(testMode, randomAlphaOfLength(10), randomParameters(),
+        return new SqlQueryRequest(testMode, restClient, randomAlphaOfLength(10), randomParameters(),
                 SqlTestUtils.randomFilterOrNull(random()), randomTimeZone(),
                 between(1, Integer.MAX_VALUE), randomTV(), randomTV(), randomAlphaOfLength(10)
         );
@@ -88,7 +91,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
 
     @Override
     protected SqlQueryRequest doParseInstance(XContentParser parser) {
-        return SqlQueryRequest.fromXContent(parser, testMode);
+        return SqlQueryRequest.fromXContent(parser, testMode, restClient);
     }
 
     @Override
@@ -96,6 +99,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
         @SuppressWarnings("unchecked")
         Consumer<SqlQueryRequest> mutator = randomFrom(
                 request -> request.mode(randomValueOtherThan(request.mode(), () -> randomFrom(Mode.values()))),
+                request -> request.restClient(randomValueOtherThan(request.restClient(), () -> randomFrom(RestClient.values()))),
                 request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
                 request -> request.params(randomValueOtherThan(request.params(), this::randomParameters)),
                 request -> request.timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomTimeZone)),
@@ -105,8 +109,9 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
                         () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random()))),
                 request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor))
         );
-        SqlQueryRequest newRequest = new SqlQueryRequest(instance.mode(), instance.query(), instance.params(), instance.filter(),
-                instance.timeZone(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.cursor());
+        SqlQueryRequest newRequest = new SqlQueryRequest(instance.mode(), instance.restClient(), instance.query(), instance.params(),
+                instance.filter(), instance.timeZone(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(),
+                instance.cursor());
         mutator.accept(newRequest);
         return newRequest;
     }

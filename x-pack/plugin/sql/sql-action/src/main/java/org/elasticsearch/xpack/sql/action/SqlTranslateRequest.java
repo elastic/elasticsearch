@@ -14,8 +14,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +34,7 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
 
     public SqlTranslateRequest(Mode mode, String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
                                int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-        super(mode, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
+        super(mode, null, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
     }
 
     public SqlTranslateRequest(StreamInput in) throws IOException {
@@ -64,7 +64,7 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test parsing of SqlTranslateRequest, so we can reuse SqlQuerySerialization
-        return new SqlQueryRequest(mode(), query(), params(), timeZone(), fetchSize(),
+        return new SqlQueryRequest(mode(), null, query(), params(), timeZone(), fetchSize(),
             requestTimeout(), pageTimeout(), filter(), null).toXContent(builder, params);
 
     }

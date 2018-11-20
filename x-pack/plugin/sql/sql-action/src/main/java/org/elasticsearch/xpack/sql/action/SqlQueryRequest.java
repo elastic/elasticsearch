@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.RestClient;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.io.IOException;
@@ -46,9 +47,9 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     public SqlQueryRequest() {
     }
 
-    public SqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
-                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, String cursor) {
-        super(mode, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
+    public SqlQueryRequest(Mode mode, RestClient restClient, String query, List<SqlTypedParamValue> params, QueryBuilder filter,
+                           TimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, String cursor) {
+        super(mode, restClient, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
         this.cursor = cursor;
     }
 
@@ -110,13 +111,14 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
-        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(mode(), query(), params(), timeZone(), fetchSize(),
+        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(mode(), restClient(), query(), params(), timeZone(), fetchSize(),
             requestTimeout(), pageTimeout(), filter(), cursor()).toXContent(builder, params);
     }
 
-    public static SqlQueryRequest fromXContent(XContentParser parser, Mode mode) {
+    public static SqlQueryRequest fromXContent(XContentParser parser, Mode mode, RestClient restClient) {
         SqlQueryRequest request = PARSER.apply(parser, null);
         request.mode(mode);
+        request.restClient(restClient);
         return request;
     }
 

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.RestClient;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.RowSet;
@@ -86,16 +87,27 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
                 request.filter());
         
-        Metric metric = Metric.fromString(request.mode() == null ? null : request.mode().toString());
+        RestClient restClient = request.restClient();
+        // mode() shouldn't be null
+        Metric metric = Metric.fromString(request.mode() == Mode.PLAIN ?
+                (restClient == null ? null : restClient.toString()) : request.mode().toString());
         opsByTypeMetrics.get(metric).get("total").inc();
 
         if (Strings.hasText(request.cursor()) == false) {
             planExecutor.sql(cfg, request.query(), request.params(),
-                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)), listener::onFailure));
+                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)),
+                            e -> {
+                                opsByTypeMetrics.get(metric).get("failed").inc();
+                                listener.onFailure(e);
+                            }));
         } else {
             opsByTypeMetrics.get(metric).get("paging").inc();
             planExecutor.nextPage(cfg, Cursors.decodeFromString(request.cursor()),
-                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet, null)), listener::onFailure));
+                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet, null)),
+                            e -> {
+                                opsByTypeMetrics.get(metric).get("failed").inc();
+                                listener.onFailure(e);
+                            }));
         }
     }
 

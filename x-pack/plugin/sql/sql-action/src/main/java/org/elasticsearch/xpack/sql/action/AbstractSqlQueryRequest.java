@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RestClient;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -45,9 +46,9 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         super();
     }
 
-    public AbstractSqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
-                                   int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-        super(mode);
+    public AbstractSqlQueryRequest(Mode mode, RestClient restClient, String query, List<SqlTypedParamValue> params, QueryBuilder filter,
+                                   TimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
+        super(mode, restClient);
         this.query = query;
         this.params = params;
         this.timeZone = timeZone;

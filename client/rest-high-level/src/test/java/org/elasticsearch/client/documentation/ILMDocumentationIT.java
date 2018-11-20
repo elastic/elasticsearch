@@ -41,12 +41,15 @@ import org.elasticsearch.client.indexlifecycle.OperationMode;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.client.indexlifecycle.Phase;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyResponse;
 import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -57,8 +60,10 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -161,19 +166,19 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(putResponse.isAcknowledged());
         }
 
-        // tag::ilm-delete-lifecycle-policy-request
+        // tag::ilm-remove-lifecycle-policy-request
         DeleteLifecyclePolicyRequest request =
             new DeleteLifecyclePolicyRequest("my_policy"); // <1>
-        // end::ilm-delete-lifecycle-policy-request
+        // end::ilm-remove-lifecycle-policy-request
 
-        // tag::ilm-delete-lifecycle-policy-execute
+        // tag::ilm-remove-lifecycle-policy-execute
         AcknowledgedResponse response = client.indexLifecycle()
             .deleteLifecyclePolicy(request, RequestOptions.DEFAULT);
-        // end::ilm-delete-lifecycle-policy-execute
+        // end::ilm-remove-lifecycle-policy-execute
 
-        // tag::ilm-delete-lifecycle-policy-response
+        // tag::ilm-remove-lifecycle-policy-response
         boolean acknowledged = response.isAcknowledged(); // <1>
-        // end::ilm-delete-lifecycle-policy-response
+        // end::ilm-remove-lifecycle-policy-response
 
         assertTrue(acknowledged);
 
@@ -184,7 +189,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(putResponse.isAcknowledged());
         }
 
-        // tag::ilm-delete-lifecycle-policy-execute-listener
+        // tag::ilm-remove-lifecycle-policy-execute-listener
         ActionListener<AcknowledgedResponse> listener =
             new ActionListener<AcknowledgedResponse>() {
                 @Override
@@ -197,16 +202,16 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-        // end::ilm-delete-lifecycle-policy-execute-listener
+        // end::ilm-remove-lifecycle-policy-execute-listener
 
         // Replace the empty listener by a blocking listener in test
         final CountDownLatch latch = new CountDownLatch(1);
         listener = new LatchedActionListener<>(listener, latch);
 
-        // tag::ilm-delete-lifecycle-policy-execute-async
+        // tag::ilm-remove-lifecycle-policy-execute-async
         client.indexLifecycle().deleteLifecyclePolicyAsync(request,
             RequestOptions.DEFAULT, listener); // <1>
-        // end::ilm-delete-lifecycle-policy-execute-async
+        // end::ilm-remove-lifecycle-policy-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
@@ -526,6 +531,91 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         client.indexLifecycle().retryLifecyclePolicyAsync(request,
             RequestOptions.DEFAULT, listener); // <1>
         // end::ilm-retry-lifecycle-policy-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testDeletePolicyFromIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        // setup policy for index
+        Map<String, Phase> phases = new HashMap<>();
+        phases.put("delete", new Phase("delete", TimeValue.timeValueHours(10L),
+            Collections.singletonMap(DeleteAction.NAME, new DeleteAction())));
+        LifecyclePolicy policy = new LifecyclePolicy("my_policy", phases);
+        PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
+        client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index",
+            Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put("index.lifecycle.name", "my_policy")
+                .build());
+        client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        assertBusy(() -> assertTrue(client.indexLifecycle()
+            .explainLifecycle(new ExplainLifecycleRequest().indices("my_index"), RequestOptions.DEFAULT)
+            .getIndexResponses().get("my_index").managedByILM()));
+
+        // tag::ilm-remove-lifecycle-policy-from-index-request
+        List<String> indices = new ArrayList<>();
+        indices.add("my_index");
+        RemoveIndexLifecyclePolicyRequest request =
+            new RemoveIndexLifecyclePolicyRequest(indices); // <1>
+        // end::ilm-remove-lifecycle-policy-from-index-request
+
+
+        // tag::ilm-remove-lifecycle-policy-from-index-execute
+        RemoveIndexLifecyclePolicyResponse response = client
+            .indexLifecycle()
+            .removeIndexLifecyclePolicy(request, RequestOptions.DEFAULT);
+        // end::ilm-remove-lifecycle-policy-from-index-execute
+
+        // tag::ilm-remove-lifecycle-policy-from-index-response
+        boolean hasFailures = response.hasFailures(); // <1>
+        List<String> failedIndexes = response.getFailedIndexes(); // <2>
+        // end::ilm-remove-lifecycle-policy-from-index-response
+
+        {
+            assertFalse(hasFailures);
+            Map<String, Object> indexSettings = getIndexSettings("my_index");
+            assertTrue(Strings.isNullOrEmpty((String) indexSettings.get("index.lifecycle.name")));
+        }
+
+        // re-apply policy on index
+        updateIndexSettings("my_index", Settings.builder().put("index.lifecycle.name", "my_policy"));
+        assertBusy(() -> assertTrue(client.indexLifecycle()
+            .explainLifecycle(new ExplainLifecycleRequest().indices("my_index"), RequestOptions.DEFAULT)
+            .getIndexResponses().get("my_index").managedByILM()));
+
+        // tag::ilm-remove-lifecycle-policy-from-index-execute-listener
+        ActionListener<RemoveIndexLifecyclePolicyResponse> listener =
+            new ActionListener<RemoveIndexLifecyclePolicyResponse>() {
+                @Override
+                public void onResponse(
+                        RemoveIndexLifecyclePolicyResponse response) {
+                    boolean hasFailures = response.hasFailures(); // <1>
+                    List<String> failedIndexes = response.getFailedIndexes();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ilm-remove-lifecycle-policy-from-index-execute-listener
+
+        {
+            Map<String, Object> indexSettings = getIndexSettings("my_index");
+            assertTrue(Strings.isNullOrEmpty((String) indexSettings.get("index.lifecycle.name")));
+        }
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ilm-remove-lifecycle-policy-from-index-execute-async
+        client.indexLifecycle().removeIndexLifecyclePolicyAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ilm-remove-lifecycle-policy-from-index-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

@@ -475,6 +475,7 @@ Management APIs:
 * <<{upid}-ilm-stop-ilm>>
 * <<{upid}-ilm-status>>
 * <<{upid}-ilm-retry-lifecycle-policy>>
+* <<{upid}-ilm-remove-lifecycle-policy-from-index>>
 
 
 include::ilm/put_lifecycle_policy.asciidoc[]
@@ -484,3 +485,4 @@ include::ilm/start_lifecycle_management.asciidoc[]
 include::ilm/stop_lifecycle_management.asciidoc[]
 include::ilm/lifecycle_management_status.asciidoc[]
 include::ilm/retry_lifecycle_policy.asciidoc[]
+include::ilm/remove_lifecycle_policy_from_index.asciidoc[]

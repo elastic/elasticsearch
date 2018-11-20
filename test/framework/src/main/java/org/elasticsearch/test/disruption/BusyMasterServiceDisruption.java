@@ -28,8 +28,8 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class BusyMasterServiceDisruption extends SingleNodeDisruption {
-    final AtomicBoolean active = new AtomicBoolean();
-    final Priority priority;
+    private final AtomicBoolean active = new AtomicBoolean();
+    private final Priority priority;
 
     public BusyMasterServiceDisruption(Random random, Priority priority) {
         super(random);
@@ -52,26 +52,24 @@ public class BusyMasterServiceDisruption extends SingleNodeDisruption {
         submitTask(clusterService);
     }
 
-    void submitTask(ClusterService clusterService) {
-        clusterService.getMasterService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask() {
-            @Override
-            public Priority priority() {
-                return priority;
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                if (active.get()) {
-                    submitTask(clusterService);
+    private void submitTask(ClusterService clusterService) {
+        clusterService.getMasterService().submitStateUpdateTask(
+            "service_disruption_block",
+            new ClusterStateUpdateTask(priority) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    if (active.get()) {
+                        submitTask(clusterService);
+                    }
+                    return currentState;
                 }
-                return currentState;
-            }
 
-            @Override
-            public void onFailure(String source, Exception e) {
-                logger.error("unexpected error during disruption", e);
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.error("unexpected error during disruption", e);
+                }
             }
-        });
+        );
     }
 
     @Override

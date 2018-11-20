@@ -188,7 +188,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertThat(e.getMessage(), containsString("[span_near] query does not support [collect_payloads]"));
     }
 
-    public void testFromJson_withNonDefaultBoost_inInnerQuery() {
+    public void testFromJsonWithNonDefaultBoostInInnerQuery() {
         String json =
                 "{\n" +
                 "  \"span_near\" : {\n" +

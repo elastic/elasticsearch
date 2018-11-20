@@ -106,7 +106,7 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
         assertEquals(json, 2.0, parsed.boost(), 0.0);
     }
 
-    public void testFromJson_withNonDefaultBoost_inInnerQuery() {
+    public void testFromJsonWithNonDefaultBoostInInnerQuery() {
         String json =
                 "{\n" +
                 "  \"span_or\" : {\n" +

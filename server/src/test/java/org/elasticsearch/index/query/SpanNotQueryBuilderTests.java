@@ -213,7 +213,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
         assertEquals(json, 2.0, parsed.boost(), 0.0);
     }
 
-    public void testFromJson_withNonDefaultBoost_inIncludeQuery() {
+    public void testFromJsonWithNonDefaultBoostInIncludeQuery() {
         String json =
                 "{\n" +
                 "  \"span_not\" : {\n" +
@@ -259,7 +259,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
     }
 
 
-    public void testFromJson_withNonDefaultBoost_inExcludeQuery() {
+    public void testFromJsonWithNonDefaultBoostInExcludeQuery() {
         String json =
                 "{\n" +
                 "  \"span_not\" : {\n" +

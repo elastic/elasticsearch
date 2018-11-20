@@ -94,7 +94,7 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
         assertEquals(json, 2.0, parsed.boost(), 0.0);
     }
 
-    public void testFromJson_withNonDefaultBoost_inBigQuery() {
+    public void testFromJsonWithNonDefaultBoostInBigQuery() {
         String json =
                 "{\n" +
                 "  \"span_within\" : {\n" +
@@ -137,7 +137,7 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
             equalTo("span_within [big] as a nested span clause can't have non-default boost value [2.0]"));
     }
 
-    public void testFromJson_withNonDefaultBoost_inLittleQuery() {
+    public void testFromJsonWithNonDefaultBoostInLittleQuery() {
         String json =
                 "{\n" +
                 "  \"span_within\" : {\n" +

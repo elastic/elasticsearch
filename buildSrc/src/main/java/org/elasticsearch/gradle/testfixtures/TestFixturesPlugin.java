@@ -33,11 +33,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Collections;
 
-/**
- * Opinionated plugin dealing with docker-compose based fixtures.
- * <p>
- * The plugin can be applied to both projects defining and using the fixtures.
- */
 public class TestFixturesPlugin implements Plugin<Project> {
 
     static final String DOCKER_COMPOSE_YML = "docker-compose.yml";
@@ -45,6 +40,24 @@ public class TestFixturesPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         TaskContainer tasks = project.getTasks();
+
+        TestFixtureExtension extension = project.getExtensions().create(
+            "testFixtures", TestFixtureExtension.class, project
+        );
+
+        // Don't look for docker-compose on the PATH yet that would pick up on Windows as well
+        if (project.file("/usr/local/bin/docker-compose").exists() == false &&
+            project.file("/usr/bin/docker-compose").exists() == false
+        ) {
+            project.getLogger().warn(
+                "Tests require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
+                    "but none could not be found so these will be skipped"
+            );
+            tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
+                task.setEnabled(false)
+            );
+            return;
+        }
 
         if (project.file(DOCKER_COMPOSE_YML).exists()) {
             project.apply(spec -> spec.plugin(BasePlugin.class));
@@ -57,20 +70,17 @@ public class TestFixturesPlugin implements Plugin<Project> {
                     "/usr/local/bin/docker-compose" : "/usr/bin/docker-compose"
             );
 
-
             project.getTasks().getByName("clean").dependsOn("composeDown");
 
+            // convenience boilerplate with build plugin
             project.getPluginManager().withPlugin("elasticsearch.build", (appliedPlugin) -> {
-                // Can't reference tasks that are implemented in Groovy
+                // Can't reference tasks that are implemented in Groovy, use reflection  instead
                 disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.precommit.LicenseHeadersTask"));
                 disableTaskByType(tasks, getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"));
                 disableTaskByType(tasks, ThirdPartyAuditTask.class);
                 disableTaskByType(tasks, JarHellTask.class);
             });
         } else {
-            TestFixtureExtension extension = project.getExtensions().create(
-                "testFixtures", TestFixtureExtension.class, project
-            );
             tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
                 extension.fixtures.all(fixtureProject -> {
                     task.dependsOn(fixtureProject.getTasks().getByName("composeUp"));

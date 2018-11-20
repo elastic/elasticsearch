@@ -213,6 +213,11 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
      */
     public abstract T buildS4J();
 
+    /** build lucene geometry.
+     * return types include:
+     * GeoPoint, double[][], Line, Line[], Polygon, Polygon[], Rectangle, Object[]
+     * @return
+     */
     public abstract Object buildLucene();
 
     protected static Coordinate shift(Coordinate coordinate, double dateline) {

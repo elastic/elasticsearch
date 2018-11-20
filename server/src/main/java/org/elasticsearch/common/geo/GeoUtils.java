@@ -234,8 +234,9 @@ public class GeoUtils {
      */
     public static double normalizeLon(double lon) {
         if (lon > 180d || lon <= -180d) {
-            return centeredModulus(lon, 360);
+            lon = centeredModulus(lon, 360);
         }
+        // avoid -0.0
         return lon + 0d;
     }
 
@@ -261,6 +262,7 @@ public class GeoUtils {
                 lat = 180 - lat;
             }
         }
+        // avoid -0.0
         return lat + 0d;
     }
 

@@ -51,6 +51,8 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final String NODE_EXTENSION_NAME = "testClusters";
     static final String HELPER_CONFIGURATION_NAME = "testclusters";
     private static final String SYNC_ARTIFACTS_TASK_NAME = "syncTestClustersArtifacts";
+    private static final int EXECUTOR_SHUTDOWN_TIMEOUT = 1;
+    private static final TimeUnit EXECUTOR_SHUTDOWN_TIMEOUT_UNIT = TimeUnit.MINUTES;
 
     private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
 
@@ -317,7 +319,12 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static void shutdownExecutorService() {
         executorService.shutdownNow();
         try {
-            executorService.awaitTermination(1, TimeUnit.MINUTES);
+            if (executorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT, EXECUTOR_SHUTDOWN_TIMEOUT_UNIT) == false) {
+                throw new IllegalStateException(
+                    "Failed to shut down executor service after " +
+                    EXECUTOR_SHUTDOWN_TIMEOUT + " " + EXECUTOR_SHUTDOWN_TIMEOUT_UNIT
+                );
+            }
         } catch (InterruptedException e) {
             logger.info("Wait for testclusters shutdown interrupted", e);
             Thread.currentThread().interrupt();

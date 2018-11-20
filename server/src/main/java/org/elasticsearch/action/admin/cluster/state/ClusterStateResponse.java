@@ -100,7 +100,8 @@ public class ClusterStateResponse extends ActionResponse {
             // at which point the correct cluster state size will always be reported
             totalCompressedSize = new ByteSizeValue(0L);
         }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+        // TODO: change version to V_6_6_0 after backporting:
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             timedOut = in.readBoolean();
         }
     }
@@ -117,7 +118,8 @@ public class ClusterStateResponse extends ActionResponse {
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             totalCompressedSize.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+        // TODO: change version to V_6_6_0 after backporting:
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeBoolean(timedOut);
         }
     }

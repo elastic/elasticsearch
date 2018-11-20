@@ -90,8 +90,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         @Override
         protected boolean needsSourceDocumentVersions() {
             /*
-             * We always need the version of the source document so we can report a version conflict if we try to delete it and it has been
-             * changed.
+             * We always need the version of the source document so we can report a version conflict if we try to delete it and it has
+             * been changed.
              */
             return true;
         }

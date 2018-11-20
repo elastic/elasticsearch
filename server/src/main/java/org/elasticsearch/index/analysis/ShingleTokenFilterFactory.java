@@ -51,8 +51,8 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
                         + " must be less than or equal to: [" + maxAllowedShingleDiff + "] but was [" + shingleDiff + "]. This limit"
                         + " can be set by changing the [" + IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey() + "] index level setting.");
             } else {
-                deprecationLogger.deprecated("Deprecated big difference between maxShingleSize and minShingleSize in Shingle TokenFilter,"
-                    + "expected difference must be less than or equal to: [" + maxAllowedShingleDiff + "]");
+                deprecationLogger.deprecated("Deprecated big difference between maxShingleSize and minShingleSize" +
+                    " in Shingle TokenFilter, expected difference must be less than or equal to: [" + maxAllowedShingleDiff + "]");
             }
         }
 
@@ -101,7 +101,13 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
         private final String name;
 
-        Factory(String name, int minShingleSize, int maxShingleSize, boolean outputUnigrams, boolean outputUnigramsIfNoShingles, String tokenSeparator, String fillerToken) {
+        public Factory(String name) {
+            this(name, ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE, ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE, true,
+                false, ShingleFilter.DEFAULT_TOKEN_SEPARATOR, ShingleFilter.DEFAULT_FILLER_TOKEN);
+        }
+
+        Factory(String name, int minShingleSize, int maxShingleSize, boolean outputUnigrams, boolean outputUnigramsIfNoShingles,
+                    String tokenSeparator, String fillerToken) {
             this.maxShingleSize = maxShingleSize;
             this.outputUnigrams = outputUnigrams;
             this.outputUnigramsIfNoShingles = outputUnigramsIfNoShingles;

@@ -13,7 +13,7 @@ Delete auto-follow patterns.
 ==== Description
 
 This API deletes a configured collection of
-<<ccr-auto-follow,auto-follow patterns>>.
+{stack-ov}/ccr-auto-follow.html[auto-follow patterns].
 
 ==== Request
 

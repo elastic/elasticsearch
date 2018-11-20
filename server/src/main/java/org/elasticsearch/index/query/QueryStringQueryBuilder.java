@@ -388,22 +388,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * This setting is ignored
-     */
-    @Deprecated
-    public QueryStringQueryBuilder autoGeneratePhraseQueries(boolean autoGeneratePhraseQueries) {
-        return this;
-    }
-
-    /**
-     * This setting is ignored
-     */
-    @Deprecated
-    public boolean autoGeneratePhraseQueries() {
-        return false;
-    }
-
-    /**
      * Protects against too-difficult regular expression queries.
      */
     public QueryStringQueryBuilder maxDeterminizedStates(int maxDeterminizedStates) {

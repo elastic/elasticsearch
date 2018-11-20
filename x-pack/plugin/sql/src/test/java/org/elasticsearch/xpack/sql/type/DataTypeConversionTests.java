@@ -79,6 +79,7 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals("cannot cast [0xff] to [Long]", e.getMessage());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35683")
     public void testConversionToDate() {
         DataType to = DATE;
         {

@@ -150,8 +150,9 @@ Default value provided below in [brackets].
 
 === Load balancing and caches.
 
-By default the tests run on up to 4 JVMs based on the number of cores. If you
-want to explicitly specify the number of JVMs you can do so on the command
+By default the tests run on multiple processes using all the available cores on all 
+available CPUs. Not including hyper-threading.
+If you want to explicitly specify the number of JVMs you can do so on the command
 line:
 
 ----------------------------

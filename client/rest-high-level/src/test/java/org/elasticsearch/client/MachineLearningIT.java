@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
@@ -52,8 +53,12 @@ import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
+import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
+import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
+import org.elasticsearch.client.ml.PostCalendarEventRequest;
+import org.elasticsearch.client.ml.PostCalendarEventResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
@@ -74,8 +79,12 @@ import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotResponse;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
+import org.elasticsearch.client.ml.calendars.ScheduledEvent;
+import org.elasticsearch.client.ml.calendars.ScheduledEventTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedState;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
@@ -847,6 +856,29 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(putCalendarResponse.getCalendar().getJobIds(), containsInAnyOrder(jobId1, jobId2, "put-calendar-job-0"));
     }
 
+    public void testDeleteCalendarJob() throws IOException {
+        Calendar calendar = new Calendar("del-calendar-job-id",
+            Arrays.asList("del-calendar-job-0", "del-calendar-job-1", "del-calendar-job-2"),
+            null);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        PutCalendarResponse putCalendarResponse =
+            machineLearningClient.putCalendar(new PutCalendarRequest(calendar), RequestOptions.DEFAULT);
+
+        assertThat(putCalendarResponse.getCalendar().getJobIds(),
+            containsInAnyOrder("del-calendar-job-0", "del-calendar-job-1", "del-calendar-job-2"));
+
+        String jobId1 = "del-calendar-job-0";
+        String jobId2 = "del-calendar-job-2";
+
+        DeleteCalendarJobRequest deleteCalendarJobRequest = new DeleteCalendarJobRequest(calendar.getId(), jobId1, jobId2);
+
+        putCalendarResponse = execute(deleteCalendarJobRequest,
+            machineLearningClient::deleteCalendarJob,
+            machineLearningClient::deleteCalendarJobAsync);
+
+        assertThat(putCalendarResponse.getCalendar().getJobIds(), containsInAnyOrder("del-calendar-job-1"));
+    }
+
     public void testGetCalendars() throws Exception {
         Calendar calendar1 = CalendarTests.testInstance();
         Calendar calendar2 = CalendarTests.testInstance();
@@ -887,6 +919,24 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 () -> execute(new DeleteCalendarRequest(calendar.getId()), machineLearningClient::deleteCalendar,
                         machineLearningClient::deleteCalendarAsync));
         assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    public void testPostCalendarEvent() throws Exception {
+        Calendar calendar = CalendarTests.testInstance();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putCalendar(new PutCalendarRequest(calendar), RequestOptions.DEFAULT);
+
+        List<ScheduledEvent> events = new ArrayList<>(3);
+        for (int i = 0; i < 3; i++) {
+            events.add(ScheduledEventTests.testInstance(calendar.getId(), null));
+        }
+
+        PostCalendarEventRequest postCalendarEventRequest = new PostCalendarEventRequest(calendar.getId(), events);
+
+        PostCalendarEventResponse postCalendarEventResponse = execute(postCalendarEventRequest,
+            machineLearningClient::postCalendarEvent,
+            machineLearningClient::postCalendarEventAsync);
+        assertThat(postCalendarEventResponse.getScheduledEvents(), containsInAnyOrder(events.toArray()));
     }
 
     public void testPutFilter() throws Exception {
@@ -1047,10 +1097,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     public void createModelSnapshot(String jobId, String snapshotId) throws IOException {
+        String documentId = jobId + "_model_snapshot_" + snapshotId;
         Job job = MachineLearningIT.buildJob(jobId);
         highLevelClient().machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc", documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
             "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -1078,5 +1129,41 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 machineLearningClient::deleteModelSnapshotAsync);
 
         assertTrue(response.isAcknowledged());
+    }
+
+    public void testUpdateModelSnapshot() throws Exception {
+        String jobId = "test-update-model-snapshot";
+
+        String snapshotId = "1541587919";
+        createModelSnapshot(jobId, snapshotId);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        GetModelSnapshotsRequest getModelSnapshotsRequest = new GetModelSnapshotsRequest(jobId);
+
+        GetModelSnapshotsResponse getModelSnapshotsResponse1 = execute(getModelSnapshotsRequest, machineLearningClient::getModelSnapshots,
+            machineLearningClient::getModelSnapshotsAsync);
+
+        assertEquals(getModelSnapshotsResponse1.count(), 1L);
+        assertEquals("State persisted due to job close at 2018-11-07T10:51:59+0000",
+            getModelSnapshotsResponse1.snapshots().get(0).getDescription());
+
+        UpdateModelSnapshotRequest request = new UpdateModelSnapshotRequest(jobId, snapshotId);
+        request.setDescription("Updated description");
+        request.setRetain(true);
+
+        UpdateModelSnapshotResponse response = execute(request, machineLearningClient::updateModelSnapshot,
+            machineLearningClient::updateModelSnapshotAsync);
+
+        assertTrue(response.getAcknowledged());
+        assertEquals("Updated description", response.getModel().getDescription());
+        assertTrue(response.getModel().getRetain());
+
+        GetModelSnapshotsResponse getModelSnapshotsResponse2 = execute(getModelSnapshotsRequest, machineLearningClient::getModelSnapshots,
+            machineLearningClient::getModelSnapshotsAsync);
+
+        assertEquals(getModelSnapshotsResponse2.count(), 1L);
+        assertEquals("Updated description",
+            getModelSnapshotsResponse2.snapshots().get(0).getDescription());
     }
 }

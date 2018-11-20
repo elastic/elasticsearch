@@ -64,7 +64,7 @@ public class GetCalendarEventsRequest extends ActionRequest implements ToXConten
      *                   Can be `_all` to get ALL ScheduledEvents for all calendars.
      */
     public GetCalendarEventsRequest(String calendarId) {
-        this.calendarId = calendarId;
+        this.calendarId = Objects.requireNonNull(calendarId, "[calendar_id] must not be null.");
     }
 
     public String getCalendarId() {
@@ -161,6 +161,7 @@ public class GetCalendarEventsRequest extends ActionRequest implements ToXConten
         }
         GetCalendarEventsRequest other = (GetCalendarEventsRequest) obj;
         return Objects.equals(calendarId, other.calendarId)
+            && Objects.equals(pageParams, other.pageParams)
             && Objects.equals(start, other.start)
             && Objects.equals(end, other.end)
             && Objects.equals(jobId, other.jobId);

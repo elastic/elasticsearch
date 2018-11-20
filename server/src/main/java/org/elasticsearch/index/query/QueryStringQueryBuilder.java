@@ -586,22 +586,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return this.escape;
     }
 
-    /**
-     * This setting is ignored, this query parser splits on operator only.
-     */
-    @Deprecated
-    public QueryStringQueryBuilder splitOnWhitespace(boolean value) {
-        return this;
-    }
-
-    /**
-     * This setting is ignored, this query parser splits on operator only.
-     */
-    @Deprecated
-    public boolean splitOnWhitespace() {
-        return false;
-    }
-
     public QueryStringQueryBuilder autoGenerateSynonymsPhraseQuery(boolean value) {
         this.autoGenerateSynonymsPhraseQuery = value;
         return this;

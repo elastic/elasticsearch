@@ -47,6 +47,7 @@ import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
+import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
@@ -56,6 +57,7 @@ import org.elasticsearch.client.ml.StartDatafeedRequestTests;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
@@ -421,6 +423,22 @@ public class MLRequestConvertersTests extends ESTestCase {
         }
     }
 
+    public void testUpdateModelSnapshot() throws IOException {
+        String jobId = randomAlphaOfLength(10);
+        String snapshotId = randomAlphaOfLength(10);
+        UpdateModelSnapshotRequest updateModelSnapshotRequest = new UpdateModelSnapshotRequest(jobId, snapshotId);
+        updateModelSnapshotRequest.setDescription("My First Snapshot");
+        updateModelSnapshotRequest.setRetain(true);
+
+        Request request = MLRequestConverters.updateModelSnapshot(updateModelSnapshotRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId + "/_update", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            UpdateModelSnapshotRequest parsedRequest = UpdateModelSnapshotRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(updateModelSnapshotRequest));
+        }
+    }
+
     public void testGetOverallBuckets() throws IOException {
         String jobId = randomAlphaOfLength(10);
         GetOverallBucketsRequest getOverallBucketsRequest = new GetOverallBucketsRequest(jobId);
@@ -516,6 +534,16 @@ public class MLRequestConvertersTests extends ESTestCase {
             Calendar parsedCalendar = Calendar.PARSER.apply(parser, null);
             assertThat(parsedCalendar, equalTo(putCalendarRequest.getCalendar()));
         }
+    }
+
+    public void testPutCalendarJob() throws IOException {
+        String calendarId = randomAlphaOfLength(10);
+        String job1 = randomAlphaOfLength(5);
+        String job2 = randomAlphaOfLength(5);
+        PutCalendarJobRequest putCalendarJobRequest = new PutCalendarJobRequest(calendarId, job1, job2);
+        Request request = MLRequestConverters.putCalendarJob(putCalendarJobRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/calendars/" + calendarId + "/jobs/" + job1 + "," + job2, request.getEndpoint());
     }
 
     public void testGetCalendars() throws IOException {

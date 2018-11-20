@@ -63,6 +63,7 @@ import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedResponse;
+import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
@@ -78,6 +79,8 @@ import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotResponse;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 
 import java.io.IOException;
@@ -984,6 +987,47 @@ public final class MachineLearningClient {
     }
 
     /**
+     * Updates a snapshot for a Machine Learning Job.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-snapshot.html">
+     * ML UPDATE model snapshots documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public UpdateModelSnapshotResponse updateModelSnapshot(UpdateModelSnapshotRequest request,
+                                                             RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::updateModelSnapshot,
+            options,
+            UpdateModelSnapshotResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Updates a snapshot for a Machine Learning Job, notifies listener once the requested snapshots are retrieved.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-snapshot.html">
+     * ML UPDATE model snapshots documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void updateModelSnapshotAsync(UpdateModelSnapshotRequest request, RequestOptions options,
+                                       ActionListener<UpdateModelSnapshotResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::updateModelSnapshot,
+            options,
+            UpdateModelSnapshotResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
      * Gets overall buckets for a set of Machine Learning Jobs.
      * <p>
      * For additional info
@@ -1216,6 +1260,47 @@ public final class MachineLearningClient {
                 listener,
                 Collections.emptySet());
     }
+
+    /**
+     * Adds Machine Learning Job(s) to a calendar
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar-job.html">
+     * ML Put calendar job documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The {@link PutCalendarResponse} containing the updated calendar
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutCalendarResponse putCalendarJob(PutCalendarJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::putCalendarJob,
+            options,
+            PutCalendarResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Adds Machine Learning Job(s) to a calendar, notifies listener when completed
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar-job.html">
+     * ML Put calendar job documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void putCalendarJobAsync(PutCalendarJobRequest request, RequestOptions options, ActionListener<PutCalendarResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::putCalendarJob,
+            options,
+            PutCalendarResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
 
     /**
      * Deletes the given Machine Learning Calendar

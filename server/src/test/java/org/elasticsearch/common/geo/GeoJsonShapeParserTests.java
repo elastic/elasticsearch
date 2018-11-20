@@ -40,6 +40,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.LinearRing;
 import org.locationtech.jts.geom.MultiLineString;
+import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
@@ -1062,10 +1063,38 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                             .field("type", "Point")
                             .startArray("coordinates").value(102.0).value(2.0).endArray()
                         .endObject()
+                        .startObject()
+                            .field("type", "Polygon")
+                            .startArray("coordinates")
+                                .startArray()
+                                    .startArray().value(-177.0).value(10.0).endArray()
+                                    .startArray().value(176.0).value(15.0).endArray()
+                                    .startArray().value(172.0).value(0.0).endArray()
+                                    .startArray().value(176.0).value(-15.0).endArray()
+                                    .startArray().value(-177.0).value(-10.0).endArray()
+                                    .startArray().value(-177.0).value(10.0).endArray()
+                                .endArray()
+                            .endArray()
+                        .endObject()
                     .endArray()
                 .endObject();
 
-        Shape[] expected = new Shape[2];
+        ArrayList<Coordinate> shellCoordinates1 = new ArrayList<>();
+        shellCoordinates1.add(new Coordinate(180.0, -12.142857142857142));
+        shellCoordinates1.add(new Coordinate(180.0, 12.142857142857142));
+        shellCoordinates1.add(new Coordinate(176.0, 15.0));
+        shellCoordinates1.add(new Coordinate(172.0, 0.0));
+        shellCoordinates1.add(new Coordinate(176.0, -15));
+        shellCoordinates1.add(new Coordinate(180.0, -12.142857142857142));
+
+        ArrayList<Coordinate> shellCoordinates2 = new ArrayList<>();
+        shellCoordinates2.add(new Coordinate(-180.0, 12.142857142857142));
+        shellCoordinates2.add(new Coordinate(-180.0, -12.142857142857142));
+        shellCoordinates2.add(new Coordinate(-177.0, -10.0));
+        shellCoordinates2.add(new Coordinate(-177.0, 10.0));
+        shellCoordinates2.add(new Coordinate(-180.0, 12.142857142857142));
+
+        Shape[] expected = new Shape[3];
         LineString expectedLineString = GEOMETRY_FACTORY.createLineString(new Coordinate[]{
             new Coordinate(100, 0),
             new Coordinate(101, 1),
@@ -1073,13 +1102,34 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         expected[0] = jtsGeom(expectedLineString);
         Point expectedPoint = GEOMETRY_FACTORY.createPoint(new Coordinate(102.0, 2.0));
         expected[1] = new JtsPoint(expectedPoint, SPATIAL_CONTEXT);
+        LinearRing shell1 = GEOMETRY_FACTORY.createLinearRing(
+            shellCoordinates1.toArray(new Coordinate[shellCoordinates1.size()]));
+        LinearRing shell2 = GEOMETRY_FACTORY.createLinearRing(
+            shellCoordinates2.toArray(new Coordinate[shellCoordinates2.size()]));
+        MultiPolygon expectedMultiPoly = GEOMETRY_FACTORY.createMultiPolygon(
+          new Polygon[] {
+              GEOMETRY_FACTORY.createPolygon(shell1),
+              GEOMETRY_FACTORY.createPolygon(shell2)
+          }
+        );
+        expected[2] = jtsGeom(expectedMultiPoly);
+
 
         //equals returns true only if geometries are in the same order
         assertGeometryEquals(shapeCollection(expected), geometryCollectionGeoJson, true);
 
         Object[] luceneExpected = new Object[] {
             new Line(new double[] {0d, 1d}, new double[] {100d, 101d}),
-            new GeoPoint(2d, 102d)};
+            new GeoPoint(2d, 102d),
+            new org.apache.lucene.geo.Polygon(
+                new double[] {-12.142857142857142d, 12.142857142857142d, 15d, 0d, -15d, -12.142857142857142d},
+                new double[] {180d, 180d, 176d, 172d, 176d, 180d}
+            ),
+            new org.apache.lucene.geo.Polygon(
+                new double[] {12.142857142857142d, -12.142857142857142d, -10d, 10d, 12.142857142857142d},
+                new double[] {180d, 180d, -177d, -177d, 180d}
+            )
+        };
         assertGeometryEquals(luceneExpected, geometryCollectionGeoJson, false);
     }
 

@@ -191,7 +191,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
         for (ShapeBuilder shape : this.shapes) {
             Object o = shape.buildLucene();
             if (o.getClass().isArray()) {
-                shapes.addAll(Arrays.asList(o));
+                shapes.addAll(Arrays.asList((Object[])o));
             } else {
                 shapes.add(o);
             }

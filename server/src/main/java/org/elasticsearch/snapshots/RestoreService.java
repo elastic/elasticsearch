@@ -300,7 +300,8 @@ public class RestoreService implements ClusterStateApplier {
                                 createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings(),
                                     currentState, false);
                                 Settings.Builder indexSettingsBuilder = Settings.builder().put(snapshotIndexMetaData.getSettings());
-                                if (snapshotIndexMetaData.getSettings().hasValue(IndexMetaData.SETTING_INDEX_UUID) == false) {
+                                // If a specific UUID is specified, used that UUID
+                                if (request.indexSettings.hasValue(IndexMetaData.SETTING_INDEX_UUID) == false) {
                                     indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
                                 }
 

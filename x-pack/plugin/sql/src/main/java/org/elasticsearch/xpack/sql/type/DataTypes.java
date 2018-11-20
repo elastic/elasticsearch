@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
-import org.joda.time.DateTime;
+import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
 
 public final class DataTypes {
 
@@ -46,7 +47,7 @@ public final class DataTypes {
         if (value instanceof Short) {
             return DataType.SHORT;
         }
-        if (value instanceof DateTime) {
+        if (value instanceof ZonedDateTime || value instanceof OffsetDateTime) {
             return DataType.DATE;
         }
         if (value instanceof String || value instanceof Character) {

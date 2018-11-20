@@ -16,9 +16,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
 import java.util.List;
@@ -166,11 +165,16 @@ public class FieldHitExtractor implements HitExtractor {
         if (values instanceof Map) {
             throw new SqlIllegalArgumentException("Objects (returned by [{}]) are not supported", fieldName);
         }
-        if (values instanceof String && dataType == DataType.DATE) {
-            return new DateTime(Long.parseLong(values.toString()), DateTimeZone.UTC);
+        if (dataType == DataType.DATE) {
+            if (values instanceof String) {
+                return DateUtils.of(Long.parseLong(values.toString()));
+            }
+            // returned by nested types...
+            if (values instanceof DateTime) {
+                return DateUtils.of((DateTime) values);
+            }
         }
-        if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean
-                || values instanceof ReadableDateTime) {
+        if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean) {
             return values;
         }
         throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);

@@ -24,6 +24,7 @@ Multi-document APIs::
 * <<{upid}-update-by-query>>
 * <<{upid}-delete-by-query>>
 * <<{upid}-rethrottle>>
+* <<{upid}-multi-term-vectors>>
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
@@ -37,6 +38,8 @@ include::document/reindex.asciidoc[]
 include::document/update-by-query.asciidoc[]
 include::document/delete-by-query.asciidoc[]
 include::document/rethrottle.asciidoc[]
+include::document/multi-term-vectors.asciidoc[]
+
 
 == Search APIs
 
@@ -263,12 +266,17 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-get-categories>>
 * <<{upid}-get-calendars>>
 * <<{upid}-put-calendar>>
+* <<{upid}-post-calendar-event>>
+* <<{upid}-put-calendar-job>>
+* <<{upid}-delete-calendar-job>>
 * <<{upid}-delete-calendar>>
 * <<{upid}-put-filter>>
-* <<{upid}-get-model-snapshots>>
 * <<{upid}-get-filters>>
 * <<{upid}-delete-model-snapshot>>
 * <<{upid}-update-filter>>
+* <<{upid}-delete-filter>>
+* <<{upid}-get-model-snapshots>>
+* <<{upid}-update-model-snapshot>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -296,12 +304,17 @@ include::ml/get-influencers.asciidoc[]
 include::ml/get-categories.asciidoc[]
 include::ml/get-calendars.asciidoc[]
 include::ml/put-calendar.asciidoc[]
+include::ml/post-calendar-event.asciidoc[]
+include::ml/put-calendar-job.asciidoc[]
+include::ml/delete-calendar-job.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
 include::ml/put-filter.asciidoc[]
 include::ml/get-model-snapshots.asciidoc[]
 include::ml/get-filters.asciidoc[]
 include::ml/delete-model-snapshot.asciidoc[]
 include::ml/update-filter.asciidoc[]
+include::ml/delete-filter.asciidoc[]
+include::ml/update-model-snapshot.asciidoc[]
 
 == Migration APIs
 
@@ -444,5 +457,14 @@ The Java High Level REST Client supports the following Index Lifecycle
 Management APIs:
 
 * <<{upid}-ilm-put-lifecycle-policy>>
+* <<{upid}-ilm-get-lifecycle-policy>>
+* <<{upid}-ilm-start-ilm>>
+* <<{upid}-ilm-stop-ilm>>
+* <<{upid}-ilm-status>>
+
 
 include::ilm/put_lifecycle_policy.asciidoc[]
+include::ilm/get_lifecycle_policy.asciidoc[]
+include::ilm/start_lifecycle_management.asciidoc[]
+include::ilm/stop_lifecycle_management.asciidoc[]
+include::ilm/lifecycle_management_status.asciidoc[]

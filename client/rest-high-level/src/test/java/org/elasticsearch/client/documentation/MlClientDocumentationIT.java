@@ -35,8 +35,10 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
@@ -71,10 +73,13 @@ import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
+import org.elasticsearch.client.ml.PostCalendarEventRequest;
+import org.elasticsearch.client.ml.PostCalendarEventResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedResponse;
+import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
@@ -90,7 +95,11 @@ import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotResponse;
 import org.elasticsearch.client.ml.calendars.Calendar;
+import org.elasticsearch.client.ml.calendars.ScheduledEvent;
+import org.elasticsearch.client.ml.calendars.ScheduledEventTests;
 import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
@@ -2040,6 +2049,82 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testUpdateModelSnapshot() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-update-model-snapshot";
+        String snapshotId = "1541587919";
+        String documentId = jobId + "_model_snapshot_" + snapshotId;
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a snapshot
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc", documentId);
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"test-update-model-snapshot\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"test-update-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+        client.index(indexRequest, RequestOptions.DEFAULT);
+
+        {
+            // tag::update-model-snapshot-request
+            UpdateModelSnapshotRequest request = new UpdateModelSnapshotRequest(jobId, snapshotId); // <1>
+            // end::update-model-snapshot-request
+
+            // tag::update-model-snapshot-description
+            request.setDescription("My Snapshot"); // <1>
+            // end::update-model-snapshot-description
+
+            // tag::update-model-snapshot-retain
+            request.setRetain(true); // <1>
+            // end::update-model-snapshot-retain
+
+            // tag::update-model-snapshot-execute
+            UpdateModelSnapshotResponse response = client.machineLearning().updateModelSnapshot(request, RequestOptions.DEFAULT);
+            // end::update-model-snapshot-execute
+
+            // tag::update-model-snapshot-response
+            boolean acknowledged = response.getAcknowledged(); // <1>
+            ModelSnapshot modelSnapshot = response.getModel(); // <2>
+            // end::update-model-snapshot-response
+
+            assertTrue(acknowledged);
+            assertEquals("My Snapshot", modelSnapshot.getDescription());        }
+        {
+            UpdateModelSnapshotRequest request = new UpdateModelSnapshotRequest(jobId, snapshotId);
+
+            // tag::update-model-snapshot-execute-listener
+            ActionListener<UpdateModelSnapshotResponse> listener =
+                new ActionListener<UpdateModelSnapshotResponse>() {
+                    @Override
+                    public void onResponse(UpdateModelSnapshotResponse updateModelSnapshotResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::update-model-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::update-model-snapshot-execute-async
+            client.machineLearning().updateModelSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::update-model-snapshot-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testPutCalendar() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -2082,6 +2167,112 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    public void testPutCalendarJob() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays", Collections.singletonList("job_1"), "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        {
+            // tag::put-calendar-job-request
+            PutCalendarJobRequest request = new PutCalendarJobRequest("holidays", // <1>
+                "job_2", "job_group_1"); // <2>
+            // end::put-calendar-job-request
+
+            // tag::put-calendar-job-execute
+            PutCalendarResponse response = client.machineLearning().putCalendarJob(request, RequestOptions.DEFAULT);
+            // end::put-calendar-job-execute
+
+            // tag::put-calendar-job-response
+            Calendar updatedCalendar = response.getCalendar(); // <1>
+            // end::put-calendar-job-response
+
+            assertThat(updatedCalendar.getJobIds(), containsInAnyOrder("job_1", "job_2", "job_group_1"));
+        }
+        {
+            PutCalendarJobRequest request = new PutCalendarJobRequest("holidays", "job_4");
+
+            // tag::put-calendar-job-execute-listener
+            ActionListener<PutCalendarResponse> listener =
+                new ActionListener<PutCalendarResponse>() {
+                    @Override
+                    public void onResponse(PutCalendarResponse putCalendarsResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::put-calendar-job-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-calendar-job-execute-async
+            client.machineLearning().putCalendarJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-calendar-job-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteCalendarJob() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays",
+            Arrays.asList("job_1", "job_group_1", "job_2"),
+            "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        {
+            // tag::delete-calendar-job-request
+            DeleteCalendarJobRequest request = new DeleteCalendarJobRequest("holidays", // <1>
+                "job_1", "job_group_1"); // <2>
+            // end::delete-calendar-job-request
+
+            // tag::delete-calendar-job-execute
+            PutCalendarResponse response = client.machineLearning().deleteCalendarJob(request, RequestOptions.DEFAULT);
+            // end::delete-calendar-job-execute
+
+            // tag::delete-calendar-job-response
+            Calendar updatedCalendar = response.getCalendar(); // <1>
+            // end::delete-calendar-job-response
+
+            assertThat(updatedCalendar.getJobIds(), containsInAnyOrder("job_2"));
+        }
+        {
+            DeleteCalendarJobRequest request = new DeleteCalendarJobRequest("holidays", "job_2");
+
+            // tag::delete-calendar-job-execute-listener
+            ActionListener<PutCalendarResponse> listener =
+                new ActionListener<PutCalendarResponse>() {
+                    @Override
+                    public void onResponse(PutCalendarResponse deleteCalendarsResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::delete-calendar-job-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-calendar-job-execute-async
+            client.machineLearning().deleteCalendarJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-calendar-job-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+    
     public void testGetCalendar() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -2190,6 +2381,61 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    public void testPostCalendarEvent() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays", Collections.singletonList("job_1"), "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        {
+            List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.testInstance(calendar.getId(), null));
+
+            // tag::post-calendar-event-request
+            PostCalendarEventRequest request = new PostCalendarEventRequest("holidays", // <1>
+                events); // <2>
+            // end::post-calendar-event-request
+
+            // tag::post-calendar-event-execute
+            PostCalendarEventResponse response = client.machineLearning().postCalendarEvent(request, RequestOptions.DEFAULT);
+            // end::post-calendar-event-execute
+
+            // tag::post-calendar-event-response
+            List<ScheduledEvent> scheduledEvents = response.getScheduledEvents(); // <1>
+            // end::post-calendar-event-response
+
+            assertEquals(1, scheduledEvents.size());
+        }
+        {
+            List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.testInstance());
+            PostCalendarEventRequest request = new PostCalendarEventRequest("holidays", events); // <1>
+
+            // tag::post-calendar-event-execute-listener
+            ActionListener<PostCalendarEventResponse> listener =
+                new ActionListener<PostCalendarEventResponse>() {
+                    @Override
+                    public void onResponse(PostCalendarEventResponse postCalendarsResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::post-calendar-event-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::post-calendar-event-execute-async
+            client.machineLearning().postCalendarEventAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::post-calendar-event-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+    
     public void testCreateFilter() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -2284,16 +2530,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::get-filters-execute-listener
             ActionListener<GetFiltersResponse> listener = new ActionListener<GetFiltersResponse>() {
-                    @Override
-                    public void onResponse(GetFiltersResponse getfiltersResponse) {
-                        // <1>
-                    }
+                @Override
+                public void onResponse(GetFiltersResponse getfiltersResponse) {
+                    // <1>
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                };
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
             // end::get-filters-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -2368,5 +2614,63 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testDeleteFilter() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        String filterId = createFilter(client);
+
+        {
+            // tag::delete-filter-request
+            DeleteFilterRequest request = new DeleteFilterRequest(filterId); // <1>
+            // end::delete-filter-request
+
+            // tag::delete-filter-execute
+            AcknowledgedResponse response = client.machineLearning().deleteFilter(request, RequestOptions.DEFAULT);
+            // end::delete-filter-execute
+
+            // tag::delete-filter-response
+            boolean isAcknowledged = response.isAcknowledged(); // <1>
+            // end::delete-filter-response
+            assertTrue(isAcknowledged);
+        }
+        filterId = createFilter(client);
+        {
+            DeleteFilterRequest request = new DeleteFilterRequest(filterId);
+            // tag::delete-filter-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-filter-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-filter-execute-async
+            client.machineLearning().deleteFilterAsync(request, RequestOptions.DEFAULT, listener); //<1>
+            // end::delete-filter-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    private String createFilter(RestHighLevelClient client) throws IOException {
+        MlFilter.Builder filterBuilder = MlFilter.builder("my_safe_domains")
+            .setDescription("A list of safe domains")
+            .setItems("*.google.com", "wikipedia.org");
+        PutFilterRequest putFilterRequest = new PutFilterRequest(filterBuilder.build());
+        PutFilterResponse putFilterResponse = client.machineLearning().putFilter(putFilterRequest, RequestOptions.DEFAULT);
+        MlFilter createdFilter = putFilterResponse.getResponse();
+        assertThat(createdFilter.getId(), equalTo("my_safe_domains"));
+        return createdFilter.getId();
     }
 }

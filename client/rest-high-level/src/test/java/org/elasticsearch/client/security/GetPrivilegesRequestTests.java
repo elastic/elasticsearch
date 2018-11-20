@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 

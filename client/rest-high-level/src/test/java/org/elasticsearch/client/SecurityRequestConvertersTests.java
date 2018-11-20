@@ -273,7 +273,8 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         GetPrivilegesRequest getPrivilegesRequest = new GetPrivilegesRequest(application, privilegeNames);
         Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/privilege/" + application + "/" + Strings.arrayToCommaDelimitedString(privilegeNames), request.getEndpoint());
+        assertEquals("/_xpack/security/privilege/" + application + "/" + Strings.arrayToCommaDelimitedString(privilegeNames),
+            request.getEndpoint());
         assertEquals(Collections.emptyMap(), request.getParameters());
         assertNull(request.getEntity());
     }

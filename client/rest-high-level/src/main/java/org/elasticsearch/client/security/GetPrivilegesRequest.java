@@ -46,7 +46,7 @@ public final class GetPrivilegesRequest implements Validatable {
      * Constructs a {@link GetPrivilegesRequest} to request all the privileges defined for all applications
      */
     public static GetPrivilegesRequest getAllPrivileges() {
-        return new GetPrivilegesRequest(null, null);
+        return new GetPrivilegesRequest(null);
     }
 
     /**
@@ -58,7 +58,7 @@ public final class GetPrivilegesRequest implements Validatable {
         if (Strings.isNullOrEmpty(applicationName)) {
             throw new IllegalArgumentException("application name is required");
         }
-        return new GetPrivilegesRequest(applicationName, null);
+        return new GetPrivilegesRequest(applicationName);
     }
 
     /**

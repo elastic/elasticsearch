@@ -33,6 +33,8 @@ pertain to invalidating a token:
 `refresh_token` (optional)::
 (string) A refresh token. This parameter cannot be used when `token` is used.
 
+NOTE: One of `token` or `refresh_token` parameters is required.
+
 ==== Examples
 
 The following example invalidates the specified token immediately:

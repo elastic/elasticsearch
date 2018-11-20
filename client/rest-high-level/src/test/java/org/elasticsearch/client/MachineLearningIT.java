@@ -117,7 +117,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
@@ -994,17 +996,24 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             events.add(ScheduledEventTests.testInstance(calendar.getId(), null));
         }
 
-        PostCalendarEventResponse postCalendarEventResponse =
-            machineLearningClient.postCalendarEvent(new PostCalendarEventRequest(calendar.getId(), events), RequestOptions.DEFAULT);
-
-        DeleteCalendarEventRequest deleteCalendarEventRequest =
-            new DeleteCalendarEventRequest(calendar.getId(), postCalendarEventResponse.getScheduledEvents().get(0).getEventId());
+        machineLearningClient.postCalendarEvent(new PostCalendarEventRequest(calendar.getId(), events), RequestOptions.DEFAULT);
+        GetCalendarEventsResponse getCalendarEventsResponse =
+            machineLearningClient.getCalendarEvents(new GetCalendarEventsRequest(calendar.getId()), RequestOptions.DEFAULT);
+        assertThat(getCalendarEventsResponse.events().size(), equalTo(3));
+        String deletedEvent = getCalendarEventsResponse.events().get(0).getEventId();
+        DeleteCalendarEventRequest deleteCalendarEventRequest = new DeleteCalendarEventRequest(calendar.getId(), deletedEvent);
 
         AcknowledgedResponse response = execute(deleteCalendarEventRequest,
             machineLearningClient::deleteCalendarEvent,
             machineLearningClient::deleteCalendarEventAsync);
 
         assertThat(response.isAcknowledged(), is(true));
+
+        getCalendarEventsResponse =
+            machineLearningClient.getCalendarEvents(new GetCalendarEventsRequest(calendar.getId()), RequestOptions.DEFAULT);
+        assertThat(getCalendarEventsResponse.events().size(), equalTo(2));
+        assertThat(getCalendarEventsResponse.events().stream().map(ScheduledEvent::getEventId).collect(Collectors.toList()),
+            not(hasItem(deletedEvent)));
     }
 
     public void testPutFilter() throws Exception {

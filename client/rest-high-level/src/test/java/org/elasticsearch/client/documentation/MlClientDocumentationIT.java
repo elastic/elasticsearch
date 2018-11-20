@@ -2522,17 +2522,19 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             "A calendar for public holidays");
         PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
         client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        List<ScheduledEvent> events = Arrays.asList(ScheduledEventTests.testInstance(calendar.getId(), null),
+            ScheduledEventTests.testInstance(calendar.getId(), null));
+        client.machineLearning().postCalendarEvent(new PostCalendarEventRequest("holidays", events), RequestOptions.DEFAULT);
+        GetCalendarEventsResponse getCalendarEventsResponse =
+            client.machineLearning().getCalendarEvents(new GetCalendarEventsRequest("holidays"), RequestOptions.DEFAULT);
         {
-            List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.testInstance(calendar.getId(), null));
-            PostCalendarEventResponse postCalendarEventResponse = 
-                client.machineLearning().postCalendarEvent(new PostCalendarEventRequest("holidays", events), RequestOptions.DEFAULT);
-            
+
             // tag::delete-calendar-event-request
             DeleteCalendarEventRequest request = new DeleteCalendarEventRequest("holidays", // <1>
                 "EventId"); // <2>
             // end::delete-calendar-event-request
 
-            request = new DeleteCalendarEventRequest("holidays", events.get(0).getEventId());
+            request = new DeleteCalendarEventRequest("holidays", getCalendarEventsResponse.events().get(0).getEventId());
 
             // tag::delete-calendar-event-execute
             AcknowledgedResponse response = client.machineLearning().deleteCalendarEvent(request, RequestOptions.DEFAULT);
@@ -2545,10 +2547,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(acknowledged, is(true));
         }
         {
-            List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.testInstance(calendar.getId(), null));
-            PostCalendarEventResponse postCalendarEventResponse =
-                client.machineLearning().postCalendarEvent(new PostCalendarEventRequest("holidays", events), RequestOptions.DEFAULT);
-            DeleteCalendarEventRequest request = new DeleteCalendarEventRequest("holidays", events.get(0).getEventId());
+            DeleteCalendarEventRequest request = new DeleteCalendarEventRequest("holidays",
+                getCalendarEventsResponse.events().get(1).getEventId());
 
             // tag::delete-calendar-event-execute-listener
             ActionListener<AcknowledgedResponse> listener =

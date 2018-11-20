@@ -35,6 +35,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
@@ -2435,7 +2436,71 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-    
+
+    public void testDeleteCalendarEvent() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays",
+            Arrays.asList("job_1", "job_group_1", "job_2"),
+            "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        {
+            List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.testInstance(calendar.getId(), null));
+            PostCalendarEventResponse postCalendarEventResponse = 
+                client.machineLearning().postCalendarEvent(new PostCalendarEventRequest("holidays", events), RequestOptions.DEFAULT);
+            
+            // tag::delete-calendar-event-request
+            DeleteCalendarEventRequest request = new DeleteCalendarEventRequest("holidays", // <1>
+                "EventId"); // <2>
+            // end::delete-calendar-event-request
+
+            request = new DeleteCalendarEventRequest("holidays", events.get(0).getEventId());
+
+            // tag::delete-calendar-event-execute
+            AcknowledgedResponse response = client.machineLearning().deleteCalendarEvent(request, RequestOptions.DEFAULT);
+            // end::delete-calendar-event-execute
+
+            // tag::delete-calendar-event-response
+            boolean acknowledged = response.isAcknowledged(); // <1>
+            // end::delete-calendar-event-response
+
+            assertThat(acknowledged, is(true));
+        }
+        {
+            List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.testInstance(calendar.getId(), null));
+            PostCalendarEventResponse postCalendarEventResponse =
+                client.machineLearning().postCalendarEvent(new PostCalendarEventRequest("holidays", events), RequestOptions.DEFAULT);
+            DeleteCalendarEventRequest request = new DeleteCalendarEventRequest("holidays", events.get(0).getEventId());
+
+            // tag::delete-calendar-event-execute-listener
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse deleteCalendarEventResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::delete-calendar-event-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-calendar-event-execute-async
+            client.machineLearning().deleteCalendarEventAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-calendar-event-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+
     public void testCreateFilter() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {

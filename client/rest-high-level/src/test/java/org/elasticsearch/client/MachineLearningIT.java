@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
@@ -937,6 +938,29 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             machineLearningClient::postCalendarEvent,
             machineLearningClient::postCalendarEventAsync);
         assertThat(postCalendarEventResponse.getScheduledEvents(), containsInAnyOrder(events.toArray()));
+    }
+
+    public void testDeleteCalendarEvent() throws IOException {
+        Calendar calendar = CalendarTests.testInstance();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putCalendar(new PutCalendarRequest(calendar), RequestOptions.DEFAULT);
+
+        List<ScheduledEvent> events = new ArrayList<>(3);
+        for (int i = 0; i < 3; i++) {
+            events.add(ScheduledEventTests.testInstance(calendar.getId(), null));
+        }
+
+        PostCalendarEventResponse postCalendarEventResponse =
+            machineLearningClient.postCalendarEvent(new PostCalendarEventRequest(calendar.getId(), events), RequestOptions.DEFAULT);
+
+        DeleteCalendarEventRequest deleteCalendarEventRequest =
+            new DeleteCalendarEventRequest(calendar.getId(), postCalendarEventResponse.getScheduledEvents().get(0).getEventId());
+
+        AcknowledgedResponse response = execute(deleteCalendarEventRequest,
+            machineLearningClient::deleteCalendarEvent,
+            machineLearningClient::deleteCalendarEventAsync);
+
+        assertThat(response.isAcknowledged(), is(true));
     }
 
     public void testPutFilter() throws Exception {

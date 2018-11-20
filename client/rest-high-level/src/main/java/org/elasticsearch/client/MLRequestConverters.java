@@ -28,6 +28,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
@@ -552,6 +553,18 @@ final class MLRequestConverters {
             REQUEST_BODY_CONTENT_TYPE,
             PostCalendarEventRequest.EXCLUDE_CALENDAR_ID_PARAMS));
         return request;
+    }
+
+    static Request deleteCalendarEvent(DeleteCalendarEventRequest deleteCalendarEventRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("calendars")
+            .addPathPart(deleteCalendarEventRequest.getCalendarId())
+            .addPathPartAsIs("events")
+            .addPathPart(deleteCalendarEventRequest.getEventId())
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 
     static Request putFilter(PutFilterRequest putFilterRequest) throws IOException {

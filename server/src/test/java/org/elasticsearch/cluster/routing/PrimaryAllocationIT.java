@@ -217,26 +217,24 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             }
         }
 
-        final AtomicReference<Set<String>> allocationIdsRef = new AtomicReference<>();
+        final Set<String> expectedAllocationIds = useStaleReplica
+            ? Collections.singleton(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID)
+            : Collections.emptySet();
+
         final CountDownLatch clusterStateChangeLatch = new CountDownLatch(1);
-        // grab in-sync set of the 1st cluster state change after reroute execution
         final ClusterStateListener clusterStateListener = event -> {
-            allocationIdsRef.set(event.state().metaData().index(idxName).inSyncAllocationIds(0));
-            clusterStateChangeLatch.countDown();
+            final Set<String> allocationIds = event.state().metaData().index(idxName).inSyncAllocationIds(0);
+            if (expectedAllocationIds.equals(allocationIds)) {
+                clusterStateChangeLatch.countDown();
+            }
         };
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, master);
         clusterService.addListener(clusterStateListener);
 
         rerouteBuilder.get();
 
-        clusterStateChangeLatch.await();
+        assertThat(clusterStateChangeLatch.await(30, TimeUnit.SECONDS), equalTo(true));
         clusterService.removeListener(clusterStateListener);
-
-        Set<String> expectedAllocationIds = useStaleReplica
-            ? Collections.singleton(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID)
-            : Collections.emptySet();
-
-        assertEquals(expectedAllocationIds, allocationIdsRef.get());
 
         logger.info("--> check that the stale primary shard gets allocated and that documents are available");
         ensureYellow(idxName);

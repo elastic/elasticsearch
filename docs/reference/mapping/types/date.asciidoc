@@ -3,7 +3,7 @@
 
 JSON doesn't have a date datatype, so dates in Elasticsearch can either be:
 
-* strings containing formatted dates, e.g. `"2015-01-01"` or `"2015/01/01 12:10:30"`.
+* strings containing formatted dates, e.g. `"2015-01-01"` or `"2015-01-01T12:10:30"`.
 * a long number representing _milliseconds-since-the-epoch_.
 * an integer representing _seconds-since-the-epoch_.
 

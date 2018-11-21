@@ -38,7 +38,9 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
     public void testInternalUser() {
         SecurityContext securityContext = mock(SecurityContext.class);
-        when(securityContext.getUser()).thenReturn(randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE));
+        final Authentication authentication = new Authentication(randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE),
+            new Authentication.RealmRef("native", "default_native", "node1"), null);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         TransportAuthenticateAction action = new TransportAuthenticateAction(transportService,

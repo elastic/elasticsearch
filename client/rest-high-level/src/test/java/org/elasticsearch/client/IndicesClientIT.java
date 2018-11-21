@@ -1377,7 +1377,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         createIndex("test", Settings.EMPTY);
         RestHighLevelClient client = highLevelClient();
 
-        ShardsAcknowledgedResponse freeze = execute(new FreezeIndexRequest("test"), client.indices()::freeze, client.indices()::freezeAsync);
+        ShardsAcknowledgedResponse freeze = execute(new FreezeIndexRequest("test"), client.indices()::freeze,
+            client.indices()::freezeAsync);
         assertTrue(freeze.isShardsAcknowledged());
         assertTrue(freeze.isAcknowledged());
 

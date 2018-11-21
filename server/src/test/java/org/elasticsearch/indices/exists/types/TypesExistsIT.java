@@ -89,7 +89,8 @@ public class TypesExistsIT extends ESIntegTestCase {
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
             try {
                 enableIndexBlock("ro", block);
-                assertThat(client().admin().indices().prepareTypesExists("ro").setTypes("type1").execute().actionGet().isExists(), equalTo(true));
+                assertThat(client().admin().indices().prepareTypesExists("ro").setTypes("type1").execute().actionGet().isExists(),
+                    equalTo(true));
             } finally {
                 disableIndexBlock("ro", block);
             }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -34,7 +35,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -54,7 +54,9 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
  * This class processes incoming join request (passed zia {@link ZenDiscovery}). Incoming nodes
  * are directly added to the cluster state or are accumulated during master election.
  */
-public class NodeJoinController extends AbstractComponent {
+public class NodeJoinController {
+
+    private static final Logger logger = LogManager.getLogger(NodeJoinController.class);
 
     private final MasterService masterService;
     private final JoinTaskExecutor joinTaskExecutor;

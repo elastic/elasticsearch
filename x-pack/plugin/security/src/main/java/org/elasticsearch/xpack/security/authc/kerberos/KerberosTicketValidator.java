@@ -42,11 +42,23 @@ import javax.security.auth.login.LoginException;
  */
 public class KerberosTicketValidator {
     static final Oid SPNEGO_OID = getSpnegoOid();
+    static final Oid KERBEROS_V5_OID = getKerberosOid();
+    static final Oid[] SUPPORTED_OIDS = new Oid[] { SPNEGO_OID, KERBEROS_V5_OID };
 
     private static Oid getSpnegoOid() {
         Oid oid = null;
         try {
             oid = new Oid("1.3.6.1.5.5.2");
+        } catch (GSSException gsse) {
+            throw ExceptionsHelper.convertToRuntime(gsse);
+        }
+        return oid;
+    }
+
+    private static Oid getKerberosOid() {
+        Oid oid = null;
+        try {
+            oid = new Oid("1.2.840.113554.1.2.2");
         } catch (GSSException gsse) {
             throw ExceptionsHelper.convertToRuntime(gsse);
         }
@@ -152,7 +164,7 @@ public class KerberosTicketValidator {
      */
     private static GSSCredential createCredentials(final GSSManager gssManager, final Subject subject) throws PrivilegedActionException {
         return doAsWrapper(subject, (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(null,
-                GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.ACCEPT_ONLY));
+                GSSCredential.DEFAULT_LIFETIME, SUPPORTED_OIDS, GSSCredential.ACCEPT_ONLY));
     }
 
     /**

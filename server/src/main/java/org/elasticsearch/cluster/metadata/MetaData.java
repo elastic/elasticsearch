@@ -1241,7 +1241,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             builder.field("version", metaData.version());
             builder.field("cluster_uuid", metaData.clusterUUID);
 
-            builder.startObject("coordination");
+            builder.startObject("cluster_coordination");
             metaData.coordinationMetaData().toXContent(builder, params);
             builder.endObject();
 

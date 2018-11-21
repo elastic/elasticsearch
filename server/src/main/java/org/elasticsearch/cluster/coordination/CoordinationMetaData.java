@@ -72,7 +72,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
     }
 
     private static final ConstructingObjectParser<CoordinationMetaData, Void> PARSER = new ConstructingObjectParser<>(
-            "coordination",
+            "coordination_metadata",
             termAndConfigs -> new CoordinationMetaData(term(termAndConfigs), lastCommittedConfig(termAndConfigs),
                     lastAcceptedConfig(termAndConfigs), Collections.emptySet()));
     static {

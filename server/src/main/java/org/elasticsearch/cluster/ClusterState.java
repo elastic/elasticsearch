@@ -469,7 +469,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.startObject("metadata");
             builder.field("cluster_uuid", metaData().clusterUUID());
 
-            builder.startObject("coordination");
+            builder.startObject("cluster_coordination");
             coordinationMetaData().toXContent(builder, params);
             builder.endObject();
 

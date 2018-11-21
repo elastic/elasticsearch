@@ -326,7 +326,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
     public void testNotWaitForQuorumCopies() throws Exception {
         logger.info("--> starting 3 nodes");
-        internalCluster().startNodes(3);
+        internalCluster().startNodes(3, Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build()); // needs state recovery
         logger.info("--> creating index with 1 primary and 2 replicas");
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
             .put("index.number_of_shards", randomIntBetween(1, 3)).put("index.number_of_replicas", 2)).get());

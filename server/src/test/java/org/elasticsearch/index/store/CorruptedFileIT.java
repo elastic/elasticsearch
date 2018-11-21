@@ -68,6 +68,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockIndexEventListener;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
@@ -116,6 +117,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             // speed up recoveries
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 5)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 5)
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // no state persistence yet
             .build();
     }
 

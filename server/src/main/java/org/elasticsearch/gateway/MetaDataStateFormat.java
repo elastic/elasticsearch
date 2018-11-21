@@ -114,7 +114,6 @@ public abstract class MetaDataStateFormat<T> {
                         // in order to write the footer we need to prevent closing the actual index input.
                     }
                 })) {
-
                     builder.startObject();
                     toXContent(builder, state);
                     builder.endObject();
@@ -178,19 +177,39 @@ public abstract class MetaDataStateFormat<T> {
     }
 
     /**
+     * Writes the given state to the given directories and performs cleanup of old state files if the write succeeds or
+     * newly created state file if write fails.
+     * See also {@link #write(Object, Path...)} and {@link #cleanupOldFiles(long, Path[])}.
+     */
+    public final long writeAndCleanup(final T state, final Path... locations) throws WriteStateException {
+        return write(state, true, locations);
+    }
+
+    /**
      * Writes the given state to the given directories. The state is written to a
      * state directory ({@value #STATE_DIR_NAME}) underneath each of the given file locations and is created if it
      * doesn't exist. The state is serialized to a temporary file in that directory and is then atomically moved to
      * it's target filename of the pattern {@code {prefix}{version}.st}.
      * If this method returns without exception there is a guarantee that state is persisted to the disk and loadLatestState will return
-     * it.
+     * it.<br>
+     * This method always performs cleanup of temporary files regardless whether it succeeds or fails. Cleanup logic for state files is
+     * more involved.
+     * If this method fails with an exception, it performs cleanup of newly created state file.
+     * But if this method succeeds, it does not perform cleanup of old state files.
+     * If this write succeeds, but some further write fails, you may want to rollback the transaction and keep old file around.
+     * After transaction is finished use {@link #cleanupOldFiles(long, Path[])} for the clean-up.
+     * If this write is not a part of bigger transaction, consider using {@link #writeAndCleanup(Object, Path...)} method instead.
      *
      * @param state     the state object to write
      * @param locations the locations where the state should be written to.
      * @throws WriteStateException if some exception during writing state occurs. See also {@link WriteStateException#isDirty()}.
+     * @return generation of newly written state.
      */
+    public final long write(final T state, final Path... locations) throws WriteStateException {
+        return write(state, false, locations);
+    }
 
-    public final void write(final T state, final Path... locations) throws WriteStateException {
+    private long write(final T state, boolean cleanup, final Path... locations) throws WriteStateException {
         if (locations == null) {
             throw new IllegalArgumentException("Locations must not be null");
         }
@@ -198,15 +217,16 @@ public abstract class MetaDataStateFormat<T> {
             throw new IllegalArgumentException("One or more locations required");
         }
 
-        long maxStateId;
+        final long oldGenerationId, newGenerationId;
         try {
-            maxStateId = findMaxStateId(prefix, locations) + 1;
+            oldGenerationId = findMaxGenerationId(prefix, locations);
+            newGenerationId = oldGenerationId + 1;
         } catch (Exception e) {
-            throw new WriteStateException(false, "exception during looking up max state id", e);
+            throw new WriteStateException(false, "exception during looking up new generation id", e);
         }
-        assert maxStateId >= 0 : "maxStateId must be positive but was: [" + maxStateId + "]";
+        assert newGenerationId >= 0 : "newGenerationId must be positive but was: [" + oldGenerationId + "]";
 
-        final String fileName = prefix + maxStateId + STATE_FILE_EXTENSION;
+        final String fileName = getStateFileName(newGenerationId);
         final String tmpFileName = fileName + ".tmp";
         List<Tuple<Path, Directory>> directories = new ArrayList<>();
 
@@ -224,6 +244,11 @@ public abstract class MetaDataStateFormat<T> {
             copyStateToExtraLocations(directories, tmpFileName);
             performRenames(tmpFileName, fileName, directories);
             performStateDirectoriesFsync(directories);
+        } catch (WriteStateException e) {
+            if (cleanup) {
+                cleanupOldFiles(oldGenerationId, locations);
+            }
+            throw e;
         } finally {
             for (Tuple<Path, Directory> pathAndDirectory : directories) {
                 deleteFileIgnoreExceptions(pathAndDirectory.v1(), pathAndDirectory.v2(), tmpFileName);
@@ -231,7 +256,11 @@ public abstract class MetaDataStateFormat<T> {
             }
         }
 
-        cleanupOldFiles(fileName, locations);
+        if (cleanup) {
+            cleanupOldFiles(newGenerationId, locations);
+        }
+
+        return newGenerationId;
     }
 
     protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream ) throws IOException {
@@ -257,7 +286,7 @@ public abstract class MetaDataStateFormat<T> {
     public final T read(NamedXContentRegistry namedXContentRegistry, Path file) throws IOException {
         try (Directory dir = newDirectory(file.getParent())) {
             try (IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
-                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
+                // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
                 CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION, STATE_FILE_VERSION);
                 final XContentType xContentType = XContentType.values()[indexInput.readInt()];
@@ -269,7 +298,7 @@ public abstract class MetaDataStateFormat<T> {
                 try (IndexInput slice = indexInput.slice("state_xcontent", filePointer, contentSize)) {
                     try (XContentParser parser = XContentFactory.xContent(FORMAT)
                             .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE,
-                                new InputStreamIndexInput(slice, contentSize))) {
+                                    new InputStreamIndexInput(slice, contentSize))) {
                         return fromXContent(parser);
                     }
                 }
@@ -284,13 +313,21 @@ public abstract class MetaDataStateFormat<T> {
         return new SimpleFSDirectory(dir);
     }
 
-    private void cleanupOldFiles(final String currentStateFile, Path[] locations) {
+
+    /**
+     * Clean ups all state files not matching passed generation.
+     *
+     * @param currentGeneration state generation to keep.
+     * @param locations         state paths.
+     */
+    public void cleanupOldFiles(final long currentGeneration, Path[] locations) {
+        final String fileNameToKeep = getStateFileName(currentGeneration);
         for (Path location : locations) {
             logger.trace("cleanupOldFiles: cleaning up {}", location);
             Path stateLocation = location.resolve(STATE_DIR_NAME);
             try (Directory stateDir = newDirectory(stateLocation)) {
                 for (String file : stateDir.listAll()) {
-                    if (file.startsWith(prefix) && file.equals(currentStateFile) == false) {
+                    if (file.startsWith(prefix) && file.equals(fileNameToKeep) == false) {
                         deleteFileIgnoreExceptions(stateLocation, stateDir, file);
                     }
                 }
@@ -308,7 +345,7 @@ public abstract class MetaDataStateFormat<T> {
      * @return maximum id of state file or -1 if no such files are found
      * @throws IOException if IOException occurs
      */
-    private long findMaxStateId(final String prefix, Path... locations) throws IOException {
+    private long findMaxGenerationId(final String prefix, Path... locations) throws IOException {
         long maxId = -1;
         for (Path dataLocation : locations) {
             final Path resolve = dataLocation.resolve(STATE_DIR_NAME);
@@ -333,7 +370,7 @@ public abstract class MetaDataStateFormat<T> {
             return files;
         }
 
-        final String fileName = prefix + generation + STATE_FILE_EXTENSION;
+        final String fileName = getStateFileName(generation);
         for (Path dataLocation : locations) {
             final Path stateFilePath = dataLocation.resolve(STATE_DIR_NAME).resolve(fileName);
             if (Files.exists(stateFilePath)) {
@@ -345,32 +382,27 @@ public abstract class MetaDataStateFormat<T> {
         return files;
     }
 
-    /**
-     * Tries to load the latest state from the given data-locations. It tries to load the latest state determined by
-     * the states version from one or more data directories and if none of the latest states can be loaded an exception
-     * is thrown to prevent accidentally loading a previous state and silently omitting the latest state.
-     *
-     * @param logger a logger instance
-     * @param dataLocations the data-locations to try.
-     * @return the latest state or <code>null</code> if no state was found.
-     */
-    public T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws IOException {
-        long maxStateId = findMaxStateId(prefix, dataLocations);
-        List<Path> stateFiles = findStateFilesByGeneration(maxStateId, dataLocations);
+    private String getStateFileName(long generation) {
+        return prefix + generation + STATE_FILE_EXTENSION;
+    }
 
-        if (maxStateId > -1 && stateFiles.isEmpty()) {
-            throw new IllegalStateException("unable to find state files with state id " + maxStateId +
-                    " returned by findMaxStateId function, in data folders [" +
-                    Arrays.stream(dataLocations).map(Path::toAbsolutePath).
-                            map(Object::toString).collect(Collectors.joining(", ")) +
-                    "], concurrent writes?");
-        }
+    /**
+     * Tries to load the state of particular generation from the given data-locations. If any of data locations contain state files with
+     * given generation, state will be loaded from these state files.
+     *
+     * @param logger a logger instance.
+     * @param generation the generation to be loaded.
+     * @param dataLocations the data-locations to try.
+     * @return the state of asked generation or <code>null</code> if no state was found.
+     */
+    public T loadGeneration(Logger logger, NamedXContentRegistry namedXContentRegistry, long generation, Path... dataLocations) {
+        List<Path> stateFiles = findStateFilesByGeneration(generation, dataLocations);
 
         final List<Throwable> exceptions = new ArrayList<>();
         for (Path stateFile : stateFiles) {
             try {
                 T state = read(namedXContentRegistry, stateFile);
-                logger.trace("state id [{}] read from [{}]", maxStateId, stateFile.getFileName());
+                logger.trace("generation id [{}] read from [{}]", generation, stateFile.getFileName());
                 return state;
             } catch (Exception e) {
                 exceptions.add(new IOException("failed to read " + stateFile.toAbsolutePath(), e));
@@ -389,6 +421,40 @@ public abstract class MetaDataStateFormat<T> {
     }
 
     /**
+     * Tries to load the latest state from the given data-locations.
+     *
+     * @param logger        a logger instance.
+     * @param dataLocations the data-locations to try.
+     * @return tuple of the latest state and generation. (-1, null) if no state is found.
+     */
+    public Tuple<T, Long> loadLatestStateWithGeneration(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations)
+            throws IOException {
+        long generation = findMaxGenerationId(prefix, dataLocations);
+        T state = loadGeneration(logger, namedXContentRegistry, generation, dataLocations);
+
+        if (generation > -1 && state == null) {
+            throw new IllegalStateException("unable to find state files with generation id " + generation +
+                    " returned by findMaxGenerationId function, in data folders [" +
+                    Arrays.stream(dataLocations).map(Path::toAbsolutePath).
+                            map(Object::toString).collect(Collectors.joining(", ")) +
+                    "], concurrent writes?");
+        }
+        return Tuple.tuple(state, generation);
+    }
+
+    /**
+     * Tries to load the latest state from the given data-locations.
+     *
+     * @param logger        a logger instance.
+     * @param dataLocations the data-locations to try.
+     * @return the latest state or <code>null</code> if no state was found.
+     */
+    public T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws
+            IOException {
+        return loadLatestStateWithGeneration(logger, namedXContentRegistry, dataLocations).v1();
+    }
+
+    /**
      * Deletes all meta state directories recursively for the given data locations
      * @param dataLocations the data location to delete
      */
@@ -398,5 +464,9 @@ public abstract class MetaDataStateFormat<T> {
             stateDirectories[i] = dataLocations[i].resolve(STATE_DIR_NAME);
         }
         IOUtils.rm(stateDirectories);
+    }
+
+    String getPrefix() {
+        return prefix;
     }
 }

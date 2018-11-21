@@ -35,13 +35,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -65,6 +66,14 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
 public class CreateIndexIT extends ESIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            // testIndexWithUnknownSetting and testRestartIndexCreationAfterFullClusterRestart fail with Zen2
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false)
+            .build();
+    }
 
     public void testCreationDateGivenFails() {
         try {
@@ -354,16 +363,16 @@ public class CreateIndexIT extends ESIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 if (dataOrMasterNodeNames.contains(nodeName)) {
-                    final NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, nodeName);
+                    final MetaStateService metaStateService = internalCluster().getInstance(MetaStateService.class, nodeName);
                     final IndexMetaData brokenMetaData =
                             IndexMetaData
                                     .builder(metaData)
                                     .settings(Settings.builder().put(metaData.getSettings()).put("index.foo", true))
                                     .build();
                     // so evil
-                    IndexMetaData.FORMAT.write(brokenMetaData, nodeEnvironment.indexPaths(brokenMetaData.getIndex()));
+                    metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMetaData);
                 }
-                return Settings.EMPTY;
+                return super.onNodeStopped(nodeName);
             }
         });
         ensureGreen(metaData.getIndex().getName()); // we have to wait for the index to show up in the metadata or we will fail in a race

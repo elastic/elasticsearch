@@ -19,6 +19,7 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.analysis.MockTokenizer;
@@ -2591,22 +2592,22 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         // Query string with a single field
         phraseBoostTestCaseForClauses(highlighterType, 100f,
                 queryStringQuery("highlight words together").field("field1"),
-                queryStringQuery("\"highlight words together\"").field("field1").autoGeneratePhraseQueries(true));
+                queryStringQuery("\"highlight words together\"").field("field1"));
 
         // Query string with a single field without dismax
         phraseBoostTestCaseForClauses(highlighterType, 100f,
                 queryStringQuery("highlight words together").field("field1"),
-                queryStringQuery("\"highlight words together\"").field("field1").autoGeneratePhraseQueries(true));
+                queryStringQuery("\"highlight words together\"").field("field1"));
 
         // Query string with more than one field
         phraseBoostTestCaseForClauses(highlighterType, 100f,
                 queryStringQuery("highlight words together").field("field1").field("field2"),
-                queryStringQuery("\"highlight words together\"").field("field1").field("field2").autoGeneratePhraseQueries(true));
+                queryStringQuery("\"highlight words together\"").field("field1").field("field2"));
 
         // Query string boosting the field
         phraseBoostTestCaseForClauses(highlighterType, 1f,
                 queryStringQuery("highlight words together").field("field1"),
-                queryStringQuery("\"highlight words together\"").field("field1", 100).autoGeneratePhraseQueries(true));
+                queryStringQuery("\"highlight words together\"").field("field1", 100));
     }
 
     private <P extends AbstractQueryBuilder<P>> void

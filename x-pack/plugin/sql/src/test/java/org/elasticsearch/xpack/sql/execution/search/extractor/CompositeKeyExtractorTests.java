@@ -11,8 +11,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef.Property;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.util.TimeZone;
@@ -63,7 +62,7 @@ public class CompositeKeyExtractorTests extends AbstractWireSerializingTestCase<
 
         long millis = System.currentTimeMillis();
         Bucket bucket = new TestBucket(singletonMap(extractor.key(), millis), randomLong(), new Aggregations(emptyList()));
-        assertEquals(new DateTime(millis, DateTimeZone.forTimeZone(extractor.timeZone())), extractor.extract(bucket));
+        assertEquals(DateUtils.of(millis, extractor.timeZone().toZoneId()), extractor.extract(bucket));
     }
 
     public void testExtractIncorrectDateKey() {

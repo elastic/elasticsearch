@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
@@ -79,7 +80,7 @@ public class Zen1IT extends ESIntegTestCase {
         }
     }
 
-    private void testRollingUpgradeFromZen1ToZen2(final int nodeCount) throws Exception {
+    private void testRollingMigrationFromZen1ToZen2(final int nodeCount) throws Exception {
         final List<String> zen1Nodes = internalCluster().startNodes(nodeCount, ZEN1_SETTINGS);
 
         createIndex("test",
@@ -106,6 +107,50 @@ public class Zen1IT extends ESIntegTestCase {
             ensureStableCluster(nodeCount);
             ensureGreen("test");
             logger.info("--> successfully replaced {} with {}", zen1Node, newNode);
+        }
+
+        assertThat(internalCluster().size(), equalTo(nodeCount));
+    }
+
+    public void testMigratingFromZen1ToZen2ClusterWithTwoNodes() throws Exception {
+        testRollingMigrationFromZen1ToZen2(2);
+    }
+
+    public void testMigratingFromZen1ToZen2ClusterWithThreeNodes() throws Exception {
+        testRollingMigrationFromZen1ToZen2(3);
+    }
+
+    public void testMigratingFromZen1ToZen2ClusterWithFourNodes() throws Exception {
+        testRollingMigrationFromZen1ToZen2(4);
+    }
+
+    public void testMigratingFromZen1ToZen2ClusterWithFiveNodes() throws Exception {
+        testRollingMigrationFromZen1ToZen2(5);
+    }
+
+    private void testRollingUpgradeFromZen1ToZen2(final int nodeCount) throws Exception {
+        final List<String> zen1Nodes = internalCluster().startNodes(nodeCount, ZEN1_SETTINGS);
+
+        createIndex("test",
+            Settings.builder()
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, nodeCount) // causes rebalancing
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build());
+        ensureGreen("test");
+
+        for (final String zen1Node : zen1Nodes) {
+            logger.info("--> upgrading {}", zen1Node);
+
+            internalCluster().restartNode(zen1Node, new RestartCallback(){
+                @Override
+                public Settings onNodeStopped(String nodeName) {
+                    return ZEN2_SETTINGS;
+                }
+            });
+
+            ensureStableCluster(nodeCount);
+            ensureGreen("test");
         }
 
         assertThat(internalCluster().size(), equalTo(nodeCount));

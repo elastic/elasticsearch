@@ -152,8 +152,11 @@ public abstract class PeerFinder {
     }
 
     PeersResponse handlePeersRequest(PeersRequest peersRequest) {
+        if (peersRequest.getSourceNode().equals(getLocalNode())) {
+            throw new IllegalArgumentException("ignoring peers request from the local node");
+        }
+
         synchronized (mutex) {
-            assert peersRequest.getSourceNode().equals(getLocalNode()) == false;
             final List<DiscoveryNode> knownPeers;
             if (active) {
                 assert leader.isPresent() == false : leader;

@@ -673,9 +673,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 throw new IllegalStateException("Cannot upgrade from last-known leader: " + lastKnownLeader);
             }
 
+            if (getCurrentTerm() != 0) {
+                throw new IllegalStateException("Cannot upgrade, term is " + getCurrentTerm());
+            }
+
             logger.info("automatically bootstrapping during upgrade, using initial configuration {}", votingConfiguration);
 
-            assert getCurrentTerm() == 0 : getCurrentTerm();
             final long newTerm = 1;
             final ClusterState currentState = getStateForMasterService();
             final Builder builder = masterService.incrementVersion(currentState);

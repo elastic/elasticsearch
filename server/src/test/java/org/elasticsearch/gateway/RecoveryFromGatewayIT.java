@@ -48,6 +48,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
 import java.nio.file.DirectoryStream;
@@ -82,6 +83,14 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockFSIndexStore.TestPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            // testTwoNodeFirstNodeCleared does unsafe things, and testLatestVersionLoaded / testRecoveryDifferentNodeOrderStartup also fail
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false)
+            .build();
     }
 
     public void testOneNodeRecoverFromGateway() throws Exception {

@@ -21,10 +21,8 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 
 import java.util.Arrays;
 
@@ -35,13 +33,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class IndicesStatsBlocksIT extends ESIntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
-            .build();
-    }
 
     public void testIndicesStatsWithBlocks() {
         createIndex("ro");

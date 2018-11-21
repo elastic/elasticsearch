@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 
 import java.util.concurrent.TimeUnit;
 
@@ -38,6 +39,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 public class QuorumGatewayIT extends ESIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // no state persistence yet
+            .build();
+    }
+
     @Override
     protected int numberOfReplicas() {
         return 2;

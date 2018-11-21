@@ -30,6 +30,7 @@ import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
@@ -132,8 +133,11 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * Test cluster join with issues in cluster state publishing *
      */
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
-        String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
-        String nonMasterNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
+        // TODO: enable this for Zen2 once lag-detection is implemented
+        String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
+        String nonMasterNode = internalCluster().startDataOnlyNode(
+            Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
 
@@ -153,11 +157,11 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         TransportService localTransportService =
                 internalCluster().getInstance(TransportService.class, discoveryNodes.getLocalNode().getName());
         if (randomBoolean()) {
-            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.SEND_ACTION_NAME);
-            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME);
+            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.SEND_ACTION_NAME,
+                PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME);
         } else {
-            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.COMMIT_ACTION_NAME);
-            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublicationTransportHandler.COMMIT_STATE_ACTION_NAME);
+            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.COMMIT_ACTION_NAME,
+                PublicationTransportHandler.COMMIT_STATE_ACTION_NAME);
         }
 
         logger.info("allowing requests from non master [{}] to master [{}], waiting for two join request", nonMasterNode, masterNode);

@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -93,8 +93,7 @@ public class Reconfigurator {
      * @param currentConfig  The current configuration. As far as possible, we prefer to keep the current config as-is.
      * @return An optimal configuration, or leave the current configuration unchanged if the optimal configuration has no live quorum.
      */
-    public ClusterState.VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds,
-                                                        ClusterState.VotingConfiguration currentConfig) {
+    public VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds, VotingConfiguration currentConfig) {
         logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}", this, currentConfig, liveNodes, retiredNodeIds);
 
         /*
@@ -150,7 +149,7 @@ public class Reconfigurator {
         /*
          * The new configuration is formed by taking this many nodes in the following preference order:
          */
-        final ClusterState.VotingConfiguration newConfig = new ClusterState.VotingConfiguration(
+        final VotingConfiguration newConfig = new VotingConfiguration(
             // live nodes first, preferring the current config, and if we need more then use non-live nodes
             Stream.of(nonRetiredInConfigLiveIds, nonRetiredLiveNotInConfigIds, nonRetiredInConfigNotLiveIds)
                 .flatMap(Collection::stream).limit(targetSize).collect(Collectors.toSet()));

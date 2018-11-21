@@ -20,9 +20,9 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
@@ -78,10 +78,8 @@ import static org.hamcrest.Matchers.is;
 public class ClusterStateDiffIT extends ESIntegTestCase {
     public void testClusterStateDiffSerialization() throws Exception {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        DiscoveryNode masterNode = new DiscoveryNode("master", buildNewFakeTransportAddress(),
-                emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(),
-                emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode masterNode = randomNode("master");
+        DiscoveryNode otherNode = randomNode("other");
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
         ClusterState clusterStateFromDiffs =
@@ -114,13 +112,13 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         builder = randomMetaDataChanges(clusterState);
                         break;
                     case 5:
-                        builder = randomVotingConfiguration(clusterState);
+                        builder = randomCoordinationMetaData(clusterState);
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
                 }
             }
-            clusterState = builder.incrementVersion().term(randomLong()).build();
+            clusterState = builder.incrementVersion().build();
 
             if (randomIntBetween(0, 10) < 1) {
                 // Update cluster state via full serialization from time to time
@@ -144,10 +142,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             try {
                 // Check non-diffable elements
                 assertThat(clusterStateFromDiffs.version(), equalTo(clusterState.version()));
-                assertThat(clusterStateFromDiffs.term(), equalTo(clusterState.term()));
-                assertThat(clusterStateFromDiffs.stateUUID(), equalTo(clusterState.stateUUID()));
-                assertThat(clusterStateFromDiffs.getLastAcceptedConfiguration(), equalTo(clusterState.getLastAcceptedConfiguration()));
-                assertThat(clusterStateFromDiffs.getLastCommittedConfiguration(), equalTo(clusterState.getLastCommittedConfiguration()));
+                assertThat(clusterStateFromDiffs.coordinationMetaData(), equalTo(clusterState.coordinationMetaData()));
 
                 // Check nodes
                 assertThat(clusterStateFromDiffs.nodes().getNodes(), equalTo(clusterState.nodes().getNodes()));
@@ -199,18 +194,26 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
     }
 
-    private ClusterState.Builder randomVotingConfiguration(ClusterState clusterState) {
+    private ClusterState.Builder randomCoordinationMetaData(ClusterState clusterState) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
+        CoordinationMetaData.Builder metaBuilder = CoordinationMetaData.builder(clusterState.coordinationMetaData());
+        metaBuilder.term(randomNonNegativeLong());
         if (randomBoolean()) {
-            builder.lastCommittedConfiguration(
-                new ClusterState.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
+            metaBuilder.lastCommittedConfiguration(
+                new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
         }
         if (randomBoolean()) {
-            builder.lastAcceptedConfiguration(
-                new ClusterState.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
+            metaBuilder.lastAcceptedConfiguration(
+                new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
         }
-
+        if (randomBoolean()) {
+            metaBuilder.addVotingTombstone(randomNode("node-" + randomAlphaOfLength(10)));
+        }
         return builder;
+    }
+
+    private DiscoveryNode randomNode(String nodeId) {
+        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), randomVersion(random()));
     }
 
     /**
@@ -224,15 +227,13 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             if (nodeId.startsWith("node-")) {
                 nodes.remove(nodeId);
                 if (randomBoolean()) {
-                    nodes.add(new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(),
-                            emptySet(), randomVersion(random())));
+                    nodes.add(randomNode(nodeId));
                 }
             }
         }
         int additionalNodeCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalNodeCount; i++) {
-            nodes.add(new DiscoveryNode("node-" + randomAlphaOfLength(10), buildNewFakeTransportAddress(),
-                    emptyMap(), emptySet(), randomVersion(random())));
+            nodes.add(randomNode("node-" + randomAlphaOfLength(10)));
         }
         return ClusterState.builder(clusterState).nodes(nodes);
     }

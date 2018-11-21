@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
@@ -642,6 +643,15 @@ public class MLRequestConvertersTests extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder = postCalendarEventRequest.toXContent(builder, PostCalendarEventRequest.EXCLUDE_CALENDAR_ID_PARAMS);
         assertEquals(Strings.toString(builder), requestEntityToString(request));
+    }
+
+    public void testDeleteCalendarEvent() {
+        String calendarId = randomAlphaOfLength(10);
+        String eventId = randomAlphaOfLength(5);
+        DeleteCalendarEventRequest deleteCalendarEventRequest = new DeleteCalendarEventRequest(calendarId, eventId);
+        Request request = MLRequestConverters.deleteCalendarEvent(deleteCalendarEventRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/calendars/" + calendarId + "/events/" + eventId, request.getEndpoint());
     }
 
     public void testPutFilter() throws IOException {

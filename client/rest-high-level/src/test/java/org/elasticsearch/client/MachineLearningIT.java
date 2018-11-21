@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
@@ -119,7 +120,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
@@ -984,6 +987,42 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             machineLearningClient::postCalendarEvent,
             machineLearningClient::postCalendarEventAsync);
         assertThat(postCalendarEventResponse.getScheduledEvents(), containsInAnyOrder(events.toArray()));
+    }
+
+    public void testDeleteCalendarEvent() throws IOException {
+        Calendar calendar = CalendarTests.testInstance();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putCalendar(new PutCalendarRequest(calendar), RequestOptions.DEFAULT);
+
+        List<ScheduledEvent> events = new ArrayList<>(3);
+        for (int i = 0; i < 3; i++) {
+            events.add(ScheduledEventTests.testInstance(calendar.getId(), null));
+        }
+
+        machineLearningClient.postCalendarEvent(new PostCalendarEventRequest(calendar.getId(), events), RequestOptions.DEFAULT);
+        GetCalendarEventsResponse getCalendarEventsResponse =
+            machineLearningClient.getCalendarEvents(new GetCalendarEventsRequest(calendar.getId()), RequestOptions.DEFAULT);
+
+        assertThat(getCalendarEventsResponse.events().size(), equalTo(3));
+        String deletedEvent = getCalendarEventsResponse.events().get(0).getEventId();
+
+        DeleteCalendarEventRequest deleteCalendarEventRequest = new DeleteCalendarEventRequest(calendar.getId(), deletedEvent);
+
+        AcknowledgedResponse response = execute(deleteCalendarEventRequest,
+            machineLearningClient::deleteCalendarEvent,
+            machineLearningClient::deleteCalendarEventAsync);
+
+        assertThat(response.isAcknowledged(), is(true));
+
+        getCalendarEventsResponse =
+            machineLearningClient.getCalendarEvents(new GetCalendarEventsRequest(calendar.getId()), RequestOptions.DEFAULT);
+        List<String> remainingIds = getCalendarEventsResponse.events()
+            .stream()
+            .map(ScheduledEvent::getEventId)
+            .collect(Collectors.toList());
+
+        assertThat(remainingIds.size(), equalTo(2));
+        assertThat(remainingIds, not(hasItem(deletedEvent)));
     }
 
     public void testPutFilter() throws Exception {

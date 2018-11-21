@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DateEsField;
 import org.elasticsearch.xpack.sql.type.EsField;
+import org.elasticsearch.xpack.sql.type.InvalidMappedField;
 import org.elasticsearch.xpack.sql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.type.TextEsField;
 import org.elasticsearch.xpack.sql.type.Types;
@@ -51,6 +52,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
@@ -263,13 +265,21 @@ public class IndexResolver {
         // without sorting, they can still be detected however without the emptyMap optimization
         // (fields without multi-fields have no children)
         for (Entry<String, Map<String, FieldCapabilities>> entry : sortedFields) {
+
+            InvalidMappedField invalidField = null;
+            FieldCapabilities fieldCap = null;
+            errorMessage.setLength(0);
+
             String name = entry.getKey();
+
             // skip internal fields
             if (!name.startsWith("_")) {
                 Map<String, FieldCapabilities> types = entry.getValue();
                 // field is mapped differently across indices
                 if (types.size() > 1) {
-                    // build error message
+                    // build the error message
+                    // and create a MultiTypeField
+                    
                     for (Entry<String, FieldCapabilities> type : types.entrySet()) {
                         if (errorMessage.length() > 0) {
                             errorMessage.append(", ");
@@ -280,37 +290,39 @@ public class IndexResolver {
                         errorMessage.append(Arrays.toString(type.getValue().indices()));
                     }
 
-                    errorMessage.insert(0,
-                            "[" + indexPattern + "] points to indices with incompatible mappings; " +
-                            "field [" + name + "] is mapped in [" + types.size() + "] different ways: ");
+                    errorMessage.insert(0, "mapped as [" + types.size() + "] incompatible types: ");
+                    
+                    invalidField = new InvalidMappedField(name, errorMessage.toString());
                 }
-                if (errorMessage.length() > 0) {
-                    return IndexResolution.invalid(errorMessage.toString());
-                }
-                
-                FieldCapabilities fieldCap = types.values().iterator().next();
-                // validate search/agg-able
-                if (fieldCap.isAggregatable() && fieldCap.nonAggregatableIndices() != null) {
-                    errorMessage.append("[" + indexPattern + "] points to indices with incompatible mappings: ");
-                    errorMessage.append("field [" + name + "] is aggregateable except in ");
-                    errorMessage.append(Arrays.toString(fieldCap.nonAggregatableIndices()));
-                }
-                if (fieldCap.isSearchable() && fieldCap.nonSearchableIndices() != null) {
-                    if (errorMessage.length() > 0) {
-                        errorMessage.append(",");
+                // type is okay, check aggregation
+                else {
+                    fieldCap = types.values().iterator().next();
+                    // validate search/agg-able
+                    if (fieldCap.isAggregatable() && fieldCap.nonAggregatableIndices() != null) {
+                        errorMessage.append("mapped as aggregatable except in ");
+                        errorMessage.append(Arrays.toString(fieldCap.nonAggregatableIndices()));
                     }
-                    errorMessage.append("[" + indexPattern + "] points to indices with incompatible mappings: ");
-                    errorMessage.append("field [" + name + "] is searchable except in ");
-                    errorMessage.append(Arrays.toString(fieldCap.nonSearchableIndices()));
-                }
-                if (errorMessage.length() > 0) {
-                    return IndexResolution.invalid(errorMessage.toString());
+                    if (fieldCap.isSearchable() && fieldCap.nonSearchableIndices() != null) {
+                        if (errorMessage.length() > 0) {
+                            errorMessage.append(",");
+                        }
+                        errorMessage.append("mapped as searchable except in ");
+                        errorMessage.append(Arrays.toString(fieldCap.nonSearchableIndices()));
+                    }
+
+                    if (errorMessage.length() > 0) {
+                        invalidField = new InvalidMappedField(name, errorMessage.toString());
+                    }
                 }
                 
                 // validation passes - create the field
-                // and name wasn't added before
+                // if the name wasn't added before
+                final InvalidMappedField invalidF = invalidField;
+                final FieldCapabilities fieldCapab = fieldCap;
                 if (!flattedMapping.containsKey(name)) {
-                    createField(name, fieldCap, fieldCaps, hierarchicalMapping, flattedMapping, false);
+                    createField(name, fieldCaps, hierarchicalMapping, flattedMapping, s -> {
+                        return invalidF != null ? invalidF : createField(s, fieldCapab.getType(), emptyMap(), fieldCapab.isAggregatable());
+                    });
                 }
             }
         }
@@ -318,8 +330,9 @@ public class IndexResolver {
         return IndexResolution.valid(new EsIndex(indexPattern, hierarchicalMapping));
     }
 
-    private static EsField createField(String fieldName, FieldCapabilities caps, Map<String, Map<String, FieldCapabilities>> globalCaps,
-            Map<String, EsField> hierarchicalMapping, Map<String, EsField> flattedMapping, boolean hasChildren) {
+    private static EsField createField(String fieldName, Map<String, Map<String, FieldCapabilities>> globalCaps,
+            Map<String, EsField> hierarchicalMapping, Map<String, EsField> flattedMapping,
+            Function<String, EsField> field) {
 
         Map<String, EsField> parentProps = hierarchicalMapping;
 
@@ -336,39 +349,37 @@ public class IndexResolver {
                     throw new SqlIllegalArgumentException("Cannot find field {}; this is likely a bug", parentName);
                 }
                 FieldCapabilities parentCap = map.values().iterator().next();
-                parent = createField(parentName, parentCap, globalCaps, hierarchicalMapping, flattedMapping, true);
+                parent = createField(parentName, globalCaps, hierarchicalMapping, flattedMapping,
+                        s -> createField(s, parentCap.getType(), new TreeMap<>(), parentCap.isAggregatable()));
             }
             parentProps = parent.getProperties();
         }
 
-        EsField field = null;
-        Map<String, EsField> props = hasChildren ? new TreeMap<>() : emptyMap();
+        EsField esField = field.apply(fieldName);
+        
+        parentProps.put(fieldName, esField);
+        flattedMapping.put(fullFieldName, esField);
 
-        DataType esType = DataType.fromEsType(caps.getType());
+        return esField;
+    }
+    
+    private static EsField createField(String fieldName, String typeName, Map<String, EsField> props, boolean isAggregateable) {
+        DataType esType = DataType.fromTypeName(typeName);
         switch (esType) {
             case TEXT:
-                field = new TextEsField(fieldName, props, false);
-                break;
+                return new TextEsField(fieldName, props, false);
             case KEYWORD:
                 int length = DataType.KEYWORD.defaultPrecision;
                 // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
                 boolean normalized = false;
-                field = new KeywordEsField(fieldName, props, caps.isAggregatable(), length, normalized);
-                break;
+                return new KeywordEsField(fieldName, props, isAggregateable, length, normalized);
             case DATE:
-                field = new DateEsField(fieldName, props, caps.isAggregatable());
-                break;
+                return new DateEsField(fieldName, props, isAggregateable);
             case UNSUPPORTED:
-                field = new UnsupportedEsField(fieldName, caps.getType());
-                break;
+                return new UnsupportedEsField(fieldName, typeName);
             default:
-                field = new EsField(fieldName, esType, props, caps.isAggregatable());
+                return new EsField(fieldName, esType, props, isAggregateable);
         }
-
-        parentProps.put(fieldName, field);
-        flattedMapping.put(fullFieldName, field);
-
-        return field;
     }
     
     private static FieldCapabilitiesRequest createFieldCapsRequest(String index) {

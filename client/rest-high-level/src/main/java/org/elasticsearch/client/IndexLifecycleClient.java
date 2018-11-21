@@ -282,7 +282,7 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse retryLifecycleStep(RetryLifecyclePolicyRequest request, RequestOptions options) throws IOException {
+    public AcknowledgedResponse retryLifecyclePolicy(RetryLifecyclePolicyRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::retryLifecycle, options,
             AcknowledgedResponse::fromXContent, emptySet());
     }
@@ -295,8 +295,8 @@ public class IndexLifecycleClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void retryLifecycleStepAsync(RetryLifecyclePolicyRequest request, RequestOptions options,
-        ActionListener<AcknowledgedResponse> listener) {
+    public void retryLifecyclePolicyAsync(RetryLifecyclePolicyRequest request, RequestOptions options,
+                                          ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::retryLifecycle, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }

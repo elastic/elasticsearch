@@ -9,6 +9,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
+/**
+ * Performs an action which must be performed asynchronously because it may take time to complete.
+ */
 public abstract class AsyncActionStep extends Step {
 
     private Client client;

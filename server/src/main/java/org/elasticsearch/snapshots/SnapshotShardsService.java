@@ -323,11 +323,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
                 for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : entry.getValue().entrySet()) {
                     final ShardId shardId = shardEntry.getKey();
-                    final IndexShard indexShard = indicesService.getShardOrNull(shardId);
-                    if (indexShard == null) {
-                        notifyFailedSnapshotShard(snapshot, shardId, localNodeId, "could not find shard");
-                        continue;
-                    }
+                    final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
                     final IndexId indexId = indicesMap.get(shardId.getIndexName());
                     assert indexId != null;
                     executor.execute(new AbstractRunnable() {

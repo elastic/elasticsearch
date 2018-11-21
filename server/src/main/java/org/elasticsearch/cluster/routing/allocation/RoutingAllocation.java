@@ -39,7 +39,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsService.SnapshotsInProgressUpdater;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
@@ -78,8 +78,7 @@ public class RoutingAllocation {
     private final IndexMetaDataUpdater indexMetaDataUpdater = new IndexMetaDataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
     private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
-    private final SnapshotsService.SnapshotsInProgressUpdater snapshotsInProgressUpdater =
-        new SnapshotsService.SnapshotsInProgressUpdater();
+    private final SnapshotsInProgressUpdater snapshotsInProgressUpdater = new SnapshotsInProgressUpdater();
     private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
         nodesChangedObserver, indexMetaDataUpdater, restoreInProgressUpdater, snapshotsInProgressUpdater
     );

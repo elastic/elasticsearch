@@ -660,7 +660,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 removeFinishedSnapshotFromClusterState(event);
                 finalizeSnapshotDeletionFromPreviousMaster(event);
                 // TODO org.elasticsearch.snapshots.SharedClusterSnapshotRestoreIT.testDeleteOrphanSnapshot fails right after election here
-                assert event.previousState().nodes().isLocalNodeElectedMaster() != false || assertConsistency(event.state());
+                assert event.previousState().nodes().isLocalNodeElectedMaster() || assertConsistency(event.state());
             }
         } catch (Exception e) {
             logger.warn("Failed to update snapshot state ", e);
@@ -1581,8 +1581,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         for (SnapshotsInProgress.Entry entry : oldSnapshot.entries()) {
             ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = null;
             for (ShardId shardId : shardIds) {
-                ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = entry.shards();
-                ShardSnapshotStatus currentStatus = shards.get(shardId);
+                final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = entry.shards();
+                final ShardSnapshotStatus currentStatus = shards.get(shardId);
                 if (currentStatus != null && currentStatus.state().completed() == false) {
                     final ShardSnapshotStatus newStatus = Optional
                         .ofNullable(newRoutingTable.shardRoutingTableOrNull(shardId))
@@ -1623,9 +1623,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final ShardRouting primaryShardRouting) {
         final State currentState = currentStatus.state();
         final ShardSnapshotStatus newStatus;
-        if (primaryShardRouting == null) {
-            newStatus = failedStatus(null, "missing shard");
-        } else if (primaryShardRouting.active() == false) {
+        if (primaryShardRouting.active() == false) {
             if (primaryShardRouting.initializing() && currentState == State.WAITING) {
                 newStatus = currentStatus;
             } else {
@@ -1662,6 +1660,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     break;
             }
         } else if (currentState == State.INIT || currentStatus.state() == State.ABORTED) {
+            assert primaryShardRouting.relocating();
             newStatus = failedStatus(currentStatus.nodeId());
         } else {
             newStatus = currentStatus;

@@ -137,8 +137,8 @@ public class AllocationService {
         final ClusterState.Builder newStateBuilder = ClusterState.builder(oldState)
             .routingTable(newRoutingTable)
             .metaData(newMetaData);
-        final RestoreInProgress restoreInProgress = allocation.custom(RestoreInProgress.TYPE);
         ImmutableOpenMap.Builder<String, ClusterState.Custom> customsBuilder = null;
+        final RestoreInProgress restoreInProgress = allocation.custom(RestoreInProgress.TYPE);
         if (restoreInProgress != null) {
             RestoreInProgress updatedRestoreInProgress = allocation.updateRestoreInfoWithRoutingChanges(restoreInProgress);
             if (updatedRestoreInProgress != restoreInProgress) {

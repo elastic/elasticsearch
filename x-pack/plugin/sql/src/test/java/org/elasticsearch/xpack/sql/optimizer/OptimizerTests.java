@@ -450,17 +450,17 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testSimplifyIfNullNulls() {
-        Expression e = new SimplifyCoalesce().rule(new IFNull(EMPTY, asList(Literal.NULL, Literal.NULL)));
+        Expression e = new SimplifyCoalesce().rule(new IFNull(EMPTY, Literal.NULL, Literal.NULL));
         assertEquals(Coalesce.class, e.getClass());
         assertEquals(0, e.children().size());
     }
 
     public void testSimplifyIfNullWithNullAndValue() {
-        Expression e = new SimplifyCoalesce().rule(new IFNull(EMPTY, asList(Literal.NULL, ONE)));
+        Expression e = new SimplifyCoalesce().rule(new IFNull(EMPTY, Literal.NULL, ONE));
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
 
-        e = new SimplifyCoalesce().rule(new IFNull(EMPTY, asList(ONE, Literal.NULL)));
+        e = new SimplifyCoalesce().rule(new IFNull(EMPTY, ONE, Literal.NULL));
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
     }

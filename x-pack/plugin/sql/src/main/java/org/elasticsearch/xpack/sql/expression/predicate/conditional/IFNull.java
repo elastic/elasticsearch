@@ -6,32 +6,26 @@
 
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class IFNull extends Coalesce {
 
-    public IFNull(Location location, List<Expression> fields) {
-        super(location, fields);
+    public IFNull(Location location, Expression first, Expression second) {
+        super(location, Arrays.asList(first, second));
+    }
 
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new IFNull(location(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<IFNull> info() {
-        return NodeInfo.create(this, IFNull::new, children());
-    }
-
-    @Override
-    protected Pipe makePipe() {
-        if (children().size() != 2) {
-            throw new SqlIllegalArgumentException("Line {}:{}: Unexpected number of arguments: expected [2], received[{}]",
-                location().getLineNumber(), location().getColumnNumber(), children().size());
-        }
-        return super.makePipe();
+        return NodeInfo.create(this, IFNull::new, children().get(0), children().get(1));
     }
 }

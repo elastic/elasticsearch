@@ -74,7 +74,7 @@ If all arguments are null, then it returns `null`.
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[ifNullReturnSecond]
+include-tagged::{sql-specs}/docs.csv-spec[ifNullReturnFirst]
 ----
 
 ["source","sql",subs="attributes,callouts,macros"]

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.TestAggregatorFactory;
@@ -47,13 +48,24 @@ public class SerialDifferenceTests extends BasePipelineAggregationTestCase<Seria
         }
         return factory;
     }
+    
+    /**
+     * The validation should verify the parent aggregation is allowed.
+     */
+    public void testValidate() throws IOException {
+        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        aggBuilders.add(createTestAggregatorFactory());
+
+        final SerialDiffPipelineAggregationBuilder builder = new SerialDiffPipelineAggregationBuilder("name", "valid");
+        builder.validate(getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+    }
 
     /**
      * The validation should throw an IllegalArgumentException, since parent
      * aggregation is not a type of HistogramAggregatorFactory,
      * DateHistogramAggregatorFactory or AutoDateHistogramAggregatorFactory.
      */
-    public void testValidate() throws IOException {
+    public void testValidateException() throws IOException {
         final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(createTestAggregatorFactory());
         TestAggregatorFactory parentFactory = TestAggregatorFactory.createInstance();

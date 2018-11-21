@@ -29,6 +29,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -67,6 +68,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.rounding.DateTimeUnit;
+import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -111,6 +114,16 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalOrder;
+import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
+import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -163,6 +176,7 @@ import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.mock;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -1416,4 +1430,26 @@ public abstract class ESTestCase extends LuceneTestCase {
         return Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips");
     }
 
+    protected AggregatorFactory getRandomSequentiallyOrderedParentAgg() throws IOException {
+        Random rand = new Random();
+        AggregatorFactory factory = null;
+        switch (rand.nextInt(3)) {
+        case 0:
+            factory = new HistogramAggregatorFactory("name", mock(ValuesSourceConfig.class), 0.0d, 0.0d, mock(InternalOrder.class), false, 0l,
+                    0.0d, 1.0d, mock(SearchContext.class), null, new AggregatorFactories.Builder(), Collections.emptyMap());
+            break;
+        case 1:
+            factory = new DateHistogramAggregatorFactory("name", mock(ValuesSourceConfig.class), 0l, mock(InternalOrder.class), false, 0l,
+                    mock(Rounding.class), mock(Rounding.class), mock(ExtendedBounds.class), mock(SearchContext.class),
+                    mock(AggregatorFactory.class), new AggregatorFactories.Builder(), Collections.emptyMap());
+            break;
+        case 2:
+        default:
+            RoundingInfo[] roundings = new RoundingInfo[1];
+            factory = new AutoDateHistogramAggregatorFactory("name", mock(ValuesSourceConfig.class), 1,
+                    roundings, mock(SearchContext.class), null, new AggregatorFactories.Builder(), Collections.emptyMap());
+        }
+
+        return factory;
+    }
 }

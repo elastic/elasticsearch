@@ -164,11 +164,23 @@ public class MovFnUnitTests extends AggregatorTestCase {
     }
     
     /**
+     * The validation should verify the parent aggregation is allowed.
+     */
+    public void testValidate() throws IOException {
+        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        Script script = new Script(Script.DEFAULT_SCRIPT_TYPE, "painless", "test", Collections.emptyMap());
+        aggBuilders.add(new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, 3));
+
+        final MovFnPipelineAggregationBuilder builder = new MovFnPipelineAggregationBuilder("name", "invalid_agg>metric", script, 1);
+        builder.validate(getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+    }
+    
+    /**
      * The validation should throw an IllegalArgumentException, since parent
      * aggregation is not a type of HistogramAggregatorFactory,
      * DateHistogramAggregatorFactory or AutoDateHistogramAggregatorFactory.
      */
-    public void testValidate() throws IOException {
+    public void testValidateException() throws IOException {
         final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
         Script script = new Script(Script.DEFAULT_SCRIPT_TYPE, "painless", "test", Collections.emptyMap());
         aggBuilders.add(new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, 3));

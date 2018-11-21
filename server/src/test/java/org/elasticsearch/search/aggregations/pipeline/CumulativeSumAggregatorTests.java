@@ -35,20 +35,25 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.TestAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -58,6 +63,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public class CumulativeSumAggregatorTests extends AggregatorTestCase {
 
@@ -266,11 +272,22 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
     }
     
     /**
+     * The validation should verify the parent aggregation is allowed.
+     */
+    public void testValidate() throws IOException {
+        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        aggBuilders.add(new CumulativeSumPipelineAggregationBuilder("cusum", "sum"));
+
+        final CumulativeSumPipelineAggregationBuilder builder = new CumulativeSumPipelineAggregationBuilder("name", "valid");
+        builder.validate(getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+    }
+    
+    /**
      * The validation should throw an IllegalArgumentException, since parent
      * aggregation is not a type of HistogramAggregatorFactory,
      * DateHistogramAggregatorFactory or AutoDateHistogramAggregatorFactory.
      */
-    public void testValidate() throws IOException {
+    public void testValidateException() throws IOException {
         final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(new CumulativeSumPipelineAggregationBuilder("cusum", "sum"));
         TestAggregatorFactory parentFactory = TestAggregatorFactory.createInstance();

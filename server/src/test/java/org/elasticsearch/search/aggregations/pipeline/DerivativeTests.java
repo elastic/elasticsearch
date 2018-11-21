@@ -51,13 +51,24 @@ public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativeP
         }
         return factory;
     }
+    
+    /**
+     * The validation should verify the parent aggregation is allowed.
+     */
+    public void testValidate() throws IOException {
+        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        aggBuilders.add(new DerivativePipelineAggregationBuilder("deriv", "der"));
+
+        final DerivativePipelineAggregationBuilder builder = new DerivativePipelineAggregationBuilder("name", "valid");
+        builder.validate(getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+    }
 
     /**
      * The validation should throw an IllegalArgumentException, since parent
      * aggregation is not a type of HistogramAggregatorFactory,
      * DateHistogramAggregatorFactory or AutoDateHistogramAggregatorFactory.
      */
-    public void testValidate() throws IOException {
+    public void testValidateException() throws IOException {
         final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(new DerivativePipelineAggregationBuilder("deriv", "der"));
         TestAggregatorFactory parentFactory = TestAggregatorFactory.createInstance();

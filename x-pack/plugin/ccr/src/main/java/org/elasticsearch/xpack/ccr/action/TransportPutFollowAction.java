@@ -156,7 +156,6 @@ public final class TransportPutFollowAction
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (acknowledgedResponse.isAcknowledged()) {
                         Settings.Builder settingsBuilder = Settings.builder()
-                            .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
                             // TODO: Figure out what to do with private setting SETTING_INDEX_PROVIDED_NAME
                             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex())
                             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);

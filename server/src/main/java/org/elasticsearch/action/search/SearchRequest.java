@@ -217,7 +217,11 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * The document types to execute the search against. Defaults to be executed against
      * all types.
+     *
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
      */
+    @Deprecated
     public String[] types() {
         return types;
     }
@@ -225,7 +229,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * The document types to execute the search against. Defaults to be executed against
      * all types.
-     * @deprecated Types are going away, prefer filtering on a type.
+     *
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
      */
     @Deprecated
     public SearchRequest types(String... types) {

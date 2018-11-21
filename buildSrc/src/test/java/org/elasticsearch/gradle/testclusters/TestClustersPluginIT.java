@@ -55,6 +55,9 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     }
 
     public void testUseClusterByUpToDateTask() {
+        // Run it once, ignoring the result and again to make sure it's considered up to date.
+        // Gradle randomly considers tasks without inputs and outputs as as up-to-date or success on the first run
+        getTestClustersRunner("upToDate1", "upToDate2").build();
         BuildResult result = getTestClustersRunner("upToDate1", "upToDate2").build();
         assertTaskUpToDate(result, ":upToDate1", ":upToDate2");
         assertNotStarted(result);
@@ -81,7 +84,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     public void testMultiProject() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("testclusters_multiproject"))
-            .withArguments("user1", "user2", "-s", "-i", "--parallel")
+            .withArguments("user1", "user2", "-s", "-i", "--parallel", "-Dlocal.repo.path=" + getLocalTestRepoPath())
             .withPluginClasspath()
             .build();
         assertTaskSuccessful(result, ":user1", ":user2");
@@ -130,15 +133,15 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     }
 
     private GradleRunner getTestClustersRunner(String... tasks) {
-        String[] arguments = Arrays.copyOf(tasks, tasks.length + 2);
+        String[] arguments = Arrays.copyOf(tasks, tasks.length + 3);
         arguments[tasks.length] = "-s";
         arguments[tasks.length + 1] = "-i";
+        arguments[tasks.length + 2] = "-Dlocal.repo.path=" + getLocalTestRepoPath();
         return GradleRunner.create()
             .withProjectDir(getProjectDir("testclusters"))
             .withArguments(arguments)
             .withPluginClasspath();
     }
-
 
     private void assertStartedAndStoppedOnce(BuildResult result) {
         assertOutputOnlyOnce(

@@ -23,7 +23,6 @@ import java.util.Set;
 class SearchHitRowSet extends AbstractRowSet {
     private final SearchHit[] hits;
     private final Cursor cursor;
-    private final String scrollId;
     private final List<HitExtractor> extractors;
     private final Set<String> innerHits = new LinkedHashSet<>();
     private final String innerHit;
@@ -35,7 +34,6 @@ class SearchHitRowSet extends AbstractRowSet {
     SearchHitRowSet(List<HitExtractor> exts, SearchHit[] hits, int limit, String scrollId) {
 
         this.hits = hits;
-        this.scrollId = scrollId;
         this.extractors = exts;
 
          // Since the results might contain nested docs, the iteration is similar to that of Aggregation
@@ -90,6 +88,10 @@ class SearchHitRowSet extends AbstractRowSet {
                 cursor = new ScrollCursor(scrollId, extractors, remainingLimit);
             }
         }
+    }
+    
+    protected boolean isLimitReached() {
+        return cursor == Cursor.EMPTY;
     }
 
     @Override
@@ -164,10 +166,6 @@ class SearchHitRowSet extends AbstractRowSet {
     @Override
     public int size() {
         return size;
-    }
-
-    public String scrollId() {
-        return scrollId;
     }
 
     @Override

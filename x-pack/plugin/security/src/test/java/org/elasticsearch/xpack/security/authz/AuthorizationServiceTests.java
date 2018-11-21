@@ -227,7 +227,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
-            auditTrail, new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings));
+            auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings));
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
@@ -621,7 +621,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser);
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser);
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() }, null);
@@ -647,7 +647,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             .build();
         final Authentication authentication = createAuthentication(new AnonymousUser(settings));
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings));
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings));
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
@@ -957,7 +957,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous_user_role").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser);
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser);
         roleMap.put("anonymous_user_role", new RoleDescriptor("anonymous_user_role", new String[]{"all"},
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null));
         mockEmptyMetaData();
@@ -984,7 +984,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous_user_role").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser);
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser);
         roleMap.put("anonymous_user_role", new RoleDescriptor("anonymous_user_role", new String[]{"all"},
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null));
         mockEmptyMetaData();

@@ -127,7 +127,7 @@ the second document.  The `text.english` field contains `fox` for both
 documents, because `foxes` is stemmed to `fox`.
 
 The query string is also analyzed by the `standard` analyzer for the `text`
-field, and by the `english` analyzer` for the `text.english` field.  The
+field, and by the `english` analyzer for the `text.english` field.  The
 stemmed field allows a query for `foxes` to also match the document containing
 just `fox`.  This allows us to match as many documents as possible.  By also
 querying the unstemmed `text` field, we improve the relevance score of the

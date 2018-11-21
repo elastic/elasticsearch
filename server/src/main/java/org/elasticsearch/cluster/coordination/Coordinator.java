@@ -637,9 +637,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             logger.info("setting initial configuration to {}", votingConfiguration);
             final Builder builder = masterService.incrementVersion(currentState);
             final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder(currentState.coordinationMetaData())
-                    .lastAcceptedConfiguration(votingConfiguration)
-                    .lastCommittedConfiguration(votingConfiguration)
-                    .build();
+                .lastAcceptedConfiguration(votingConfiguration)
+                .lastCommittedConfiguration(votingConfiguration)
+                .build();
 
             MetaData.Builder metaDataBuilder = MetaData.builder();
             // automatically generate a UID for the metadata if we need to
@@ -677,10 +677,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             assert getCurrentTerm() == 0 : getCurrentTerm();
             final long newTerm = 1;
-            final Builder builder = masterService.incrementVersion(getStateForMasterService());
-            builder.lastAcceptedConfiguration(votingConfiguration);
-            builder.lastCommittedConfiguration(votingConfiguration);
-            builder.term(newTerm);
+            final ClusterState currentState = getStateForMasterService();
+            final Builder builder = masterService.incrementVersion(currentState);
+            builder.metaData(MetaData.builder(currentState.metaData()).coordinationMetaData(
+                CoordinationMetaData.builder(currentState.metaData().coordinationMetaData())
+                    .term(newTerm)
+                    .lastAcceptedConfiguration(votingConfiguration)
+                    .lastCommittedConfiguration(votingConfiguration)
+                    .build()));
             final ClusterState newClusterState = builder.build();
 
             coordinationState.get().handleStartJoin(new StartJoinRequest(getLocalNode(), newClusterState.term()));

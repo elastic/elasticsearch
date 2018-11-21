@@ -20,7 +20,9 @@ STDDEV_POP      |AGGREGATE
 SUM_OF_SQUARES  |AGGREGATE      
 VAR_POP         |AGGREGATE      
 COALESCE        |CONDITIONAL
-DAY             |SCALAR         
+IFNULL          |CONDITIONAL
+ISNULL          |CONDITIONAL
+DAY             |SCALAR
 DAYNAME         |SCALAR         
 DAYOFMONTH      |SCALAR         
 DAYOFWEEK       |SCALAR         

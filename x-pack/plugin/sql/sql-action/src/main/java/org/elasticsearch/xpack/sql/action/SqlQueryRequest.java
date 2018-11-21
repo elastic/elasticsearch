@@ -119,5 +119,4 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         request.mode(mode);
         return request;
     }
-
 }

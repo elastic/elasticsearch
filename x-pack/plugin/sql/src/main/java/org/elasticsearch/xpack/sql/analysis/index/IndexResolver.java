@@ -363,40 +363,8 @@ public class IndexResolver {
         return esField;
     }
     
-    private static EsField createField(String fieldName, FieldCapabilities caps, Map<String, Map<String, FieldCapabilities>> globalCaps,
-            Map<String, EsField> hierarchicalMapping, Map<String, EsField> flattedMapping, boolean hasChildren) {
-
-        Map<String, EsField> parentProps = hierarchicalMapping;
-
-        int dot = fieldName.lastIndexOf('.');
-        String fullFieldName = fieldName;
-
-        if (dot >= 0) {
-            String parentName = fieldName.substring(0, dot);
-            fieldName = fieldName.substring(dot + 1);
-            EsField parent = flattedMapping.get(parentName);
-            if (parent == null) {
-                Map<String, FieldCapabilities> map = globalCaps.get(parentName);
-                if (map == null) {
-                    throw new SqlIllegalArgumentException("Cannot find field {}; this is likely a bug", parentName);
-                }
-                FieldCapabilities parentCap = map.values().iterator().next();
-                parent = createField(parentName, parentCap, globalCaps, hierarchicalMapping, flattedMapping, true);
-            }
-            parentProps = parent.getProperties();
-        }
-
-        Map<String, EsField> props = hasChildren ? new TreeMap<>() : emptyMap();
-        EsField field = createField(fieldName, caps.getType(), props, caps.isAggregatable());
-
-        parentProps.put(fieldName, field);
-        flattedMapping.put(fullFieldName, field);
-
-        return field;
-    }
-
     private static EsField createField(String fieldName, String typeName, Map<String, EsField> props, boolean isAggregateable) {
-        DataType esType = DataType.fromEsType(typeName);
+        DataType esType = DataType.fromTypeName(typeName);
         switch (esType) {
             case TEXT:
                 return new TextEsField(fieldName, props, false);

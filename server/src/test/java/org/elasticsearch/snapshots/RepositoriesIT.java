@@ -138,7 +138,8 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                     .get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
-            assertThat(ex.toString(), containsString("location [" + location + "] doesn't match any of the locations specified by path.repo"));
+            assertThat(ex.toString(), containsString("location [" + location + "] doesn't match any of the locations specified " +
+                "by path.repo"));
         }
     }
 

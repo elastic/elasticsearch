@@ -60,6 +60,8 @@ import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
+import org.elasticsearch.client.core.MultiTermVectorsRequest;
+import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
@@ -1155,6 +1157,37 @@ public class RestHighLevelClient implements Closeable {
     public final void termvectorsAsync(TermVectorsRequest request, RequestOptions options, ActionListener<TermVectorsResponse> listener) {
         performRequestAsyncAndParseEntity(request, RequestConverters::termVectors, options, TermVectorsResponse::fromXContent, listener,
             emptySet());
+    }
+
+
+    /**
+     * Calls the Multi Term Vectors API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-termvectors.html">Multi Term Vectors API
+     * on elastic.co</a>
+     *
+     * @param request   the request
+     * @param options   the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public final MultiTermVectorsResponse mtermvectors(MultiTermVectorsRequest request, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            request, RequestConverters::mtermVectors, options, MultiTermVectorsResponse::fromXContent, emptySet());
+    }
+
+
+    /**
+     * Asynchronously calls the Multi Term Vectors API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-termvectors.html">Multi Term Vectors API
+     * on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void mtermvectorsAsync(MultiTermVectorsRequest request, RequestOptions options,
+            ActionListener<MultiTermVectorsResponse> listener) {
+        performRequestAsyncAndParseEntity(
+            request, RequestConverters::mtermVectors, options, MultiTermVectorsResponse::fromXContent, listener, emptySet());
     }
 
 

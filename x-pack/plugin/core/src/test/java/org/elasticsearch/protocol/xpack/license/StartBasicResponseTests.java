@@ -31,11 +31,6 @@ public class StartBasicResponseTests extends
     }
 
     @Override
-    protected PostStartBasicResponse doParseInstance(XContentParser parser) throws IOException {
-        return PostStartBasicResponse.fromXContent(parser);
-    }
-
-    @Override
     protected PostStartBasicResponse createBlankInstance() {
         return new PostStartBasicResponse();
     }

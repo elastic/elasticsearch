@@ -72,13 +72,19 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals(L(now.plus(t)), L(x));
     }
 
-    public void testAddDayTimeIntervalToDateIllegal() throws Exception {
+    public void testAddDayTimeIntervalToDateReverse() throws Exception {
         ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
         Literal l = L(now);
         TemporalAmount t = Duration.ofHours(2);
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
         ZonedDateTime x = add(r, l);
         assertEquals(L(now.plus(t)), L(x));
+    }
+
+    public void testAddNumberToIntervalIllegal() throws Exception {
+        Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
+        SqlIllegalArgumentException expect = expectThrows(SqlIllegalArgumentException.class, () -> add(r, L(1)));
+        assertEquals("Cannot compute [+] between [IntervalDayTime] [Integer]", expect.getMessage());
     }
 
     public void testSubYearMonthIntervals() throws Exception {
@@ -111,6 +117,12 @@ public class BinaryArithmeticTests extends ESTestCase {
         Literal r = interval(t, INTERVAL_HOUR);
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> sub(r, l));
         assertEquals("Cannot substract a date from an interval; do you mean the reverse?", ex.getMessage());
+    }
+
+    public void testSubNumberFromIntervalIllegal() throws Exception {
+        Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
+        SqlIllegalArgumentException expect = expectThrows(SqlIllegalArgumentException.class, () -> sub(r, L(1)));
+        assertEquals("Cannot compute [-] between [IntervalDayTime] [Integer]", expect.getMessage());
     }
 
     public void testSubDayTimeIntervalToDate() throws Exception {

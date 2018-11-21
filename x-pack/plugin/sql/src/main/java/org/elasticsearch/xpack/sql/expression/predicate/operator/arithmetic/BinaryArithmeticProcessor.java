@@ -54,7 +54,8 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
                 return Arithmetics.add((ZonedDateTime) r, ((IntervalDayTime) l).interval());
             }
 
-            throw new SqlIllegalArgumentException("Cannot compute [+] between [{}] [{}]", l.getClass(), r.getClass());
+            throw new SqlIllegalArgumentException("Cannot compute [+] between [{}] [{}]", l.getClass().getSimpleName(),
+                    r.getClass().getSimpleName());
         }, "+"),
         SUB((Object l, Object r) -> {
             if (l instanceof Number) {
@@ -78,7 +79,8 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
                 throw new SqlIllegalArgumentException("Cannot substract a date from an interval; do you mean the reverse?");
             }
 
-            throw new SqlIllegalArgumentException("Cannot compute [-] between [{}] [{}]", l.getClass(), r.getClass());
+            throw new SqlIllegalArgumentException("Cannot compute [-] between [{}] [{}]", l.getClass().getSimpleName(),
+                    r.getClass().getSimpleName());
         }, "-"),
         MUL(Arithmetics::mul, "*"),
         DIV(Arithmetics::div, "/"),

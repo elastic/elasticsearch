@@ -80,9 +80,6 @@ public abstract class DataTypeConversion {
                 // null returned for incompatible intervals
                 return DataTypes.compatibleInterval(left, right);
             }
-            if (right == DATE) {
-                return right;
-            }
         }
 
         if (DataTypes.isInterval(right)) {

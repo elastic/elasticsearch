@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
@@ -1509,6 +1510,48 @@ public final class MachineLearningClient {
             MLRequestConverters::postCalendarEvents,
             options,
             PostCalendarEventResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Removes a Scheduled Event from a calendar
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar-event.html">
+     * ML Delete calendar event documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The {@link PutCalendarResponse} containing the updated calendar
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteCalendarEvent(DeleteCalendarEventRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteCalendarEvent,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Removes a Scheduled Event from a calendar, notifies listener when completed
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar-event.html">
+     * ML Delete calendar event documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteCalendarEventAsync(DeleteCalendarEventRequest request,
+                                         RequestOptions options,
+                                         ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteCalendarEvent,
+            options,
+            AcknowledgedResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

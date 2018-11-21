@@ -77,11 +77,9 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         ClusterState currentState = clusterService.state();
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
-        builder.term(currentState.term());
         builder.version(currentState.version());
         builder.stateUUID(currentState.stateUUID());
-        builder.lastCommittedConfiguration(currentState.getLastCommittedConfiguration());
-        builder.lastAcceptedConfiguration(currentState.getLastAcceptedConfiguration());
+
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
         }
@@ -105,6 +103,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         MetaData.Builder mdBuilder = MetaData.builder();
         mdBuilder.clusterUUID(currentState.metaData().clusterUUID());
+        mdBuilder.coordinationMetaData(currentState.coordinationMetaData());
 
         if (request.metaData()) {
             if (request.indices().length > 0) {

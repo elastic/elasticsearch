@@ -21,8 +21,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -121,11 +120,11 @@ public class ReconfiguratorTests extends ESTestCase {
         }
         final Reconfigurator reconfigurator = makeReconfigurator(settingsBuilder.build());
         final Set<DiscoveryNode> liveNodesSet = nodes(liveNodes);
-        final ClusterState.VotingConfiguration initialConfig = conf(initialVotingNodes);
+        final VotingConfiguration initialConfig = conf(initialVotingNodes);
 
         final int quorumSize = Math.max(liveNodes.length / 2 + 1, initialVotingNodes.length < 3 ? 1 : 2);
 
-        final ClusterState.VotingConfiguration finalConfig = reconfigurator.reconfigure(liveNodesSet, emptySet(), initialConfig);
+        final VotingConfiguration finalConfig = reconfigurator.reconfigure(liveNodesSet, emptySet(), initialConfig);
 
         final String description = "reconfigure " + liveNodesSet + " from " + initialConfig + " yielded " + finalConfig;
 
@@ -149,11 +148,11 @@ public class ReconfiguratorTests extends ESTestCase {
         final Reconfigurator reconfigurator
             = makeReconfigurator(Settings.builder().put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), false).build());
         final Set<DiscoveryNode> liveNodesSet = nodes(liveNodes);
-        final ClusterState.VotingConfiguration initialConfig = conf(initialVotingNodes);
+        final VotingConfiguration initialConfig = conf(initialVotingNodes);
 
         final int quorumSize = Math.max(liveNodes.length, initialVotingNodes.length) / 2 + 1;
 
-        final ClusterState.VotingConfiguration finalConfig = reconfigurator.reconfigure(liveNodesSet, emptySet(), initialConfig);
+        final VotingConfiguration finalConfig = reconfigurator.reconfigure(liveNodesSet, emptySet(), initialConfig);
 
         final String description = "reconfigure " + liveNodesSet + " from " + initialConfig + " yielded " + finalConfig;
 
@@ -165,8 +164,8 @@ public class ReconfiguratorTests extends ESTestCase {
         }
     }
 
-    private ClusterState.VotingConfiguration conf(String... nodes) {
-        return new ClusterState.VotingConfiguration(Sets.newHashSet(nodes));
+    private VotingConfiguration conf(String... nodes) {
+        return new VotingConfiguration(Sets.newHashSet(nodes));
     }
 
     private Set<DiscoveryNode> nodes(String... nodes) {
@@ -181,18 +180,18 @@ public class ReconfiguratorTests extends ESTestCase {
         return Arrays.stream(nodes).collect(Collectors.toSet());
     }
 
-    private void check(Set<DiscoveryNode> liveNodes, ClusterState.VotingConfiguration config, boolean autoShrinkVotingConfiguration,
-                       ClusterState.VotingConfiguration expectedConfig) {
+    private void check(Set<DiscoveryNode> liveNodes, VotingConfiguration config, boolean autoShrinkVotingConfiguration,
+                       VotingConfiguration expectedConfig) {
         check(liveNodes, retired(), config, autoShrinkVotingConfiguration, expectedConfig);
     }
 
-    private void check(Set<DiscoveryNode> liveNodes, Set<String> retired, ClusterState.VotingConfiguration config,
-                       boolean autoShrinkVotingConfiguration, ClusterState.VotingConfiguration expectedConfig) {
+    private void check(Set<DiscoveryNode> liveNodes, Set<String> retired, VotingConfiguration config,
+                       boolean autoShrinkVotingConfiguration, VotingConfiguration expectedConfig) {
         final Reconfigurator reconfigurator = makeReconfigurator(Settings.builder()
             .put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), autoShrinkVotingConfiguration)
             .build());
 
-        final ClusterState.VotingConfiguration adaptedConfig = reconfigurator.reconfigure(liveNodes, retired, config);
+        final VotingConfiguration adaptedConfig = reconfigurator.reconfigure(liveNodes, retired, config);
         assertEquals(new ParameterizedMessage("[liveNodes={}, retired={}, config={}, autoShrinkVotingConfiguration={}]",
                 liveNodes, retired, config, autoShrinkVotingConfiguration).getFormattedMessage(),
             expectedConfig, adaptedConfig);

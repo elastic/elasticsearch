@@ -21,6 +21,8 @@ package org.elasticsearch.action.admin.cluster.configuration;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
@@ -82,7 +84,7 @@ public class AddVotingTombstonesRequestTests extends ESTestCase {
 
         final ClusterState.Builder builder = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder()
             .add(localNode).add(otherNode1).add(otherNode2).localNodeId(localNode.getId()));
-        builder.addVotingTombstone(otherNode1);
+        builder.metaData(MetaData.builder().coordinationMetaData(CoordinationMetaData.builder().addVotingTombstone(otherNode1).build()));
         final ClusterState clusterState = builder.build();
 
         assertThat(makeRequest().resolveNodesAndCheckMaximum(clusterState, 3, "setting.name"),

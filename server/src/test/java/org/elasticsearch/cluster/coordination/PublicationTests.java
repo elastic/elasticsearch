@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.Tuple;
@@ -61,7 +61,7 @@ public class PublicationTests extends ESTestCase {
         MockNode(Settings settings, DiscoveryNode localNode) {
             this.localNode = localNode;
             ClusterState initialState = CoordinationStateTests.clusterState(0L, 0L, localNode,
-                VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L);
+                CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG, CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG, 0L);
             coordinationState = new CoordinationState(settings, localNode, new InMemoryPersistedState(0L,
                 initialState));
         }

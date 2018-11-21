@@ -197,6 +197,7 @@ STDDEV_POP      |AGGREGATE
 SUM_OF_SQUARES  |AGGREGATE      
 VAR_POP         |AGGREGATE      
 COALESCE        |CONDITIONAL
+IFNULL          |CONDITIONAL
 DAY             |SCALAR         
 DAYNAME         |SCALAR         
 DAYOFMONTH      |SCALAR         
@@ -1534,4 +1535,25 @@ SELECT COALESCE(null, null, null, null) AS "coalesce";
 ---------------
 null
 // end::coalesceReturnNull
+;
+
+ifNullReturnFirst
+// tag::ifNullReturnFirst
+SELECT IFNULL('elastic', null) AS "ifnull";
+
+    ifnull
+---------------
+elastic
+// end::ifNullReturnFirst
+;
+
+
+ifNullReturnSecond
+// tag::ifNullReturnSecond
+SELECT IFNULL(null, 'search') AS "ifnull";
+
+    ifnull
+---------------
+search
+// end::ifNullReturnSecond
 ;

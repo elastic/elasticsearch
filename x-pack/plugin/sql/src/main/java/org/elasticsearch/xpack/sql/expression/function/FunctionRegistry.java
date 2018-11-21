@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IFNull;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -147,6 +148,7 @@ public class FunctionRegistry {
         // Scalar functions
         // conditional
         addToMap(def(Coalesce.class, Coalesce::new));
+        addToMap(def(IFNull.class, IFNull::new));
         // Date
         addToMap(def(DayName.class, DayName::new, "DAYNAME"),
                 def(DayOfMonth.class, DayOfMonth::new, "DAYOFMONTH", "DAY", "DOM"),

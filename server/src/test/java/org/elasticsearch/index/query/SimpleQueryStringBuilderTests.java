@@ -713,6 +713,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
      * the tokenizer removed them as punctuation) on regular fields, this can leave only MatchNoDocsQuerys in the
      * disjunction clause. Instead those disjunctions should be eliminated completely.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35773")
     public void testUnmappedFieldNoTokenWithAndOperator() throws IOException {
         Query query = new SimpleQueryStringBuilder("first & second")
                 .field(STRING_FIELD_NAME)

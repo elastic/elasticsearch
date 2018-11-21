@@ -331,7 +331,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                             needToEnableTLS);
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);
-        logger.error(xContent.utf8ToString());
         assertEquals("{"
                   + "\"cluster_uuid\":\"_cluster\","
                   + "\"timestamp\":\"2017-08-07T12:03:22.133Z\","

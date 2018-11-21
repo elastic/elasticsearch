@@ -707,6 +707,12 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(expected, query);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35773")
+    @Override
+    public void testToQuery() throws IOException {
+        super.testToQuery();
+    }
+
     /**
      * Test for behavior reported in https://github.com/elastic/elasticsearch/issues/34708
      * Unmapped field can lead to MatchNoDocsQuerys in disjunction queries. If tokens are eliminated (e.g. because

@@ -93,7 +93,7 @@ public class LagDetector {
             = appliedStateTrackersByNode.values().stream().filter(t -> t.appliedVersionLessThan(version)).collect(Collectors.toList());
 
         if (laggingTrackers.isEmpty()) {
-            logger.trace("lag detection for version {} is unnecessary:", version, appliedStateTrackersByNode.values());
+            logger.trace("lag detection for version {} is unnecessary: {}", version, appliedStateTrackersByNode.values());
         } else {
             logger.trace("starting lag detector for version {}: {}", version, laggingTrackers);
 

@@ -226,8 +226,8 @@ primaryExpression
     ;
 
 castExpression
-    : castTemplate
-    | FUNCTION_ESC castTemplate ESC_END
+    : castTemplate                                                                   
+    | FUNCTION_ESC castTemplate ESC_END                                              
     | convertTemplate
     | FUNCTION_ESC convertTemplate ESC_END
     ;
@@ -235,7 +235,7 @@ castExpression
 castTemplate
     : CAST '(' expression AS dataType ')'
     ;
-
+    
 convertTemplate
     : CONVERT '(' expression ',' dataType ')'
     ;
@@ -265,6 +265,7 @@ functionName
     
 constant
     : NULL                                                                                     #nullLiteral
+    | interval                                                                                 #intervalLiteral
     | number                                                                                   #numericLiteral
     | booleanValue                                                                             #booleanLiteral
     | STRING+                                                                                  #stringLiteral
@@ -281,6 +282,19 @@ comparisonOperator
 
 booleanValue
     : TRUE | FALSE
+    ;
+
+interval
+    : INTERVAL sign=(PLUS | MINUS)? (valueNumeric=number | valuePattern=string) leading=intervalField (TO trailing=intervalField)? 
+    ;
+    
+intervalValue
+    : number
+    | string
+    ;
+
+intervalField
+    : YEAR | YEARS | MONTH | MONTHS | DAY | DAYS | HOUR | HOURS | MINUTE | MINUTES | SECOND | SECONDS
     ;
 
 dataType
@@ -313,8 +327,8 @@ unquoteIdentifier
     ;
 
 number
-    : DECIMAL_VALUE         #decimalLiteral
-    | INTEGER_VALUE         #integerLiteral
+    : DECIMAL_VALUE  #decimalLiteral
+    | INTEGER_VALUE  #integerLiteral
     ;
 
 string
@@ -326,18 +340,22 @@ string
 nonReserved
     : ANALYZE | ANALYZED 
     | CATALOGS | COLUMNS 
-    | DEBUG 
+    | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
-    | FORMAT | FUNCTIONS 
-    | GRAPHVIZ 
-    | MAPPED 
+    | FIRST | FORMAT | FUNCTIONS 
+    | GRAPHVIZ
+    | HOUR
+    | INTERVAL
+    | LAST | LIMIT 
+    | MAPPED | MINUTE | MONTH
     | OPTIMIZED 
     | PARSED | PHYSICAL | PLAN 
     | QUERY 
     | RLIKE
-    | SCHEMAS | SHOW | SYS
+    | SCHEMAS | SECOND | SHOW | SYS
     | TABLES | TEXT | TYPE | TYPES
     | VERIFY
+    | YEAR
     ;
 
 ALL: 'ALL';
@@ -354,6 +372,8 @@ CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
 CONVERT: 'CONVERT';
+DAY: 'DAY';
+DAYS: 'DAYS';
 DEBUG: 'DEBUG';
 DESC: 'DESC';
 DESCRIBE: 'DESCRIBE';
@@ -372,8 +392,11 @@ FUNCTIONS: 'FUNCTIONS';
 GRAPHVIZ: 'GRAPHVIZ';
 GROUP: 'GROUP';
 HAVING: 'HAVING';
+HOUR: 'HOUR';
+HOURS: 'HOURS';
 IN: 'IN';
 INNER: 'INNER';
+INTERVAL: 'INTERVAL';
 IS: 'IS';
 JOIN: 'JOIN';
 LAST: 'LAST';
@@ -382,6 +405,10 @@ LIKE: 'LIKE';
 LIMIT: 'LIMIT';
 MAPPED: 'MAPPED';
 MATCH: 'MATCH';
+MINUTE: 'MINUTE';
+MINUTES: 'MINUTES';
+MONTH: 'MONTH';
+MONTHS: 'MONTHS';
 NATURAL: 'NATURAL';
 NOT: 'NOT';
 NULL: 'NULL';
@@ -398,6 +425,8 @@ RIGHT: 'RIGHT';
 RLIKE: 'RLIKE';
 QUERY: 'QUERY';
 SCHEMAS: 'SCHEMAS';
+SECOND: 'SECOND';
+SECONDS: 'SECONDS';
 SELECT: 'SELECT';
 SHOW: 'SHOW';
 SYS: 'SYS';
@@ -405,12 +434,15 @@ TABLE: 'TABLE';
 TABLES: 'TABLES';
 TEXT: 'TEXT';
 TRUE: 'TRUE';
+TO: 'TO';
 TYPE: 'TYPE';
 TYPES: 'TYPES';
 USING: 'USING';
 VERIFY: 'VERIFY';
 WHERE: 'WHERE';
 WITH: 'WITH';
+YEAR: 'YEAR';
+YEARS: 'YEARS';
 
 // Escaped Sequence
 ESCAPE_ESC: '{ESCAPE';

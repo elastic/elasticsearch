@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.JdbcColumnInfo;
 
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -17,9 +17,9 @@ import static java.lang.String.format;
 class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     private final JdbcResultSet rs;
-    private final List<ColumnInfo> columns;
+    private final List<JdbcColumnInfo> columns;
 
-    JdbcResultSetMetaData(JdbcResultSet rs, List<ColumnInfo> columns) {
+    JdbcResultSetMetaData(JdbcResultSet rs, List<JdbcColumnInfo> columns) {
         this.rs = rs;
         this.columns = columns;
     }
@@ -62,7 +62,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     @Override
     public boolean isSigned(int column) throws SQLException {
-        return TypeConverter.isSigned(column(column).type);
+        return TypeUtils.isSigned(column(column).type);
     }
 
     @Override
@@ -137,7 +137,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        return TypeConverter.classNameOf(column(column).type);
+        return TypeUtils.classOf(column(column).type).getName();
     }
 
     private void checkOpen() throws SQLException {
@@ -146,7 +146,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
         }
     }
 
-    private ColumnInfo column(int column) throws SQLException {
+    private JdbcColumnInfo column(int column) throws SQLException {
         checkOpen();
         if (column < 1 || column > columns.size()) {
             throw new SQLException("Invalid column index [" + column + "]");

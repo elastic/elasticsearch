@@ -31,7 +31,7 @@ public class Coalesce extends ConditionalFunction {
     }
 
     @Override
-    protected NodeInfo<Coalesce> info() {
+    protected NodeInfo<? extends ConditionalFunction> info() {
         return NodeInfo.create(this, Coalesce::new, children());
     }
 

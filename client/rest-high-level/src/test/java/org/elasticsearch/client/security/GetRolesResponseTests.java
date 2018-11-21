@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -55,6 +56,9 @@ public class GetRolesResponseTests extends ESTestCase {
                 "    \"run_as\" : [ \"other_user\" ],\n" +
                 "    \"metadata\" : {\n" +
                 "      \"version\" : 1\n" +
+                "    },\n" +
+                "    \"transient_metadata\" : {\n" +
+                "      \"enabled\" : true\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";
@@ -79,11 +83,14 @@ public class GetRolesResponseTests extends ESTestCase {
         assertThat(role.getIndicesPrivileges().contains(expectedIndicesPrivileges), equalTo(true));
         final Map<String, Object> expectedMetadata = new HashMap<>();
         expectedMetadata.put("version", 1);
+        final Map<String, Object> expectedTransientMetadata = new HashMap<>();
+        expectedTransientMetadata.put("enabled", true);
         final Role expectedRole = Role.builder()
             .clusterPrivileges("all")
             .indicesPrivileges(expectedIndicesPrivileges)
             .runAsPrivilege("other_user")
             .metadata(expectedMetadata)
+            .transientMetadata(expectedTransientMetadata)
             .build();
         assertThat(role, equalTo(expectedRole));
     }
@@ -98,11 +105,14 @@ public class GetRolesResponseTests extends ESTestCase {
             .build();
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("key", "value");
+        Map<String, Object> transientMetadata = new HashMap<>();
+        transientMetadata.put("transient_key", "transient_value");
         final Role role = Role.builder()
             .clusterPrivileges("monitor", "manage", "manage_saml")
             .indicesPrivileges(indicesPrivileges)
             .runAsPrivilege("run_as_user")
             .metadata(metadata)
+            .transientMetadata(transientMetadata)
             .build();
         roles.add(role);
         IndicesPrivileges indicesPrivileges2 = new IndicesPrivileges.Builder()
@@ -113,11 +123,14 @@ public class GetRolesResponseTests extends ESTestCase {
             .build();
         Map<String, Object> metadata2 = new HashMap<>();
         metadata.put("other_key", "other_value");
+        Map<String, Object> transientMetadata2 = new HashMap<>();
+        transientMetadata2.put("other_transient_key", "other_transient_value");
         final Role role2 = Role.builder()
             .clusterPrivileges("monitor", "manage", "manage_saml")
             .indicesPrivileges(indicesPrivileges2)
             .runAsPrivilege("other_run_as_user")
             .metadata(metadata2)
+            .transientMetadata(transientMetadata2)
             .build();
         roles.add(role2);
         final GetRolesResponse getRolesResponse = new GetRolesResponse(roles);
@@ -142,11 +155,14 @@ public class GetRolesResponseTests extends ESTestCase {
                 .build();
             Map<String, Object> metadata = new HashMap<String, Object>();
             metadata.put("key", "value");
+            Map<String, Object> transientMetadata = new HashMap<>();
+            transientMetadata.put("transient_key", "transient_value");
             final Role role = Role.builder()
                 .clusterPrivileges("monitor", "manage", "manage_saml")
                 .indicesPrivileges(indicesPrivileges)
                 .runAsPrivilege("run_as_user")
                 .metadata(metadata)
+                .transientMetadata(transientMetadata)
                 .build();
             roles.add(role);
             return new GetRolesResponse(roles);
@@ -159,16 +175,18 @@ public class GetRolesResponseTests extends ESTestCase {
                 .build();
             Map<String, Object> metadata = new HashMap<String, Object>();
             metadata.put("key", "value");
+            Map<String, Object> transientMetadata = new HashMap<>();
+            transientMetadata.put("transient_key", "transient_value");
             final Role role = Role.builder()
                 .clusterPrivileges("monitor", "manage", "manage_saml")
                 .indicesPrivileges(indicesPrivileges)
                 .runAsPrivilege("run_as_user")
                 .metadata(metadata)
+                .transientMetadata(transientMetadata)
                 .build();
-            List<Role> originalRoles = original.getRoles();
-            originalRoles.remove(0);
-            originalRoles.add(role);
-
+            List<Role> newRoles = original.getRoles().stream().collect(Collectors.toList());
+            newRoles.remove(0);
+            newRoles.add(role);
             return new GetRolesResponse(original.getRoles());
         }
     }

@@ -53,6 +53,7 @@ public final class Role implements ToXContentObject {
     public static final ParseField APPLICATIONS = new ParseField("applications");
     public static final ParseField RUN_AS = new ParseField("run_as");
     public static final ParseField METADATA = new ParseField("metadata");
+    public static final ParseField TRANSIENT_METADATA = new ParseField("transient_metadata");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Role, Void> PARSER = new ConstructingObjectParser<>("role_descriptor", false,
@@ -67,9 +68,10 @@ public final class Role implements ToXContentObject {
                 final Collection<ApplicationResourcePrivileges> applicationResourcePrivileges =
                         (Collection<ApplicationResourcePrivileges>) constructorObjects[i++];
                 final Collection<String> runAsPrivilege = (Collection<String>) constructorObjects[i++];
-                final Map<String, Object> metadata = (Map<String, Object>) constructorObjects[i];
+                final Map<String, Object> metadata = (Map<String, Object>) constructorObjects[i++];
+                final Map<String, Object> transientMetadata = (Map<String, Object>) constructorObjects[i];
                 return new Role(clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
-                        runAsPrivilege, metadata);
+                    runAsPrivilege, metadata, transientMetadata);
             });
 
     static {
@@ -79,6 +81,7 @@ public final class Role implements ToXContentObject {
         PARSER.declareFieldArray(optionalConstructorArg(), ApplicationResourcePrivileges.PARSER, APPLICATIONS, ValueType.OBJECT_ARRAY);
         PARSER.declareStringArray(optionalConstructorArg(), RUN_AS);
         PARSER.declareObject(constructorArg(), (parser, c) -> parser.map(), METADATA);
+        PARSER.declareObject(optionalConstructorArg(), (parser, c) -> parser.map(), TRANSIENT_METADATA);
     }
 
     private final Set<String> clusterPrivileges;
@@ -87,11 +90,13 @@ public final class Role implements ToXContentObject {
     private final Set<ApplicationResourcePrivileges> applicationResourcePrivileges;
     private final Set<String> runAsPrivilege;
     private final Map<String, Object> metadata;
+    private final Map<String, Object> transientMetadata;
 
     private Role(@Nullable Collection<String> clusterPrivileges, @Nullable GlobalPrivileges globalApplicationPrivileges,
-            @Nullable Collection<IndicesPrivileges> indicesPrivileges,
-            @Nullable Collection<ApplicationResourcePrivileges> applicationResourcePrivileges, @Nullable Collection<String> runAsPrivilege,
-            @Nullable Map<String, Object> metadata) {
+                 @Nullable Collection<IndicesPrivileges> indicesPrivileges,
+                 @Nullable Collection<ApplicationResourcePrivileges> applicationResourcePrivileges,
+                 @Nullable Collection<String> runAsPrivilege, @Nullable Map<String, Object> metadata,
+                 @Nullable Map<String, Object> transientMetadata) {
         // no cluster privileges are granted unless otherwise specified
         this.clusterPrivileges = Collections
                 .unmodifiableSet(clusterPrivileges != null ? new HashSet<>(clusterPrivileges) : Collections.emptySet());
@@ -105,6 +110,7 @@ public final class Role implements ToXContentObject {
         // no run as privileges are granted unless otherwise specified
         this.runAsPrivilege = Collections.unmodifiableSet(runAsPrivilege != null ? new HashSet<>(runAsPrivilege) : Collections.emptySet());
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
+        this.transientMetadata = transientMetadata != null ? Collections.unmodifiableMap(transientMetadata) : Collections.emptyMap();
     }
 
     public Set<String> getClusterPrivileges() {
@@ -137,17 +143,18 @@ public final class Role implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         Role that = (Role) o;
         return clusterPrivileges.equals(that.clusterPrivileges)
-                && Objects.equals(globalApplicationPrivileges, that.globalApplicationPrivileges)
-                && indicesPrivileges.equals(that.indicesPrivileges)
-                && applicationResourcePrivileges.equals(that.applicationResourcePrivileges)
-                && runAsPrivilege.equals(that.runAsPrivilege)
-                && metadata.equals(that.metadata);
+            && Objects.equals(globalApplicationPrivileges, that.globalApplicationPrivileges)
+            && indicesPrivileges.equals(that.indicesPrivileges)
+            && applicationResourcePrivileges.equals(that.applicationResourcePrivileges)
+            && runAsPrivilege.equals(that.runAsPrivilege)
+            && metadata.equals(that.metadata)
+            && transientMetadata.equals(that.transientMetadata);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
-                runAsPrivilege, metadata);
+            runAsPrivilege, metadata, transientMetadata);
     }
 
     @Override
@@ -180,6 +187,9 @@ public final class Role implements ToXContentObject {
         if (false == metadata.isEmpty()) {
             builder.field(METADATA.getPreferredName(), metadata);
         }
+        if (false == transientMetadata.isEmpty()) {
+            builder.field(TRANSIENT_METADATA.getPreferredName(), transientMetadata);
+        }
         return builder.endObject();
     }
 
@@ -199,6 +209,7 @@ public final class Role implements ToXContentObject {
         private @Nullable Collection<ApplicationResourcePrivileges> applicationResourcePrivileges = null;
         private @Nullable Collection<String> runAsPrivilege = null;
         private @Nullable Map<String, Object> metadata = null;
+        private @Nullable Map<String, Object> transientMetadata = null;
 
         private Builder() {
         }
@@ -257,9 +268,15 @@ public final class Role implements ToXContentObject {
             return this;
         }
 
+        public Builder transientMetadata(Map<String, Object> transientMetadata) {
+            this.transientMetadata =
+                Objects.requireNonNull(transientMetadata, "Transient metadata cannot be null. Pass an empty map instead.");
+            return this;
+        }
+
         public Role build() {
             return new Role(clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
-                    runAsPrivilege, metadata);
+                runAsPrivilege, metadata, transientMetadata);
         }
     }
 

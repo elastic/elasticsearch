@@ -41,6 +41,8 @@ import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.ForecastJobResponse;
+import org.elasticsearch.client.ml.GetCalendarEventsRequest;
+import org.elasticsearch.client.ml.GetCalendarEventsResponse;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
@@ -72,6 +74,8 @@ import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
+import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -96,7 +100,9 @@ import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.config.JobState;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.MlFilter;
+import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
@@ -921,6 +927,47 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status().getStatus(), equalTo(404));
     }
 
+    public void testGetCalendarEvent() throws Exception {
+        Calendar calendar = new Calendar("get-calendar-event-id", Collections.singletonList("get-calendar-event-job"), null);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putCalendar(new PutCalendarRequest(calendar), RequestOptions.DEFAULT);
+
+        List<ScheduledEvent> events = new ArrayList<>(3);
+        for (int i = 0; i < 3; i++) {
+            events.add(ScheduledEventTests.testInstance(calendar.getId(), null));
+        }
+        machineLearningClient.postCalendarEvent(new PostCalendarEventRequest(calendar.getId(), events), RequestOptions.DEFAULT);
+
+        {
+            GetCalendarEventsRequest getCalendarEventsRequest = new GetCalendarEventsRequest(calendar.getId());
+
+            GetCalendarEventsResponse getCalendarEventsResponse = execute(getCalendarEventsRequest,
+                machineLearningClient::getCalendarEvents,
+                machineLearningClient::getCalendarEventsAsync);
+            assertThat(getCalendarEventsResponse.events().size(), equalTo(3));
+            assertThat(getCalendarEventsResponse.count(), equalTo(3L));
+        }
+        {
+            GetCalendarEventsRequest getCalendarEventsRequest = new GetCalendarEventsRequest(calendar.getId());
+            getCalendarEventsRequest.setPageParams(new PageParams(1, 2));
+            GetCalendarEventsResponse getCalendarEventsResponse = execute(getCalendarEventsRequest,
+                machineLearningClient::getCalendarEvents,
+                machineLearningClient::getCalendarEventsAsync);
+            assertThat(getCalendarEventsResponse.events().size(), equalTo(2));
+            assertThat(getCalendarEventsResponse.count(), equalTo(3L));
+        }
+        {
+            machineLearningClient.putJob(new PutJobRequest(buildJob("get-calendar-event-job")), RequestOptions.DEFAULT);
+            GetCalendarEventsRequest getCalendarEventsRequest = new GetCalendarEventsRequest("_all");
+            getCalendarEventsRequest.setJobId("get-calendar-event-job");
+            GetCalendarEventsResponse getCalendarEventsResponse = execute(getCalendarEventsRequest,
+                machineLearningClient::getCalendarEvents,
+                machineLearningClient::getCalendarEventsAsync);
+            assertThat(getCalendarEventsResponse.events().size(), equalTo(3));
+            assertThat(getCalendarEventsResponse.count(), equalTo(3L));
+        }
+    }
+
     public void testPostCalendarEvent() throws Exception {
         Calendar calendar = CalendarTests.testInstance();
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
@@ -1115,6 +1162,28 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
     }
 
+    public void createModelSnapshots(String jobId, List<String> snapshotIds) throws IOException {
+        Job job = MachineLearningIT.buildJob(jobId);
+        highLevelClient().machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        for(String snapshotId : snapshotIds) {
+            String documentId = jobId + "_model_snapshot_" + snapshotId;
+            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc", documentId);
+            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
+                "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+                "\"snapshot_id\":\"" + snapshotId + "\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+                "\"job_id\":\"" + jobId + "\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+                "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+                "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+                "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+                "\"latest_result_time_stamp\":1519930800000, \"retain\":false, " +
+                "\"quantiles\":{\"job_id\":\""+jobId+"\", \"timestamp\":1541587919000, " +
+                "\"quantile_state\":\"state\"}}", XContentType.JSON);
+            highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
+        }
+    }
+
     public void testDeleteModelSnapshot() throws IOException {
         String jobId = "test-delete-model-snapshot";
         String snapshotId = "1541587919";
@@ -1165,5 +1234,37 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertEquals(getModelSnapshotsResponse2.count(), 1L);
         assertEquals("Updated description",
             getModelSnapshotsResponse2.snapshots().get(0).getDescription());
+    }
+
+    public void testRevertModelSnapshot() throws IOException {
+        String jobId = "test-revert-model-snapshot";
+
+        List<String> snapshotIds = new ArrayList<>();
+
+        String snapshotId1 = "1541587919";
+        String snapshotId2 = "1541588919";
+        String snapshotId3 = "1541589919";
+
+        snapshotIds.add(snapshotId1);
+        snapshotIds.add(snapshotId2);
+        snapshotIds.add(snapshotId3);
+
+        createModelSnapshots(jobId, snapshotIds);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        for (String snapshotId : snapshotIds){
+            RevertModelSnapshotRequest request = new RevertModelSnapshotRequest(jobId, snapshotId);
+            if (randomBoolean()) {
+                request.setDeleteInterveningResults(randomBoolean());
+            }
+
+            RevertModelSnapshotResponse response = execute(request, machineLearningClient::revertModelSnapshot,
+                machineLearningClient::revertModelSnapshotAsync);
+
+            ModelSnapshot model = response.getModel();
+
+            assertEquals(snapshotId, model.getSnapshotId());
+        }
     }
 }

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.jdbc.type.DataType;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -15,7 +15,6 @@ import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
-import java.sql.JDBCType;
 import java.sql.NClob;
 import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
@@ -23,7 +22,6 @@ import java.sql.Ref;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.RowId;
-import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
@@ -70,7 +68,11 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         throw new SQLFeatureNotSupportedException("Writes not supported");
     }
 
-    private void setParam(int parameterIndex, Object value, SQLType type) throws SQLException {
+    private void setParam(int parameterIndex, Object value, int sqlType) throws SQLException {
+        setParam(parameterIndex, value, TypeUtils.of(sqlType));
+    }
+
+    private void setParam(int parameterIndex, Object value, DataType type) throws SQLException {
         checkOpen();
 
         if (parameterIndex < 0 || parameterIndex > query.paramCount()) {
@@ -83,7 +85,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setNull(int parameterIndex, int sqlType) throws SQLException {
-        setParam(parameterIndex, null, JDBCType.valueOf(sqlType));
+        setParam(parameterIndex, null, sqlType);
     }
 
     @Override
@@ -180,9 +182,14 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     }
 
     @Override
+    public void setObject(int parameterIndex, Object x, SQLType targetSqlType) throws SQLException {
+        setObject(parameterIndex, x, targetSqlType, 0);
+    }
+
+    @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
         if (x == null) {
-            setParam(parameterIndex, null, JDBCType.NULL);
+            setParam(parameterIndex, null, DataType.NULL);
             return;
         }
 
@@ -190,8 +197,9 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         // {@code java.sql.Array} etc) will generate the correct exception message. Otherwise, the method call
         // {@code TypeConverter.fromJavaToJDBC(x.getClass())} will report the implementing class as not being supported.
         checkKnownUnsupportedTypes(x);
-        setObject(parameterIndex, x, TypeConverter.fromJavaToJDBC(x.getClass()).getVendorTypeNumber(), 0);
+        setObject(parameterIndex, x, TypeUtils.of(x.getClass()).getVendorTypeNumber(), 0);
     }
+
 
     @Override
     public void addBatch() throws SQLException {
@@ -327,29 +335,29 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
+        setObject(parameterIndex, x, TypeUtils.asSqlType(targetSqlType), scaleOrLength);
+    }
+
+    @Override
+    public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
+        setObject(parameterIndex, x, TypeUtils.of(targetSqlType), targetSqlType.getName());
+    }
+
+    private void setObject(int parameterIndex, Object x, DataType dataType, String typeString) throws SQLException {
         checkOpen();
-
-        JDBCType targetJDBCType;
-        try {
-            // this is also a way to check early for the validity of the desired sql type
-            targetJDBCType = JDBCType.valueOf(targetSqlType);
-        } catch (IllegalArgumentException e) {
-            throw new SQLDataException(e.getMessage());
-        }
-
         // set the null value on the type and exit
         if (x == null) {
-            setParam(parameterIndex, null, JDBCType.valueOf(targetSqlType));
+            setParam(parameterIndex, null, dataType);
             return;
         }
 
         checkKnownUnsupportedTypes(x);
         if (x instanceof byte[]) {
-            if (targetJDBCType != JDBCType.VARBINARY) {
+            if (dataType != DataType.BINARY) {
                 throw new SQLFeatureNotSupportedException(
-                        "Conversion from type byte[] to " + targetJDBCType + " not supported");
+                        "Conversion from type [byte[]] to [" + typeString + "] not supported");
             }
-            setParam(parameterIndex, x, JDBCType.VARBINARY);
+            setParam(parameterIndex, x, DataType.BINARY);
             return;
         }
 
@@ -360,7 +368,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                 || x instanceof Time
                 || x instanceof java.util.Date)
         {
-            if (targetJDBCType == JDBCType.TIMESTAMP) {
+            if (dataType == DataType.DATE) {
                 // converting to {@code java.util.Date} because this is the type supported by {@code XContentBuilder} for serialization
                 java.util.Date dateToSet;
                 if (x instanceof Timestamp) {
@@ -381,15 +389,15 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                     dateToSet = (java.util.Date) x;
                 }
 
-                setParam(parameterIndex, dateToSet, JDBCType.TIMESTAMP);
+                setParam(parameterIndex, dateToSet, dataType);
                 return;
-            } else if (targetJDBCType == JDBCType.VARCHAR) {
-                setParam(parameterIndex, String.valueOf(x), JDBCType.VARCHAR);
+            } else if (TypeUtils.isString(dataType)) {
+                setParam(parameterIndex, String.valueOf(x), dataType);
                 return;
             }
             // anything else other than VARCHAR and TIMESTAMP is not supported in this JDBC driver
             throw new SQLFeatureNotSupportedException(
-                    "Conversion from type " + x.getClass().getName() + " to " + targetJDBCType + " not supported");
+                    "Conversion from type [" + x.getClass().getName() + "] to [" + typeString + "] not supported");
         }
 
         if (x instanceof Boolean
@@ -401,14 +409,13 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                 || x instanceof Double
                 || x instanceof String) {
             setParam(parameterIndex,
-                    TypeConverter.convert(x, TypeConverter.fromJavaToJDBC(x.getClass()), DataType.fromJdbcType(targetJDBCType).esType,
-                        DataType.fromJdbcTypeToJava(targetJDBCType)),
-                    JDBCType.valueOf(targetSqlType));
+                    TypeConverter.convert(x, TypeUtils.of(x.getClass()), (Class<?>) TypeUtils.classOf(dataType), typeString),
+                    dataType);
             return;
         }
 
         throw new SQLFeatureNotSupportedException(
-                "Conversion from type " + x.getClass().getName() + " to " + targetJDBCType + " not supported");
+                "Conversion from type [" + x.getClass().getName() + "] to [" + typeString + "] not supported");
     }
 
     private void checkKnownUnsupportedTypes(Object x) throws SQLFeatureNotSupportedException {
@@ -418,7 +425,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
         for (Class<?> clazz:unsupportedTypes) {
            if (clazz.isAssignableFrom(x.getClass())) {
-                throw new SQLFeatureNotSupportedException("Objects of type " + clazz.getName() + " are not supported");
+                throw new SQLFeatureNotSupportedException("Objects of type [" + clazz.getName() + "] are not supported");
            }
         }
     }

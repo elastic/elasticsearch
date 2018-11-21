@@ -13,6 +13,7 @@
 * <<sql-functions-string, String>>
 * <<sql-functions-type-conversion,Type Conversion>>
 * <<sql-functions-geo,Geo>>
+* <<sql-functions-conditional, Conditional>>
 
 include::operators.asciidoc[]
 include::aggs.asciidoc[]
@@ -22,3 +23,5 @@ include::math.asciidoc[]
 include::string.asciidoc[]
 include::type-conversion.asciidoc[]
 include::geo.asciidoc[]
+include::geo.asciidoc[]
+include::conditional.asciidoc[]

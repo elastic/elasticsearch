@@ -6,28 +6,20 @@
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
 
-import org.elasticsearch.xpack.sql.type.DataType;
-
-import java.sql.SQLType;
+import org.elasticsearch.xpack.sql.jdbc.type.DataType;
 
 import java.util.Objects;
 
-public class ColumnInfo {
+public class JdbcColumnInfo {
     public final String catalog;
     public final String schema;
     public final String table;
     public final String label;
     public final String name;
     public final int displaySize;
-    public final SQLType type;
-    public final String esType;
+    public final DataType type;
 
-    public ColumnInfo(String name, SQLType type, String table, String catalog, String schema, String label, int displaySize) {
-        this(name, type, table, catalog, schema, label, displaySize, DataType.fromJdbcType(type).esType);
-    }
-
-    public ColumnInfo(String name, SQLType type, String table, String catalog, String schema, String label, int displaySize,
-                      String esType) {
+    public JdbcColumnInfo(String name, DataType type, String table, String catalog, String schema, String label, int displaySize) {
         if (name == null) {
             throw new IllegalArgumentException("[name] must not be null");
         }
@@ -46,9 +38,6 @@ public class ColumnInfo {
         if (label == null) {
             throw new IllegalArgumentException("[label] must not be null");
         }
-        if (esType == null) {
-            throw new IllegalArgumentException("[esType] must not be null");
-        }
         this.name = name;
         this.type = type;
         this.table = table;
@@ -56,7 +45,6 @@ public class ColumnInfo {
         this.schema = schema;
         this.label = label;
         this.displaySize = displaySize;
-        this.esType = esType;
     }
 
     public int displaySize() {
@@ -88,19 +76,18 @@ public class ColumnInfo {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        ColumnInfo other = (ColumnInfo) obj;
+        JdbcColumnInfo other = (JdbcColumnInfo) obj;
         return name.equals(other.name)
                 && type.equals(other.type)
                 && table.equals(other.table)
                 && catalog.equals(other.catalog)
                 && schema.equals(other.schema)
                 && label.equals(other.label)
-                && displaySize == other.displaySize
-                && esType.equals(other.esType);
+                && displaySize == other.displaySize;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, table, catalog, schema, label, displaySize, esType);
+        return Objects.hash(name, type, table, catalog, schema, label, displaySize);
     }
 }

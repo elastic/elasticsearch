@@ -19,18 +19,18 @@ address              | VARCHAR   | TEXT
 address.keyword      | VARCHAR   | KEYWORD
 aliases              | VARCHAR   | TEXT
 aliases.keyword      | VARCHAR   | KEYWORD
-boundary             | OTHER     | GEO_SHAPE
-centerline           | OTHER     | GEO_SHAPE
-centerlines          | OTHER     | GEO_SHAPE
+boundary             | GEOMETRY  | GEO_SHAPE
+centerline           | GEOMETRY  | GEO_SHAPE
+centerlines          | GEOMETRY  | GEO_SHAPE
 fid                  | INTEGER   | INTEGER
-footprint            | OTHER     | GEO_SHAPE
+footprint            | GEOMETRY  | GEO_SHAPE
 name                 | VARCHAR   | TEXT
 name.keyword         | VARCHAR   | KEYWORD
-neatline             | OTHER     | GEO_SHAPE
-num_lanes            |INTEGER    | INTEGER
+neatline             | GEOMETRY  | GEO_SHAPE
+num_lanes            | INTEGER   | INTEGER
 ogc_type             | VARCHAR   | KEYWORD
-position             | OTHER     | GEO_SHAPE
-shore                | OTHER     | GEO_SHAPE
-shores               | OTHER     | GEO_SHAPE
+position             | GEOMETRY  | GEO_SHAPE
+shore                | GEOMETRY  | GEO_SHAPE
+shores               | GEOMETRY  | GEO_SHAPE
 type                 | VARCHAR   | KEYWORD
 ;

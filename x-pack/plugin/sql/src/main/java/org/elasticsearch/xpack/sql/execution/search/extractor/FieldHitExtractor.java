@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -72,16 +71,8 @@ public class FieldHitExtractor implements HitExtractor {
 
     FieldHitExtractor(StreamInput in) throws IOException {
         fieldName = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            String esType = in.readOptionalString();
-            if (esType != null) {
-                dataType = DataType.fromEsType(esType);
-            } else {
-                dataType = null;
-            }
-        } else {
-            dataType = null;
-        }
+        String esType = in.readOptionalString();
+        dataType = esType != null ? DataType.fromTypeName(esType) : null;
         useDocValue = in.readBoolean();
         hitName = in.readOptionalString();
         path = sourcePath(fieldName, useDocValue, hitName);
@@ -95,9 +86,7 @@ public class FieldHitExtractor implements HitExtractor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeOptionalString(dataType == null ? null : dataType.esType);
-        }
+        out.writeOptionalString(dataType == null ? null : dataType.esType);
         out.writeBoolean(useDocValue);
         out.writeOptionalString(hitName);
     }

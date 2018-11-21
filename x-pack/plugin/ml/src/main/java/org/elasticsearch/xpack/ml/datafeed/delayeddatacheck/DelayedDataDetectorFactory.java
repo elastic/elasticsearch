@@ -21,8 +21,8 @@ import java.util.Objects;
 public class DelayedDataDetectorFactory {
 
     // There are eight 15min buckets in a two hour span, so matching that number as the fallback for very long buckets
-    private static final int FALLBACK_NUMBER_OF_BUCKETS_TO_SPAN = 8;
-    private static final TimeValue DEFAULT_CHECK_WINDOW = TimeValue.timeValueHours(2);
+    private static final int DEFAULT_NUMBER_OF_BUCKETS_TO_SPAN = 8;
+    private static final long DEFAULT_CHECK_WINDOW_MS = 7_200_000L; // 2 hours in Milliseconds
 
     /**
      * This will build the appropriate detector given the parameters.
@@ -57,11 +57,7 @@ public class DelayedDataDetectorFactory {
             return 0;
         }
         if (currentWindow == null) { // we should provide a good default as the user did not specify a window
-            if(bucketSpan.compareTo(DEFAULT_CHECK_WINDOW) >= 0) {
-                return FALLBACK_NUMBER_OF_BUCKETS_TO_SPAN * bucketSpan.millis();
-            } else {
-                return DEFAULT_CHECK_WINDOW.millis();
-            }
+            return Math.max(DEFAULT_CHECK_WINDOW_MS, DEFAULT_NUMBER_OF_BUCKETS_TO_SPAN * bucketSpan.millis());
         }
         if (currentWindow.compareTo(bucketSpan) < 0) {
             throw new IllegalArgumentException(

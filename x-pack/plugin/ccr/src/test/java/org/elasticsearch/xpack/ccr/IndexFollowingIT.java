@@ -807,7 +807,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         AtomicBoolean closed = new AtomicBoolean(false);
         clusterService.addListener(event -> {
             IndexMetaData indexMetaData = event.state().metaData().index(indexName);
-            if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+            if (indexMetaData != null  && indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                 closed.set(true);
             }
         });

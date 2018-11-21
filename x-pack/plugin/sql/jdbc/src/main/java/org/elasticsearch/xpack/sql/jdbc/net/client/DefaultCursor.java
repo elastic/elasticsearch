@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.jdbc.net.client;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.JdbcColumnInfo;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -16,12 +16,12 @@ class DefaultCursor implements Cursor {
     private final JdbcHttpClient client;
     private final RequestMeta meta;
 
-    private final List<ColumnInfo> columnInfos;
+    private final List<JdbcColumnInfo> columnInfos;
     private List<List<Object>> rows;
     private int row = -1;
     private String cursor;
 
-    DefaultCursor(JdbcHttpClient client, String cursor, List<ColumnInfo> columnInfos, List<List<Object>> rows, RequestMeta meta) {
+    DefaultCursor(JdbcHttpClient client, String cursor, List<JdbcColumnInfo> columnInfos, List<List<Object>> rows, RequestMeta meta) {
         this.client = client;
         this.meta = meta;
         this.cursor = cursor;
@@ -30,7 +30,7 @@ class DefaultCursor implements Cursor {
     }
 
     @Override
-    public List<ColumnInfo> columns() {
+    public List<JdbcColumnInfo> columns() {
         return columnInfos;
     }
 

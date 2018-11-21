@@ -6,28 +6,29 @@
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.jdbc.type.DataType;
 
-import java.sql.JDBCType;
+import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 
 public class ColumnInfoTests extends ESTestCase {
-    static ColumnInfo varcharInfo(String name) {
-        return new ColumnInfo(name, JDBCType.VARCHAR, "", "", "", "", 0);
+    static JdbcColumnInfo varcharInfo(String name) {
+        return new JdbcColumnInfo(name, DataType.KEYWORD, EMPTY, EMPTY, EMPTY, EMPTY, 0);
     }
 
-    static ColumnInfo intInfo(String name) {
-        return new ColumnInfo(name, JDBCType.INTEGER, "", "", "", "", 11);
+    static JdbcColumnInfo intInfo(String name) {
+        return new JdbcColumnInfo(name, DataType.INTEGER, EMPTY, EMPTY, EMPTY, EMPTY, 11);
     }
 
-    static ColumnInfo doubleInfo(String name) {
-        return new ColumnInfo(name, JDBCType.DOUBLE, "", "", "", "", 25);
+    static JdbcColumnInfo doubleInfo(String name) {
+        return new JdbcColumnInfo(name, DataType.DOUBLE, EMPTY, EMPTY, EMPTY, EMPTY, 25);
     }
 
     public void testToString() {
-        assertEquals("test.doc.a<type=[VARCHAR] catalog=[as] schema=[ads] label=[lab]>",
-                new ColumnInfo("a", JDBCType.VARCHAR, "test.doc", "as", "ads", "lab", 0).toString());
-        assertEquals("test.doc.a<type=[VARCHAR]>",
-                new ColumnInfo("a", JDBCType.VARCHAR, "test.doc", "", "", "", 0).toString());
-        assertEquals("string<type=[VARCHAR]>", varcharInfo("string").toString());
+        assertEquals("test.doc.a<type=[KEYWORD] catalog=[as] schema=[ads] label=[lab]>",
+                new JdbcColumnInfo("a", DataType.KEYWORD, "test.doc", "as", "ads", "lab", 0).toString());
+        assertEquals("test.doc.a<type=[KEYWORD]>",
+                new JdbcColumnInfo("a", DataType.KEYWORD, "test.doc", EMPTY, EMPTY, EMPTY, 0).toString());
+        assertEquals("string<type=[KEYWORD]>", varcharInfo("string").toString());
         assertEquals("int<type=[INTEGER]>", intInfo("int").toString());
         assertEquals("d<type=[DOUBLE]>", doubleInfo("d").toString());
     }

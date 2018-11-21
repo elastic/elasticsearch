@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -36,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Collections.emptyMap;
 
 public class Exporters extends AbstractLifecycleComponent implements Iterable<Exporter> {
+    private static final Logger logger = LogManager.getLogger(Exporters.class);
 
     private final Settings settings;
     private final Map<String, Exporter.Factory> factories;

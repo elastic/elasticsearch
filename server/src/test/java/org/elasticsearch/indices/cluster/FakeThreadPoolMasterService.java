@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.indices.cluster;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,6 +44,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class FakeThreadPoolMasterService extends MasterService {
+    private static final Logger logger = LogManager.getLogger(FakeThreadPoolMasterService.class);
 
     private final String name;
     private final List<Runnable> pendingTasks = new ArrayList<>();

@@ -271,8 +271,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     @Override
     protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, notNullValue());
-
-        if (queryBuilder.value().isEmpty()) {
+        if (queryBuilder.value().isEmpty() || getCurrentTypes().length == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else if (queryBuilder.fields().size() > 1) {
             assertThat(query, instanceOf(DisjunctionMaxQuery.class));
@@ -707,20 +706,14 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(expected, query);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35773")
-    @Override
-    public void testToQuery() throws IOException {
-        super.testToQuery();
-    }
-
     /**
      * Test for behavior reported in https://github.com/elastic/elasticsearch/issues/34708
      * Unmapped field can lead to MatchNoDocsQuerys in disjunction queries. If tokens are eliminated (e.g. because
      * the tokenizer removed them as punctuation) on regular fields, this can leave only MatchNoDocsQuerys in the
      * disjunction clause. Instead those disjunctions should be eliminated completely.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35773")
     public void testUnmappedFieldNoTokenWithAndOperator() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = new SimpleQueryStringBuilder("first & second")
                 .field(STRING_FIELD_NAME)
                 .field("unmapped")

@@ -91,7 +91,11 @@ public class ClusterStateResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         clusterName = new ClusterName(in);
-        clusterState = ClusterState.readFrom(in, null);
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
+        } else {
+            clusterState = ClusterState.readFrom(in, null);
+        }
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             totalCompressedSize = new ByteSizeValue(in);
         } else {
@@ -111,10 +115,14 @@ public class ClusterStateResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         clusterName.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            clusterState.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeOptionalWriteable(clusterState);
         } else {
-            ClusterModule.filterCustomsForPre63Clients(clusterState).writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+                clusterState.writeTo(out);
+            } else {
+                ClusterModule.filterCustomsForPre63Clients(clusterState).writeTo(out);
+            }
         }
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             totalCompressedSize.writeTo(out);
@@ -134,7 +142,7 @@ public class ClusterStateResponse extends ActionResponse {
             Objects.equals(clusterName, response.clusterName) &&
             // Best effort. Only compare cluster state version and master node id,
             // because cluster state doesn't implement equals()
-            Objects.equals(clusterState.getVersion(), response.clusterState.getVersion()) &&
+            Objects.equals(getVersion(clusterState), getVersion(response.clusterState)) &&
             Objects.equals(getMasterNodeId(clusterState), getMasterNodeId(response.clusterState)) &&
             Objects.equals(totalCompressedSize, response.totalCompressedSize);
     }
@@ -145,14 +153,17 @@ public class ClusterStateResponse extends ActionResponse {
         // because cluster state doesn't implement  hashcode()
         return Objects.hash(
             clusterName,
-            clusterState.getVersion(),
+            getVersion(clusterState),
             getMasterNodeId(clusterState),
             totalCompressedSize,
             waitForTimedOut
         );
     }
 
-    private String getMasterNodeId(ClusterState clusterState) {
+    private static String getMasterNodeId(ClusterState clusterState) {
+        if (clusterState == null) {
+            return null;
+        }
         DiscoveryNodes nodes = clusterState.getNodes();
         if (nodes != null) {
             return nodes.getMasterNodeId();
@@ -160,4 +171,13 @@ public class ClusterStateResponse extends ActionResponse {
             return null;
         }
     }
+
+    private static Long getVersion(ClusterState clusterState) {
+        if (clusterState != null) {
+            return clusterState.getVersion();
+        } else {
+            return null;
+        }
+    }
+
 }

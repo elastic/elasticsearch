@@ -142,9 +142,8 @@ public class ClusterStateObserver {
                         timeOutValue, new TimeValue(timeSinceStartMS));
                     // update to latest, in case people want to retry
                     timedOut = true;
-                    ClusterState clusterState = clusterApplierService.state();
-                    lastObservedState.set(new StoredState(clusterState));
-                    listener.onTimeout(timeOutValue, clusterState);
+                    lastObservedState.set(new StoredState(clusterApplierService.state()));
+                    listener.onTimeout(timeOutValue);
                     return;
                 }
             } else {
@@ -245,10 +244,9 @@ public class ClusterStateObserver {
                 logger.trace("observer: timeout notification from cluster service. timeout setting [{}], time since start [{}]",
                     timeOutValue, new TimeValue(timeSinceStartMS));
                 // update to latest, in case people want to retry
-                ClusterState clusterState = clusterApplierService.state();
-                lastObservedState.set(new StoredState(clusterState));
+                lastObservedState.set(new StoredState(clusterApplierService.state()));
                 timedOut = true;
-                context.listener.onTimeout(timeOutValue, clusterState);
+                context.listener.onTimeout(timeOutValue);
             }
         }
     }
@@ -281,7 +279,7 @@ public class ClusterStateObserver {
         /** called when the cluster service is closed */
         void onClusterServiceClose();
 
-        void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState);
+        void onTimeout(TimeValue timeout);
     }
 
     static class ObservingContext {
@@ -319,9 +317,9 @@ public class ClusterStateObserver {
         }
 
         @Override
-        public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
+        public void onTimeout(TimeValue timeout) {
             try (ThreadContext.StoredContext context  = contextSupplier.get()) {
-                delegate.onTimeout(timeout, lastObservedClusterState);
+                delegate.onTimeout(timeout);
             }
         }
     }

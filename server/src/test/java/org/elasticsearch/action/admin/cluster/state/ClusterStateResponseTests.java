@@ -36,12 +36,16 @@ public class ClusterStateResponseTests extends AbstractStreamableTestCase<Cluste
     @Override
     protected ClusterStateResponse createTestInstance() {
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(4));
-        ClusterState.Builder clusterState = ClusterState.builder(clusterName)
-            .version(randomNonNegativeLong());
+        ClusterState clusterState = null;
         if (randomBoolean()) {
-            clusterState.nodes(DiscoveryNodes.builder().masterNodeId(randomAlphaOfLength(4)).build());
+            ClusterState.Builder clusterStateBuilder = ClusterState.builder(clusterName)
+                .version(randomNonNegativeLong());
+            if (randomBoolean()) {
+                clusterStateBuilder.nodes(DiscoveryNodes.builder().masterNodeId(randomAlphaOfLength(4)).build());
+            }
+            clusterState = clusterStateBuilder.build();
         }
-        return new ClusterStateResponse(clusterName, clusterState.build(), randomNonNegativeLong(), randomBoolean());
+        return new ClusterStateResponse(clusterName, clusterState, randomNonNegativeLong(), randomBoolean());
     }
 
     @Override

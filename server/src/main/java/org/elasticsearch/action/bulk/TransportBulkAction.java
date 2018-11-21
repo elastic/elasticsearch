@@ -453,7 +453,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
 
                 @Override
-                public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
+                public void onTimeout(TimeValue timeout) {
                     // Try one more time...
                     run();
                 }

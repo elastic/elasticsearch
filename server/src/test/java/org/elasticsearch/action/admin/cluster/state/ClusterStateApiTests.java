@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterStateApiTests extends ESSingleNodeTestCase {
 
@@ -66,7 +67,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
         });
         response = future3.actionGet();
         assertThat(response.isWaitForTimedOut(), is(true));
-        assertThat(response.getState().metaData().version(), equalTo(metadataVersion));
+        assertThat(response.getState(), nullValue());
 
         // Remove transient setting, otherwise test fails with the reason that this test leaves state behind:
         updateSettingsRequest = new ClusterUpdateSettingsRequest();

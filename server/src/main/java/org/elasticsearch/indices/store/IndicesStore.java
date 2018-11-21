@@ -345,7 +345,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                         }
 
                         @Override
-                        public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
+                        public void onTimeout(TimeValue timeout) {
                             sendResult(shardActive(getShard(request)));
                         }
 

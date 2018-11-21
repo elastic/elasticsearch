@@ -492,7 +492,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         }
 
                         @Override
-                        public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
+                        public void onTimeout(TimeValue timeout) {
                             // note that we do not use a timeout (see comment above)
                             onFailure(new ElasticsearchTimeoutException("timed out waiting for mapping updates (timeout [" + timeout +
                                     "])"));
@@ -527,7 +527,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 }
 
                 @Override
-                public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
+                public void onTimeout(TimeValue timeout) {
                     future.onFailure(new IllegalStateException("cluster state never updated to version " + clusterStateVersion));
                 }
             }, newState -> newState.getVersion() >= clusterStateVersion);

@@ -231,7 +231,7 @@ public class ShardStateAction {
             }
 
             @Override
-            public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
+            public void onTimeout(TimeValue timeout) {
                 // we wait indefinitely for a new master
                 assert false;
             }

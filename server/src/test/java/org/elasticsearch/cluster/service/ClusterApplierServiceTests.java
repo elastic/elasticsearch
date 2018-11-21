@@ -377,7 +377,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
+                    public void onTimeout(TimeValue timeout) {
 
                     }
                 });

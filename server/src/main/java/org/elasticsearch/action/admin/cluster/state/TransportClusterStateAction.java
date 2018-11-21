@@ -87,13 +87,13 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 new ClusterStateObserver(clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext());
             final ClusterState clusterState = observer.setAndGetObservedState();
             if (metadataVersionPredicate.test(clusterState)) {
-                buildResponse(request, clusterState, false, listener);
+                buildResponse(request, clusterState, listener);
             } else {
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         try {
-                            buildResponse(request, state, false, listener);
+                            buildResponse(request, state, listener);
                         } catch (Exception e) {
                             listener.onFailure(e);
                         }
@@ -105,9 +105,9 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                     }
 
                     @Override
-                    public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
+                    public void onTimeout(TimeValue timeout) {
                         try {
-                            buildResponse(request, lastObservedClusterState, true, listener);
+                            listener.onResponse(new ClusterStateResponse(clusterState.getClusterName(), null, 0L, true));
                         } catch (Exception e) {
                             listener.onFailure(e);
                         }
@@ -116,13 +116,12 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             }
         } else {
             ClusterState currentState = clusterService.state();
-            buildResponse(request, currentState, false, listener);
+            buildResponse(request, currentState, listener);
         }
     }
 
     private void buildResponse(final ClusterStateRequest request,
                                final ClusterState currentState,
-                               final boolean waitForTimedOut,
                                final ActionListener<ClusterStateResponse> listener) throws IOException {
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
@@ -182,7 +181,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             }
         }
         listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(),
-            serializeFullClusterState(currentState, Version.CURRENT).length(), waitForTimedOut));
+            serializeFullClusterState(currentState, Version.CURRENT).length(), false));
     }
 
 

@@ -91,7 +91,7 @@ public class ActiveShardsObserver {
                 }
 
                 @Override
-                public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
+                public void onTimeout(TimeValue timeout) {
                     onResult.accept(false);
                 }
             };

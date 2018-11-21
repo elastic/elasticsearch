@@ -596,7 +596,7 @@ public abstract class TransportReplicationAction<
                     }
 
                     @Override
-                    public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
+                    public void onTimeout(TimeValue timeout) {
                         throw new AssertionError("Cannot happen: there is not timeout");
                     }
                 });
@@ -878,7 +878,7 @@ public abstract class TransportReplicationAction<
                 }
 
                 @Override
-                public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
+                public void onTimeout(TimeValue timeout) {
                     // Try one more time...
                     run();
                 }

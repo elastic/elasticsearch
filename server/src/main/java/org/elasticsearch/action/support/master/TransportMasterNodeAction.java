@@ -253,7 +253,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     }
 
                     @Override
-                    public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
+                    public void onTimeout(TimeValue timeout) {
                         logger.debug(() -> new ParameterizedMessage("timed out while retrying [{}] after failure (timeout [{}])",
                             actionName, timeout), failure);
                         listener.onFailure(new MasterNotDiscoveredException(failure));

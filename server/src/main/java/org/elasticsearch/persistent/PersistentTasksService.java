@@ -185,7 +185,7 @@ public class PersistentTasksService {
                 }
 
                 @Override
-                public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
+                public void onTimeout(TimeValue timeout) {
                     listener.onTimeout(timeout);
                 }
             }, clusterStatePredicate);
@@ -221,7 +221,7 @@ public class PersistentTasksService {
                 }
 
                 @Override
-                public void onTimeout(TimeValue timeout, ClusterState lastObservedClusterState) {
+                public void onTimeout(TimeValue timeout) {
                     listener.onFailure(new IllegalStateException("Timed out when waiting for persistent tasks after " + timeout));
                 }
             }, clusterStatePredicate, timeout);

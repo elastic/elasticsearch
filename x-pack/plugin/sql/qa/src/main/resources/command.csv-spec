@@ -21,9 +21,10 @@ SUM_OF_SQUARES  |AGGREGATE
 VAR_POP         |AGGREGATE      
 COALESCE        |CONDITIONAL
 IFNULL          |CONDITIONAL
+ISNULL          |CONDITIONAL
 NVL             |CONDITIONAL
-DAY             |SCALAR         
-DAYNAME         |SCALAR         
+DAY             |SCALAR
+DAYNAME         |SCALAR
 DAYOFMONTH      |SCALAR         
 DAYOFWEEK       |SCALAR         
 DAYOFYEAR       |SCALAR         

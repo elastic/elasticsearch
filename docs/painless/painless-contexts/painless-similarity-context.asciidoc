@@ -48,13 +48,13 @@ documents in a query.
         The number of occurrences of the current term in the current
         document for the current field.
 
-Note that the `query`, `field` and `term` variables are also available to the
-{ref}/painless-weight-context[weight context] and will be more efficiently used
+Note that the `query`, `field`, and `term` variables are also available to the
+{ref}/painless-weight-context[weight context]. They are more efficiently used
 there, as they are constant for all documents.
 
-For queries that contain multiple terms, the script will be called once for each
-term with that term's calculated weight, and the results summed.  Note that some
-terms may have a `doc.freq` value of `0` on a document, for example if a query
+For queries that contain multiple terms, the script is called once for each
+term with that term's calculated weight, and the results are summed.  Note that some
+terms might have a `doc.freq` value of `0` on a document, for example if a query
 uses synonyms.
 
 *Return*

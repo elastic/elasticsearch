@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -42,6 +44,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.discovery.zen.UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING;
 
 public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent implements ConfiguredHostsResolver {
+    private static final Logger logger = LogManager.getLogger(UnicastConfiguredHostsResolver.class);
 
     private final Settings settings;
     private final AtomicBoolean resolveInProgress = new AtomicBoolean();

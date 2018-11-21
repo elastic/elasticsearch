@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
+import java.time.Duration;
+import java.time.Period;
+import java.time.ZonedDateTime;
+
 /**
  * Arithmetic operation using the type widening rules of the JLS 5.6.2 namely
  * widen to double or float or long or int in this order.
@@ -29,6 +33,38 @@ public abstract class Arithmetics {
         return Integer.valueOf(Math.addExact(l.intValue(), r.intValue()));
     }
 
+    static Period add(Period l, Period r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        return l.plus(r);
+    }
+
+    static Duration add(Duration l, Duration r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        return l.plus(r);
+    }
+
+    static ZonedDateTime add(ZonedDateTime l, Period r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        return l.plus(r);
+    }
+
+    static ZonedDateTime add(ZonedDateTime l, Duration r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        return l.plus(r);
+    }
+
     static Number sub(Number l, Number r) {
         if (l == null || r == null) {
             return null;
@@ -45,6 +81,38 @@ public abstract class Arithmetics {
         }
 
         return Integer.valueOf(Math.subtractExact(l.intValue(), r.intValue()));
+    }
+
+    static Period sub(Period l, Period r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        return l.minus(r);
+    }
+
+    static Duration sub(Duration l, Duration r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        return l.minus(r);
+    }
+
+    static ZonedDateTime sub(ZonedDateTime l, Period r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        return l.minus(r);
+    }
+
+    static ZonedDateTime sub(ZonedDateTime l, Duration r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        return l.minus(r);
     }
 
     static Number mul(Number l, Number r) {

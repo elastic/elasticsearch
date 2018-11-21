@@ -1510,3 +1510,24 @@ SELECT TRUNCATE(-345.153, 1) AS trimmed;
 // end::mathTruncateWithPositiveParameter
 ;
 
+
+coalesceReturnNonNull
+// tag::coalesceReturnNonNull
+SELECT COALESCE(null, 'elastic', 'search') AS "coalesce";
+
+    coalesce
+---------------
+elastic
+// end::coalesceReturnNonNull
+;
+
+
+coalesceReturnNull
+// tag::coalesceReturnNull
+SELECT COALESCE(null, null, null, null) AS "coalesce";
+
+    coalesce
+---------------
+null
+// end::coalesceReturnNull
+;

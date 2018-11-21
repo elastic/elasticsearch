@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
@@ -54,6 +56,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * A fault detection that pings the master periodically to see if its alive.
  */
 public class MasterFaultDetection extends FaultDetection {
+
+    private static final Logger logger = LogManager.getLogger(MasterFaultDetection.class);
 
     public static final String MASTER_PING_ACTION_NAME = "internal:discovery/zen/fd/master_ping";
 

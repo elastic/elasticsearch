@@ -186,7 +186,7 @@ Which returns:
 ===== Recognizing Location as a Geopoint
 Although this plugin enriches your document with a `location` field containing
 the estimated latitude and longitude of the IP address, this field will not be
-indexed as a <<geo-point,`geo_point`>> type in Elasticsearch without explicitely defining it
+indexed as a {ref}/geo-point.html[`geo_point`] type in Elasticsearch without explicitely defining it
 as such in the mapping.
 
 You can use the following mapping for the example index above:

@@ -129,11 +129,11 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuild
         // decompose linestrings crossing dateline into array of Lines
         Coordinate[] coordinates = this.coordinates.toArray(new Coordinate[this.coordinates.size()]);
         if (wrapdateline) {
-            ArrayList<Line> strings = decomposeLucene(coordinates, new ArrayList<>());
-            if (strings.size() == 1) {
-                return strings.get(0);
+            ArrayList<Line> linestrings = decomposeLucene(coordinates, new ArrayList<>());
+            if (linestrings.size() == 1) {
+                return linestrings.get(0);
             } else {
-                return strings.toArray(new Line[strings.size()]);
+                return linestrings.toArray(new Line[linestrings.size()]);
             }
         }
         return new Line(Arrays.stream(coordinates).mapToDouble(i->normalizeLat(i.y)).toArray(),

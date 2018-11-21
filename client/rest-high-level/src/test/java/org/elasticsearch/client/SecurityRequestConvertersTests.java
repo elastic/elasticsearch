@@ -24,10 +24,12 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.CreateTokenRequest;
+import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -240,5 +242,64 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/security/oauth2/token", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(createTokenRequest, request.getEntity());
+    }
+
+    public void testGetApplicationPrivilege() throws Exception {
+        final String application = randomAlphaOfLength(6);
+        final String privilege = randomAlphaOfLength(4);
+        GetPrivilegesRequest getPrivilegesRequest = new GetPrivilegesRequest(application, privilege);
+        Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/privilege/" + application + "/" + privilege, request.getEndpoint());
+        assertEquals(Collections.emptyMap(), request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    public void testGetAllApplicationPrivileges() throws Exception {
+        final String application = randomAlphaOfLength(6);
+        GetPrivilegesRequest getPrivilegesRequest = GetPrivilegesRequest.getApplicationPrivileges(application);
+        Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/privilege/" + application, request.getEndpoint());
+        assertEquals(Collections.emptyMap(), request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    public void testGetMultipleApplicationPrivileges() throws Exception {
+        final String application = randomAlphaOfLength(6);
+        final int numberOfPrivileges = randomIntBetween(1, 5);
+        final String[] privilegeNames =
+            randomArray(numberOfPrivileges, numberOfPrivileges, String[]::new, () -> randomAlphaOfLength(5));
+        GetPrivilegesRequest getPrivilegesRequest = new GetPrivilegesRequest(application, privilegeNames);
+        Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/privilege/" + application + "/" + Strings.arrayToCommaDelimitedString(privilegeNames),
+            request.getEndpoint());
+        assertEquals(Collections.emptyMap(), request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    public void testGetAllPrivileges() throws Exception {
+        GetPrivilegesRequest getPrivilegesRequest = GetPrivilegesRequest.getAllPrivileges();
+        Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/privilege", request.getEndpoint());
+        assertEquals(Collections.emptyMap(), request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    public void testDeletePrivileges() {
+        final String application = randomAlphaOfLengthBetween(1, 12);
+        final List<String> privileges = randomSubsetOf(randomIntBetween(1, 3), "read", "write", "all");
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
+        DeletePrivilegesRequest deletePrivilegesRequest =
+            new DeletePrivilegesRequest(application, privileges.toArray(Strings.EMPTY_ARRAY), refreshPolicy);
+        Request request = SecurityRequestConverters.deletePrivileges(deletePrivilegesRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/privilege/" + application + "/" + Strings.collectionToCommaDelimitedString(privileges),
+            request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
     }
 }

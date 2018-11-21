@@ -182,7 +182,8 @@ public class ElasticsearchGeoAssertions {
             assertEquals((MultiLineString) s1, (MultiLineString) s2);
 
         } else {
-            throw new RuntimeException("equality of shape types not supported [" + s1.getClass().getName() + " and " + s2.getClass().getName() + "]");
+            throw new RuntimeException("equality of shape types not supported [" + s1.getClass().getName() + " and " +
+                s2.getClass().getName() + "]");
         }
     }
 
@@ -237,41 +238,41 @@ public class ElasticsearchGeoAssertions {
 
     public static void assertMultiPolygon(Object shape, boolean useJTS) {
         if (useJTS) {
-            assert(unwrapJTS(shape) instanceof MultiPolygon)
-                : "expected MultiPolygon but found " + unwrapJTS(shape).getClass().getName();
+            assertTrue("expected MultiPolygon but found " + unwrapJTS(shape).getClass().getName(),
+                unwrapJTS(shape) instanceof MultiPolygon);
         } else {
-            assert(shape instanceof org.apache.lucene.geo.Polygon[])
-                : "expected Polygon[] but found " + shape.getClass().getName();
+            assertTrue("expected Polygon[] but found " + shape.getClass().getName(),
+                shape instanceof org.apache.lucene.geo.Polygon[]);
         }
     }
 
     public static void assertPolygon(Object shape, boolean useJTS) {
         if (useJTS) {
-            assert (unwrapJTS(shape) instanceof Polygon) : "expected Polygon but found "
-                + unwrapJTS(shape).getClass().getName();
+            assertTrue("expected Polygon but found "
+                + unwrapJTS(shape).getClass().getName(), unwrapJTS(shape) instanceof Polygon);
         } else {
-            assert(shape instanceof org.apache.lucene.geo.Polygon)
-                : "expected Polygon but found " + shape.getClass().getName();
+            assertTrue("expected Polygon but found " + shape.getClass().getName(),
+                shape instanceof org.apache.lucene.geo.Polygon);
         }
     }
 
     public static void assertLineString(Object shape, boolean useJTS) {
         if (useJTS) {
-            assert (unwrapJTS(shape) instanceof LineString) : "expected LineString but found "
-                + unwrapJTS(shape).getClass().getName();
+            assertTrue("expected LineString but found "
+                + unwrapJTS(shape).getClass().getName(), unwrapJTS(shape) instanceof LineString);
         } else {
-            assert(shape instanceof org.apache.lucene.geo.Line)
-                : "expected Line but found " + shape.getClass().getName();
+            assertTrue("expected Line but found " + shape.getClass().getName(),
+            shape instanceof org.apache.lucene.geo.Line);
         }
     }
 
     public static void assertMultiLineString(Object shape, boolean useJTS) {
         if (useJTS) {
-            assert (unwrapJTS(shape) instanceof MultiLineString) : "expected MultiLineString but found "
-                + unwrapJTS(shape).getClass().getName();
+            assertTrue("expected MultiLineString but found "
+                + unwrapJTS(shape).getClass().getName(), unwrapJTS(shape) instanceof MultiLineString);
         } else {
-            assert(shape instanceof org.apache.lucene.geo.Line[])
-                : "expected Line[] but found " + shape.getClass().getName();
+            assertTrue("expected Line[] but found " + shape.getClass().getName(),
+                shape instanceof org.apache.lucene.geo.Line[]);
         }
     }
 
@@ -294,8 +295,8 @@ public class ElasticsearchGeoAssertions {
             ShapeParser.parse(parser).buildS4J();
             Assert.fail("process completed successfully when " + expectedException.getName() + " expected");
         } catch (Exception e) {
-            assert(e.getClass().equals(expectedException)):
-                    "expected " + expectedException.getName() + " but found " + e.getClass().getName();
+            assertTrue("expected " + expectedException.getName() + " but found " + e.getClass().getName(),
+                e.getClass().equals(expectedException));
         }
     }
 }

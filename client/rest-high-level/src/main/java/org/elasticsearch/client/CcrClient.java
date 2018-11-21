@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
+import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 
@@ -90,7 +91,7 @@ public final class CcrClient {
     }
 
     /**
-     * Instructs a follower index the pause the following of a leader index.
+     * Instructs a follower index to pause the following of a leader index.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-pause-follow.html">
      * the docs</a> for more.
@@ -111,7 +112,7 @@ public final class CcrClient {
     }
 
     /**
-     * Asynchronously instruct a follower index the pause the following of a leader index.
+     * Asynchronously instruct a follower index to pause the following of a leader index.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-pause-follow.html">
      * the docs</a> for more.
@@ -125,6 +126,48 @@ public final class CcrClient {
         restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::pauseFollow,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Instructs a follower index to resume the following of a leader index.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-resume-follow.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse resumeFollow(ResumeFollowRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            CcrRequestConverters::resumeFollow,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously instruct a follower index to resume the following of a leader index.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-resume-follow.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public void resumeFollowAsync(ResumeFollowRequest request,
+                                  RequestOptions options,
+                                  ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            CcrRequestConverters::resumeFollow,
             options,
             AcknowledgedResponse::fromXContent,
             listener,

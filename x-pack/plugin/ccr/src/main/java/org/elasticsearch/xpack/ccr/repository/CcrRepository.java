@@ -23,13 +23,13 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import java.io.IOException;
 import java.util.List;
 
-public class CCRRepository extends AbstractLifecycleComponent implements Repository {
+public class CcrRepository extends AbstractLifecycleComponent implements Repository {
 
     public static final String TYPE = "_ccr_";
 
     private final RepositoryMetaData metadata;
 
-    public CCRRepository(RepositoryMetaData metadata, Settings settings) {
+    public CcrRepository(RepositoryMetaData metadata, Settings settings) {
         super(settings);
         this.metadata = metadata;
     }

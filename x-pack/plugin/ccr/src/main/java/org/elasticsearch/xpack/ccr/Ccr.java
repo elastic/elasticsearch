@@ -57,7 +57,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.ccr.action.TransportGetAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.TransportUnfollowAction;
-import org.elasticsearch.xpack.ccr.repository.CCRRepository;
+import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 import org.elasticsearch.xpack.ccr.rest.RestGetAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.TransportCcrStatsAction;
 import org.elasticsearch.xpack.ccr.rest.RestCcrStatsAction;
@@ -283,8 +283,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
-        Repository.Factory repositoryFactory = (metadata) -> new CCRRepository(metadata, settings);
-        return Collections.singletonMap(CCRRepository.TYPE, repositoryFactory);
+        Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(metadata, settings);
+        return Collections.singletonMap(CcrRepository.TYPE, repositoryFactory);
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
@@ -292,7 +292,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private static class CCRRepositoryManager extends RemoteClusterAware implements LocalNodeMasterListener {
 
         private static final Logger LOGGER = LogManager.getLogger(CCRRepositoryManager.class);
-        private static final String SOURCE = "refreshing " + CCRRepository.TYPE + " repositories";
+        private static final String SOURCE = "refreshing " + CcrRepository.TYPE + " repositories";
 
         private final ClusterService clusterService;
         private final Set<String> clusters = ConcurrentCollections.newConcurrentSet();
@@ -351,8 +351,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                     if (repositories == null) {
                         List<RepositoryMetaData> repositoriesMetaData = new ArrayList<>(clusters.size());
                         for (String cluster : clusters) {
-                            LOGGER.info("put [{}] repository [{}]", CCRRepository.TYPE, cluster);
-                            repositoriesMetaData.add(new RepositoryMetaData(cluster, CCRRepository.TYPE, Settings.EMPTY));
+                            LOGGER.info("put [{}] repository [{}]", CcrRepository.TYPE, cluster);
+                            repositoriesMetaData.add(new RepositoryMetaData(cluster, CcrRepository.TYPE, Settings.EMPTY));
                         }
                         repositories = new RepositoriesMetaData(repositoriesMetaData);
                     } else {
@@ -362,24 +362,24 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
                         for (RepositoryMetaData repositoryMetaData : repositories.repositories()) {
                             String name = repositoryMetaData.name();
-                            if (CCRRepository.TYPE.equals(repositoryMetaData.type())) {
+                            if (CcrRepository.TYPE.equals(repositoryMetaData.type())) {
                                 if (needToAdd.remove(name)) {
-                                    repositoriesMetaData.add(new RepositoryMetaData(name, CCRRepository.TYPE, Settings.EMPTY));
+                                    repositoriesMetaData.add(new RepositoryMetaData(name, CcrRepository.TYPE, Settings.EMPTY));
                                 } else {
-                                    LOGGER.info("delete [{}] repository [{}]", CCRRepository.TYPE, name);
+                                    LOGGER.info("delete [{}] repository [{}]", CcrRepository.TYPE, name);
                                 }
                             } else {
                                 if (needToAdd.remove(name)) {
                                     throw new IllegalStateException("Repository name conflict. Cannot put [" +
-                                        CCRRepository.TYPE + "] repository [" + name + "]. A [" +
+                                        CcrRepository.TYPE + "] repository [" + name + "]. A [" +
                                         repositoryMetaData.type() + "] repository with the same name is already registered.");
                                 }
                                 repositoriesMetaData.add(repositoryMetaData);
                             }
                         }
                         for (String cluster : needToAdd) {
-                            LOGGER.info("put [{}] repository [{}]", CCRRepository.TYPE, cluster);
-                            repositoriesMetaData.add(new RepositoryMetaData(cluster, CCRRepository.TYPE, Settings.EMPTY));
+                            LOGGER.info("put [{}] repository [{}]", CcrRepository.TYPE, cluster);
+                            repositoriesMetaData.add(new RepositoryMetaData(cluster, CcrRepository.TYPE, Settings.EMPTY));
                         }
                         repositories = new RepositoriesMetaData(repositoriesMetaData);
                     }
@@ -391,7 +391,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    LOGGER.warn(new ParameterizedMessage("failed to refresh [{}] repositories", CCRRepository.TYPE), e);
+                    LOGGER.warn(new ParameterizedMessage("failed to refresh [{}] repositories", CcrRepository.TYPE), e);
                 }
             });
         }

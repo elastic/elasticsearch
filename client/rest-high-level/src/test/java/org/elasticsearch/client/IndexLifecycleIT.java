@@ -272,8 +272,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         RetryLifecyclePolicyRequest retryRequest = new RetryLifecyclePolicyRequest("retry");
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
             () -> execute(
-                retryRequest, highLevelClient().indexLifecycle()::retryLifecycleStep,
-                highLevelClient().indexLifecycle()::retryLifecycleStepAsync
+                retryRequest, highLevelClient().indexLifecycle()::retryLifecyclePolicy,
+                highLevelClient().indexLifecycle()::retryLifecyclePolicyAsync
             )
         );
         assertEquals(400, ex.status().getStatus());

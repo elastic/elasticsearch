@@ -128,9 +128,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.maxDeterminizedStates(randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.autoGeneratePhraseQueries(randomBoolean());
-        }
-        if (randomBoolean()) {
             queryStringQueryBuilder.enablePositionIncrements(randomBoolean());
         }
         if (randomBoolean()) {

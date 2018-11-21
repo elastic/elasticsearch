@@ -28,6 +28,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.mockfile.FilterFileChannel;
+import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.MockDirectoryWrapper;
@@ -81,6 +82,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
+import java.nio.file.CopyOption;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
@@ -3195,6 +3197,40 @@ public class TranslogTests extends ESTestCase {
         @Override
         public void close() throws IOException {
             snapshot.close();
+        }
+    }
+
+    public void testCrashDuringCheckpointCopy() throws IOException {
+        final Path path = createTempDir();
+        final AtomicBoolean failOnCopy = new AtomicBoolean();
+        final FilterFileSystemProvider filterFileSystemProvider
+            = new FilterFileSystemProvider(path.getFileSystem().provider().getScheme(), path.getFileSystem()) {
+
+            @Override
+            public void copy(Path source, Path target, CopyOption... options) throws IOException {
+                if (failOnCopy.get() && source.toString().endsWith(Translog.CHECKPOINT_SUFFIX)) {
+                    deleteIfExists(target);
+                    Files.createFile(target);
+                    throw new IOException("simulated failure during copy");
+                } else {
+                    super.copy(source, target, options);
+                }
+            }
+        };
+
+        try (Translog brokenTranslog = create(filterFileSystemProvider.getPath(path.toUri()))) {
+            logger.info("rolling generation");
+            failOnCopy.set(true);
+            assertThat(expectThrows(IOException.class, brokenTranslog::rollGeneration).getMessage(),
+                equalTo("simulated failure during copy"));
+            assertFalse(brokenTranslog.isOpen());
+
+            try (Translog recoveredTranslog = new Translog(getTranslogConfig(path), brokenTranslog.getTranslogUUID(),
+                brokenTranslog.getDeletionPolicy(), () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get)) {
+                logger.info("rolling generation");
+                recoveredTranslog.rollGeneration();
+                assertFilePresences(recoveredTranslog);
+            }
         }
     }
 }

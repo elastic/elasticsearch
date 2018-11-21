@@ -26,8 +26,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class ClusterStateResponseTests extends AbstractStreamableTestCase<ClusterStateResponse> {
 
     @Override

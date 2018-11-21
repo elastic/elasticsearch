@@ -1312,7 +1312,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("coordination".equals(currentFieldName)) {
+                    if ("cluster_coordination".equals(currentFieldName)) {
                         builder.coordinationMetaData(CoordinationMetaData.fromXContent(parser));
                     } else if ("settings".equals(currentFieldName)) {
                         builder.persistentSettings(Settings.fromXContent(parser));

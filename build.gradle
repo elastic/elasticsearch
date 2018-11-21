@@ -28,6 +28,9 @@ import org.gradle.api.tasks.options.Option
 import  org.gradle.util.GradleVersion
 import  org.gradle.util.DistributionLocator
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+
+import java.util.function.Predicate
 
 plugins {
     id 'com.gradle.build-scan' version '2.0.2'
@@ -625,3 +628,19 @@ allprojects {
     }
   }
 }
+
+allprojects {
+  task checkPart1
+  task checkPart2 
+  tasks.matching { it.name == "check" }.all { check ->
+    if (check.path.startsWith(":x-pack:")) {
+      checkPart2.dependsOn check
+    } else {
+      checkPart1.dependsOn check
+    }
+  } 
+}
+
+
+
+

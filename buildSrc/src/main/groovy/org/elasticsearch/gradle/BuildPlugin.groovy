@@ -773,9 +773,32 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     static void applyCommonTestConfig(Project project) {
+        String defaultParallel = 'auto'
+        // Count physical cores on any Linux distro ( don't count hyper-threading )
+        if (project.file("/proc/cpuinfo").exists()) {
+            Map<String, Integer> socketToCore = [:]
+            String currentID = ""
+            project.file("/proc/cpuinfo").readLines().forEach({ line ->
+                if (line.contains(":")) {
+                    List<String> parts = line.split(":", 2).collect({it.trim()})
+                    String name = parts[0], value = parts[1]
+                    // the ID of the CPU socket
+                    if (name == "physical id") {
+                        currentID = value
+                    }
+                    // Number  of cores not including hyper-threading
+                    if (name == "cpu cores") {
+                        assert currentID.isEmpty() == false
+                        socketToCore[currentID] = Integer.valueOf(value)
+                        currentID = ""
+                    }
+                }
+            })
+            defaultParallel = socketToCore.values().sum().toString();
+        }
         project.tasks.withType(RandomizedTestingTask) {
             jvm "${project.runtimeJavaHome}/bin/java"
-            parallelism System.getProperty('tests.jvms', 'auto')
+            parallelism System.getProperty('tests.jvms', defaultParallel)
             ifNoTests System.getProperty('tests.ifNoTests', 'fail')
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true

@@ -1,6 +1,10 @@
 [[analysis-shingle-tokenfilter]]
 === Shingle Token Filter
 
+NOTE: Shingles are generally used to help speed up phrase queries.  Rather
+than building filter chains by hand, you may find it easier to use the
+<<index-phrases,`index-phrases`>> option on a text field.
+
 A token filter of type `shingle` that constructs shingles (token
 n-grams) from a token stream. In other words, it creates combinations of
 tokens as a single token. For example, the sentence "please divide this

@@ -3,7 +3,7 @@
 [[ccr-get-stats]]
 === Get Cross-Cluster Replication Stats API
 ++++
-<titleabbrev>Get Follower Stats</titleabbrev>
+<titleabbrev>Get CCR Stats</titleabbrev>
 ++++
 
 beta[]

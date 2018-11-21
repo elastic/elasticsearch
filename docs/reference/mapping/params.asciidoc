@@ -22,6 +22,7 @@ The following mapping parameters are common to some or all field datatypes:
 * <<ignore-malformed,`ignore_malformed`>>
 * <<index-options,`index_options`>>
 * <<index-phrases,`index_phrases`>>
+* <<index-prefixes,`index_prefixes`>>
 * <<mapping-index,`index`>>
 * <<multi-fields,`fields`>>
 * <<norms,`norms`>>

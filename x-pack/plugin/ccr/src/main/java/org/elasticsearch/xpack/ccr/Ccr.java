@@ -6,10 +6,20 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -20,6 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -32,6 +43,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -39,10 +52,13 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectionManager;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.ccr.action.TransportGetAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.TransportUnfollowAction;
+import org.elasticsearch.xpack.ccr.repository.RemoteClusterRepository;
 import org.elasticsearch.xpack.ccr.rest.RestGetAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.TransportCcrStatsAction;
 import org.elasticsearch.xpack.ccr.rest.RestCcrStatsAction;
@@ -77,12 +93,17 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -92,7 +113,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.CCR_ENABLED_SETTING;
 /**
  * Container class for CCR functionality.
  */
-public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, EnginePlugin {
+public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, EnginePlugin, RepositoryPlugin {
 
     public static final String CCR_THREAD_POOL_NAME = "ccr";
     public static final String CCR_CUSTOM_METADATA_KEY = "ccr";
@@ -104,6 +125,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final boolean enabled;
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
+    private SetOnce<RemoteClusterRepositoryManager> repositoryManager = new SetOnce<>();
 
     /**
      * Construct an instance of the CCR container with the specified settings.
@@ -141,6 +163,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         if (enabled == false) {
             return emptyList();
         }
+
+        repositoryManager.set(new RemoteClusterRepositoryManager(settings, clusterService));
 
         return Arrays.asList(
             ccrLicenseChecker,
@@ -259,6 +283,116 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         return Collections.singletonList(new FixedExecutorBuilder(settings, CCR_THREAD_POOL_NAME, 32, 100, "xpack.ccr.ccr_thread_pool"));
     }
 
+    @Override
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        Repository.Factory repositoryFactory = (metadata) -> new RemoteClusterRepository(metadata, settings);
+        return Collections.singletonMap(RemoteClusterRepository.TYPE, repositoryFactory);
+    }
+
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
+    private static class RemoteClusterRepositoryManager extends RemoteClusterAware implements LocalNodeMasterListener {
+
+        private static final Logger logger = LogManager.getLogger(RemoteClusterRepositoryManager.class);
+        private static final String SOURCE = "refreshing " + RemoteClusterRepository.TYPE + " repositories";
+
+        private final ClusterService clusterService;
+        private final Set<String> clusters = ConcurrentCollections.newConcurrentSet();
+        private volatile boolean isMasterNode = false;
+
+        private RemoteClusterRepositoryManager(Settings settings, ClusterService clusterService) {
+            super(settings);
+            this.clusterService = clusterService;
+            clusters.addAll(buildRemoteClustersDynamicConfig(settings).keySet());
+            clusterService.addLocalNodeMasterListener(this);
+            listenForUpdates(clusterService.getClusterSettings());
+        }
+
+        @Override
+        protected Set<String> getRemoteClusterNames() {
+            return clusters;
+        }
+
+        @Override
+        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress) {
+            if (addresses.isEmpty()) {
+                if (clusters.remove(clusterAlias) && isMasterNode) {
+                    refreshCCRRepositories();
+                }
+            } else {
+                boolean added = clusters.add(clusterAlias);
+                if (added && isMasterNode) {
+                    refreshCCRRepositories();
+                }
+            }
+        }
+
+        @Override
+        public void onMaster() {
+            this.isMasterNode = true;
+            refreshCCRRepositories();
+        }
+
+        @Override
+        public void offMaster() {
+            this.isMasterNode = false;
+        }
+
+        @Override
+        public String executorName() {
+            return ThreadPool.Names.SAME;
+        }
+
+        private void refreshCCRRepositories() {
+            clusterService.submitStateUpdateTask(SOURCE, new ClusterStateUpdateTask() {
+
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    MetaData metaData = currentState.metaData();
+                    RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
+
+                    if (repositories == null) {
+                        List<RepositoryMetaData> repositoriesMetaData = new ArrayList<>(clusters.size());
+                        for (String cluster : clusters) {
+                            logger.info("put repository [{}]", cluster);
+                            repositoriesMetaData.add(new RepositoryMetaData(cluster, RemoteClusterRepository.TYPE, Settings.EMPTY));
+                        }
+                        repositories = new RepositoriesMetaData(repositoriesMetaData);
+                    } else {
+                        List<RepositoryMetaData> repositoriesMetaData = new ArrayList<>(repositories.repositories().size());
+
+                        Set<String> needToAdd = new HashSet<>(clusters);
+
+                        for (RepositoryMetaData repositoryMetaData : repositories.repositories()) {
+                            if (RemoteClusterRepository.TYPE.equals(repositoryMetaData.type())) {
+                                String name = repositoryMetaData.name();
+                                if (clusters.remove(name)) {
+                                    repositoriesMetaData.add(new RepositoryMetaData(name, RemoteClusterRepository.TYPE, Settings.EMPTY));
+                                } else {
+                                    logger.info("delete [{}] repository [{}]", RemoteClusterRepository.TYPE, name);
+                                }
+                                needToAdd.remove(name);
+                            } else {
+                                repositoriesMetaData.add(repositoryMetaData);
+                            }
+                        }
+                        for (String cluster : needToAdd) {
+                            logger.info("put [{}] repository [{}]", RemoteClusterRepository.TYPE, cluster);
+                            repositoriesMetaData.add(new RepositoryMetaData(cluster, RemoteClusterRepository.TYPE, Settings.EMPTY));
+                        }
+                        repositories = new RepositoriesMetaData(repositoriesMetaData);
+                    }
+
+                    MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+                    mdBuilder.putCustom(RepositoriesMetaData.TYPE, repositories);
+                    return ClusterState.builder(currentState).metaData(mdBuilder).build();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.warn(new ParameterizedMessage("failed to refresh [{}] repositories", RemoteClusterRepository.TYPE), e);
+                }
+            });
+        }
+    }
 }

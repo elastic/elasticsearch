@@ -41,7 +41,6 @@ public class DataFrameDataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(DataFrameDataExtractor.class);
     private static final TimeValue SCROLL_TIMEOUT = new TimeValue(30, TimeUnit.MINUTES);
-    private static final String EMPTY_STRING = "";
 
     private final Client client;
     private final DataFrameDataExtractorContext context;
@@ -141,7 +140,7 @@ public class DataFrameDataExtractor {
         for (int i = 0; i < result.length; ++i) {
             ExtractedField field = context.extractedFields.getAllFields().get(i);
             Object[] values = field.value(hit);
-            result[i] = (values.length == 1) ? Objects.toString(values[0]) : EMPTY_STRING;
+            result[i] = (values.length == 1) ? Objects.toString(values[0]) : "";
         }
         return result;
     }

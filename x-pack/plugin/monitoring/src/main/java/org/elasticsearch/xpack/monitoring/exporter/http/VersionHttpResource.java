@@ -64,7 +64,7 @@ public class VersionHttpResource extends HttpResource {
                 try {
                     // malformed responses can cause exceptions during validation
                     listener.onResponse(validateVersion(response));
-                } catch (IOException | RuntimeException e) {
+                } catch (Exception e) {
                     onFailure(e);
                 }
             }

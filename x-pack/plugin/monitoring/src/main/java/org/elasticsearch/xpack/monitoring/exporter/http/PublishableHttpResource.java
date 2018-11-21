@@ -170,11 +170,16 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param xContent The XContent used to parse the response.
      * @param minimumVersion The minimum version allowed without being replaced (expected to be the last updated version).
      */
-    protected void versionCheckForResource(final RestClient client, final ActionListener<Boolean> listener, final Logger logger,
+    protected void versionCheckForResource(final RestClient client,
+                                           final ActionListener<Boolean> listener,
+                                           final Logger logger,
                                            final String resourceBasePath,
-                                           final String resourceName, final String resourceType,
-                                           final String resourceOwnerName, final String resourceOwnerType,
-                                           final XContent xContent, final int minimumVersion) {
+                                           final String resourceName,
+                                           final String resourceType,
+                                           final String resourceOwnerName,
+                                           final String resourceOwnerType,
+                                           final XContent xContent,
+                                           final int minimumVersion) {
         final CheckedFunction<Response, Boolean, IOException> responseChecker =
             (response) -> shouldReplaceResource(response, xContent, resourceName, minimumVersion);
 
@@ -201,10 +206,16 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param responseChecker Returns {@code true} if the resource should be replaced.
      * @param doesNotExistResponseChecker Returns {@code true} if the resource should be replaced.
      */
-    protected void checkForResource(final RestClient client, final ActionListener<Boolean> listener, final Logger logger,
-                                    final String resourceBasePath, final String resourceName, final String resourceType,
-                                    final String resourceOwnerName, final String resourceOwnerType,
-                                    final Set<Integer> exists, final Set<Integer> doesNotExist,
+    protected void checkForResource(final RestClient client,
+                                    final ActionListener<Boolean> listener,
+                                    final Logger logger,
+                                    final String resourceBasePath,
+                                    final String resourceName,
+                                    final String resourceType,
+                                    final String resourceOwnerName,
+                                    final String resourceOwnerType,
+                                    final Set<Integer> exists,
+                                    final Set<Integer> doesNotExist,
                                     final CheckedFunction<Response, Boolean, IOException> responseChecker,
                                     final CheckedFunction<Response, Boolean, IOException> doesNotExistResponseChecker) {
         logger.trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
@@ -293,11 +304,15 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param resourceOwnerName The user-recognizeable resource owner.
      * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
      */
-    protected void putResource(final RestClient client, final ActionListener<Boolean> listener, final Logger logger,
+    protected void putResource(final RestClient client,
+                               final ActionListener<Boolean> listener,
+                               final Logger logger,
                                final String resourceBasePath,
-                               final String resourceName, final java.util.function.Supplier<HttpEntity> body,
+                               final String resourceName,
+                               final java.util.function.Supplier<HttpEntity> body,
                                final String resourceType,
-                               final String resourceOwnerName, final String resourceOwnerType) {
+                               final String resourceOwnerName,
+                               final String resourceOwnerType) {
         logger.trace("uploading {} [{}] to the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
 
@@ -350,10 +365,14 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param resourceOwnerName The user-recognizeable resource owner.
      * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
      */
-    protected void deleteResource(final RestClient client, final ActionListener<Boolean> listener, final Logger logger,
-                                  final String resourceBasePath, final String resourceName,
+    protected void deleteResource(final RestClient client,
+                                  final ActionListener<Boolean> listener,
+                                  final Logger logger,
+                                  final String resourceBasePath,
+                                  final String resourceName,
                                   final String resourceType,
-                                  final String resourceOwnerName, final String resourceOwnerType) {
+                                  final String resourceOwnerName,
+                                  final String resourceOwnerType) {
         logger.trace("deleting {} [{}] from the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
         final Request request = new Request("DELETE", resourceBasePath + "/" + resourceName);

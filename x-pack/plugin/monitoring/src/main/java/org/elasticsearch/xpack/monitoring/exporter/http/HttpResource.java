@@ -147,21 +147,14 @@ public abstract class HttpResource {
         // we always check when asked, regardless of clean or dirty
         state.set(State.CHECKING);
 
-        doCheckAndPublish(client, new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(final Boolean success) {
-                state.compareAndSet(State.CHECKING, success ? State.CLEAN : State.DIRTY);
+        doCheckAndPublish(client, ActionListener.wrap(success -> {
+            state.compareAndSet(State.CHECKING, success ? State.CLEAN : State.DIRTY);
+            listener.onResponse(success);
+        }, e -> {
+            state.compareAndSet(State.CHECKING, State.DIRTY);
 
-                listener.onResponse(success);
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                state.compareAndSet(State.CHECKING, State.DIRTY);
-
-                listener.onFailure(e);
-            }
-        });
+            listener.onFailure(e);
+        }));
     }
 
     /**

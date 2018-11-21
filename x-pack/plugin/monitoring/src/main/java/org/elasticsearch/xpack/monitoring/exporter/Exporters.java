@@ -176,6 +176,7 @@ public class Exporters extends AbstractLifecycleComponent {
             logger.trace("skipping exporters because the cluster state is not loaded");
 
             listener.onResponse(null);
+            return;
         }
 
         final Map<String, Exporter> exporterMap = exporters.get();

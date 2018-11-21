@@ -111,7 +111,7 @@ public abstract class GatewayMetaState {
         }
     }
 
-    private void upgradeMetaData(MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
+    protected void upgradeMetaData(MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
             throws IOException {
         if (isMasterOrDataNode()) {
             try {

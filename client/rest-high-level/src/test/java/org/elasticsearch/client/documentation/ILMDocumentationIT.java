@@ -390,7 +390,15 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         assertNull(failedStep);
 
-        assertFalse(indices.get("other_index").managedByILM());
+        IndexLifecycleExplainResponse otherIndex = indices.get("other_index");
+        assertFalse(otherIndex.managedByILM());
+        assertNull(otherIndex.getPolicyName());
+        assertNull(otherIndex.getPhase());
+        assertNull(otherIndex.getAction());
+        assertNull(otherIndex.getStep());
+        assertNull(otherIndex.getFailedStep());
+        assertNull(otherIndex.getPhaseExecutionInfo());
+        assertNull(otherIndex.getStepInfo());
 
         // tag::ilm-explain-lifecycle-execute-listener
         ActionListener<ExplainLifecycleResponse> listener =

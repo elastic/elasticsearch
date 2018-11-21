@@ -32,13 +32,18 @@ as well as the policy definition.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The name of the policy in use for this index, if any.
+<1> The name of the policy in use for this index, if any. Will be `null` if the
+index does not have an associated policy.
 <2> Indicates whether this index is being managed by Index Lifecycle Management.
-<3> The Phase (`hot`, `warm`, etc.) this index is currently in.
+<3> The Phase (`hot`, `warm`, etc.) this index is currently in. Will be `null` if
+the index is not managed by Index Lifecycle Management.
 <4> The time this index entered this Phase of execution.
-<5> The Action (`rollover`, `shrink`, etc.) this index is currently in.
-<6> The Step this index is currently in.
+<5> The Action (`rollover`, `shrink`, etc.) this index is currently in. Will be `null` if
+the index is not managed by Index Lifecycle Management.
+<6> The Step this index is currently in. Will be `null` if
+the index is not managed by Index Lifecycle Management.
 <7> If this index is in the `ERROR` Step, this will indicate which Step failed.
+Otherwise, it will be `null`.
 
 include::../execution.asciidoc[]
 

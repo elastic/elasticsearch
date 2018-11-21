@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -31,6 +32,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
+import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -95,6 +97,16 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
         AcknowledgedResponse pauseFollowResponse = execute(pauseFollowRequest, ccrClient::pauseFollow, ccrClient::pauseFollowAsync);
         assertThat(pauseFollowResponse.isAcknowledged(), is(true));
+
+        // Need to close index prior to unfollowing it:
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest("follower");
+        org.elasticsearch.action.support.master.AcknowledgedResponse closeIndexReponse =
+            highLevelClient().indices().close(closeIndexRequest, RequestOptions.DEFAULT);
+        assertThat(closeIndexReponse.isAcknowledged(), is(true));
+
+        UnfollowRequest unfollowRequest = new UnfollowRequest("follower");
+        AcknowledgedResponse unfollowResponse = execute(unfollowRequest, ccrClient::unfollow, ccrClient::unfollowAsync);
+        assertThat(unfollowResponse.isAcknowledged(), is(true));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

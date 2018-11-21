@@ -445,9 +445,11 @@ The Java High Level REST Client supports the following CCR APIs:
 
 * <<{upid}-ccr-put-follow>>
 * <<{upid}-ccr-pause-follow>>
+* <<{upid}-ccr-unfollow>>
 
 include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]
+include::ccr/unfollow.asciidoc[]
 
 == Index Lifecycle Management APIs
 

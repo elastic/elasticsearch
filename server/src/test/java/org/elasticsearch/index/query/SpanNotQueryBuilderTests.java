@@ -70,7 +70,8 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
     }
 
     public void testDist() {
-        SpanNotQueryBuilder builder = new SpanNotQueryBuilder(new SpanTermQueryBuilder("name1", "value1"), new SpanTermQueryBuilder("name2", "value2"));
+        SpanNotQueryBuilder builder = new SpanNotQueryBuilder(new SpanTermQueryBuilder("name1", "value1"),
+            new SpanTermQueryBuilder("name2", "value2"));
         assertThat(builder.pre(), equalTo(0));
         assertThat(builder.post(), equalTo(0));
         builder.dist(-4);
@@ -82,7 +83,8 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
     }
 
     public void testPrePost() {
-        SpanNotQueryBuilder builder = new SpanNotQueryBuilder(new SpanTermQueryBuilder("name1", "value1"), new SpanTermQueryBuilder("name2", "value2"));
+        SpanNotQueryBuilder builder = new SpanNotQueryBuilder(new SpanTermQueryBuilder("name1", "value1"),
+            new SpanTermQueryBuilder("name2", "value2"));
         assertThat(builder.pre(), equalTo(0));
         assertThat(builder.post(), equalTo(0));
         builder.pre(-4).post(-4);

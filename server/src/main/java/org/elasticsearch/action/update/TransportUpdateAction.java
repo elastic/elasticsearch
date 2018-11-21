@@ -74,9 +74,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Inject
     public TransportUpdateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                 TransportBulkAction bulkAction, TransportCreateIndexAction createIndexAction, UpdateHelper updateHelper, ActionFilters actionFilters,
-                                 IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService, AutoCreateIndex autoCreateIndex) {
-        super(settings, UpdateAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, UpdateRequest::new);
+                                 TransportBulkAction bulkAction, TransportCreateIndexAction createIndexAction, UpdateHelper updateHelper,
+                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                 IndicesService indicesService, AutoCreateIndex autoCreateIndex) {
+        super(settings, UpdateAction.NAME, threadPool, clusterService, transportService,
+            actionFilters, indexNameExpressionResolver, UpdateRequest::new);
         this.bulkAction = bulkAction;
         this.createIndexAction = createIndexAction;
         this.updateHelper = updateHelper;
@@ -116,7 +118,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     protected void doExecute(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
-            createIndexAction.execute(new CreateIndexRequest().index(request.index()).cause("auto(update api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(new CreateIndexRequest().index(request.index()).cause("auto(update api)")
+                    .masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);
@@ -179,12 +182,15 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 bulkAction.execute(toSingleItemBulkRequest(upsertRequest), wrapBulkResponse(
                         ActionListener.<IndexResponse>wrap(response -> {
-                            UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(), response.getResult());
+                            UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(),
+                                response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(),
+                                response.getVersion(), response.getResult());
                             if ((request.fetchSource() != null && request.fetchSource().fetchSource()) ||
                                     (request.fields() != null && request.fields().length > 0)) {
                                 Tuple<XContentType, Map<String, Object>> sourceAndContent =
                                         XContentHelper.convertToMap(upsertSourceBytes, true, upsertRequest.getContentType());
-                                update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
+                                update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(),
+                                    response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
                             } else {
                                 update.setGetResult(null);
                             }
@@ -200,8 +206,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 final BytesReference indexSourceBytes = indexRequest.source();
                 bulkAction.execute(toSingleItemBulkRequest(indexRequest), wrapBulkResponse(
                         ActionListener.<IndexResponse>wrap(response -> {
-                            UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(), response.getResult());
-                            update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
+                            UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(),
+                                response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(),
+                                response.getVersion(), response.getResult());
+                            update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(),
+                                response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
                         }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
@@ -211,8 +220,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 DeleteRequest deleteRequest = result.action();
                 bulkAction.execute(toSingleItemBulkRequest(deleteRequest), wrapBulkResponse(
                         ActionListener.<DeleteResponse>wrap(response -> {
-                            UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(), response.getResult());
-                            update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
+                            UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(),
+                                response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(),
+                                response.getVersion(), response.getResult());
+                            update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(),
+                                response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
                         }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))

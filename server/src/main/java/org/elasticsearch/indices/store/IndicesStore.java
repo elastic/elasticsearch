@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -34,7 +36,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -69,7 +70,9 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class IndicesStore extends AbstractComponent implements ClusterStateListener, Closeable {
+public class IndicesStore implements ClusterStateListener, Closeable {
+
+    private static final Logger logger = LogManager.getLogger(IndicesStore.class);
 
     // TODO this class can be foled into either IndicesService and partially into IndicesClusterStateService
     // there is no need for a separate public service

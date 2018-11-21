@@ -207,8 +207,6 @@ public final class ReservedFieldNames {
             AnalysisConfig.SUMMARY_COUNT_FIELD_NAME.getPreferredName(),
             AnalysisConfig.DETECTORS.getPreferredName(),
             AnalysisConfig.INFLUENCERS.getPreferredName(),
-            AnalysisConfig.OVERLAPPING_BUCKETS.getPreferredName(),
-            AnalysisConfig.RESULT_FINALIZATION_WINDOW.getPreferredName(),
             AnalysisConfig.MULTIVARIATE_BY_FIELDS.getPreferredName(),
 
             AnalysisLimits.MODEL_MEMORY_LIMIT.getPreferredName(),

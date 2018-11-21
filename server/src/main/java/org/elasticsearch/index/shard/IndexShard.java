@@ -223,9 +223,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // for primaries, we only allow to write when actually started (so the cluster has decided we started)
     // in case we have a relocation of a primary, we also allow to write after phase 2 completed, where the shard may be
     // in state RECOVERING or POST_RECOVERY.
-    // for replicas, replication is also allowed while recovering, since we index also during recovery to replicas and rely on version checks to make sure its consistent
-    // a relocated shard can also be target of a replication if the relocation target has not been marked as active yet and is syncing it's changes back to the relocation source
-    private static final EnumSet<IndexShardState> writeAllowedStates = EnumSet.of(IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED);
+    // for replicas, replication is also allowed while recovering, since we index also during recovery to replicas and rely on
+    // version checks to make sure its consistent a relocated shard can also be target of a replication if the relocation target has not
+    // been marked as active yet and is syncing it's changes back to the relocation source
+    private static final EnumSet<IndexShardState> writeAllowedStates = EnumSet.of(IndexShardState.RECOVERING,
+        IndexShardState.POST_RECOVERY, IndexShardState.STARTED);
 
     private final IndexSearcherWrapper searcherWrapper;
 
@@ -413,10 +415,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             currentRouting = this.shardRouting;
 
             if (!newRouting.shardId().equals(shardId())) {
-                throw new IllegalArgumentException("Trying to set a routing entry with shardId " + newRouting.shardId() + " on a shard with shardId " + shardId());
+                throw new IllegalArgumentException("Trying to set a routing entry with shardId " +
+                    newRouting.shardId() + " on a shard with shardId " + shardId());
             }
             if ((currentRouting == null || newRouting.isSameAllocation(currentRouting)) == false) {
-                throw new IllegalArgumentException("Trying to set a routing entry with a different allocation. Current " + currentRouting + ", new " + newRouting);
+                throw new IllegalArgumentException("Trying to set a routing entry with a different allocation. Current " +
+                    currentRouting + ", new " + newRouting);
             }
             if (currentRouting != null && currentRouting.primary() && newRouting.primary() == false) {
                 throw new IllegalArgumentException("illegal state: trying to move shard from primary mode to replica mode. Current "
@@ -438,10 +442,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
             } else if (currentRouting.primary() && currentRouting.relocating() && replicationTracker.isRelocated() &&
                 (newRouting.relocating() == false || newRouting.equalsIgnoringMetaData(currentRouting) == false)) {
-                // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard routing occur (e.g. due to recovery
-                // failure / cancellation). The reason is that at the moment we cannot safely reactivate primary mode without risking two
-                // active primaries.
-                throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
+                // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard
+                // routing occur (e.g. due to recovery failure / cancellation). The reason is that at the moment we cannot safely
+                // reactivate primary mode without risking two active primaries.
+                throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " +
+                    newRouting.state());
             }
             assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.CLOSED :
                 "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
@@ -494,8 +499,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         "primary terms can only go up; current term [" + pendingPrimaryTerm + "], new term [" + newPrimaryTerm + "]";
                     /*
                      * Before this call returns, we are guaranteed that all future operations are delayed and so this happens before we
-                     * increment the primary term. The latch is needed to ensure that we do not unblock operations before the primary term is
-                     * incremented.
+                     * increment the primary term. The latch is needed to ensure that we do not unblock operations before the primary
+                     * term is incremented.
                      */
                     // to prevent primary relocation handoff while resync is not completed
                     boolean resyncStarted = primaryReplicaResyncInProgress.compareAndSet(false, true);
@@ -549,13 +554,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     public void onResponse(ResyncTask resyncTask) {
                                         logger.info("primary-replica resync completed with {} operations",
                                             resyncTask.getResyncedOperations());
-                                        boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
+                                        boolean resyncCompleted =
+                                            primaryReplicaResyncInProgress.compareAndSet(true, false);
                                         assert resyncCompleted : "primary-replica resync finished but was not started";
                                     }
 
                                     @Override
                                     public void onFailure(Exception e) {
-                                        boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
+                                        boolean resyncCompleted =
+                                            primaryReplicaResyncInProgress.compareAndSet(true, false);
                                         assert resyncCompleted : "primary-replica resync finished but was not started";
                                         if (state == IndexShardState.CLOSED) {
                                             // ignore, shutting down
@@ -621,7 +628,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
      * @throws InterruptedException            if blocking operations is interrupted
      */
-    public void relocated(final Consumer<ReplicationTracker.PrimaryContext> consumer) throws IllegalIndexShardStateException, InterruptedException {
+    public void relocated(final Consumer<ReplicationTracker.PrimaryContext> consumer)
+                                            throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
@@ -1235,7 +1243,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public IndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
+    public IndexShard postRecovery(String reason)
+                throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
@@ -1508,7 +1517,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void readAllowed() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (readAllowedStates.contains(state) == false) {
-            throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when shard state is one of " + readAllowedStates.toString());
+            throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when shard state is one of " +
+                readAllowedStates.toString());
         }
     }
 
@@ -1522,7 +1532,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         if (origin.isRecovery()) {
             if (state != IndexShardState.RECOVERING) {
-                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when recovering, origin [" + origin + "]");
+                throw new IllegalIndexShardStateException(shardId, state,
+                    "operation only allowed when recovering, origin [" + origin + "]");
             }
         } else {
             if (origin == Engine.Operation.Origin.PRIMARY) {
@@ -1534,13 +1545,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert getActiveOperationsCount() == 0 : "Ongoing writes [" + getActiveOperations() + "]";
             }
             if (writeAllowedStates.contains(state) == false) {
-                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard state is one of " + writeAllowedStates + ", origin [" + origin + "]");
+                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard state is one of " +
+                    writeAllowedStates + ", origin [" + origin + "]");
             }
         }
     }
 
     private boolean assertPrimaryMode() {
-        assert shardRouting.primary() && replicationTracker.isPrimaryMode() : "shard " + shardRouting + " is not a primary shard in primary mode";
+        assert shardRouting.primary() && replicationTracker.isPrimaryMode() : "shard " + shardRouting +
+            " is not a primary shard in primary mode";
         return true;
     }
 
@@ -1617,9 +1630,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return path;
     }
 
-    public boolean recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer, List<IndexShard> localShards) throws IOException {
+    public boolean recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer,
+                                                List<IndexShard> localShards) throws IOException {
         assert shardRouting.primary() : "recover from local shards only makes sense if the shard is a primary shard";
-        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS : "invalid recovery type: " + recoveryState.getRecoverySource();
+        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS : "invalid recovery type: " +
+            recoveryState.getRecoverySource();
         final List<LocalShardSnapshot> snapshots = new ArrayList<>();
         try {
             for (IndexShard shard : localShards) {
@@ -1647,7 +1662,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public boolean restoreFromRepository(Repository repository) {
         assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
-        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT : "invalid recovery type: " + recoveryState.getRecoverySource();
+        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT : "invalid recovery type: " +
+            recoveryState.getRecoverySource();
         StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
         return storeRecovery.recoverFromRepository(this, repository);
     }
@@ -1736,7 +1752,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *                          if any operation between {@code fromSeqNo} and {@code toSeqNo} is missing.
      *                          This parameter should be only enabled when the entire requesting range is below the global checkpoint.
      */
-    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo,
+                                                    long toSeqNo, boolean requiredFullRange) throws IOException {
         return getEngine().newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange);
     }
 
@@ -1995,7 +2012,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param primaryContext the sequence number context
      */
     public void activateWithPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
-        assert shardRouting.primary() && shardRouting.isRelocationTarget() : "only primary relocation target can update allocation IDs from primary context: " + shardRouting;
+        assert shardRouting.primary() && shardRouting.isRelocationTarget() :
+            "only primary relocation target can update allocation IDs from primary context: " + shardRouting;
         assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) &&
             getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
         synchronized (mutex) {
@@ -2136,7 +2154,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             recoveryListener.onRecoveryDone(recoveryState);
                         }
                     } catch (Exception e) {
-                        recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
+                        recoveryListener.onRecoveryFailure(recoveryState,
+                            new RecoveryFailedException(recoveryState, null, e), true);
                     }
                 });
                 break;
@@ -2146,7 +2165,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     recoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), recoveryListener);
                 } catch (Exception e) {
                     failShard("corrupted preexisting index", e);
-                    recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
+                    recoveryListener.onRecoveryFailure(recoveryState,
+                        new RecoveryFailedException(recoveryState, null, e), true);
                 }
                 break;
             case SNAPSHOT:
@@ -2159,7 +2179,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             recoveryListener.onRecoveryDone(recoveryState);
                         }
                     } catch (Exception e) {
-                        recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
+                        recoveryListener.onRecoveryFailure(recoveryState,
+                            new RecoveryFailedException(recoveryState, null, e), true);
                     }
                 });
                 break;
@@ -2453,7 +2474,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public int getActiveOperationsCount() {
-        return indexShardOperationPermits.getActiveOperationsCount(); // refCount is incremented on successful acquire and decremented on close
+        // refCount is incremented on successful acquire and decremented on close
+        return indexShardOperationPermits.getActiveOperationsCount();
     }
 
     /**

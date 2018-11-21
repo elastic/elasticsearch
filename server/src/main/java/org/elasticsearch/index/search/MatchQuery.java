@@ -408,6 +408,7 @@ public class MatchQuery {
          * Checks if graph analysis should be enabled for the field depending
          * on the provided {@link Analyzer}
          */
+        @Override
         protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
                                          String queryText, boolean quoted, int phraseSlop) {
             assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;

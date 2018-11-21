@@ -19,6 +19,8 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,7 +33,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,7 +50,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
-public class LocalAllocateDangledIndices extends AbstractComponent {
+public class LocalAllocateDangledIndices {
+
+    private static final Logger logger = LogManager.getLogger(LocalAllocateDangledIndices.class);
 
     public static final String ACTION_NAME = "internal:gateway/local/allocate_dangled";
 

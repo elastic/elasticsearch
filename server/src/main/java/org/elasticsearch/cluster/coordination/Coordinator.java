@@ -515,11 +515,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlock(NO_MASTER_BLOCK_WRITES.id());
             assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse())
                 : preVoteCollector + " vs " + getPreVoteResponse();
-            {
-                final Set<DiscoveryNode> lagDetectorTrackedNodes = new HashSet<>(lagDetector.getTrackedNodes());
-                assert lagDetectorTrackedNodes.isEmpty() || lagDetectorTrackedNodes.remove(getLocalNode());
-                assert followersChecker.getKnownFollowers().equals(lagDetectorTrackedNodes);
-            }
+
+            final Set<DiscoveryNode> lagDetectorTrackedNodes = new HashSet<>(lagDetector.getTrackedNodes());
+            assert lagDetectorTrackedNodes.isEmpty() || lagDetectorTrackedNodes.remove(getLocalNode());
+            assert followersChecker.getKnownFollowers().equals(lagDetectorTrackedNodes);
+
             if (mode == Mode.LEADER) {
                 final boolean becomingMaster = getStateForMasterService().term() != getCurrentTerm();
 

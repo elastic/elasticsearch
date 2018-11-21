@@ -19,6 +19,8 @@
 
 package org.elasticsearch.persistent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -292,6 +294,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     }
 
     public static class TestPersistentTasksExecutor extends PersistentTasksExecutor<TestParams> {
+
+        private static final Logger logger = LogManager.getLogger(TestPersistentTasksExecutor.class);
 
         public static final String NAME = "cluster:admin/persistent/test";
         private final ClusterService clusterService;

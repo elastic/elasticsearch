@@ -92,11 +92,11 @@ public class TransportClusterHealthAction
             final long endTimeMS = TimeValue.nsecToMSec(System.nanoTime()) + request.timeout().millis();
             if (request.local()) {
                 clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])",
-                    new LocalClusterUpdateTask(request.waitForEvents()) {
-                        @Override
-                        public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
-                            return unchanged();
-                        }
+                        new LocalClusterUpdateTask(request.waitForEvents()) {
+                    @Override
+                    public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
+                        return unchanged();
+                    }
 
                         @Override
                         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
@@ -114,11 +114,11 @@ public class TransportClusterHealthAction
                     });
             } else {
                 clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])",
-                    new ClusterStateUpdateTask(request.waitForEvents()) {
-                        @Override
-                        public ClusterState execute(ClusterState currentState) {
-                            return currentState;
-                        }
+                        new ClusterStateUpdateTask(request.waitForEvents()) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return currentState;
+                    }
 
                         @Override
                         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
@@ -128,13 +128,13 @@ public class TransportClusterHealthAction
                             executeHealth(request, listener);
                         }
 
-                        @Override
-                        public void onNoLongerMaster(String source) {
-                            logger.trace("stopped being master while waiting for events with priority [{}]. retrying.",
-                                request.waitForEvents());
-                            // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
-                            listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
-                        }
+                    @Override
+                    public void onNoLongerMaster(String source) {
+                        logger.trace("stopped being master while waiting for events with priority [{}]. retrying.",
+                            request.waitForEvents());
+                        // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
+                        listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
+                    }
 
                         @Override
                         public void onFailure(String source, Exception e) {
@@ -210,8 +210,8 @@ public class TransportClusterHealthAction
         return readyCounter == waitFor;
     }
 
-    private ClusterHealthResponse getResponse(final ClusterHealthRequest request, ClusterState clusterState, final int waitFor,
-                                              boolean timedOut) {
+    private ClusterHealthResponse getResponse(final ClusterHealthRequest request, ClusterState clusterState,
+                                              final int waitFor, boolean timedOut) {
         ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.getMasterService().numberOfPendingTasks(),
                 gatewayAllocator.getNumberOfInFlightFetch(), clusterService.getMasterService().getMaxTaskWaitTime());
         int readyCounter = prepareResponse(request, response, clusterState, indexNameExpressionResolver);
@@ -326,7 +326,7 @@ public class TransportClusterHealthAction
             // one of the specified indices is not there - treat it as RED.
             ClusterHealthResponse response = new ClusterHealthResponse(clusterState.getClusterName().value(), Strings.EMPTY_ARRAY,
                 clusterState, numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
-                    pendingTaskTimeInQueue);
+                pendingTaskTimeInQueue);
             response.setStatus(ClusterHealthStatus.RED);
             return response;
         }

@@ -48,7 +48,8 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
     public TransportMultiTermVectorsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                            ClusterService clusterService, TransportShardMultiTermsVectorAction shardAction,
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiTermVectorsRequest::new);
+        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters,
+            indexNameExpressionResolver, MultiTermVectorsRequest::new);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
     }
@@ -64,16 +65,20 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
         Map<ShardId, MultiTermVectorsShardRequest> shardRequests = new HashMap<>();
         for (int i = 0; i < request.requests.size(); i++) {
             TermVectorsRequest termVectorsRequest = request.requests.get(i);
-            termVectorsRequest.routing(clusterState.metaData().resolveIndexRouting(termVectorsRequest.parent(), termVectorsRequest.routing(), termVectorsRequest.index()));
+            termVectorsRequest.routing(clusterState.metaData()
+                .resolveIndexRouting(termVectorsRequest.parent(), termVectorsRequest.routing(), termVectorsRequest.index()));
             if (!clusterState.metaData().hasConcreteIndex(termVectorsRequest.index())) {
                 responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(termVectorsRequest.index(),
                         termVectorsRequest.type(), termVectorsRequest.id(), new IndexNotFoundException(termVectorsRequest.index()))));
                 continue;
             }
             String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, termVectorsRequest).getName();
-            if (termVectorsRequest.routing() == null && clusterState.getMetaData().routingRequired(concreteSingleIndex, termVectorsRequest.type())) {
-                responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id(),
-                        new IllegalArgumentException("routing is required for [" + concreteSingleIndex + "]/[" + termVectorsRequest.type() + "]/[" + termVectorsRequest.id() + "]"))));
+            if (termVectorsRequest.routing() == null && clusterState.getMetaData()
+                    .routingRequired(concreteSingleIndex, termVectorsRequest.type())) {
+                responses.set(i, new MultiTermVectorsItemResponse(null,
+                    new MultiTermVectorsResponse.Failure(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id(),
+                        new IllegalArgumentException("routing is required for [" + concreteSingleIndex + "]/[" +
+                            termVectorsRequest.type() + "]/[" + termVectorsRequest.id() + "]"))));
                 continue;
             }
             ShardId shardId = clusterService.operationRouting().shardId(clusterState, concreteSingleIndex,

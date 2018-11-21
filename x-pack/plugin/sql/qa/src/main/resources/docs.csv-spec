@@ -1555,3 +1555,45 @@ SELECT IFNULL(null, 'search') AS "ifnull";
 search
 // end::ifNullReturnSecond
 ;
+
+isNullReturnFirst
+// tag::isNullReturnFirst
+SELECT ISNULL('elastic', null) AS "isnull";
+
+    isnull
+---------------
+elastic
+// end::isNullReturnFirst
+;
+
+
+isNullReturnSecond
+// tag::isNullReturnSecond
+SELECT ISNULL(null, 'search') AS "isnull";
+
+    isnull
+---------------
+search
+// end::isNullReturnSecond
+;
+
+nvlReturnFirst
+// tag::nvlReturnFirst
+SELECT NVL('elastic', null) AS "nvl";
+
+    nvl
+---------------
+elastic
+// end::nvlReturnFirst
+;
+
+
+nvlReturnSecond
+// tag::nvlReturnSecond
+SELECT NVL(null, 'search') AS "nvl";
+
+    nvl
+---------------
+search
+// end::nvlReturnSecond
+;

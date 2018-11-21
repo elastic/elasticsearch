@@ -260,7 +260,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                 throw new IllegalArgumentException("illegal longitude value [" + point.lon() + "] for " + name());
             }
         } else {
-            if (isNormalizable(point.lat()) && isNormalizable(point.lat())) {
+            if (isNormalizable(point.lat()) && isNormalizable(point.lon())) {
                 GeoUtils.normalizePoint(point);
             } else {
                 throw new ElasticsearchParseException("cannot normalize the point - not a number");

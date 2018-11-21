@@ -479,10 +479,19 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject().field("lat", "-").field("lon", 1.3).endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
+        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("lat", 1.3).field("lon", "-").endObject()
+            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
         assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("location", "-,1.3").endObject()
+            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+
+        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("location", "1.3,-").endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
         assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
@@ -492,8 +501,27 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("lat", 12).field("lon", "NaN").endObject()
+            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+
+        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("lat", "NaN").field("lon", 10).endObject()
+            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+
+        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("location", "NaN,NaN").endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
-    }
 
+        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("location", "10,NaN").endObject()
+            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+
+        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("location", "NaN,12").endObject()
+            ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+    }
 }

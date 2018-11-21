@@ -54,8 +54,11 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
 
                     @Override
                     public void onFailure(final Exception e) {
-                        fail(e.toString());
-                        latch.countDown();
+                        try {
+                            fail(e.toString());
+                        } finally {
+                            latch.countDown();
+                        }
                     }
                 });
         latch.await();

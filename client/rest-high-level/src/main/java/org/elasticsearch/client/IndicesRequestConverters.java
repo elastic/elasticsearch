@@ -408,8 +408,8 @@ final class IndicesRequestConverters {
         String endpoint = RequestConverters.endpoint(freezeIndexRequest.getIndices(), "_freeze");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params(request);
-        parameters.withTimeout(freezeIndexRequest.getTimeout());
-        parameters.withMasterTimeout(freezeIndexRequest.getMasterNodeTimeout());
+        parameters.withTimeout(freezeIndexRequest.timeout());
+        parameters.withMasterTimeout(freezeIndexRequest.masterNodeTimeout());
         parameters.withIndicesOptions(freezeIndexRequest.indicesOptions());
         parameters.withWaitForActiveShards(freezeIndexRequest.getWaitForActiveShards());
         return request;
@@ -419,8 +419,8 @@ final class IndicesRequestConverters {
         String endpoint = RequestConverters.endpoint(unfreezeIndexRequest.getIndices(), "_unfreeze");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params(request);
-        parameters.withTimeout(unfreezeIndexRequest.getTimeout());
-        parameters.withMasterTimeout(unfreezeIndexRequest.getMasterNodeTimeout());
+        parameters.withTimeout(unfreezeIndexRequest.timeout());
+        parameters.withMasterTimeout(unfreezeIndexRequest.masterNodeTimeout());
         parameters.withIndicesOptions(unfreezeIndexRequest.indicesOptions());
         parameters.withWaitForActiveShards(unfreezeIndexRequest.getWaitForActiveShards());
         return request;

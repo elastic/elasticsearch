@@ -36,7 +36,9 @@ import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
+import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.JoinHelper;
+import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -460,6 +462,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ElectionSchedulerFactory.ELECTION_DURATION_SETTING,
                     Coordinator.PUBLISH_TIMEOUT_SETTING,
                     JoinHelper.JOIN_TIMEOUT_SETTING,
+                    FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING,
+                    FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING,
+                    FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING,
+                    LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING,
+                    LeaderChecker.LEADER_CHECK_INTERVAL_SETTING,
+                    LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING,
                     Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
                     TransportAddVotingTombstonesAction.MAXIMUM_VOTING_TOMBSTONES_SETTING,
                     ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING,

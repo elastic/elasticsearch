@@ -19,12 +19,15 @@
 package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.client.Validatable;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Objects;
 
 public class StopRollupJobRequest implements Validatable {
 
     private final String jobId;
+    private TimeValue timeout;
+    private Boolean waitForCompletion;
 
     public StopRollupJobRequest(final String jobId) {
         this.jobId = Objects.requireNonNull(jobId, "id parameter must not be null");
@@ -45,5 +48,27 @@ public class StopRollupJobRequest implements Validatable {
     @Override
     public int hashCode() {
         return Objects.hash(jobId);
+    }
+
+    /**
+     * Sets the requests optional "timeout" parameter.
+     */
+    public void timeout(TimeValue timeout) {
+        this.timeout = timeout;
+    }
+
+    public TimeValue timeout() {
+        return this.timeout;
+    }
+
+    /**
+     * Sets the requests optional "wait_for_completion".
+     */
+    public void waitForCompletion(boolean waitForCompletion) {
+        this.waitForCompletion = waitForCompletion;
+    }
+
+    public Boolean waitForCompletion() {
+        return this.waitForCompletion;
     }
 }

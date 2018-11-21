@@ -9,8 +9,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.DateUtils;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -24,7 +26,7 @@ public class CliFormatter implements Writeable {
      * The minimum width for any column in the formatted results.
      */
     private static final int MIN_COLUMN_WIDTH = 15;
-
+    
     private int[] width;
 
     /**
@@ -45,7 +47,7 @@ public class CliFormatter implements Writeable {
             for (int i = 0; i < width.length; i++) {
                 // TODO are we sure toString is correct here? What about dates that come back as longs.
                 // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3081
-                width[i] = Math.max(width[i], Objects.toString(row.get(i)).length());
+                width[i] = Math.max(width[i], toString(row.get(i)).length());
             }
         }
     }
@@ -116,10 +118,10 @@ public class CliFormatter implements Writeable {
                 if (i > 0) {
                     sb.append('|');
                 }
-
                 // TODO are we sure toString is correct here? What about dates that come back as longs.
                 // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3081
-                String string = Objects.toString(row.get(i));
+                String string = toString(row.get(i));
+
                 if (string.length() <= width[i]) {
                     // Pad
                     sb.append(string);
@@ -138,6 +140,14 @@ public class CliFormatter implements Writeable {
         return sb.toString();
     }
 
+    private static String toString(Object object) {
+        if (object instanceof ZonedDateTime) {
+            return DateUtils.toString((ZonedDateTime) object);
+        } else {
+            return Objects.toString(object);
+        }
+    }
+
     /**
      * Pick a good estimate of the buffer size needed to contain the rows.
      */
@@ -154,8 +164,12 @@ public class CliFormatter implements Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         CliFormatter that = (CliFormatter) o;
         return Arrays.equals(width, that.width);
     }

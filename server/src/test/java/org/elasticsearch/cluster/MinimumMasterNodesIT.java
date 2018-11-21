@@ -74,6 +74,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // Zen2 does not have minimum_master_nodes
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
     }
 

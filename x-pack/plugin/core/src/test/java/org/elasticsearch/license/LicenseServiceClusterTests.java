@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -42,6 +43,7 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("node.data", true)
+                .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // no state persistence
                 .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
     }
 

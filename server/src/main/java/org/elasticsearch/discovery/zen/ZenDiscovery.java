@@ -441,7 +441,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         nodeJoinController.startElectionContext();
         while (masterNode == null && joinThreadControl.joinThreadActive(currentThread)) {
             masterNode = findMaster();
-            assert masterNode == null || Coordinator.isZen1Node(masterNode) : masterNode;
         }
 
         if (!joinThreadControl.joinThreadActive(currentThread)) {

@@ -31,7 +31,7 @@ public class Coalesce extends ConditionalFunction {
     }
 
     @Override
-    protected NodeInfo<Coalesce> info() {
+    protected NodeInfo<? extends Coalesce> info() {
         return NodeInfo.create(this, Coalesce::new, children());
     }
 
@@ -60,6 +60,11 @@ public class Coalesce extends ConditionalFunction {
         // and if the first expression is folded (and not null), the rest do not matter
         List<Expression> children = children();
         return (children.isEmpty() || (children.get(0).foldable() && children.get(0).fold() != null));
+    }
+
+    @Override
+    public boolean nullable() {
+        return false;
     }
 
     @Override

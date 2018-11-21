@@ -37,8 +37,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
@@ -685,16 +686,45 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
-            if (filter.condition() instanceof Literal) {
-                if (TRUE.equals(filter.condition())) {
+            Expression condition = filter.condition().transformUp(PruneFilters::foldBinaryLogic);
+
+            if (condition instanceof Literal) {
+                if (TRUE.equals(condition)) {
                     return filter.child();
                 }
-                if (FALSE.equals(filter.condition()) || Expressions.isNull(filter.condition())) {
+                if (FALSE.equals(condition) || Expressions.isNull(condition)) {
                     return new LocalRelation(filter.location(), new EmptyExecutable(filter.output()));
                 }
             }
 
+            if (!condition.equals(filter.condition())) {
+                return new Filter(filter.location(), filter.child(), condition);
+            }
             return filter;
+        }
+
+        private static Expression foldBinaryLogic(Expression expression) {
+            if (expression instanceof Or) {
+                Or or = (Or) expression;
+                boolean nullLeft = Expressions.isNull(or.left());
+                boolean nullRight = Expressions.isNull(or.right());
+                if (nullLeft && nullRight) {
+                    return Literal.NULL;
+                }
+                if (nullLeft) {
+                    return or.right();
+                }
+                if (nullRight) {
+                    return or.left();
+                }
+            }
+            if (expression instanceof And) {
+                And and = (And) expression;
+                if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
+                    return Literal.NULL;
+                }
+            }
+            return expression;
         }
     }
 
@@ -1130,18 +1160,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 if (((IsNotNull) e).field().nullable() == false) {
                     return new Literal(e.location(), Expressions.name(e), Boolean.TRUE, DataType.BOOLEAN);
                 }
-            }
-            // see https://github.com/elastic/elasticsearch/issues/34876
-            // similar for IsNull once it gets introduced
 
-            if (e instanceof In) {
+            } else if (e instanceof IsNull) {
+                if (((IsNull) e).field().nullable() == false) {
+                    return new Literal(e.location(), Expressions.name(e), Boolean.FALSE, DataType.BOOLEAN);
+                }
+
+            } else if (e instanceof In) {
                 In in = (In) e;
                 if (Expressions.isNull(in.value())) {
                     return Literal.of(in, null);
                 }
-            }
 
-            if (e.nullable() && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+            } else if (e.nullable() && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
             }
 
@@ -1309,8 +1340,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return TRUE;
             }
 
-            if (c instanceof Negateable) {
-                return ((Negateable) c).negate();
+            if (c instanceof Negatable) {
+                return ((Negatable) c).negate();
             }
 
             if (c instanceof Not) {

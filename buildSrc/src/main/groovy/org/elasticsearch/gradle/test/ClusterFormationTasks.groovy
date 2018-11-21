@@ -127,7 +127,7 @@ class ClusterFormationTasks {
             nodes.add(node)
             Closure<Map> writeConfigSetup
             Object dependsOn
-            if (node.nodeVersion.onOrAfter("6.5.0-SNAPSHOT")) {
+            if (node.nodeVersion.onOrAfter("6.5.0")) {
                 writeConfigSetup = { Map esConfig ->
                     // Don't force discovery provider if one is set by the test cluster specs already
                     if (esConfig.containsKey('discovery.zen.hosts_provider') == false) {
@@ -140,7 +140,7 @@ class ClusterFormationTasks {
             } else {
                 dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
                 writeConfigSetup = { Map esConfig ->
-                    String unicastTransportUri = node.config.unicastTransportUri(nodes.get(0), node, project.ant)
+                    String unicastTransportUri = node.config.unicastTransportUri(nodes.get(0), node, project.createAntBuilder())
                     if (unicastTransportUri == null) {
                         esConfig['discovery.zen.ping.unicast.hosts'] = []
                     } else {
@@ -343,7 +343,7 @@ class ClusterFormationTasks {
         if (minimumMasterNodes > 0) {
             esConfig['discovery.zen.minimum_master_nodes'] = minimumMasterNodes
         }
-        if (node.config.numNodes > 1) {
+        if (minimumMasterNodes > 1) {
             // don't wait for state.. just start up quickly
             // this will also allow new and old nodes in the BWC case to become the master
             esConfig['discovery.initial_state_timeout'] = '0s'
@@ -715,10 +715,11 @@ class ClusterFormationTasks {
         wait.doLast {
 
             Collection<String> unicastHosts = new HashSet<>()
-            nodes.forEach { otherNode ->
-                String unicastHost = otherNode.config.unicastTransportUri(otherNode, null, project.ant)
+            nodes.forEach { node ->
+                unicastHosts.addAll(node.config.otherUnicastHostAddresses.call())
+                String unicastHost = node.config.unicastTransportUri(node, null, project.createAntBuilder())
                 if (unicastHost != null) {
-                    unicastHosts.addAll(Arrays.asList(unicastHost.split(",")))
+                    unicastHosts.add(unicastHost)
                 }
             }
             String unicastHostsTxt = String.join("\n", unicastHosts)
@@ -912,9 +913,10 @@ class ClusterFormationTasks {
                 outputPrintStream: outputStream,
                 messageOutputLevel: org.apache.tools.ant.Project.MSG_INFO)
 
-        project.ant.project.addBuildListener(listener)
-        Object retVal = command(project.ant)
-        project.ant.project.removeBuildListener(listener)
+        AntBuilder ant = project.createAntBuilder()
+        ant.project.addBuildListener(listener)
+        Object retVal = command(ant)
+        ant.project.removeBuildListener(listener)
         return retVal
     }
 

@@ -58,7 +58,6 @@ event types such as `authentication_failed`. The default value is `false`.
 --
 IMPORTANT: No filtering is performed when auditing, so sensitive data may be
 audited in plain text when including the request body in audit events.
-
 --
 
 [[node-audit-settings]]
@@ -85,6 +84,35 @@ Unlike <<node.name,node name>>, whose value might change if the administrator
 changes the setting in the config file, the node id will persist across cluster
 restarts and the administrator cannot change it.
 The default value is `true`.
+
+[[audit-event-ignore-policies]]
+==== Audit Logfile Event Ignore Policies
+
+These settings affect the {stack-ov}/audit-log-output.html#audit-log-ignore-policy[ignore policies]
+that enable fine-grained control over which audit events are printed to the log file.
+All of the settings with the same policy name combine to form a single policy.
+If an event matches all of the conditions for a specific policy, it is ignored 
+and not printed.
+
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.users`::
+A list of user names or wildcards. The specified policy will
+not print audit events for users matching these values.
+
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.realms`::
+A list of authentication realm names or wildcards. The specified policy will
+not print audit events for users in these realms.
+
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.roles`::
+A list of role names or wildcards. The specified policy will
+not print audit events for users that have these roles. If the user has several
+roles, some of which are *not* covered by the policy, the policy will
+*not* cover this event.
+
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.indices`::
+A list of index names or wildcards. The specified policy will
+not print audit events when all the indices in the event match
+these values. If the event concerns several indices, some of which are
+*not* covered by the policy, the policy will *not* cover this event.
 
 [[index-audit-settings]]
 ==== Audit Log Indexing Configuration Settings

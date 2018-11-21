@@ -6,6 +6,12 @@ match a given query. Unlike the "NOT" clause in bool query, this still
 selects documents that contain undesirable terms, but reduces their
 overall score.
 
+It accepts a `positive` query and a `negative` query.
+Only documents that match the `positive` query will be included
+in the results list, but documents that also match the `negative` query
+will be downgraded by multiplying the original `_score` of the document
+with the `negative_boost`.
+
 [source,js]
 --------------------------------------------------
 GET /_search

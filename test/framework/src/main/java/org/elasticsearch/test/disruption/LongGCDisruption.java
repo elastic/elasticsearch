@@ -103,8 +103,14 @@ public class LongGCDisruption extends SingleNodeDisruption {
                     throw new RuntimeException("unknown error while suspending threads", suspendingError.get());
                 }
                 if (suspendingThread.isAlive()) {
-                    logger.warn("failed to suspend node [{}]'s threads within [{}] millis. Suspending thread stack trace:\n {}"
-                        , disruptedNode, getSuspendingTimeoutInMillis(), stackTrace(suspendingThread.getStackTrace()));
+                    logger.warn(
+                        "failed to suspend node [{}]'s threads within [{}] millis. Suspending thread stack trace:\n {}" +
+                            "\nThreads that weren't suspended:\n {}"
+                        , disruptedNode, getSuspendingTimeoutInMillis(), stackTrace(suspendingThread.getStackTrace()),
+                        suspendedThreads.stream()
+                            .map(t -> t.getName() + "\n----\n" + stackTrace(t.getStackTrace()))
+                            .collect(Collectors.joining("\n"))
+                    );
                     suspendingThread.interrupt(); // best effort;
                     try {
                         /*

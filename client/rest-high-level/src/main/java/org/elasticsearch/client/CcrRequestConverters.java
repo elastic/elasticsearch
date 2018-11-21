@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
+import org.elasticsearch.client.ccr.UnfollowRequest;
 
 import java.io.IOException;
 
@@ -45,6 +46,14 @@ final class CcrRequestConverters {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPart(pauseFollowRequest.getFollowerIndex())
             .addPathPartAsIs("_ccr", "pause_follow")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
+    static Request unfollow(UnfollowRequest unfollowRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPart(unfollowRequest.getFollowerIndex())
+            .addPathPartAsIs("_ccr", "unfollow")
             .build();
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }

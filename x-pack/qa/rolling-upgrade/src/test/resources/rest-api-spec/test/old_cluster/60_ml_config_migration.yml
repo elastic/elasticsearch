@@ -7,7 +7,7 @@ setup:
 
   - do:
       indices.create:
-        index: airline-data
+        index: pet-data
         body:
           mappings:
             doc:
@@ -47,7 +47,7 @@ setup:
         body:  >
           {
             "job_id":"migration-old-cluster-open-job",
-            "indices":["airline-data"],
+            "indices":["pet-data"],
             "types":["response"]
           }
 
@@ -76,5 +76,5 @@ setup:
         body:  >
           {
             "job_id":"migration-old-cluster-closed-job",
-            "indices":["airline-data"]
+            "indices":["pet-data"]
           }

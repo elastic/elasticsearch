@@ -65,7 +65,7 @@
         body:  >
           {
             "job_id":"migration-ephemeral-job",
-            "indices":["airline-data"]
+            "indices":["pet-data"]
           }
 
   - do:

@@ -1,5 +1,5 @@
 [[index-prefixes]]
-==== `index_prefixes`
+=== `index_prefixes`
 
 The `index_prefixes` parameter enables the indexing of term prefixes to speed
 up prefix searches.  It accepts the following optional settings:
@@ -14,8 +14,6 @@ up prefix searches.  It accepts the following optional settings:
 
   The maximum prefix length to index.  Must be less than 20, and defaults to 5.
   The value is inclusive.
-
-=== Example
 
 This example creates a text field using the default prefix length settings:
 

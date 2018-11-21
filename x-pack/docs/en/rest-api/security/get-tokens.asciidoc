@@ -29,7 +29,7 @@ period is defined by the `xpack.security.authc.token.timeout` setting. For more
 information, see <<token-service-settings>>.
 
 If you want to invalidate a token immediately, you can do so by using the 
-<<security-api-invalidate-token,delete token API>>.
+<<security-api-invalidate-token,invalidate token API>>.
 
 
 ==== Request Body

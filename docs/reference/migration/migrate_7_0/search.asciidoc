@@ -24,7 +24,7 @@
     correctly when specified using REST API instead of having its left and
     right corners flipped.
 
-*   Attempts to set `boost` on sub span queries will now throw an parsing exception.
+*   Attempts to set `boost` on inner span queries will now throw a parsing exception.
 
 [float]
 ==== Adaptive replica selection enabled by default

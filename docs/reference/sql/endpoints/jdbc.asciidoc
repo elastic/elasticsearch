@@ -43,7 +43,7 @@ from `artifacts.elastic.co/maven` by adding it to the repositories list:
 [float]
 === Setup
 
-The driver main class is `org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver`. 
+The driver main class is `org.elasticsearch.xpack.sql.jdbc.EsDriver`. 
 Note the driver  implements the JDBC 4.0 +Service Provider+ mechanism meaning it is registered automatically
 as long as its available in the classpath.
 

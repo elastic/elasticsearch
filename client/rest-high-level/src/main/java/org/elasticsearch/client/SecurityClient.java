@@ -523,7 +523,8 @@ public final class SecurityClient {
     }
 
     /**
-     * Asynchronously create or update application privileges. See <a href=
+     * Asynchronously create or update application privileges.<br>
+     * See <a href=
      * "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-privileges.html">
      * the docs</a> for more.
      *

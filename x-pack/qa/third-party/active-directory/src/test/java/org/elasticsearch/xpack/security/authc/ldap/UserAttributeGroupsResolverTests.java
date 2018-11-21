@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.SearchRequest;
 import com.unboundid.ldap.sdk.SearchScope;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -22,6 +23,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
 public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
 
     public static final String BRUCE_BANNER_DN = "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
@@ -55,7 +57,6 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
                 containsString("Philanthropists")));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     @SuppressWarnings("unchecked")
     public void testResolveCustomGroupAttribute() throws Exception {
         Settings settings = Settings.builder()
@@ -67,7 +68,6 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
         assertThat(groups, hasItems(containsString("Avengers")));  //seeAlso only has Avengers
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     public void testResolveInvalidGroupAttribute() throws Exception {
         Settings settings = Settings.builder()
                 .put("user_group_attribute", "doesntExist")

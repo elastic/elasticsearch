@@ -13,6 +13,11 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Variant of {@link Coalesce} with two args used by MySQL and ODBC.
+ *
+ * Name is `IFNull` to avoid having it registered as `IF_NULL` instead of `IFNULL`.
+ */
 public class IFNull extends Coalesce {
 
     public IFNull(Location location, Expression first, Expression second) {

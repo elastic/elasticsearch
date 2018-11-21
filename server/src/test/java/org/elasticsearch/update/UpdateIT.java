@@ -382,7 +382,8 @@ public class UpdateIT extends ESIntegTestCase {
         // check updates without script
         // add new field
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject()).execute().actionGet();
+        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
@@ -390,7 +391,8 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         // change existing field
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject()).execute().actionGet();
+        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("3"));
@@ -408,7 +410,8 @@ public class UpdateIT extends ESIntegTestCase {
         testMap.put("map1", 8);
 
         client().prepareIndex("test", "type1", "1").setSource("map", testMap).execute().actionGet();
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
+        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             Map map1 = (Map) getResponse.getSourceAsMap().get("map");
@@ -479,10 +482,12 @@ public class UpdateIT extends ESIntegTestCase {
                         startLatch.await();
                         for (int i = 0; i < numberOfUpdatesPerThread; i++) {
                             if (i % 100 == 0) {
-                                logger.debug("Client [{}] issued [{}] of [{}] requests", Thread.currentThread().getName(), i, numberOfUpdatesPerThread);
+                                logger.debug("Client [{}] issued [{}] of [{}] requests",
+                                    Thread.currentThread().getName(), i, numberOfUpdatesPerThread);
                             }
                             if (useBulkApi) {
-                                UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "type1", Integer.toString(i))
+                                UpdateRequestBuilder updateRequestBuilder = client()
+                                        .prepareUpdate(indexOrAlias(), "type1", Integer.toString(i))
                                         .setScript(fieldIncScript)
                                         .setRetryOnConflict(Integer.MAX_VALUE)
                                         .setUpsert(jsonBuilder().startObject().field("field", 1).endObject());
@@ -498,7 +503,8 @@ public class UpdateIT extends ESIntegTestCase {
                         logger.info("Client [{}] issued all [{}] requests.", Thread.currentThread().getName(), numberOfUpdatesPerThread);
                     } catch (InterruptedException e) {
                         // test infrastructure kills long-running tests by interrupting them, thus we handle this case separately
-                        logger.warn("Test was forcefully stopped. Client [{}] may still have outstanding requests.", Thread.currentThread().getName());
+                        logger.warn("Test was forcefully stopped. Client [{}] may still have outstanding requests.",
+                            Thread.currentThread().getName());
                         failures.add(e);
                         Thread.currentThread().interrupt();
                     } catch (Exception e) {
@@ -671,7 +677,8 @@ public class UpdateIT extends ESIntegTestCase {
                 long start = System.currentTimeMillis();
                 do {
                     long msRemaining = timeOut.getMillis() - (System.currentTimeMillis() - start);
-                    logger.info("[{}] going to try and acquire [{}] in [{}]ms [{}] available to acquire right now",name, maxRequests,msRemaining, requestsOutstanding.availablePermits());
+                    logger.info("[{}] going to try and acquire [{}] in [{}]ms [{}] available to acquire right now",
+                        name, maxRequests,msRemaining, requestsOutstanding.availablePermits());
                     try {
                         requestsOutstanding.tryAcquire(maxRequests, msRemaining, TimeUnit.MILLISECONDS );
                         return;
@@ -679,7 +686,8 @@ public class UpdateIT extends ESIntegTestCase {
                         //Just keep swimming
                     }
                 } while ((System.currentTimeMillis() - start) < timeOut.getMillis());
-                throw new ElasticsearchTimeoutException("Requests were still outstanding after the timeout [" + timeOut + "] for type [" + name + "]" );
+                throw new ElasticsearchTimeoutException("Requests were still outstanding after the timeout [" + timeOut + "] for type [" +
+                    name + "]" );
             }
         }
         final List<UpdateThread> threads = new ArrayList<>();
@@ -730,7 +738,8 @@ public class UpdateIT extends ESIntegTestCase {
                     }
                 }
                 expectedVersion -= totalFailures;
-                logger.error("Actual version [{}] Expected version [{}] Total failures [{}]", response.getVersion(), expectedVersion, totalFailures);
+                logger.error("Actual version [{}] Expected version [{}] Total failures [{}]",
+                    response.getVersion(), expectedVersion, totalFailures);
                 assertThat(response.getVersion(), equalTo((long) expectedVersion));
                 assertThat(response.getVersion() + totalFailures,
                         equalTo(

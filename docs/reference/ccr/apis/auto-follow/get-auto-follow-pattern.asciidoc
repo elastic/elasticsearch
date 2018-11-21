@@ -12,8 +12,8 @@ Get auto-follow patterns.
 
 ==== Description
 
-This API gets configured auto-follow patterns. This API will return the
-specified auto-follow pattern collection.
+This API gets configured {stack-ov}/ccr-auto-follow.html[auto-follow patterns].
+This API will return the specified auto-follow pattern collection.
 
 ==== Request
 

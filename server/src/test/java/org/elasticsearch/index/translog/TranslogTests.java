@@ -3203,6 +3203,7 @@ public class TranslogTests extends ESTestCase {
     public void testCrashDuringCheckpointCopy() throws IOException {
         final Path path = createTempDir();
         final AtomicBoolean failOnCopy = new AtomicBoolean();
+        final String expectedExceptionMessage = "simulated failure during copy";
         final FilterFileSystemProvider filterFileSystemProvider
             = new FilterFileSystemProvider(path.getFileSystem().provider().getScheme(), path.getFileSystem()) {
 
@@ -3211,7 +3212,7 @@ public class TranslogTests extends ESTestCase {
                 if (failOnCopy.get() && source.toString().endsWith(Translog.CHECKPOINT_SUFFIX)) {
                     deleteIfExists(target);
                     Files.createFile(target);
-                    throw new IOException("simulated failure during copy");
+                    throw new IOException(expectedExceptionMessage);
                 } else {
                     super.copy(source, target, options);
                 }
@@ -3219,15 +3220,12 @@ public class TranslogTests extends ESTestCase {
         };
 
         try (Translog brokenTranslog = create(filterFileSystemProvider.getPath(path.toUri()))) {
-            logger.info("rolling generation");
             failOnCopy.set(true);
-            assertThat(expectThrows(IOException.class, brokenTranslog::rollGeneration).getMessage(),
-                equalTo("simulated failure during copy"));
+            assertThat(expectThrows(IOException.class, brokenTranslog::rollGeneration).getMessage(), equalTo(expectedExceptionMessage));
             assertFalse(brokenTranslog.isOpen());
 
             try (Translog recoveredTranslog = new Translog(getTranslogConfig(path), brokenTranslog.getTranslogUUID(),
                 brokenTranslog.getDeletionPolicy(), () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get)) {
-                logger.info("rolling generation");
                 recoveredTranslog.rollGeneration();
                 assertFilePresences(recoveredTranslog);
             }

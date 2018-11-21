@@ -1017,36 +1017,48 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             new ApplicationPrivilege("testapp2", "all", Arrays.asList("action:login", "data:write/*", "manage:*"), null);
 
         {
-            //TODO Replace this with a call to PutPrivileges once it is implemented
-            final Request createPrivilegeRequest = new Request("POST", "/_xpack/security/privilege");
-            createPrivilegeRequest.setJsonEntity("{" +
-                "  \"testapp\": {" +
-                "    \"read\": {" +
-                "      \"actions\": [ \"action:login\", \"data:read/*\" ]" +
-                "    }," +
-                "    \"write\": {" +
-                "      \"actions\": [ \"action:login\", \"data:write/*\" ]," +
-                "      \"metadata\": { \"key1\": \"value1\" }" +
-                "    }," +
-                "    \"all\": {" +
-                "      \"actions\": [ \"action:login\", \"data:write/*\" , \"manage:*\"]" +
-                "    }" +
-                "  }," +
-                "  \"testapp2\": {" +
-                "    \"read\": {" +
-                "      \"actions\": [ \"action:login\", \"data:read/*\" ]," +
-                "      \"metadata\": { \"key2\": \"value2\" }" +
-                "    }," +
-                "    \"write\": {" +
-                "      \"actions\": [ \"action:login\", \"data:write/*\" ]" +
-                "    }," +
-                "    \"all\": {" +
-                "      \"actions\": [ \"action:login\", \"data:write/*\" , \"manage:*\"]" +
-                "    }" +
-                "  }" +
-                "}");
-            final Response createPrivilegeResponse = client.getLowLevelClient().performRequest(createPrivilegeRequest);
-            assertEquals(RestStatus.OK.getStatus(), createPrivilegeResponse.getStatusLine().getStatusCode());
+            List<ApplicationPrivilege> applicationPrivileges = new ArrayList<>();
+            applicationPrivileges.add(ApplicationPrivilege.builder()
+                    .application("testapp")
+                    .privilege("read")
+                    .actions("action:login", "data:read/*")
+                    .build());
+            applicationPrivileges.add(ApplicationPrivilege.builder()
+                    .application("testapp")
+                    .privilege("write")
+                    .actions("action:login", "data:write/*")
+                    .metadata(Collections.singletonMap("key1", "value1"))
+                    .build());
+            applicationPrivileges.add(ApplicationPrivilege.builder()
+                    .application("testapp")
+                    .privilege("all")
+                    .actions("action:login", "data:write/*", "manage:*")
+                    .build());
+            applicationPrivileges.add(ApplicationPrivilege.builder()
+                    .application("testapp2")
+                    .privilege("read")
+                    .actions("action:login", "data:read/*")
+                    .metadata(Collections.singletonMap("key2", "value2"))
+                    .build());
+            applicationPrivileges.add(ApplicationPrivilege.builder()
+                    .application("testapp2")
+                    .privilege("write")
+                    .actions("action:login", "data:write/*")
+                    .build());
+            applicationPrivileges.add(ApplicationPrivilege.builder()
+                    .application("testapp2")
+                    .privilege("all")
+                    .actions("action:login", "data:write/*", "manage:*")
+                    .build());
+            PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(applicationPrivileges, RefreshPolicy.IMMEDIATE);
+            PutPrivilegesResponse putPrivilegesResponse = client.security().putPrivileges(putPrivilegesRequest, RequestOptions.DEFAULT);
+            assertNotNull(putPrivilegesResponse);
+            assertThat(putPrivilegesResponse.status("testapp", "write"), is(Status.CREATED));
+            assertThat(putPrivilegesResponse.status("testapp", "read"), is(Status.CREATED));
+            assertThat(putPrivilegesResponse.status("testapp", "all"), is(Status.CREATED));
+            assertThat(putPrivilegesResponse.status("testapp2", "all"), is(Status.CREATED));
+            assertThat(putPrivilegesResponse.status("testapp2", "write"), is(Status.CREATED));
+            assertThat(putPrivilegesResponse.status("testapp2", "read"), is(Status.CREATED));
         }
 
         {
@@ -1150,6 +1162,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                     .privilege("all")
                     .actions(Sets.newHashSet("action:login"))
                     .metadata(Collections.singletonMap("k1", "v1"))
+                    .build());
+            privileges.add(ApplicationPrivilege.builder()
+                    .application("app01")
+                    .privilege("write")
+                    .actions(Sets.newHashSet("action:write"))
                     .build());
             final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, RefreshPolicy.IMMEDIATE);
             // end::put-privileges-request

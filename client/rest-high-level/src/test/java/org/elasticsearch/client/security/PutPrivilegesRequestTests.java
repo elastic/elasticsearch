@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -61,16 +62,51 @@ public class PutPrivilegesRequestTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        final String expected = "{\"app01\":{\"all\":{\"application\":\"app01\",\"name\":\"all\",\"actions\":"
-                + "[\"action:logout\",\"action:login\"],\"metadata\":{\"k1\":\"v1\"}}},"
-                + "\"app02\":{\"all\":{\"application\":\"app02\",\"name\":\"all\",\"actions\":"
-                + "[\"action:logout\",\"action:login\"],\"metadata\":{\"k2\":\"v2\"}}}}";
+        final String expected = "{\n"
+                + "  \"app01\" : {\n"
+                + "    \"all\" : {\n"
+                + "      \"application\" : \"app01\",\n"
+                + "      \"name\" : \"all\",\n"
+                + "      \"actions\" : [\n"
+                + "        \"action:logout\",\n"
+                + "        \"action:login\"\n"
+                + "      ],\n"
+                + "      \"metadata\" : {\n"
+                + "        \"k1\" : \"v1\"\n"
+                + "      }\n"
+                + "    },\n"
+                + "    \"read\" : {\n"
+                + "      \"application\" : \"app01\",\n"
+                + "      \"name\" : \"read\",\n"
+                + "      \"actions\" : [\n"
+                + "        \"data:read\"\n"
+                + "      ]\n" + "    }\n"
+                + "  },\n"
+                + "  \"app02\" : {\n"
+                + "    \"all\" : {\n"
+                + "      \"application\" : \"app02\",\n"
+                + "      \"name\" : \"all\",\n"
+                + "      \"actions\" : [\n"
+                + "        \"action:logout\",\n"
+                + "        \"action:login\"\n"
+                + "      ],\n"
+                + "      \"metadata\" : {\n"
+                + "        \"k2\" : \"v2\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
         List<ApplicationPrivilege> privileges = new ArrayList<>();
         privileges.add(ApplicationPrivilege.builder()
                 .application("app01")
                 .privilege("all")
                 .actions(Sets.newHashSet("action:login", "action:logout"))
                 .metadata(Collections.singletonMap("k1", "v1"))
+                .build());
+        privileges.add(ApplicationPrivilege.builder()
+                .application("app01")
+                .privilege("read")
+                .actions(Sets.newHashSet("data:read"))
                 .build());
         privileges.add(ApplicationPrivilege.builder()
                 .application("app02")
@@ -80,23 +116,23 @@ public class PutPrivilegesRequestTests extends ESTestCase {
                 .build());
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, refreshPolicy);
-        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        final XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         assertThat(Strings.toString(putPrivilegesRequest.toXContent(builder, ToXContent.EMPTY_PARAMS)), equalTo(expected));
     }
 
     public void testEqualsHashCode() {
         final List<ApplicationPrivilege> privileges = new ArrayList<>();
         privileges.add(ApplicationPrivilege.builder()
-                .application("app01")
-                .privilege("all")
-                .actions(Sets.newHashSet("action:login", "action:logout"))
-                .metadata(Collections.singletonMap("k1", "v1"))
+                .application(randomAlphaOfLength(5))
+                .privilege(randomAlphaOfLength(3))
+                .actions(Sets.newHashSet(randomAlphaOfLength(5), randomAlphaOfLength(5)))
+                .metadata(Collections.singletonMap(randomAlphaOfLength(3), randomAlphaOfLength(3)))
                 .build());
         privileges.add(ApplicationPrivilege.builder()
-                .application("app01")
-                .privilege("all")
-                .actions(Sets.newHashSet("action:login", "action:logout"))
-                .metadata(Collections.singletonMap("k1", "v1"))
+                .application(randomAlphaOfLength(5))
+                .privilege(randomAlphaOfLength(3))
+                .actions(Sets.newHashSet(randomAlphaOfLength(5), randomAlphaOfLength(5)))
+                .metadata(Collections.singletonMap(randomAlphaOfLength(3), randomAlphaOfLength(3)))
                 .build());
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, refreshPolicy);
@@ -105,7 +141,8 @@ public class PutPrivilegesRequestTests extends ESTestCase {
             return new PutPrivilegesRequest(privileges, refreshPolicy);
         });
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(putPrivilegesRequest, (original) -> {
-            return new PutPrivilegesRequest(original.getPrivileges(), original.getRefreshPolicy());
+            return new PutPrivilegesRequest(original.getPrivileges().values().stream().flatMap(List::stream).collect(Collectors.toList()),
+                    original.getRefreshPolicy());
         }, PutPrivilegesRequestTests::mutateTestItem);
     }
 
@@ -114,11 +151,19 @@ public class PutPrivilegesRequestTests extends ESTestCase {
         policies.remove(original.getRefreshPolicy());
         switch (randomIntBetween(0, 1)) {
         case 0:
-            return new PutPrivilegesRequest(original.getPrivileges().subList(0, 1), original.getRefreshPolicy());
+            final List<ApplicationPrivilege> privileges = new ArrayList<>();
+            privileges.add(ApplicationPrivilege.builder()
+                    .application(randomAlphaOfLength(5))
+                    .privilege(randomAlphaOfLength(3))
+                    .actions(Sets.newHashSet(randomAlphaOfLength(6)))
+                    .build());
+            return new PutPrivilegesRequest(privileges, original.getRefreshPolicy());
         case 1:
-            return new PutPrivilegesRequest(original.getPrivileges(), randomFrom(policies));
+            return new PutPrivilegesRequest(original.getPrivileges().values().stream().flatMap(List::stream).collect(Collectors.toList()),
+                    randomFrom(policies));
         default:
-            return new PutPrivilegesRequest(original.getPrivileges(), randomFrom(policies));
+            return new PutPrivilegesRequest(original.getPrivileges().values().stream().flatMap(List::stream).collect(Collectors.toList()),
+                    randomFrom(policies));
         }
     }
 }

@@ -28,25 +28,31 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.TreeMap;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 /**
  * Request object for creating/updating application privileges.
  */
 public final class PutPrivilegesRequest implements Validatable, ToXContentObject {
 
-    private final List<ApplicationPrivilege> privileges;
+    private final Map<String, List<ApplicationPrivilege>> privileges;
     private final RefreshPolicy refreshPolicy;
 
     public PutPrivilegesRequest(final List<ApplicationPrivilege> privileges, @Nullable final RefreshPolicy refreshPolicy) {
         if (privileges == null || privileges.isEmpty()) {
             throw new IllegalArgumentException("privileges are required");
         }
-        this.privileges = Collections.unmodifiableList(privileges);
+        this.privileges = Collections.unmodifiableMap(privileges.stream()
+                .collect(Collectors.groupingBy(ApplicationPrivilege::getApplication, TreeMap::new, Collectors.toList())));
         this.refreshPolicy = refreshPolicy == null ? RefreshPolicy.IMMEDIATE : refreshPolicy;
     }
 
-    public List<ApplicationPrivilege> getPrivileges() {
+    public Map<String, List<ApplicationPrivilege>> getPrivileges() {
         return privileges;
     }
 
@@ -74,11 +80,13 @@ public final class PutPrivilegesRequest implements Validatable, ToXContentObject
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        for (ApplicationPrivilege privilege : privileges) {
-            builder.field(privilege.getApplication());
+        for (Entry<String, List<ApplicationPrivilege>> entry : privileges.entrySet()) {
+            builder.field(entry.getKey());
             builder.startObject();
-            builder.field(privilege.getName());
-            privilege.toXContent(builder, params);
+            for (ApplicationPrivilege applicationPrivilege : entry.getValue()) {
+                builder.field(applicationPrivilege.getName());
+                applicationPrivilege.toXContent(builder, params);
+            }
             builder.endObject();
         }
         return builder.endObject();

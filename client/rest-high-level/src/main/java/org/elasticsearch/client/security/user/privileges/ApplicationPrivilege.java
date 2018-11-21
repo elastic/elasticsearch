@@ -178,8 +178,10 @@ public final class ApplicationPrivilege implements ToXContentObject {
         builder.startObject()
         .field(APPLICATION.getPreferredName(), application)
         .field(NAME.getPreferredName(), name)
-        .field(ACTIONS.getPreferredName(), actions)
-        .field(METADATA.getPreferredName(), metadata);
+        .field(ACTIONS.getPreferredName(), actions);
+        if (metadata != null && metadata.isEmpty() == false) {
+            builder.field(METADATA.getPreferredName(), metadata);
+        }
         return builder.endObject();
     }
 

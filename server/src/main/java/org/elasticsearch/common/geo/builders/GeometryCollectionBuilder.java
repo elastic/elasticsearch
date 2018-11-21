@@ -197,9 +197,6 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
             }
         }
 
-        if (shapes.size() == 1) {
-            return shapes.get(0);
-        }
         return shapes.toArray(new Object[shapes.size()]);
     }
 

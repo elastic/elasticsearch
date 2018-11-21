@@ -105,13 +105,13 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
     @Override
     protected ClusterBlockLevel globalBlockLevel() {
-        // resync should never be blocked
+        // resync should never be blocked because it's an internal action
         return null;
     }
 
     @Override
     protected ClusterBlockLevel indexBlockLevel() {
-        // resync should never be blocked
+        // resync should never be blocked because it's an internal action
         return null;
     }
 

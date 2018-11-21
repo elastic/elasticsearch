@@ -73,24 +73,23 @@ public class GeoShape implements ToXContentFragment {
         return shapeBuilder.firstX();
     }
 
-
     public double y() {
         return shapeBuilder.firstY();
     }
 
     public double minX() {
-        return shapeBuilder.build().getBoundingBox().getMinX();
+        return shapeBuilder.buildS4J().getBoundingBox().getMinX();
     }
 
     public double minY() {
-        return shapeBuilder.build().getBoundingBox().getMinY();
+        return shapeBuilder.buildS4J().getBoundingBox().getMinY();
     }
 
     public double maxX() {
-        return shapeBuilder.build().getBoundingBox().getMaxX();
+        return shapeBuilder.buildS4J().getBoundingBox().getMaxX();
     }
 
     public double maxY() {
-        return shapeBuilder.build().getBoundingBox().getMaxY();
+        return shapeBuilder.buildS4J().getBoundingBox().getMaxY();
     }
 }

@@ -24,7 +24,7 @@ setup:
 
   - do:
       xpack.ml.put_job:
-        job_id: old-cluster-open-job
+        job_id: migration-old-cluster-open-job
         body:  >
           {
             "description":"job migration",
@@ -35,30 +35,30 @@ setup:
             "data_description" : {
             }
           }
-  - match: { job_id: old-cluster-open-job }
+  - match: { job_id: migration-old-cluster-open-job }
 
   - do:
       xpack.ml.open_job:
-        job_id: old-cluster-open-job
+        job_id: migration-old-cluster-open-job
 
   - do:
       xpack.ml.put_datafeed:
-        datafeed_id: old-cluster-started-datafeed
+        datafeed_id: migration-old-cluster-started-datafeed
         body:  >
           {
-            "job_id":"old-cluster-open-job",
+            "job_id":"migration-old-cluster-open-job",
             "indices":["airline-data"],
             "types":["response"]
           }
 
   - do:
       xpack.ml.start_datafeed:
-        datafeed_id: old-cluster-started-datafeed
+        datafeed_id: migration-old-cluster-started-datafeed
         start: 0
 
   - do:
       xpack.ml.put_job:
-        job_id: old-cluster-closed-job
+        job_id: migration-old-cluster-closed-job
         body:  >
           {
             "analysis_config" : {
@@ -68,13 +68,13 @@ setup:
             "data_description" : {
             }
           }
-  - match: { job_id: old-cluster-closed-job }
+  - match: { job_id: migration-old-cluster-closed-job }
 
   - do:
       xpack.ml.put_datafeed:
-        datafeed_id: old-cluster-stopped-datafeed
+        datafeed_id: migration-old-cluster-stopped-datafeed
         body:  >
           {
-            "job_id":"old-cluster-closed-job",
+            "job_id":"migration-old-cluster-closed-job",
             "indices":["airline-data"]
           }

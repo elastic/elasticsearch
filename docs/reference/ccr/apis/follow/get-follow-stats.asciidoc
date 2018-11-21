@@ -182,8 +182,9 @@ Continuing with the fields from `shards`:
 ==== Authorization
 
 If the {es} {security-features} are enabled, you must have `read` and `monitor`
-index privileges for the follower indices. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+index privileges for the follower indices. You must also have `monitor` cluster
+privileges on the cluster that contains the follower index. For more information,
+see {stack-ov}/security-privileges.html[Security privileges].
 
 ==== Example
 

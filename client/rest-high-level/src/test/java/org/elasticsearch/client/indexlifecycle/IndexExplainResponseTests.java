@@ -50,11 +50,18 @@ public class IndexExplainResponseTests extends AbstractXContentTestCase<IndexLif
     }
 
     private static IndexLifecycleExplainResponse randomManagedIndexExplainResponse() {
-        return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10), randomAlphaOfLength(10),
-                randomNonNegativeLong(), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-                randomBoolean() ? null : randomAlphaOfLength(10), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-                randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
-                randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
+        return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomNonNegativeLong(),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
+            randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
     }
 
     @Override

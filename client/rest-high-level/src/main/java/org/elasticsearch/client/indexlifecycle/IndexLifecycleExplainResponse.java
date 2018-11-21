@@ -73,10 +73,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), MANAGED_BY_ILM_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), POLICY_NAME_FIELD);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), LIFECYCLE_DATE_MILLIS_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PHASE_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ACTION_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), STEP_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FAILED_STEP_FIELD);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), PHASE_FIELD);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), ACTION_FIELD);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), STEP_FIELD);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FAILED_STEP_FIELD);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), PHASE_TIME_MILLIS_FIELD);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), ACTION_TIME_MILLIS_FIELD);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), STEP_TIME_MILLIS_FIELD);

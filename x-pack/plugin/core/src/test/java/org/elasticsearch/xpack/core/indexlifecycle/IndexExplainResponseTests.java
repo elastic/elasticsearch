@@ -41,9 +41,16 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
     }
 
     private static IndexLifecycleExplainResponse randomManagedIndexExplainResponse() {
-        return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10), randomAlphaOfLength(10),
-            randomNonNegativeLong(), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-            randomBoolean() ? null : randomAlphaOfLength(10), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+        return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomNonNegativeLong(),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
             randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
     }
@@ -105,16 +112,16 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
                 }
                 break;
             case 6:
-                policyTime += randomLongBetween(0, 100000);
+                policyTime = randomValueOtherThan(policyTime, () -> randomLongBetween(0, 100000));
                 break;
             case 7:
-                phaseTime += randomLongBetween(0, 100000);
+                phaseTime = randomValueOtherThan(phaseTime, () -> randomLongBetween(0, 100000));
                 break;
             case 8:
-                actionTime += randomLongBetween(0, 100000);
+                actionTime = randomValueOtherThan(actionTime, () -> randomLongBetween(0, 100000));
                 break;
             case 9:
-                stepTime += randomLongBetween(0, 100000);
+                stepTime = randomValueOtherThan(stepTime, () -> randomLongBetween(0, 100000));
                 break;
             case 10:
                 if (Strings.hasLength(stepInfo) == false) {

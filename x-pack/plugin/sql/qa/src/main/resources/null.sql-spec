@@ -10,3 +10,6 @@ SELECT COALESCE(null, ABS(MAX(emp_no)) + 1, 123) AS c FROM test_emp GROUP BY lan
 
 coalesceWhere
 SELECT COALESCE(null, ABS(emp_no) + 1, 123) AS c FROM test_emp WHERE COALESCE(null, ABS(emp_no) + 1, 123, 321) > 100 ORDER BY emp_no NULLS FIRST LIMIT 5;
+
+ifNullField
+SELECT IFNULL(null, ABS(emp_no) + 1) AS c FROM test_emp ORDER BY emp_no LIMIT 5;

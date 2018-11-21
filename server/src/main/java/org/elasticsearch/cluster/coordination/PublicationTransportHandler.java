@@ -387,7 +387,6 @@ public class PublicationTransportHandler {
             if (compressor != null) {
                 in = compressor.streamInput(in);
             }
-            final ClusterState lastSeen = lastSeenClusterState.get();
             in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
             in.setVersion(request.version());
             // If true we received full cluster state - otherwise diffs
@@ -400,6 +399,7 @@ public class PublicationTransportHandler {
                 lastSeenClusterState.set(incomingState);
                 return response;
             } else {
+                final ClusterState lastSeen = lastSeenClusterState.get();
                 if (lastSeen == null) {
                     logger.debug("received diff for but don't have any local cluster state - requesting full state");
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");

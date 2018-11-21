@@ -154,8 +154,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
-        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, transportService, this::isBootstrapped, joinHelper,
-            peerFinder::getFoundPeers, this::unsafelySetConfigurationForUpgrade);
+        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, clusterSettings, transportService, this::isBootstrapped,
+            joinHelper, peerFinder::getFoundPeers, this::unsafelySetConfigurationForUpgrade);
     }
 
     private Runnable getOnLeaderFailure() {
@@ -666,8 +666,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 throw new IllegalStateException("Cannot upgrade from last-known leader: " + lastKnownLeader);
             }
 
+            logger.info("automatically bootstrapping during upgrade, using initial configuration {}", votingConfiguration);
+
             assert getCurrentTerm() == 0 : getCurrentTerm();
-            final long newTerm = getCurrentTerm() + 1;
+            final long newTerm = 1;
             final Builder builder = masterService.incrementVersion(getStateForMasterService());
             builder.lastAcceptedConfiguration(votingConfiguration);
             builder.lastCommittedConfiguration(votingConfiguration);

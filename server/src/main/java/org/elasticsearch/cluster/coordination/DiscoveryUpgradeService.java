@@ -24,10 +24,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -92,8 +94,9 @@ public class DiscoveryUpgradeService {
     @Nullable // null if no active joining round
     private volatile JoiningRound joiningRound;
 
-    public DiscoveryUpgradeService(Settings settings, TransportService transportService, BooleanSupplier isBootstrappedSupplier,
-                                   JoinHelper joinHelper, Supplier<Iterable<DiscoveryNode>> peersSupplier,
+    public DiscoveryUpgradeService(Settings settings, ClusterSettings clusterSettings, TransportService transportService,
+                                   BooleanSupplier isBootstrappedSupplier, JoinHelper joinHelper,
+                                   Supplier<Iterable<DiscoveryNode>> peersSupplier,
                                    Consumer<VotingConfiguration> initialConfigurationConsumer) {
         assert Version.CURRENT.major == Version.V_6_6_0.major + 1 : "remove this service once unsafe upgrades are no longer needed";
         electMasterService = new ElectMasterService(settings);
@@ -105,6 +108,9 @@ public class DiscoveryUpgradeService {
         this.bwcPingTimeout = BWC_PING_TIMEOUT_SETTING.get(settings);
         this.enableUnsafeBootstrappingOnUpgrade = ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING.get(settings);
         this.clusterName = CLUSTER_NAME_SETTING.get(settings);
+
+        clusterSettings.addSettingsUpdateConsumer(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
+            electMasterService::minimumMasterNodes); // TODO reject update if the new value is too large
     }
 
     public void activate(Optional<DiscoveryNode> lastKnownLeader) {
@@ -183,6 +189,8 @@ public class DiscoveryUpgradeService {
 
                     // this set of nodes is reasonably fresh - the PeerFinder cleans up nodes to which the transport service is not
                     // connected each time it wakes up (every second by default)
+
+                    logger.debug("nodes: {}", discoveryNodes);
 
                     if (electMasterService.hasEnoughMasterNodes(discoveryNodes)) {
                         if (discoveryNodes.stream().anyMatch(Coordinator::isZen1Node)) {

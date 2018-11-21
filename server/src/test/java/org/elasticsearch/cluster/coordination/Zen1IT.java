@@ -23,16 +23,22 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@TestLogging("org.elasticsearch.cluster.coordination:TRACE,org.elasticsearch.discovery.zen:TRACE")
 public class Zen1IT extends ESIntegTestCase {
 
     private static Settings ZEN1_SETTINGS = Coordinator.addZen1Attribute(Settings.builder()
@@ -56,14 +62,26 @@ public class Zen1IT extends ESIntegTestCase {
         createIndex("test");
     }
 
-    @TestLogging("org.elasticsearch.discovery.zen:TRACE,org.elasticsearch.cluster.coordination:TRACE")
-    public void testUpgradingFromZen1ToZen2ClusterWithThreeNodes() throws IOException {
-        final List<String> zen1Nodes = internalCluster().startNodes(3, ZEN1_SETTINGS);
+    public void testMixedClusterFormation() throws Exception {
+        final int zen1NodeCount = randomIntBetween(1, 3);
+        final int zen2NodeCount = randomIntBetween(1, 3);
+        logger.info("starting cluster of [{}] Zen1 nodes and [{}] Zen2 nodes", zen1NodeCount, zen2NodeCount);
+        final List<String> nodes = internalCluster().startNodes(IntStream.range(0, zen1NodeCount + zen2NodeCount)
+            .mapToObj(i -> i < zen1NodeCount ? ZEN1_SETTINGS : ZEN2_SETTINGS).toArray(Settings[]::new));
+
+        for (final String node : nodes) {
+            internalCluster().restartNode(node, InternalTestCluster.EMPTY_CALLBACK);
+            ensureStableCluster(zen1NodeCount + zen2NodeCount);
+        }
+    }
+
+    private void testRollingUpgradeFromZen1ToZen2(final int nodeCount) throws Exception {
+        final List<String> zen1Nodes = internalCluster().startNodes(nodeCount, ZEN1_SETTINGS);
 
         createIndex("test",
             Settings.builder()
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // Assign shards
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3) // causes rebalancing
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, nodeCount) // causes rebalancing
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build());
         ensureGreen("test");
@@ -71,13 +89,37 @@ public class Zen1IT extends ESIntegTestCase {
         for (final String zen1Node : zen1Nodes) {
             logger.info("--> shutting down {}", zen1Node);
             internalCluster().stopRandomNode(s -> NODE_NAME_SETTING.get(s).equals(zen1Node));
-            ensureGreen("test");
+
+            ensureStableCluster(nodeCount - 1);
+            if (nodeCount > 2) {
+                ensureGreen("test");
+            } else {
+                ensureYellow("test");
+            }
+
             logger.info("--> starting replacement for {}", zen1Node);
             final String newNode = internalCluster().startNode(ZEN2_SETTINGS);
+            ensureStableCluster(nodeCount);
             ensureGreen("test");
             logger.info("--> successfully replaced {} with {}", zen1Node, newNode);
         }
 
-        assertThat(internalCluster().size(), equalTo(3));
+        assertThat(internalCluster().size(), equalTo(nodeCount));
+    }
+
+    public void testUpgradingFromZen1ToZen2ClusterWithTwoNodes() throws Exception {
+        testRollingUpgradeFromZen1ToZen2(2);
+    }
+
+    public void testUpgradingFromZen1ToZen2ClusterWithThreeNodes() throws Exception {
+        testRollingUpgradeFromZen1ToZen2(3);
+    }
+
+    public void testUpgradingFromZen1ToZen2ClusterWithFourNodes() throws Exception {
+        testRollingUpgradeFromZen1ToZen2(4);
+    }
+
+    public void testUpgradingFromZen1ToZen2ClusterWithFiveNodes() throws Exception {
+        testRollingUpgradeFromZen1ToZen2(5);
     }
 }

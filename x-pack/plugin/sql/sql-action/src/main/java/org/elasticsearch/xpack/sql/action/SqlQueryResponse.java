@@ -13,11 +13,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
-import org.elasticsearch.xpack.sql.proto.DateUtils;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
-import java.sql.JDBCType;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -177,7 +176,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             }
             // otherwise use the ISO format
             else {
-                builder.value(DateUtils.toString(zdt));
+                builder.value(StringUtils.toString(zdt));
             }
         } else {
             builder.value(value);
@@ -189,11 +188,10 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         String table = in.readString();
         String name = in.readString();
         String esType = in.readString();
-        JDBCType jdbcType;
+        Integer jdbcType;
         int displaySize;
         if (in.readBoolean()) {
-            // FIXME: this needs changing to allow custom types
-            jdbcType = JDBCType.valueOf(in.readVInt());
+            jdbcType = in.readVInt();
             displaySize = in.readVInt();
         } else {
             jdbcType = null;
@@ -208,7 +206,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         out.writeString(columnInfo.esType());
         if (columnInfo.jdbcType() != null) {
             out.writeBoolean(true);
-            out.writeVInt(columnInfo.jdbcType().getVendorTypeNumber());
+            out.writeVInt(columnInfo.jdbcType());
             out.writeVInt(columnInfo.displaySize());
         } else {
             out.writeBoolean(false);

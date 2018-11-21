@@ -28,6 +28,7 @@ import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
+import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
@@ -190,6 +191,15 @@ final class SecurityRequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, "/_xpack/security/oauth2/token");
         request.setEntity(createEntity(invalidateTokenRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
+    }
+
+    static Request getPrivileges(GetPrivilegesRequest getPrivilegesRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack/security/privilege")
+            .addPathPart(getPrivilegesRequest.getApplicationName())
+            .addCommaSeparatedPathParts(getPrivilegesRequest.getPrivilegeNames())
+            .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     static Request deletePrivileges(DeletePrivilegesRequest deletePrivilegeRequest) {

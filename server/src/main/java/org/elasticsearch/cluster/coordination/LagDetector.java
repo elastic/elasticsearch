@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -48,22 +49,26 @@ public class LagDetector {
     // the timeout for each node to apply a value after the end of publication
     public static final Setting<TimeValue> CLUSTER_STATE_APPLICATION_TIMEOUT_SETTING =
         Setting.timeSetting("cluster.applier.timeout",
-            TimeValue.timeValueMillis(60000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+            TimeValue.timeValueMillis(90000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     private final TimeValue clusterStateApplicationTimeout;
     private final Consumer<DiscoveryNode> onLagDetected;
+    private final Supplier<DiscoveryNode> localNodeSupplier;
     private final ThreadPool threadPool;
     private final Map<DiscoveryNode, NodeAppliedStateTracker> appliedStateTrackersByNode = newConcurrentMap();
 
-    public LagDetector(final Settings settings, final ThreadPool threadPool, final Consumer<DiscoveryNode> onLagDetected) {
+    public LagDetector(final Settings settings, final ThreadPool threadPool, final Consumer<DiscoveryNode> onLagDetected,
+                       final Supplier<DiscoveryNode> localNodeSupplier) {
         this.threadPool = threadPool;
         this.clusterStateApplicationTimeout = CLUSTER_STATE_APPLICATION_TIMEOUT_SETTING.get(settings);
         this.onLagDetected = onLagDetected;
+        this.localNodeSupplier = localNodeSupplier;
     }
 
     public void setTrackedNodes(final Iterable<DiscoveryNode> discoveryNodes) {
         final Set<DiscoveryNode> discoveryNodeSet = new HashSet<>();
         discoveryNodes.forEach(discoveryNodeSet::add);
+        discoveryNodeSet.remove(localNodeSupplier.get());
         appliedStateTrackersByNode.keySet().retainAll(discoveryNodeSet);
         discoveryNodeSet.forEach(node -> appliedStateTrackersByNode.putIfAbsent(node, new NodeAppliedStateTracker(node)));
     }
@@ -127,7 +132,7 @@ public class LagDetector {
                 return;
             }
 
-            threadPool.schedule(clusterStateApplicationTimeout, Names.GENERIC, new Runnable() {
+            threadPool.scheduleUnlessShuttingDown(clusterStateApplicationTimeout, Names.GENERIC, new Runnable() {
                 @Override
                 public void run() {
                     if (appliedStateTrackersByNode.get(discoveryNode) != NodeAppliedStateTracker.this) {

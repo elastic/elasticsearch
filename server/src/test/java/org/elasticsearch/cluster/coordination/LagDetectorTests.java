@@ -39,16 +39,16 @@ public class LagDetectorTests extends ESTestCase {
     private DeterministicTaskQueue deterministicTaskQueue;
     private Set<DiscoveryNode> failedNodes;
     private LagDetector lagDetector;
-    private DiscoveryNode node1;
-    private DiscoveryNode node2;
+    private DiscoveryNode node1, node2, localNode;
 
     @Before
     public void setupFixture() {
         deterministicTaskQueue = new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random());
 
         failedNodes = new HashSet<>();
-        lagDetector = new LagDetector(Settings.EMPTY, deterministicTaskQueue.getThreadPool(), failedNodes::add);
+        lagDetector = new LagDetector(Settings.EMPTY, deterministicTaskQueue.getThreadPool(), failedNodes::add, () -> localNode);
 
+        localNode = CoordinationStateTests.createNode("local");
         node1 = CoordinationStateTests.createNode("node1");
         node2 = CoordinationStateTests.createNode("node2");
     }
@@ -91,6 +91,13 @@ public class LagDetectorTests extends ESTestCase {
             () -> lagDetector.setAppliedVersion(node1, 1));
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, contains(node1));
+    }
+
+    public void testNoLagDetectedOnLocalNode() {
+        lagDetector.setTrackedNodes(Collections.singletonList(localNode));
+        lagDetector.startLagDetector(1);
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+        assertThat(failedNodes, empty());
     }
 
     public void testNoLagDetectedIfNodeAppliesLaterVersionAfterLagDetectorStarted() {

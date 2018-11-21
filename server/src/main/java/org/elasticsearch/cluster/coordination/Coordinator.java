@@ -157,7 +157,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
-        this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"));
+        this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
+            transportService::getLocalNode);
     }
 
     private Runnable getOnLeaderFailure() {
@@ -517,7 +518,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 : preVoteCollector + " vs " + getPreVoteResponse();
 
             final Set<DiscoveryNode> lagDetectorTrackedNodes = new HashSet<>(lagDetector.getTrackedNodes());
-            assert lagDetectorTrackedNodes.isEmpty() || lagDetectorTrackedNodes.remove(getLocalNode());
+            assert lagDetectorTrackedNodes.contains(getLocalNode()) == false;
             assert followersChecker.getKnownFollowers().equals(lagDetectorTrackedNodes);
 
             if (mode == Mode.LEADER) {

@@ -471,7 +471,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
                     TransportAddVotingTombstonesAction.MAXIMUM_VOTING_TOMBSTONES_SETTING,
                     ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING,
-                    LagDetector.CLUSTER_STATE_APPLICATION_TIMEOUT_SETTING
+                    LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING
             )));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(

@@ -46,9 +46,9 @@ public class LagDetector {
 
     private static final Logger logger = LogManager.getLogger(LagDetector.class);
 
-    // the timeout for each node to apply a value after the end of publication
-    public static final Setting<TimeValue> CLUSTER_STATE_APPLICATION_TIMEOUT_SETTING =
-        Setting.timeSetting("cluster.applier.timeout",
+    // the timeout for each node to apply a value after the end of publication, before being removed from the cluster
+    public static final Setting<TimeValue> CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING =
+        Setting.timeSetting("cluster.follower_lag.timeout",
             TimeValue.timeValueMillis(90000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     private final TimeValue clusterStateApplicationTimeout;
@@ -60,7 +60,7 @@ public class LagDetector {
     public LagDetector(final Settings settings, final ThreadPool threadPool, final Consumer<DiscoveryNode> onLagDetected,
                        final Supplier<DiscoveryNode> localNodeSupplier) {
         this.threadPool = threadPool;
-        this.clusterStateApplicationTimeout = CLUSTER_STATE_APPLICATION_TIMEOUT_SETTING.get(settings);
+        this.clusterStateApplicationTimeout = CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.get(settings);
         this.onLagDetected = onLagDetected;
         this.localNodeSupplier = localNodeSupplier;
     }

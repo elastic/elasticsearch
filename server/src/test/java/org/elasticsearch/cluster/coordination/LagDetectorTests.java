@@ -77,7 +77,7 @@ public class LagDetectorTests extends ESTestCase {
         lagDetector.setTrackedNodes(Collections.singletonList(node1));
         lagDetector.startLagDetector(1);
         deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis()
-                + LagDetector.CLUSTER_STATE_APPLICATION_TIMEOUT_SETTING.get(Settings.EMPTY).millis() - 1,
+                + LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.get(Settings.EMPTY).millis() - 1,
             () -> lagDetector.setAppliedVersion(node1, 1));
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, empty());
@@ -87,7 +87,7 @@ public class LagDetectorTests extends ESTestCase {
         lagDetector.setTrackedNodes(Collections.singletonList(node1));
         lagDetector.startLagDetector(1);
         deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis()
-                + LagDetector.CLUSTER_STATE_APPLICATION_TIMEOUT_SETTING.get(Settings.EMPTY).millis() + 1,
+                + LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.get(Settings.EMPTY).millis() + 1,
             () -> lagDetector.setAppliedVersion(node1, 1));
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, contains(node1));
@@ -194,13 +194,13 @@ public class LagDetectorTests extends ESTestCase {
 
         lagDetector.startLagDetector(3);
         deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis()
-                + LagDetector.CLUSTER_STATE_APPLICATION_TIMEOUT_SETTING.get(Settings.EMPTY).millis() - 1,
+                + LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.get(Settings.EMPTY).millis() - 1,
             () -> lagDetector.setAppliedVersion(node1, 3));
         assertThat(failedNodes, empty());
 
         lagDetector.startLagDetector(4);
         deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis()
-                + LagDetector.CLUSTER_STATE_APPLICATION_TIMEOUT_SETTING.get(Settings.EMPTY).millis() + 1,
+                + LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.get(Settings.EMPTY).millis() + 1,
             () -> lagDetector.setAppliedVersion(node1, 4));
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, contains(node1));

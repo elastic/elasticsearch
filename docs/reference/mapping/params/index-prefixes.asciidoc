@@ -1,4 +1,4 @@
-[[index-prefix-config]]
+[[index-prefixes]]
 ==== `index_prefixes`
 
 The `index_prefixes` parameter enables the indexing of term prefixes to speed
@@ -27,8 +27,8 @@ PUT my_index
     "_doc": {
       "properties": {
         "body_text": {
-          "type":  "text",
-          "index_prefixes" : { }    <1>
+          "type": "text",
+          "index_prefixes": { }    <1>
         }
       }
     }
@@ -50,8 +50,8 @@ PUT my_index
     "_doc": {
       "properties": {
         "full_name": {
-          "type":  "text",
-          "index_prefixes" : {
+          "type": "text",
+          "index_prefixes": {
             "min_chars" : 1,
             "max_chars" : 10
           }

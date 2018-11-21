@@ -707,6 +707,26 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(expected, query);
     }
 
+    /**
+     * Test for behavior reported in https://github.com/elastic/elasticsearch/issues/34708
+     * Unmapped field can lead to MatchNoDocsQuerys in disjunction queries. If tokens are eliminated (e.g. because
+     * the tokenizer removed them as punctuation) on regular fields, this can leave only MatchNoDocsQuerys in the
+     * disjunction clause. Instead those disjunctions should be eliminated completely.
+     */
+    public void testUnmappedFieldNoTokenWithAndOperator() throws IOException {
+        Query query = new SimpleQueryStringBuilder("first & second")
+                .field(STRING_FIELD_NAME)
+                .field("unmapped")
+                .field("another_unmapped")
+                .defaultOperator(Operator.AND)
+                .toQuery(createShardContext());
+        BooleanQuery expected = new BooleanQuery.Builder()
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "first")), BooleanClause.Occur.MUST)
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "second")), BooleanClause.Occur.MUST)
+                .build();
+        assertEquals(expected, query);
+    }
+
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings)
             .put(indexSettings)

@@ -482,7 +482,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
                     .build());
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertBusy(() -> assertNotNull(client.indexLifecycle()
-                .explainLifecycle(new ExplainLifecycleRequest().indices("my_index"), RequestOptions.DEFAULT)
+                .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
                 .getIndexResponses().get("my_index").getFailedStep()));
         }
 

@@ -107,7 +107,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
                         buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)));
 
                 // open index
-                final IndexMetaData indexMetaData = IndexMetaData.builder(currentState.metaData().index(index)).state(IndexMetaData.State.OPEN).build();
+                final IndexMetaData indexMetaData = IndexMetaData.builder(currentState.metaData()
+                    .index(index)).state(IndexMetaData.State.OPEN).build();
 
                 builder.metaData(MetaData.builder(currentState.metaData()).put(indexMetaData, true));
                 builder.blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(index));
@@ -236,7 +237,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Add a new mapping...
         final AtomicReference<Object> putMappingResponse = new AtomicReference<>();
-        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(new ActionListener<AcknowledgedResponse>() {
+        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(
+            new ActionListener<AcknowledgedResponse>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
                 putMappingResponse.set(response);
@@ -249,7 +251,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
         // ...and wait for mappings to be available on master
         assertBusy(() -> {
-            ImmutableOpenMap<String, MappingMetaData> indexMappings = client().admin().indices().prepareGetMappings("index").get().getMappings().get("index");
+            ImmutableOpenMap<String, MappingMetaData> indexMappings = client().admin().indices()
+                .prepareGetMappings("index").get().getMappings().get("index");
             assertNotNull(indexMappings);
             MappingMetaData typeMappings = indexMappings.get("type");
             assertNotNull(typeMappings);
@@ -351,7 +354,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         internalCluster().setDisruptionScheme(disruption);
         disruption.startDisrupting();
         final AtomicReference<Object> putMappingResponse = new AtomicReference<>();
-        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(new ActionListener<AcknowledgedResponse>() {
+        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(
+            new ActionListener<AcknowledgedResponse>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
                 putMappingResponse.set(response);

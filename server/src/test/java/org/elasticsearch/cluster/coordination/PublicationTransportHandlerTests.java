@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,9 +60,9 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final DiscoveryNode otherNode = new DiscoveryNode("otherNode", buildNewFakeTransportAddress(), Version.CURRENT);
         final ClusterState clusterState = CoordinationStateTests.clusterState(2L, 1L,
             DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build(),
-            ClusterState.VotingConfiguration.EMPTY_CONFIG, ClusterState.VotingConfiguration.EMPTY_CONFIG, 0L);
+            VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L);
 
-        final ClusterState unserializableClusterState = new ClusterState(clusterState.term(), clusterState.version(),
+        final ClusterState unserializableClusterState = new ClusterState(clusterState.version(),
             clusterState.stateUUID(), clusterState) {
             @Override
             public Diff<ClusterState> diff(ClusterState previousState) {

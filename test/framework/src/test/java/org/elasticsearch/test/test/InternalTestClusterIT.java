@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.test.test;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 
 import java.io.IOException;
 
@@ -29,13 +27,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class InternalTestClusterIT extends ESIntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
-            .build();
-    }
 
     public void testStartingAndStoppingNodes() throws IOException {
         logger.info("--> cluster has [{}] nodes", internalCluster().size());

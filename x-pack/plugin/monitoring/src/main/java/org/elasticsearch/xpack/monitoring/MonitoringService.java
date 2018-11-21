@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
@@ -37,6 +39,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * service life cycles, the intended way to temporarily stop the publishing is using the start and stop methods.
  */
 public class MonitoringService extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(MonitoringService.class);
+
 
     /**
      * Minimum value for sampling interval (1 second)

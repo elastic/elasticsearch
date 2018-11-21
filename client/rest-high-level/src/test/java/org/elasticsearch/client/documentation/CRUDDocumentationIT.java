@@ -54,6 +54,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.RethrottleRequest;
+import org.elasticsearch.client.core.MultiTermVectorsRequest;
+import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
@@ -1565,10 +1567,12 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // tag::term-vectors-request-artificial
-            TermVectorsRequest request = new TermVectorsRequest("authors", "_doc");
+
             XContentBuilder docBuilder = XContentFactory.jsonBuilder();
             docBuilder.startObject().field("user", "guest-user").endObject();
-            request.setDoc(docBuilder); // <1>
+            TermVectorsRequest request = new TermVectorsRequest("authors",
+                "_doc",
+                docBuilder); // <1>
             // end::term-vectors-request-artificial
 
             // tag::term-vectors-request-optional-arguments
@@ -1665,6 +1669,80 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         // tag::term-vectors-execute-async
         client.termvectorsAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::term-vectors-execute-async
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+    }
+
+
+    // Not entirely sure if _mtermvectors belongs to CRUD, and in the absence of a better place, will have it here
+    public void testMultiTermVectors() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping("_doc", "user", "type=text");
+        CreateIndexResponse authorsResponse = client.indices().create(authorsRequest, RequestOptions.DEFAULT);
+        assertTrue(authorsResponse.isAcknowledged());
+        client.index(new IndexRequest("index", "_doc", "1").source("user", "kimchy"), RequestOptions.DEFAULT);
+        client.index(new IndexRequest("index", "_doc", "2").source("user", "s1monw"), RequestOptions.DEFAULT);
+        Response refreshResponse = client().performRequest(new Request("POST", "/authors/_refresh"));
+        assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
+
+        {
+            // tag::multi-term-vectors-request
+            MultiTermVectorsRequest request = new MultiTermVectorsRequest(); // <1>
+            TermVectorsRequest tvrequest1 =
+                new TermVectorsRequest("authors", "_doc", "1");
+            tvrequest1.setFields("user");
+            request.add(tvrequest1); // <2>
+
+            XContentBuilder docBuilder = XContentFactory.jsonBuilder();
+            docBuilder.startObject().field("user", "guest-user").endObject();
+            TermVectorsRequest tvrequest2 =
+                new TermVectorsRequest("authors", "_doc", docBuilder);
+            request.add(tvrequest2); // <3>
+            // end::multi-term-vectors-request
+        }
+
+        // tag::multi-term-vectors-request-template
+        TermVectorsRequest tvrequestTemplate =
+            new TermVectorsRequest("authors", "_doc", "fake_id"); // <1>
+        tvrequestTemplate.setFields("user");
+        String[] ids = {"1", "2"};
+        MultiTermVectorsRequest request =
+            new MultiTermVectorsRequest(ids, tvrequestTemplate); // <2>
+        // end::multi-term-vectors-request-template
+
+        // tag::multi-term-vectors-execute
+        MultiTermVectorsResponse response =
+            client.mtermvectors(request, RequestOptions.DEFAULT);
+        // end::multi-term-vectors-execute
+
+        // tag::multi-term-vectors-response
+        List<TermVectorsResponse> tvresponseList =
+            response.getTermVectorsResponses(); // <1>
+        if (tvresponseList != null) {
+            for (TermVectorsResponse tvresponse : tvresponseList) {
+            }
+        }
+        // end::multi-term-vectors-response
+
+        ActionListener<MultiTermVectorsResponse> listener;
+        // tag::multi-term-vectors-execute-listener
+        listener = new ActionListener<MultiTermVectorsResponse>() {
+            @Override
+            public void onResponse(MultiTermVectorsResponse mtvResponse) {
+                // <1>
+            }
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::multi-term-vectors-execute-listener
+        CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+        // tag::multi-term-vectors-execute-async
+        client.mtermvectorsAsync(
+            request, RequestOptions.DEFAULT, listener); // <1>
+        // end::multi-term-vectors-execute-async
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
 
     }

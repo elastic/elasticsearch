@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
@@ -27,10 +29,10 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Builder;
-import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -81,6 +83,7 @@ import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRIT
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
+    private static final Logger logger = LogManager.getLogger(Coordinator.class);
 
     // the timeout for the publication of each value
     public static final Setting<TimeValue> PUBLISH_TIMEOUT_SETTING =
@@ -627,11 +630,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             logger.info("setting initial configuration to {}", votingConfiguration);
             final Builder builder = masterService.incrementVersion(currentState);
-            builder.lastAcceptedConfiguration(votingConfiguration);
-            builder.lastCommittedConfiguration(votingConfiguration);
+            final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder(currentState.coordinationMetaData())
+                    .lastAcceptedConfiguration(votingConfiguration)
+                    .lastCommittedConfiguration(votingConfiguration)
+                    .build();
+
             MetaData.Builder metaDataBuilder = MetaData.builder();
             // automatically generate a UID for the metadata if we need to
             metaDataBuilder.generateClusterUuidIfNeeded(); // TODO generate UUID in bootstrapping tool?
+            metaDataBuilder.coordinationMetaData(coordinationMetaData);
             builder.metaData(metaDataBuilder);
             coordinationState.get().setInitialState(builder.build());
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
@@ -646,14 +653,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
             .filter(this::hasJoinVoteFrom).collect(Collectors.toSet());
-        final ClusterState.VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes,
+        final VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes,
             clusterState.getVotingTombstones().stream().map(DiscoveryNode::getId).collect(Collectors.toSet()),
             clusterState.getLastAcceptedConfiguration());
         if (newConfig.equals(clusterState.getLastAcceptedConfiguration()) == false) {
             assert coordinationState.get().joinVotesHaveQuorumFor(newConfig);
-            return ClusterState.builder(clusterState).lastAcceptedConfiguration(newConfig).build();
+            return ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())
+                .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData())
+                    .lastAcceptedConfiguration(newConfig).build())).build();
         }
-
         return clusterState;
     }
 

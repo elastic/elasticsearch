@@ -95,7 +95,7 @@ The following parameters are accepted by `text` fields:
     separate field.  This allows prefix searches to run more efficiently, at
     the expense of a larger index.
 
-`index_phrases`::
+<<index-phrases,`index_phrases`>>::
 
     If enabled, two-term word combinations ('shingles') are indexed into a separate
     field.  This allows exact phrase queries (no slop) to run more efficiently, at the expense

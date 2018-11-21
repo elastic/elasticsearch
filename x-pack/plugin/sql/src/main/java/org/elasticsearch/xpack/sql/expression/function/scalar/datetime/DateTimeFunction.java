@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
@@ -43,18 +42,19 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
     private static Integer dateTimeChrono(ZonedDateTime dateTime, ChronoField field) {
         return Integer.valueOf(dateTime.get(field));
     }
-
+    
     @Override
-    public ScriptTemplate scriptWithField(FieldAttribute field) {
+    public ScriptTemplate asScript() {
         ParamsBuilder params = paramsBuilder();
 
-        String template = null;
-        template = formatTemplate("{sql}.dateTimeChrono(doc[{}].value, {}, {})");
-        params.variable(field.name())
+        ScriptTemplate script = super.asScript();
+        String template = formatTemplate("{sql}.dateTimeChrono(" + script.template() + ", {}, {})");
+        params.script(script.params())
               .variable(timeZone().getID())
               .variable(extractor.chronoField().name());
         
         return new ScriptTemplate(template, params.build(), dataType());
+
     }
 
     @Override

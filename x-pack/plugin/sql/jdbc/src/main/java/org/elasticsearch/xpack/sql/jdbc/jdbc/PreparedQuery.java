@@ -6,12 +6,10 @@
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
+import org.elasticsearch.xpack.sql.jdbc.type.DataType;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.sql.JDBCType;
 import java.sql.SQLException;
-import java.sql.SQLType;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -19,10 +17,10 @@ import java.util.stream.Collectors;
 class PreparedQuery {
 
     static class ParamInfo {
-        SQLType type;
+        DataType type;
         Object value;
 
-        ParamInfo(Object value, SQLType type) {
+        ParamInfo(Object value, DataType type) {
             this.value = value;
             this.type = type;
         }
@@ -44,7 +42,7 @@ class PreparedQuery {
         return params[param - 1];
     }
 
-    void setParam(int param, Object value, SQLType type) throws JdbcSQLException {
+    void setParam(int param, Object value, DataType type) throws JdbcSQLException {
         if (param < 1 || param > params.length) {
             throw new JdbcSQLException("Invalid parameter index [" + param + "]");
         }
@@ -58,7 +56,7 @@ class PreparedQuery {
 
     void clearParams() {
         for (int i = 0; i < params.length; i++) {
-            params[i] = new ParamInfo(null, JDBCType.VARCHAR);
+            params[i] = new ParamInfo(null, DataType.KEYWORD);
         }
     }
 
@@ -74,7 +72,7 @@ class PreparedQuery {
      */
     List<SqlTypedParamValue> params() {
         return Arrays.stream(this.params).map(
-                paramInfo -> new SqlTypedParamValue(DataType.fromJdbcType(paramInfo.type), paramInfo.value)
+                paramInfo -> new SqlTypedParamValue(paramInfo.type.name(), paramInfo.value)
         ).collect(Collectors.toList());
     }
 

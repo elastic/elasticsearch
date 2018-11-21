@@ -375,6 +375,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-delete-role-mapping>>
 * <<java-rest-high-security-create-token>>
 * <<{upid}-invalidate-token>>
+* <<{upid}-get-privileges>>
 * <<{upid}-delete-privileges>>
 
 include::security/put-user.asciidoc[]
@@ -383,6 +384,7 @@ include::security/disable-user.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/delete-role.asciidoc[]
 include::security/delete-privileges.asciidoc[]
+include::security/get-privileges.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/clear-realm-cache.asciidoc[]
 include::security/authenticate.asciidoc[]
@@ -448,10 +450,12 @@ The Java High Level REST Client supports the following CCR APIs:
 
 * <<{upid}-ccr-put-follow>>
 * <<{upid}-ccr-pause-follow>>
+* <<{upid}-ccr-resume-follow>>
 * <<{upid}-ccr-unfollow>>
 
 include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]
+include::ccr/resume_follow.asciidoc[]
 include::ccr/unfollow.asciidoc[]
 
 == Index Lifecycle Management APIs

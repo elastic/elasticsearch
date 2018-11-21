@@ -198,7 +198,8 @@ SUM_OF_SQUARES  |AGGREGATE
 VAR_POP         |AGGREGATE      
 COALESCE        |CONDITIONAL
 IFNULL          |CONDITIONAL
-DAY             |SCALAR         
+NVL             |CONDITIONAL
+DAY             |SCALAR
 DAYNAME         |SCALAR         
 DAYOFMONTH      |SCALAR         
 DAYOFWEEK       |SCALAR         
@@ -1552,4 +1553,25 @@ SELECT IFNULL(null, 'search') AS "ifnull";
 ---------------
 search
 // end::ifNullReturnSecond
+;
+
+nvlReturnFirst
+// tag::nvlReturnFirst
+SELECT NVL('elastic', null) AS "nvl";
+
+    nvl
+---------------
+elastic
+// end::nvlReturnFirst
+;
+
+
+nvlReturnSecond
+// tag::nvlReturnSecond
+SELECT NVL(null, 'search') AS "nvl";
+
+    nvl
+---------------
+search
+// end::nvlReturnSecond
 ;

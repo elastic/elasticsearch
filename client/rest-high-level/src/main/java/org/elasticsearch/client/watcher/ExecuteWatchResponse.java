@@ -11,6 +11,9 @@ import java.io.IOException;
 
 public class ExecuteWatchResponse {
 
+    public static final ParseField ID_FIELD = new ParseField("_id");
+    public static final ParseField WATCH_FIELD = new ParseField("watch_record");
+
     private String recordId;
     private XContentSource recordSource;
 
@@ -40,9 +43,8 @@ public class ExecuteWatchResponse {
         = new ConstructingObjectParser<>("x_pack_execute_watch_response", true,
         (fields) -> new ExecuteWatchResponse((String)fields[0], (XContentSource)fields[1]));
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("_id"));
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(),
-            (p, c) -> new XContentSource(p), new ParseField("watch_record"));
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> new XContentSource(p), WATCH_FIELD);
     }
 
     public static ExecuteWatchResponse fromXContent(XContentParser parser) throws IOException {

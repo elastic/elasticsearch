@@ -1068,7 +1068,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final GetPrivilegesResponse exptectedResponse =
                 new GetPrivilegesResponse(Arrays.asList(readTestappPrivilege, writeTestappPrivilege, allTestappPrivilege));
             assertThat(response, equalTo(exptectedResponse));
+            //tag::get-privileges-response
             Set<ApplicationPrivilege> privileges = response.getPrivileges();
+            //end::get-privileges-response
             for (ApplicationPrivilege privilege : privileges) {
                 assertThat(privilege.getApplication(), equalTo("testapp"));
                 if (privilege.getName().equals("read")) {

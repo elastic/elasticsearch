@@ -20,11 +20,11 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
-import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.mockito.stubbing.Answer;
 
@@ -42,7 +42,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -229,11 +228,10 @@ public class RollupIndexerStateTests extends ESTestCase {
             ESTestCase.awaitBusy(() -> indexer.getState() == IndexerState.STARTED);
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
-            assertThat(indexer.getStats().getBulkFailures(), equalTo(0L));
+            assertThat(indexer.getStats().getIndexFailures(), equalTo(0L));
             assertThat(indexer.getStats().getSearchFailures(), equalTo(0L));
-            // We can't check the actual min/max/avg stats since they may be too fast to register
-            // but we can check the count having incremented
-            assertThat(indexer.getStats().getSearchLatency().getCount(), greaterThan(0L));
+            assertThat(indexer.getStats().getSearchTotal(), equalTo(1L));
+            assertThat(indexer.getStats().getIndexTotal(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
             executor.shutdownNow();
@@ -263,11 +261,9 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
-            assertThat(indexer.getStats().getBulkFailures(), equalTo(0L));
+            assertThat(indexer.getStats().getIndexFailures(), equalTo(0L));
             assertThat(indexer.getStats().getSearchFailures(), equalTo(0L));
-            // We can't check the actual min/max/avg stats since they may be too fast to register
-            // but we can check the count having incremented
-            assertThat(indexer.getStats().getSearchLatency().getCount(), greaterThan(0L));
+            assertThat(indexer.getStats().getSearchTotal(), equalTo(1L));
             assertTrue(indexer.abort());
         } finally {
             executor.shutdownNow();
@@ -917,7 +913,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
 
             // There should be one recorded failure
-            assertThat(indexer.getStats().getBulkFailures(), equalTo(1L));
+            assertThat(indexer.getStats().getIndexFailures(), equalTo(1L));
 
             // Note: no docs were indexed
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));

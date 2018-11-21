@@ -28,26 +28,31 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
     protected long numInputDocuments = 0;
     protected long numOuputDocuments = 0;
     protected long numInvocations = 0;
-    protected StatsAccumulator bulkLatency = new StatsAccumulator();
-    protected StatsAccumulator searchLatency = new StatsAccumulator();
-    protected long bulkFailures = 0;
+    protected long indexTime = 0;
+    protected long searchTime = 0;
+    protected long indexTotal = 0;
+    protected long searchTotal = 0;
+    protected long indexFailures = 0;
     protected long searchFailures = 0;
 
-    private long startBulkTime;
+    private long startIndexTime;
     private long startSearchTime;
 
     public IndexerJobStats() {
     }
 
     public IndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
-                           StatsAccumulator bulkLatency, StatsAccumulator searchLatency, long bulkFailures, long searchFailures) {
+                           long indexTime, long searchTime, long indexTotal, long searchTotal,
+                           long indexFailures, long searchFailures) {
         this.numPages = numPages;
         this.numInputDocuments = numInputDocuments;
         this.numOuputDocuments = numOuputDocuments;
         this.numInvocations = numInvocations;
-        this.bulkLatency = bulkLatency;
-        this.searchLatency = searchLatency;
-        this.bulkFailures = bulkFailures;
+        this.indexTime = indexTime;
+        this.searchTime = searchTime;
+        this.indexTotal = indexTotal;
+        this.searchTotal = searchTotal;
+        this.indexFailures = indexFailures;
         this.searchFailures = searchFailures;
     }
 
@@ -58,9 +63,11 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         this.numInvocations = in.readVLong();
         // TODO change this after backport
         if (in.getVersion().onOrAfter(Version.CURRENT)) {
-            this.bulkLatency = new StatsAccumulator(in);
-            this.searchLatency = new StatsAccumulator(in);
-            this.bulkFailures = in.readVLong();
+            this.indexTime = in.readVLong();
+            this.searchTime = in.readVLong();
+            this.indexTotal = in.readVLong();
+            this.searchTotal = in.readVLong();
+            this.indexFailures = in.readVLong();
             this.searchFailures = in.readVLong();
         }
     }
@@ -81,20 +88,28 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         return numOuputDocuments;
     }
 
-    public long getBulkFailures() {
-        return bulkFailures;
+    public long getIndexFailures() {
+        return indexFailures;
     }
 
     public long getSearchFailures() {
         return searchFailures;
     }
 
-    public StatsAccumulator getBulkLatency() {
-        return bulkLatency;
+    public long getIndexTime() {
+        return indexTime;
     }
 
-    public StatsAccumulator getSearchLatency() {
-        return searchLatency;
+    public long getSearchTime() {
+        return searchTime;
+    }
+
+    public long getIndexTotal() {
+        return indexTotal;
+    }
+
+    public long getSearchTotal() {
+        return searchTotal;
     }
 
     public void incrementNumPages(long n) {
@@ -117,20 +132,21 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         numOuputDocuments += n;
     }
 
-    public void incrementBulkFailures() {
-        this.bulkFailures += 1;
+    public void incrementIndexingFailures() {
+        this.indexFailures += 1;
     }
 
     public void incrementSearchFailures() {
         this.searchFailures += 1;
     }
 
-    public void markStartBulk() {
-        this.startBulkTime = System.nanoTime();
+    public void markStartIndexing() {
+        this.startIndexTime = System.nanoTime();
     }
 
-    public void markEndBulk() {
-        bulkLatency.add((System.nanoTime() - startBulkTime) / 1000000);
+    public void markEndIndexing() {
+        indexTime += ((System.nanoTime() - startIndexTime) / 1000000);
+        indexTotal += 1;
     }
 
     public void markStartSearch() {
@@ -138,7 +154,8 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
     }
 
     public void markEndSearch() {
-        searchLatency.add((System.nanoTime() - startSearchTime) / 1000000);
+        searchTime += ((System.nanoTime() - startSearchTime) / 1000000);
+        searchTotal += 1;
     }
 
     @Override
@@ -149,9 +166,11 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         out.writeVLong(numInvocations);
         // TODO change after backport
         if (out.getVersion().onOrAfter(Version.CURRENT)) {
-            bulkLatency.writeTo(out);
-            searchLatency.writeTo(out);
-            out.writeVLong(bulkFailures);
+            out.writeVLong(indexTime);
+            out.writeVLong(searchTime);
+            out.writeVLong(indexTotal);
+            out.writeVLong(searchTotal);
+            out.writeVLong(indexFailures);
             out.writeVLong(searchFailures);
         }
     }
@@ -169,18 +188,20 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         IndexerJobStats that = (IndexerJobStats) other;
 
         return Objects.equals(this.numPages, that.numPages)
-                && Objects.equals(this.numInputDocuments, that.numInputDocuments)
-                && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
-                && Objects.equals(this.numInvocations, that.numInvocations)
-                && Objects.equals(this.bulkLatency, that.bulkLatency)
-                && Objects.equals(this.searchLatency, that.searchLatency)
-                && Objects.equals(this.bulkFailures, that.bulkFailures)
-                && Objects.equals(this.searchFailures, that.searchFailures);
+            && Objects.equals(this.numInputDocuments, that.numInputDocuments)
+            && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
+            && Objects.equals(this.numInvocations, that.numInvocations)
+            && Objects.equals(this.indexTime, that.indexTime)
+            && Objects.equals(this.searchTime, that.searchTime)
+            && Objects.equals(this.indexFailures, that.indexFailures)
+            && Objects.equals(this.searchFailures, that.searchFailures)
+            && Objects.equals(this.indexTotal, that.indexTotal)
+            && Objects.equals(this.searchTotal, that.searchTotal);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations,
-            bulkLatency, searchLatency, bulkFailures, searchFailures);
+            indexTime, searchTime, indexFailures, searchFailures, indexTotal, searchTotal);
     }
 }

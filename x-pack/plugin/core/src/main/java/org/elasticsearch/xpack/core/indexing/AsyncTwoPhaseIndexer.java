@@ -154,9 +154,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 executor.execute(() -> {
                     try {
                         stats.markStartSearch();
-                        doNextSearch(buildSearchRequest(), ActionListener.wrap(this::onSearchResponse, exc -> finishWithFailure(exc)));
+                        doNextSearch(buildSearchRequest(), ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
                     } catch (Exception e) {
-                        finishWithFailure(e);
+                        finishWithSearchFailure(e);
                     }
                 });
                 logger.debug("Beginning to index [" + getJobId() + "], state: [" + currentState + "]");
@@ -257,7 +257,13 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      */
     protected abstract void onAbort();
 
-    private void finishWithFailure(Exception exc) {
+    private void finishWithSearchFailure(Exception exc) {
+        stats.incrementSearchFailures();
+        doSaveState(finishAndSetState(), position.get(), () -> onFailure(exc));
+    }
+
+    private void finishWithIndexingFailure(Exception exc) {
+        stats.incrementIndexingFailures();
         doSaveState(finishAndSetState(), position.get(), () -> onFailure(exc));
     }
 
@@ -322,7 +328,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             // TODO this might be a valid case, e.g. if implementation filters
             assert bulkRequest.requests().size() > 0;
 
-            stats.markStartBulk();
+            stats.markStartIndexing();
             doNextBulk(bulkRequest, ActionListener.wrap(bulkResponse -> {
                 // TODO we should check items in the response and move after accordingly to
                 // resume the failing buckets ?
@@ -338,23 +344,16 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 position.set(newPosition);
 
                 onBulkResponse(bulkResponse, newPosition);
-            }, exc -> {
-                stats.incrementBulkFailures();
-                finishWithFailure(exc);
-            }));
+            }, this::finishWithIndexingFailure));
         } catch (Exception e) {
-            stats.incrementSearchFailures();
-            finishWithFailure(e);
+            finishWithSearchFailure(e);
         }
     }
 
     private void onBulkResponse(BulkResponse response, JobPosition position) {
-        stats.markEndBulk();
+        stats.markEndIndexing();
         try {
-            ActionListener<SearchResponse> listener = ActionListener.wrap(this::onSearchResponse, e -> {
-                stats.incrementSearchFailures();
-                finishWithFailure(e);
-            });
+            ActionListener<SearchResponse> listener = ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure);
             // TODO probably something more intelligent than every-50 is needed
             if (stats.getNumPages() > 0 && stats.getNumPages() % 50 == 0) {
                 doSaveState(IndexerState.INDEXING, position, () -> doNextSearch(buildSearchRequest(), listener));
@@ -362,8 +361,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 doNextSearch(buildSearchRequest(), listener);
             }
         } catch (Exception e) {
-            stats.incrementBulkFailures();
-            finishWithFailure(e);
+            finishWithIndexingFailure(e);
         }
     }
 

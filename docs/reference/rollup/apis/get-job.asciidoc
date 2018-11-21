@@ -102,22 +102,12 @@ Which will yield the following response:
             "documents_processed" : 0,
             "rollups_indexed" : 0,
             "trigger_count" : 0,
-            "bulk_failures": 0,
-            "bulk_latency_in_ms": {
-              "count": 0,
-              "total": 0,
-              "min": 0,
-              "max": 0,
-              "avg": 0.0
-            },
+            "index_failures": 0,
+            "index_time_in_ms": 0,
+            "index_total": 0,
             "search_failures": 0,
-            "search_latency_in_ms": {
-              "count": 0,
-              "total": 0,
-              "min": 0,
-              "max": 0,
-              "avg": 0.0
-            }
+            "search_time_in_ms": 0,
+            "search_total": 0
           }
         }
     ]
@@ -238,22 +228,12 @@ Which will yield the following response:
             "documents_processed" : 0,
             "rollups_indexed" : 0,
             "trigger_count" : 0,
-            "bulk_failures": 0,
-            "bulk_latency": {
-              "count": 0,
-              "total": 0.0,
-              "min": 0.0,
-              "max": 0.0,
-              "avg": 0.0
-            },
+            "index_failures": 0,
+            "index_time_in_ms": 0,
+            "index_total": 0,
             "search_failures": 0,
-            "search_latency": {
-              "count": 0,
-              "total": 0.0,
-              "min": 0.0,
-              "max": 0.0,
-              "avg": 0.0
-            }
+            "search_time_in_ms": 0,
+            "search_total": 0
           }
         },
         {
@@ -303,22 +283,12 @@ Which will yield the following response:
             "documents_processed" : 0,
             "rollups_indexed" : 0,
             "trigger_count" : 0,
-            "bulk_failures": 0,
-            "bulk_latency": {
-              "count": 0,
-              "total": 0.0,
-              "min": 0.0,
-              "max": 0.0,
-              "avg": 0.0
-            },
+            "index_failures": 0,
+            "index_time_in_ms": 0,
+            "index_total": 0,
             "search_failures": 0,
-            "search_latency": {
-              "count": 0,
-              "total": 0.0,
-              "min": 0.0,
-              "max": 0.0,
-              "avg": 0.0
-            }
+            "search_time_in_ms": 0,
+            "search_total": 0
           }
         }
     ]

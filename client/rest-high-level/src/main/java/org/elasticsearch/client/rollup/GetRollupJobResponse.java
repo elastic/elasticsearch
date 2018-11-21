@@ -51,10 +51,12 @@ public class GetRollupJobResponse {
     static final ParseField STATE = new ParseField("job_state");
     static final ParseField CURRENT_POSITION = new ParseField("current_position");
     static final ParseField UPGRADED_DOC_ID = new ParseField("upgraded_doc_id");
-    static final ParseField BULK_LATENCY = new ParseField("bulk_latency_in_ms");
-    static final ParseField SEARCH_LATENCY = new ParseField("search_latency_in_ms");
+    static final ParseField INDEX_TIME_IN_MS = new ParseField("index_time_in_ms");
+    static final ParseField SEARCH_TIME_IN_MS = new ParseField("search_time_in_ms");
+    static final ParseField INDEX_TOTAL = new ParseField("index_total");
+    static final ParseField SEARCH_TOTAL = new ParseField("search_total");
     static final ParseField SEARCH_FAILURES = new ParseField("search_failures");
-    static final ParseField BULK_FAILURES = new ParseField("bulk_failures");
+    static final ParseField INDEX_FAILURES = new ParseField("index_failures");
     static final ParseField MIN = new ParseField("min");
     static final ParseField MAX = new ParseField("max");
     static final ParseField AVG = new ParseField("avg");
@@ -190,21 +192,24 @@ public class GetRollupJobResponse {
         private final long numInputDocuments;
         private final long numOuputDocuments;
         private final long numInvocations;
-        private StatsAccumulator bulkLatency;
-        private StatsAccumulator searchLatency;
-        private long bulkFailures;
+        private long indexTime;
+        private long indexTotal;
+        private long searchTime;
+        private long searchTotal;
+        private long indexFailures;
         private long searchFailures;
 
         RollupIndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
-                              StatsAccumulator bulkLatency, StatsAccumulator searchLatency, long bulkFailures,
-                              long searchFailures) {
+                              long indexTime, long indexTotal, long searchTime, long searchTotal, long indexFailures, long searchFailures) {
             this.numPages = numPages;
             this.numInputDocuments = numInputDocuments;
             this.numOuputDocuments = numOuputDocuments;
             this.numInvocations = numInvocations;
-            this.bulkLatency = bulkLatency;
-            this.searchLatency = searchLatency;
-            this.bulkFailures = bulkFailures;
+            this.indexTime = indexTime;
+            this.indexTotal = indexTotal;
+            this.searchTime = searchTime;
+            this.searchTotal = searchTotal;
+            this.indexFailures = indexFailures;
             this.searchFailures = searchFailures;
         }
 
@@ -239,8 +244,8 @@ public class GetRollupJobResponse {
         /**
          * Number of failures that have occurred during the bulk indexing phase of Rollup
          */
-        public long getBulkFailures() {
-            return bulkFailures;
+        public long getIndexFailures() {
+            return indexFailures;
         }
 
         /**
@@ -251,34 +256,49 @@ public class GetRollupJobResponse {
         }
 
         /**
-         * Returns an object which contains latency stats (min/max/avg/count) for the bulk
-         * indexing phase of Rollup
+         * Returns the time spent indexing (cumulative) in milliseconds
          */
-        public StatsAccumulator getBulkLatency() {
-            return bulkLatency;
+        public long getIndexTime() {
+            return indexTime;
         }
 
         /**
-         * Returns an object which contains latency stats (min/max/avg/count) for the
-         * search phase of Rollup
+         * Returns the time spent searching (cumulative) in milliseconds
          */
-        public StatsAccumulator getSearchLatency() {
-            return searchLatency;
+        public long getSearchTime() {
+            return searchTime;
+        }
+
+        /**
+         * Returns the total number of indexing requests that have been sent by the rollup job
+         * (Note: this is not the number of _documents_ that have been indexed)
+         */
+        public long getIndexTotal() {
+            return indexTotal;
+        }
+
+        /**
+         * Returns the total number of search requests that have been sent by the rollup job
+         */
+        public long getSearchTotal() {
+            return searchTotal;
         }
 
         private static final ConstructingObjectParser<RollupIndexerJobStats, Void> PARSER = new ConstructingObjectParser<>(
                 STATS.getPreferredName(),
                 true,
                 args -> new RollupIndexerJobStats((long) args[0], (long) args[1], (long) args[2], (long) args[3],
-                    (StatsAccumulator) args[4], (StatsAccumulator) args[5], (long) args[6], (long) args[7]));
+                    (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9]));
         static {
             PARSER.declareLong(constructorArg(), NUM_PAGES);
             PARSER.declareLong(constructorArg(), NUM_INPUT_DOCUMENTS);
             PARSER.declareLong(constructorArg(), NUM_OUTPUT_DOCUMENTS);
             PARSER.declareLong(constructorArg(), NUM_INVOCATIONS);
-            PARSER.declareObject(constructorArg(), StatsAccumulator.PARSER::apply, BULK_LATENCY);
-            PARSER.declareObject(constructorArg(), StatsAccumulator.PARSER::apply, SEARCH_LATENCY);
-            PARSER.declareLong(constructorArg(), BULK_FAILURES);
+            PARSER.declareLong(constructorArg(), INDEX_TIME_IN_MS);
+            PARSER.declareLong(constructorArg(), INDEX_TOTAL);
+            PARSER.declareLong(constructorArg(), SEARCH_TIME_IN_MS);
+            PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
+            PARSER.declareLong(constructorArg(), INDEX_FAILURES);
             PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
         }
 
@@ -288,19 +308,21 @@ public class GetRollupJobResponse {
             if (other == null || getClass() != other.getClass()) return false;
             RollupIndexerJobStats that = (RollupIndexerJobStats) other;
             return Objects.equals(this.numPages, that.numPages)
-                    && Objects.equals(this.numInputDocuments, that.numInputDocuments)
-                    && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
-                    && Objects.equals(this.numInvocations, that.numInvocations)
-                    && Objects.equals(this.bulkLatency, that.bulkLatency)
-                    && Objects.equals(this.searchLatency, that.searchLatency)
-                    && Objects.equals(this.bulkFailures, that.bulkFailures)
-                    && Objects.equals(this.searchFailures, that.searchFailures);
+                && Objects.equals(this.numInputDocuments, that.numInputDocuments)
+                && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
+                && Objects.equals(this.numInvocations, that.numInvocations)
+                && Objects.equals(this.indexTime, that.indexTime)
+                && Objects.equals(this.searchTime, that.searchTime)
+                && Objects.equals(this.indexFailures, that.indexFailures)
+                && Objects.equals(this.searchFailures, that.searchFailures)
+                && Objects.equals(this.searchTotal, that.searchTotal)
+                && Objects.equals(this.indexTotal, that.indexTotal);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations,
-                bulkLatency, searchLatency, bulkFailures, searchFailures);
+                indexTime, searchTime, indexFailures, searchFailures, searchTotal, indexTotal);
         }
 
         @Override
@@ -309,10 +331,12 @@ public class GetRollupJobResponse {
                     + ", input_docs=" + numInputDocuments
                     + ", output_docs=" + numOuputDocuments
                     + ", invocations=" + numInvocations
-                    + ", bulk_failures=" + bulkFailures
+                    + ", index_failures=" + indexFailures
                     + ", search_failures=" + searchFailures
-                    + ", bulk_latency=" + bulkLatency
-                    + ", search_latency=" + searchLatency + "}";
+                    + ", index_time_in_ms=" + indexTime
+                    + ", index_total=" + indexTotal
+                    + ", search_time_in_ms=" + searchTime
+                    + ", search_total=" + searchTotal+ "}";
         }
     }
 
@@ -432,91 +456,6 @@ public class GetRollupJobResponse {
 
         String value() {
             return name().toLowerCase(Locale.ROOT);
-        }
-    }
-
-    public static class StatsAccumulator {
-
-        private static final String NAME = "stats_accumulator";
-        private static final ParseField MIN = new ParseField("min");
-        private static final ParseField MAX = new ParseField("max");
-        private static final ParseField AVG = new ParseField("avg");
-        private static final ParseField COUNT = new ParseField("count");
-        private static final ParseField TOTAL = new ParseField("total");
-
-        public static final ConstructingObjectParser<StatsAccumulator, Void> PARSER =
-            new ConstructingObjectParser<>(NAME, true,
-                args -> new StatsAccumulator((long) args[0], (long) args[1], (long) args[2], (long) args[3]));
-
-        static {
-            PARSER.declareLong(constructorArg(), COUNT);
-            PARSER.declareLong(constructorArg(), TOTAL);
-            PARSER.declareLong(constructorArg(), MIN);
-            PARSER.declareLong(constructorArg(), MAX);
-            PARSER.declareLong(constructorArg(), AVG); // We parse but don't actually use the avg
-        }
-
-        private long count;
-        private long total;
-        private long min;
-        private long max;
-
-        StatsAccumulator(long count, long total, long min, long max) {
-            this.count = count;
-            this.total = total;
-            this.min = min;
-            this.max = max;
-        }
-
-        public long getCount() {
-            return count;
-        }
-
-        public long getMin() {
-            return count == 0 ? 0 : min;
-        }
-
-        public long getMax() {
-            return count == 0 ? 0 : max;
-        }
-
-        public double getAvg() {
-            return count == 0 ? 0.0 : (double) total / (double) count;
-        }
-
-        public long getTotal() {
-            return total;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(count, total, min, max);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-
-            StatsAccumulator other = (StatsAccumulator) obj;
-            return Objects.equals(count, other.count)
-                && Objects.equals(total, other.total)
-                && Objects.equals(min, other.min)
-                && Objects.equals(max, other.max);
-        }
-
-        @Override
-        public final String toString() {
-            return "{count=" + getCount()
-                + ", total=" + getTotal()
-                + ", min=" + getMin()
-                + ", max=" + getMax()
-                + ", avg=" + getAvg() + "}";
         }
     }
 }

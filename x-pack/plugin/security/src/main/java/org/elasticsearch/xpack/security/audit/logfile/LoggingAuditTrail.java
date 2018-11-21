@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
-import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
@@ -211,7 +210,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
                     .with(REALM_FIELD_NAME, realm)
                     .withRestUri(request)
-                    .withRequestId(requestId, threadContext)
+                    .withRequestId(requestId)
                     .withPrincipal(user)
                     .withRestOrigin(request)
                     .withRequestBody(request)
@@ -233,7 +232,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(REALM_FIELD_NAME, realm)
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
-                        .withRequestId(requestId, threadContext)
+                        .withRequestId(requestId)
                         .withPrincipal(user)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
@@ -255,7 +254,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
-                        .withRequestId(requestId, threadContext)
+                        .withRequestId(requestId)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
@@ -275,7 +274,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestUri(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
-                    .withRequestId(requestId, threadContext)
+                    .withRequestId(requestId)
                     .withOpaqueId(threadContext)
                     .build();
             logger.info(logEntry);
@@ -294,7 +293,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(ACTION_FIELD_NAME, action)
                         .with(PRINCIPAL_FIELD_NAME, token.principal())
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
-                        .withRequestId(requestId, threadContext)
+                        .withRequestId(requestId)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
@@ -313,7 +312,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestUri(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
-                    .withRequestId(requestId, threadContext)
+                    .withRequestId(requestId)
                     .withOpaqueId(threadContext)
                     .build();
             logger.info(logEntry);
@@ -331,7 +330,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
-                        .withRequestId(requestId, threadContext)
+                        .withRequestId(requestId)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
@@ -352,7 +351,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestUri(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
-                    .withRequestId(requestId, threadContext)
+                    .withRequestId(requestId)
                     .withOpaqueId(threadContext)
                     .build();
             logger.info(logEntry);
@@ -372,7 +371,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(PRINCIPAL_FIELD_NAME, token.principal())
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
-                        .withRequestId(requestId, threadContext)
+                        .withRequestId(requestId)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
@@ -394,7 +393,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestUri(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
-                    .withRequestId(requestId, threadContext)
+                    .withRequestId(requestId)
                     .withOpaqueId(threadContext)
                     .build();
             logger.info(logEntry);
@@ -414,7 +413,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(EVENT_ACTION_FIELD_NAME, "access_granted")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, msg.getClass().getSimpleName())
-                        .withRequestId(requestId, threadContext)
+                        .withRequestId(requestId)
                         .withSubject(authentication)
                         .withRestOrTransportOrigin(msg, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
@@ -437,7 +436,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(EVENT_ACTION_FIELD_NAME, "access_denied")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
-                        .withRequestId(requestId, threadContext)
+                        .withRequestId(requestId)
                         .withSubject(authentication)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
@@ -458,7 +457,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestUri(request)
                     .withRestOrigin(request)
                     .withRequestBody(request)
-                    .withRequestId(requestId, threadContext)
+                    .withRequestId(requestId)
                     .withOpaqueId(threadContext)
                     .build();
             logger.info(logEntry);
@@ -476,7 +475,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
-                        .withRequestId(requestId, threadContext)
+                        .withRequestId(requestId)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
@@ -497,7 +496,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
-                        .withRequestId(requestId, threadContext)
+                        .withRequestId(requestId)
                         .withRestOrTransportOrigin(message, threadContext)
                         .withPrincipal(user)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
@@ -551,7 +550,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_granted")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
-                        .withRequestId(requestId, threadContext)
+                        .withRequestId(requestId)
                         .withRunAsSubject(authentication)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
@@ -574,7 +573,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName())
-                        .withRequestId(requestId, threadContext)
+                        .withRequestId(requestId)
                         .withRunAsSubject(authentication)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
@@ -599,7 +598,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRunAsSubject(authentication)
                     .withRestOrigin(request)
                     .withRequestBody(request)
-                    .withRequestId(requestId, threadContext)
+                    .withRequestId(requestId)
                     .withOpaqueId(threadContext)
                     .build();
             logger.info(logEntry);
@@ -679,10 +678,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withRequestId(String requestId, ThreadContext threadContext) {
-            if (Strings.isNullOrEmpty(requestId)) {
-                requestId = AuditUtil.extractRequestId(threadContext);
-            }
+        LogEntryBuilder withRequestId(String requestId) {
             if (requestId != null) {
                 logEntry.with(REQUEST_ID_FIELD_NAME, requestId);
             }

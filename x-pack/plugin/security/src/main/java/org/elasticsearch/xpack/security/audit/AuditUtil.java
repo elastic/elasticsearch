@@ -44,12 +44,28 @@ public class AuditUtil {
         return indices == null ? null : new HashSet<>(Arrays.asList(indices));
     }
 
+    public static String generateRequestId(ThreadContext threadContext) {
+        return generateRequestId(threadContext, true);
+    }
+
     public static String getOrGenerateRequestId(ThreadContext threadContext) {
-        String requestId = extractRequestId(threadContext);
+        final String requestId = extractRequestId(threadContext);
         if (Strings.isEmpty(requestId)) {
-            requestId = UUIDs.randomBase64UUID();
-            threadContext.putTransient(AUDIT_REQUEST_ID, requestId);
+            return generateRequestId(threadContext, false);
         }
+        return requestId;
+    }
+
+    private static String generateRequestId(ThreadContext threadContext, boolean checkExisting) {
+        if (checkExisting) {
+            final String existing = extractRequestId(threadContext);
+            if (existing != null) {
+                throw new IllegalStateException("Cannot generate a new audit request id - existing id ["
+                    + existing + "] already registered");
+            }
+        }
+        final String requestId = UUIDs.randomBase64UUID();
+        threadContext.putTransient(AUDIT_REQUEST_ID, requestId);
         return requestId;
     }
 

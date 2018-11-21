@@ -83,13 +83,13 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authoriza
 
 public class AuthorizationService {
     public static final Setting<Boolean> ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING =
-            Setting.boolSetting(setting("authc.anonymous.authz_exception"), true, Property.NodeScope);
+        Setting.boolSetting(setting("authc.anonymous.authz_exception"), true, Property.NodeScope);
     public static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
     public static final String ROLE_NAMES_KEY = "_effective_role_names";
 
     private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
     private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
-            ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
+        ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
 
     private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
     private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
@@ -137,15 +137,19 @@ public class AuthorizationService {
                           Role runAsRole) throws ElasticsearchSecurityException {
         final TransportRequest originalRequest = request;
 
-        // We would like to assert that there is an existing request-id, but if this is a system action, then that might not be
-        // true because the request-id is generated during authentication
         String auditId = AuditUtil.extractRequestId(threadContext);
         if (auditId == null) {
-            if (isInternalUser(authentication.getUser()) == false) {
-                logger.warn("Authorizing action without an existing request-id");
-                assert false : "Audit request.id should be generated during authentication";
+            // We would like to assert that there is an existing request-id, but if this is a system action, then that might not be
+            // true because the request-id is generated during authentication
+            if (isInternalUser(authentication.getUser()) != false) {
+                auditId = AuditUtil.getOrGenerateRequestId(threadContext);
+            } else {
+                auditTrail.tamperedRequest(null, authentication.getUser(), action, request);
+                final String message = "Attempt to authorize action [" + action + "] for [" + authentication.getUser().principal()
+                    + "] without an existing request-id";
+                assert false : message;
+                throw new ElasticsearchSecurityException(message);
             }
-            auditId = AuditUtil.getOrGenerateRequestId(threadContext);
         }
 
         if (request instanceof ConcreteShardRequest) {
@@ -155,7 +159,7 @@ public class AuthorizationService {
             request = TransportActionProxy.unwrapRequest(request);
             if (TransportActionProxy.isProxyRequest(originalRequest) && TransportActionProxy.isProxyAction(action) == false) {
                 throw new IllegalStateException("originalRequest is a proxy request for: [" + request + "] but action: ["
-                        + action + "] isn't");
+                    + action + "] isn't");
             }
         }
         // prior to doing any authorization lets set the originating action in the context only
@@ -194,7 +198,7 @@ public class AuthorizationService {
         // first, we'll check if the action is a cluster action. If it is, we'll only check it against the cluster permissions
         if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
             final ClusterPermission cluster = permission.cluster();
-            if (cluster.check(action, request) || checkSameUserPermissions(action, request, authentication) ) {
+            if (cluster.check(action, request) || checkSameUserPermissions(action, request, authentication)) {
                 putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                 auditTrail.accessGranted(auditId, authentication, action, request, permission.names());
                 return;
@@ -211,7 +215,7 @@ public class AuthorizationService {
         if (isCompositeAction(action)) {
             if (request instanceof CompositeIndicesRequest == false) {
                 throw new IllegalStateException("Composite actions must implement " + CompositeIndicesRequest.class.getSimpleName()
-                        + ", " + request.getClass().getSimpleName() + " doesn't");
+                    + ", " + request.getClass().getSimpleName() + " doesn't");
             }
             // we check if the user can execute the action, without looking at indices, which will be authorized at the shard level
             if (permission.indices().check(action)) {
@@ -222,7 +226,7 @@ public class AuthorizationService {
         } else if (isTranslatedToBulkAction(action)) {
             if (request instanceof CompositeIndicesRequest == false) {
                 throw new IllegalStateException("Bulk translated actions must implement " + CompositeIndicesRequest.class.getSimpleName()
-                        + ", " + request.getClass().getSimpleName() + " doesn't");
+                    + ", " + request.getClass().getSimpleName() + " doesn't");
             }
             // we check if the user can execute the action, without looking at indices, which will be authorized at the shard level
             if (permission.indices().check(action)) {
@@ -234,7 +238,7 @@ public class AuthorizationService {
             // we authorize proxied actions once they are "unwrapped" on the next node
             if (TransportActionProxy.isProxyRequest(originalRequest) == false) {
                 throw new IllegalStateException("originalRequest is not a proxy request: [" + originalRequest + "] but action: ["
-                        + action + "] is a proxy action");
+                    + action + "] is a proxy action");
             }
             if (permission.indices().check(action)) {
                 auditTrail.accessGranted(auditId, authentication, action, request, permission.names());
@@ -271,13 +275,13 @@ public class AuthorizationService {
                 }
             } else {
                 assert false :
-                        "only scroll related requests are known indices api that don't support retrieving the indices they relate to";
+                    "only scroll related requests are known indices api that don't support retrieving the indices they relate to";
                 throw denial(auditId, authentication, action, request, permission.names());
             }
         }
 
         final boolean allowsRemoteIndices = request instanceof IndicesRequest
-                && IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) request);
+            && IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) request);
 
         // If this request does not allow remote indices
         // then the user must have permission to perform this action on at least 1 local index
@@ -290,7 +294,7 @@ public class AuthorizationService {
         final ResolvedIndices resolvedIndices = resolveIndexNames(auditId, authentication, action, request, metaData,
             authorizedIndices, permission);
         assert !resolvedIndices.isEmpty()
-                : "every indices request needs to have its indices set thus the resolved indices must not be empty";
+            : "every indices request needs to have its indices set thus the resolved indices must not be empty";
 
         // If this request does reference any remote indices
         // then the user must have permission to perform this action on at least 1 local index
@@ -311,12 +315,12 @@ public class AuthorizationService {
         if (!indicesAccessControl.isGranted()) {
             throw denial(auditId, authentication, action, request, permission.names());
         } else if (hasSecurityIndexAccess(indicesAccessControl)
-                && MONITOR_INDEX_PREDICATE.test(action) == false
-                && isSuperuser(authentication.getUser()) == false) {
+            && MONITOR_INDEX_PREDICATE.test(action) == false
+            && isSuperuser(authentication.getUser()) == false) {
             // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
             // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
             logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
-                    authentication.getUser().principal(), action, SecurityIndexManager.SECURITY_INDEX_NAME);
+                authentication.getUser().principal(), action, SecurityIndexManager.SECURITY_INDEX_NAME);
             throw denial(auditId, authentication, action, request, permission.names());
         } else {
             putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
@@ -343,7 +347,7 @@ public class AuthorizationService {
         if (action.equals(TransportShardBulkAction.ACTION_NAME)) {
             // is this is performing multiple actions on the index, then check each of those actions.
             assert request instanceof BulkShardRequest
-                    : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
+                : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
 
             authorizeBulkItems(auditId, authentication, (BulkShardRequest) request, permission, metaData, localIndices, authorizedIndices);
         }
@@ -388,14 +392,14 @@ public class AuthorizationService {
         for (BulkItemRequest item : request.items()) {
             String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
                 final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.resolveIndicesAndAliases(item.request(), metaData,
-                        authorizedIndices);
+                    authorizedIndices);
                 if (resolvedIndices.getRemote().size() != 0) {
                     throw illegalArgument("Bulk item should not write to remote indices, but request writes to "
-                            + String.join(",", resolvedIndices.getRemote()));
+                        + String.join(",", resolvedIndices.getRemote()));
                 }
                 if (resolvedIndices.getLocal().size() != 1) {
                     throw illegalArgument("Bulk item should write to exactly 1 index, but request writes to "
-                            + String.join(",", resolvedIndices.getLocal()));
+                        + String.join(",", resolvedIndices.getLocal()));
                 }
                 final String resolved = resolvedIndices.getLocal().get(0);
                 if (indices.contains(resolved) == false) {
@@ -407,7 +411,7 @@ public class AuthorizationService {
             final Tuple<String, String> indexAndAction = new Tuple<>(resolvedIndex, itemAction);
             final boolean granted = indexActionAuthority.computeIfAbsent(indexAndAction, key -> {
                 final IndicesAccessControl itemAccessControl = permission.authorize(itemAction, Collections.singleton(resolvedIndex),
-                        metaData, fieldPermissionsCache);
+                    metaData, fieldPermissionsCache);
                 return itemAccessControl.isGranted();
             });
             if (granted == false) {
@@ -459,7 +463,7 @@ public class AuthorizationService {
         // passed into this method. The XPackUser has the Superuser role and we can simply return that
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException("the user [" + user.principal() + "] is the system user and we should never try to get its" +
-                    " roles");
+                " roles");
         }
         if (XPackUser.is(user)) {
             assert XPackUser.INSTANCE.roles().length == 1;
@@ -491,35 +495,35 @@ public class AuthorizationService {
 
     private static boolean isCompositeAction(String action) {
         return action.equals(BulkAction.NAME) ||
-                action.equals(MultiGetAction.NAME) ||
-                action.equals(MultiTermVectorsAction.NAME) ||
-                action.equals(MultiSearchAction.NAME) ||
-                action.equals("indices:data/read/mpercolate") ||
-                action.equals("indices:data/read/msearch/template") ||
-                action.equals("indices:data/read/search/template") ||
-                action.equals("indices:data/write/reindex") ||
-                action.equals("indices:data/read/sql") ||
-                action.equals("indices:data/read/sql/translate");
+            action.equals(MultiGetAction.NAME) ||
+            action.equals(MultiTermVectorsAction.NAME) ||
+            action.equals(MultiSearchAction.NAME) ||
+            action.equals("indices:data/read/mpercolate") ||
+            action.equals("indices:data/read/msearch/template") ||
+            action.equals("indices:data/read/search/template") ||
+            action.equals("indices:data/write/reindex") ||
+            action.equals("indices:data/read/sql") ||
+            action.equals("indices:data/read/sql/translate");
     }
 
     private static boolean isTranslatedToBulkAction(String action) {
         return action.equals(IndexAction.NAME) ||
-                action.equals(DeleteAction.NAME) ||
-                action.equals(INDEX_SUB_REQUEST_PRIMARY) ||
-                action.equals(INDEX_SUB_REQUEST_REPLICA) ||
-                action.equals(DELETE_SUB_REQUEST_PRIMARY) ||
-                action.equals(DELETE_SUB_REQUEST_REPLICA);
+            action.equals(DeleteAction.NAME) ||
+            action.equals(INDEX_SUB_REQUEST_PRIMARY) ||
+            action.equals(INDEX_SUB_REQUEST_REPLICA) ||
+            action.equals(DELETE_SUB_REQUEST_PRIMARY) ||
+            action.equals(DELETE_SUB_REQUEST_REPLICA);
     }
 
     private static boolean isScrollRelatedAction(String action) {
         return action.equals(SearchScrollAction.NAME) ||
-                action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME) ||
-                action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME) ||
-                action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME) ||
-                action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
-                action.equals(ClearScrollAction.NAME) ||
-                action.equals("indices:data/read/sql/close_cursor") ||
-                action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
+            action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME) ||
+            action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME) ||
+            action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME) ||
+            action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
+            action.equals(ClearScrollAction.NAME) ||
+            action.equals("indices:data/read/sql/close_cursor") ||
+            action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
 
     static boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
@@ -543,7 +547,7 @@ public class AuthorizationService {
 
             assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action)
                 || GetUserPrivilegesAction.NAME.equals(action) || sameUsername == false
-                    : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
+                : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
             return sameUsername;
         }
         return false;
@@ -590,9 +594,9 @@ public class AuthorizationService {
         // check for run as
         if (authentication.getUser().isRunAs()) {
             logger.debug("action [{}] is unauthorized for user [{}] run as [{}]", action, authUser.principal(),
-                    authentication.getUser().principal());
+                authentication.getUser().principal());
             return authorizationError("action [{}] is unauthorized for user [{}] run as [{}]", action, authUser.principal(),
-                    authentication.getUser().principal());
+                authentication.getUser().principal());
         }
         logger.debug("action [{}] is unauthorized for user [{}]", action, authUser.principal());
         return authorizationError("action [{}] is unauthorized for user [{}]", action, authUser.principal());
@@ -600,7 +604,7 @@ public class AuthorizationService {
 
     static boolean isSuperuser(User user) {
         return Arrays.stream(user.roles())
-                .anyMatch(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()::equals);
+            .anyMatch(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()::equals);
     }
 
     public static void addSettings(List<Setting<?>> settings) {

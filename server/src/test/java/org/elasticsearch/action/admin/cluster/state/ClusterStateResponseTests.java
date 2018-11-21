@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.state;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 
@@ -37,15 +38,12 @@ public class ClusterStateResponseTests extends AbstractStreamableTestCase<Cluste
     @Override
     protected ClusterStateResponse createTestInstance() {
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(4));
-        ClusterState  clusterState = ClusterState.builder(clusterName).build();
-        return new ClusterStateResponse(clusterName, clusterState, randomNonNegativeLong(), randomBoolean());
-    }
-
-    @Override
-    protected void assertEqualInstances(ClusterStateResponse expectedInstance, ClusterStateResponse newInstance) {
-        super.assertEqualInstances(expectedInstance, newInstance);
-        // ClusterState does not implement equals() hashcode()
-        assertThat(newInstance.getState().version(), equalTo(expectedInstance.getState().version()));
+        ClusterState.Builder clusterState = ClusterState.builder(clusterName)
+            .version(randomNonNegativeLong());
+        if (randomBoolean()) {
+            clusterState.nodes(DiscoveryNodes.builder().masterNodeId(randomAlphaOfLength(4)).build());
+        }
+        return new ClusterStateResponse(clusterName, clusterState.build(), randomNonNegativeLong(), randomBoolean());
     }
 
     @Override

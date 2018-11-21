@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -41,16 +42,16 @@ public class ClusterStateResponse extends ActionResponse {
     // the total compressed size of the full cluster state, not just
     // the parts included in this response
     private ByteSizeValue totalCompressedSize;
-    private boolean timedOut = false;
+    private boolean waitForTimedOut = false;
 
     public ClusterStateResponse() {
     }
 
-    public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, long sizeInBytes, boolean timedOut) {
+    public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, long sizeInBytes, boolean waitForTimedOut) {
         this.clusterName = clusterName;
         this.clusterState = clusterState;
         this.totalCompressedSize = new ByteSizeValue(sizeInBytes);
-        this.timedOut = timedOut;
+        this.waitForTimedOut = waitForTimedOut;
     }
 
     /**
@@ -82,8 +83,8 @@ public class ClusterStateResponse extends ActionResponse {
      * Returns whether waiting for a cluster state wait a metadata version equal or higher than the specified
      * metadata version timed out.
      */
-    public boolean isTimedOut() {
-        return timedOut;
+    public boolean isWaitForTimedOut() {
+        return waitForTimedOut;
     }
 
     @Override
@@ -102,7 +103,7 @@ public class ClusterStateResponse extends ActionResponse {
         }
         // TODO: change version to V_6_6_0 after backporting:
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            timedOut = in.readBoolean();
+            waitForTimedOut = in.readBoolean();
         }
     }
 
@@ -120,7 +121,7 @@ public class ClusterStateResponse extends ActionResponse {
         }
         // TODO: change version to V_6_6_0 after backporting:
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(timedOut);
+            out.writeBoolean(waitForTimedOut);
         }
     }
 
@@ -129,15 +130,34 @@ public class ClusterStateResponse extends ActionResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ClusterStateResponse response = (ClusterStateResponse) o;
-        return timedOut == response.timedOut &&
+        return waitForTimedOut == response.waitForTimedOut &&
             Objects.equals(clusterName, response.clusterName) &&
-            // Best effort. Left out cluster state, because it doesn't implement equals() and hashcode()
+            // Best effort. Only compare cluster state version and master node id,
+            // because cluster state doesn't implement equals()
+            Objects.equals(clusterState.getVersion(), response.clusterState.getVersion()) &&
+            Objects.equals(getMasterNodeId(clusterState), getMasterNodeId(response.clusterState)) &&
             Objects.equals(totalCompressedSize, response.totalCompressedSize);
     }
 
     @Override
     public int hashCode() {
-        // Best effort for testing. Left out cluster state, because it doesn't implement equals() and hashcode()
-        return Objects.hash(clusterName, totalCompressedSize, timedOut);
+        // Best effort. Only use cluster state version and master node id,
+        // because cluster state doesn't implement  hashcode()
+        return Objects.hash(
+            clusterName,
+            clusterState.getVersion(),
+            getMasterNodeId(clusterState),
+            totalCompressedSize,
+            waitForTimedOut
+        );
+    }
+
+    private String getMasterNodeId(ClusterState clusterState) {
+        DiscoveryNodes nodes = clusterState.getNodes();
+        if (nodes != null) {
+            return nodes.getMasterNodeId();
+        } else {
+            return null;
+        }
     }
 }

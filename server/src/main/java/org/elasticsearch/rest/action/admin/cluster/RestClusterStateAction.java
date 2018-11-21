@@ -98,7 +98,7 @@ public class RestClusterStateAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                builder.field(Fields.TIMED_OUT, response.isTimedOut());
+                builder.field(Fields.TIMED_OUT, response.isWaitForTimedOut());
                 builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
                 builder.humanReadableField(Fields.CLUSTER_STATE_SIZE_IN_BYTES, Fields.CLUSTER_STATE_SIZE,
                         response.getTotalCompressedSize());

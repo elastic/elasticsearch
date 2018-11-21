@@ -35,7 +35,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         ActionFuture<ClusterStateResponse> future1 = client().admin().cluster().state(clusterStateRequest);
         assertThat(future1.isDone(), is(true));
-        assertThat(future1.actionGet().isTimedOut(), is(false));
+        assertThat(future1.actionGet().isWaitForTimedOut(), is(false));
         long metadataVersion = future1.actionGet().getState().getMetaData().version();
 
         // Verify that cluster state api returns after the cluster settings have been updated:
@@ -54,7 +54,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
             assertThat(future2.isDone(), is(true));
         });
         ClusterStateResponse response = future2.actionGet();
-        assertThat(response.isTimedOut(), is(false));
+        assertThat(response.isWaitForTimedOut(), is(false));
         assertThat(response.getState().metaData().version(), equalTo(metadataVersion + 1));
 
         // Verify that the timed out property has been set"
@@ -65,7 +65,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
             assertThat(future3.isDone(), is(true));
         });
         response = future3.actionGet();
-        assertThat(response.isTimedOut(), is(true));
+        assertThat(response.isWaitForTimedOut(), is(true));
         assertThat(response.getState().metaData().version(), equalTo(metadataVersion));
 
         // Remove transient setting, otherwise test fails with the reason that this test leaves state behind:

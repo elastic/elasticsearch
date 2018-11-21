@@ -122,7 +122,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
     private void buildResponse(final ClusterStateRequest request,
                                final ClusterState currentState,
-                               final boolean timedOut,
+                               final boolean waitForTimedOut,
                                final ActionListener<ClusterStateResponse> listener) throws IOException {
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
@@ -182,7 +182,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             }
         }
         listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(),
-            serializeFullClusterState(currentState, Version.CURRENT).length(), timedOut));
+            serializeFullClusterState(currentState, Version.CURRENT).length(), waitForTimedOut));
     }
 
 

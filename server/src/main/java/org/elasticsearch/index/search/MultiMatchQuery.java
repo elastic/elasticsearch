@@ -120,7 +120,10 @@ public class MultiMatchQuery extends MatchQuery {
             return queries;
         }
 
-        public Query parseGroup(Type type, String field, Float boostValue, Object value, String minimumShouldMatch) throws IOException {
+        Query parseGroup(Type type, String field, Float boostValue, Object value, String minimumShouldMatch) throws IOException {
+            if (context.fieldMapper(field) == null) {
+                return null;  // indicates to the caller that this field is unmapped and should be disregarded
+            }
             return parseAndApply(type, field, value, minimumShouldMatch, boostValue);
         }
 

@@ -406,9 +406,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::get-roles-request
             GetRolesRequest request = new GetRolesRequest("my_role");
+            //end::get-roles-request
+            //tag::get-roles-execute
             GetRolesResponse response = client.security().getRoles(request, RequestOptions.DEFAULT);
             //end::get-roles-execute
-
             //tag::get-roles-response
             List<Role> roles = response.getRoles();
             //end::get-roles-response

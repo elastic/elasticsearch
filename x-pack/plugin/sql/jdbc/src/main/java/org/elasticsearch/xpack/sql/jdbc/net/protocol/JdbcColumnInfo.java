@@ -5,19 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
-import java.sql.SQLType;
+import org.elasticsearch.xpack.sql.jdbc.type.DataType;
+
 import java.util.Objects;
 
-public class ColumnInfo {
+public class JdbcColumnInfo {
     public final String catalog;
     public final String schema;
     public final String table;
     public final String label;
     public final String name;
     public final int displaySize;
-    public final SQLType type;
+    public final DataType type;
 
-    public ColumnInfo(String name, SQLType type, String table, String catalog, String schema, String label, int displaySize) {
+    public JdbcColumnInfo(String name, DataType type, String table, String catalog, String schema, String label, int displaySize) {
         if (name == null) {
             throw new IllegalArgumentException("[name] must not be null");
         }
@@ -74,7 +75,7 @@ public class ColumnInfo {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        ColumnInfo other = (ColumnInfo) obj;
+        JdbcColumnInfo other = (JdbcColumnInfo) obj;
         return name.equals(other.name)
                 && type.equals(other.type)
                 && table.equals(other.table)

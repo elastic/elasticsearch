@@ -56,6 +56,7 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
     private final CcrLicenseChecker ccrLicenseChecker;
     // The snapshot will be compatible because remote cluster connections must be compatible with our cluster
     // version. So the snapshot version is not too important.
+    // TODO: Evaluate where we eventually want to pull the version from
     private final Version version = Version.CURRENT;
 
     public RemoteClusterRepository(RepositoryMetaData metadata, Client client, CcrLicenseChecker ccrLicenseChecker, Settings settings) {

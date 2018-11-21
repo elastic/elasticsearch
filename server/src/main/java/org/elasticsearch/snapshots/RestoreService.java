@@ -179,6 +179,10 @@ public class RestoreService implements ClusterStateApplier {
     /**
      * Restores snapshot specified in the restore request.
      *
+     * The incrementIndexVersion parameter only applies to the snapshot index version. If there is a
+     * pre-existing index with a version greater than the snapshot index, we will use and increment
+     * the version of the existing index.
+     *
      * @param request  restore request
      * @param listener restore listener
      * @param incrementIndexVersion indicates if index version of the restored index should be incremented
@@ -319,9 +323,11 @@ public class RestoreService implements ClusterStateApplier {
                             } else {
                                 validateExistingIndex(currentIndexMetaData, snapshotIndexMetaData, renamedIndexName, partial);
                                 // Index exists and it's closed - open it in metadata and start recovery
+                                long newVersion = incrementIndexVersion ? snapshotIndexMetaData.getVersion() + 1 :
+                                    snapshotIndexMetaData.getVersion();
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData)
                                     .state(IndexMetaData.State.OPEN)
-                                    .version(Math.max(snapshotIndexMetaData.getVersion(), currentIndexMetaData.getVersion() + 1))
+                                    .version(Math.max(newVersion, currentIndexMetaData.getVersion() + 1))
                                     .mappingVersion(Math.max(snapshotIndexMetaData.getMappingVersion(),
                                         currentIndexMetaData.getMappingVersion() + 1))
                                     .settingsVersion(Math.max(snapshotIndexMetaData.getSettingsVersion(),
@@ -347,7 +353,8 @@ public class RestoreService implements ClusterStateApplier {
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndexName).build();
                                 rtBuilder.addAsRestore(updatedIndexMetaData, recoverySource);
                                 blocks.updateBlocks(updatedIndexMetaData);
-                                mdBuilder.put(updatedIndexMetaData, incrementIndexVersion);
+                                // We already set the new version manually on the IndexMetaData.Builder
+                                mdBuilder.put(updatedIndexMetaData, false);
                                 renamedIndex = updatedIndexMetaData.getIndex();
                             }
 
@@ -442,7 +449,7 @@ public class RestoreService implements ClusterStateApplier {
                 }
 
                 private boolean checkPartial(String index) {
-                    // Make sure that index was fully snapshotted
+                    // Make sure that index was fully snapshoted
                     if (failed(snapshotInfo, index)) {
                         if (request.partial()) {
                             return true;

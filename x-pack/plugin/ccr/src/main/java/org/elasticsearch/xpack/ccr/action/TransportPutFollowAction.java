@@ -130,9 +130,10 @@ public final class TransportPutFollowAction
             @Override
             public void onResponse(RestoreSnapshotResponse restoreSnapshotResponse) {
                 RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
-                if (restoreInfo == null) {
-                    // TODO: Decide What to do
-                } else if (restoreInfo.failedShards() == 0) {
+                if (restoreInfo == null || restoreInfo.failedShards() == 0) {
+                    // If restoreInfo is null then it is possible there was a master failure during the
+                    // restore. It is possible the index was restored. initiateFollowing will timeout waiting
+                    // for the shards to be active if the index was not successfully restored.
                     initiateFollowing(request, listener);
                 } else {
                     listener.onFailure(new ElasticsearchException("failed to restore [" + restoreInfo.failedShards() + "] shards"));
@@ -142,18 +143,17 @@ public final class TransportPutFollowAction
             @Override
             public void onFailure(Exception e) {
                 listener.onFailure(e);
-
             }
         };
 
         Settings.Builder settingsBuilder = Settings.builder()
-            // TODO: Figure out what to do with private setting SETTING_INDEX_PROVIDED_NAME
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex())
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
         RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(remoteCluster,
             leaderIndexMetaData.getIndex().getName(), new String[]{request.getLeaderIndex()}, request.indicesOptions(),
             "^(.*)$", request.getFollowRequest().getFollowerIndex(), Settings.EMPTY, request.masterNodeTimeout(), false,
-            false, true, settingsBuilder.build(), new String[0], "restore_snapshot[" + remoteCluster + "]");
+            false, true, settingsBuilder.build(), new String[0],
+            "restore_snapshot[" + remoteCluster + ":" + request.getLeaderIndex() + "]");
         initiateRestore(restoreRequest, restoreCompleteHandler);
     }
 
@@ -195,5 +195,4 @@ public final class TransportPutFollowAction
     protected ClusterBlockException checkBlock(final PutFollowAction.Request request, final ClusterState state) {
         return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowRequest().getFollowerIndex());
     }
-
 }

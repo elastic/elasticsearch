@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.jdbc.type.DataType;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLType;
 import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -26,17 +26,17 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.lang.String.format;
-import static java.sql.JDBCType.BIGINT;
-import static java.sql.JDBCType.BOOLEAN;
-import static java.sql.JDBCType.DOUBLE;
-import static java.sql.JDBCType.FLOAT;
-import static java.sql.JDBCType.INTEGER;
-import static java.sql.JDBCType.REAL;
-import static java.sql.JDBCType.SMALLINT;
-import static java.sql.JDBCType.TIMESTAMP;
-import static java.sql.JDBCType.TINYINT;
-import static java.sql.JDBCType.VARBINARY;
-import static java.sql.JDBCType.VARCHAR;
+import static org.elasticsearch.xpack.sql.jdbc.type.DataType.BINARY;
+import static org.elasticsearch.xpack.sql.jdbc.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.sql.jdbc.type.DataType.BYTE;
+import static org.elasticsearch.xpack.sql.jdbc.type.DataType.DATE;
+import static org.elasticsearch.xpack.sql.jdbc.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.sql.jdbc.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.sql.jdbc.type.DataType.HALF_FLOAT;
+import static org.elasticsearch.xpack.sql.jdbc.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.sql.jdbc.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.sql.jdbc.type.DataType.LONG;
+import static org.elasticsearch.xpack.sql.jdbc.type.DataType.SHORT;
 
 public class JdbcPreparedStatementTests extends ESTestCase {
 
@@ -62,14 +62,14 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, true, Types.VARCHAR);
         assertEquals("true", value(jps));
-        assertEquals(VARCHAR, jdbcType(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
     }
 
     public void testThrownExceptionsWhenSettingBooleanValues() throws SQLException {
         JdbcPreparedStatement jps = createJdbcPreparedStatement();
 
         SQLException sqle = expectThrows(SQLException.class, () -> jps.setObject(1, true, Types.TIMESTAMP));
-        assertEquals("Unable to convert value [true] of type [BOOLEAN] to a Timestamp", sqle.getMessage());
+        assertEquals("Unable to convert value [true] of type [BOOLEAN] to [TIMESTAMP]", sqle.getMessage());
     }
 
     public void testSettingStringValues() throws SQLException {
@@ -77,15 +77,15 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setString(1, "foo bar");
         assertEquals("foo bar", value(jps));
-        assertEquals(VARCHAR, jdbcType(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
 
         jps.setObject(1, "foo bar");
         assertEquals("foo bar", value(jps));
-        assertEquals(VARCHAR, jdbcType(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
 
         jps.setObject(1, "foo bar", Types.VARCHAR);
         assertEquals("foo bar", value(jps));
-        assertEquals(VARCHAR, jdbcType(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
         assertTrue(value(jps) instanceof String);
     }
 
@@ -93,7 +93,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         JdbcPreparedStatement jps = createJdbcPreparedStatement();
 
         SQLException sqle = expectThrows(SQLException.class, () -> jps.setObject(1, "foo bar", Types.INTEGER));
-        assertEquals("Unable to convert value [foo bar] of type [VARCHAR] to an Integer", sqle.getMessage());
+        assertEquals("Unable to convert value [foo bar] of type [KEYWORD] to [INTEGER]", sqle.getMessage());
     }
 
     public void testSettingByteTypeValues() throws SQLException {
@@ -101,11 +101,11 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setByte(1, (byte) 6);
         assertEquals((byte) 6, value(jps));
-        assertEquals(TINYINT, jdbcType(jps));
+        assertEquals(BYTE, jdbcType(jps));
 
         jps.setObject(1, (byte) 6);
         assertEquals((byte) 6, value(jps));
-        assertEquals(TINYINT, jdbcType(jps));
+        assertEquals(BYTE, jdbcType(jps));
         assertTrue(value(jps) instanceof Byte);
 
         jps.setObject(1, (byte) 0, Types.BOOLEAN);
@@ -129,7 +129,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         JdbcPreparedStatement jps = createJdbcPreparedStatement();
 
         SQLException sqle = expectThrows(SQLException.class, () -> jps.setObject(1, (byte) 6, Types.TIMESTAMP));
-        assertEquals("Unable to convert value [6] of type [TINYINT] to a Timestamp", sqle.getMessage());
+        assertEquals("Unable to convert value [6] of type [BYTE] to [TIMESTAMP]", sqle.getMessage());
     }
 
     public void testSettingShortTypeValues() throws SQLException {
@@ -138,11 +138,11 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         short someShort = randomShort();
         jps.setShort(1, someShort);
         assertEquals(someShort, value(jps));
-        assertEquals(SMALLINT, jdbcType(jps));
+        assertEquals(SHORT, jdbcType(jps));
 
         jps.setObject(1, someShort);
         assertEquals(someShort, value(jps));
-        assertEquals(SMALLINT, jdbcType(jps));
+        assertEquals(SHORT, jdbcType(jps));
         assertTrue(value(jps) instanceof Short);
 
         jps.setObject(1, (short) 1, Types.BOOLEAN);
@@ -162,7 +162,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         JdbcPreparedStatement jps = createJdbcPreparedStatement();
 
         SQLException sqle = expectThrows(SQLException.class, () -> jps.setObject(1, (short) 6, Types.TIMESTAMP));
-        assertEquals("Unable to convert value [6] of type [SMALLINT] to a Timestamp", sqle.getMessage());
+        assertEquals("Unable to convert value [6] of type [SHORT] to [TIMESTAMP]", sqle.getMessage());
 
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, 256, Types.TINYINT));
         assertEquals("Numeric " + 256 + " out of range", sqle.getMessage());
@@ -183,12 +183,12 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, someInt, Types.VARCHAR);
         assertEquals(String.valueOf(someInt), value(jps));
-        assertEquals(VARCHAR, jdbcType(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
 
         jps.setObject(1, someInt, Types.FLOAT);
         assertEquals(Double.valueOf(someInt), value(jps));
         assertTrue(value(jps) instanceof Double);
-        assertEquals(FLOAT, jdbcType(jps));
+        assertEquals(HALF_FLOAT, jdbcType(jps));
     }
 
     public void testThrownExceptionsWhenSettingIntegerValues() throws SQLException {
@@ -196,7 +196,8 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         int someInt = randomInt();
 
         SQLException sqle = expectThrows(SQLException.class, () -> jps.setObject(1, someInt, Types.TIMESTAMP));
-        assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [INTEGER] to a Timestamp", someInt), sqle.getMessage());
+        assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [INTEGER] to [TIMESTAMP]", someInt),
+                sqle.getMessage());
 
         Integer randomIntNotShort = randomIntBetween(32768, Integer.MAX_VALUE);
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, randomIntNotShort, Types.SMALLINT));
@@ -212,16 +213,16 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         long someLong = randomLong();
         jps.setLong(1, someLong);
         assertEquals(someLong, value(jps));
-        assertEquals(BIGINT, jdbcType(jps));
+        assertEquals(LONG, jdbcType(jps));
 
         jps.setObject(1, someLong);
         assertEquals(someLong, value(jps));
-        assertEquals(BIGINT, jdbcType(jps));
+        assertEquals(LONG, jdbcType(jps));
         assertTrue(value(jps) instanceof Long);
 
         jps.setObject(1, someLong, Types.VARCHAR);
         assertEquals(String.valueOf(someLong), value(jps));
-        assertEquals(VARCHAR, jdbcType(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
 
         jps.setObject(1, someLong, Types.DOUBLE);
         assertEquals((double) someLong, value(jps));
@@ -229,7 +230,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, someLong, Types.FLOAT);
         assertEquals((double) someLong, value(jps));
-        assertEquals(FLOAT, jdbcType(jps));
+        assertEquals(HALF_FLOAT, jdbcType(jps));
     }
 
     public void testThrownExceptionsWhenSettingLongValues() throws SQLException {
@@ -237,7 +238,8 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         long someLong = randomLong();
 
         SQLException sqle = expectThrows(SQLException.class, () -> jps.setObject(1, someLong, Types.TIMESTAMP));
-        assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [BIGINT] to a Timestamp", someLong), sqle.getMessage());
+        assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [LONG] to [TIMESTAMP]", someLong),
+                sqle.getMessage());
 
         Long randomLongNotShort = randomLongBetween(Integer.MAX_VALUE + 1, Long.MAX_VALUE);
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, randomLongNotShort, Types.INTEGER));
@@ -253,16 +255,16 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         float someFloat = randomFloat();
         jps.setFloat(1, someFloat);
         assertEquals(someFloat, value(jps));
-        assertEquals(REAL, jdbcType(jps));
+        assertEquals(FLOAT, jdbcType(jps));
 
         jps.setObject(1, someFloat);
         assertEquals(someFloat, value(jps));
-        assertEquals(REAL, jdbcType(jps));
+        assertEquals(FLOAT, jdbcType(jps));
         assertTrue(value(jps) instanceof Float);
 
         jps.setObject(1, someFloat, Types.VARCHAR);
         assertEquals(String.valueOf(someFloat), value(jps));
-        assertEquals(VARCHAR, jdbcType(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
 
         jps.setObject(1, someFloat, Types.DOUBLE);
         assertEquals((double) someFloat, value(jps));
@@ -270,7 +272,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, someFloat, Types.FLOAT);
         assertEquals((double) someFloat, value(jps));
-        assertEquals(FLOAT, jdbcType(jps));
+        assertEquals(HALF_FLOAT, jdbcType(jps));
     }
 
     public void testThrownExceptionsWhenSettingFloatValues() throws SQLException {
@@ -278,7 +280,8 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         float someFloat = randomFloat();
 
         SQLException sqle = expectThrows(SQLException.class, () -> jps.setObject(1, someFloat, Types.TIMESTAMP));
-        assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [REAL] to a Timestamp", someFloat), sqle.getMessage());
+        assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [FLOAT] to [TIMESTAMP]", someFloat),
+                sqle.getMessage());
 
         Float floatNotInt =  5_155_000_000f;
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, floatNotInt, Types.INTEGER));
@@ -305,11 +308,11 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, someDouble, Types.VARCHAR);
         assertEquals(String.valueOf(someDouble), value(jps));
-        assertEquals(VARCHAR, jdbcType(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
 
         jps.setObject(1, someDouble, Types.REAL);
         assertEquals((float) someDouble, value(jps));
-        assertEquals(REAL, jdbcType(jps));
+        assertEquals(FLOAT, jdbcType(jps));
     }
 
     public void testThrownExceptionsWhenSettingDoubleValues() throws SQLException {
@@ -318,7 +321,8 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         SQLException sqle = expectThrows(SQLException.class, () -> jps.setObject(1, someDouble, Types.TIMESTAMP));
         assertEquals(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [DOUBLE] to a Timestamp", someDouble), sqle.getMessage());
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [DOUBLE] to [TIMESTAMP]", someDouble),
+                sqle.getMessage());
 
         Double doubleNotInt = 5_155_000_000d;
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, doubleNotInt, Types.INTEGER));
@@ -342,22 +346,23 @@ public class JdbcPreparedStatementTests extends ESTestCase {
                 return null;
             }
         }));
-        assertEquals("Objects of type java.sql.Struct are not supported", sfnse.getMessage());
+        assertEquals("Objects of type [java.sql.Struct] are not supported", sfnse.getMessage());
 
         sfnse = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, new URL("http://test")));
-        assertEquals("Objects of type java.net.URL are not supported", sfnse.getMessage());
+        assertEquals("Objects of type [java.net.URL] are not supported", sfnse.getMessage());
 
         sfnse = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setURL(1, new URL("http://test")));
-        assertEquals("Objects of type java.net.URL are not supported", sfnse.getMessage());
+        assertEquals("Objects of type [java.net.URL] are not supported", sfnse.getMessage());
 
         sfnse = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, this, Types.TIMESTAMP));
-        assertEquals("Conversion from type " + this.getClass().getName() + " to TIMESTAMP not supported", sfnse.getMessage());
+        assertEquals("Conversion from type [" + this.getClass().getName() + "] to [TIMESTAMP] not supported", sfnse.getMessage());
 
         SQLException se = expectThrows(SQLException.class, () -> jps.setObject(1, this, 1_000_000));
-        assertEquals("Type:1000000 is not a valid Types.java value.", se.getMessage());
+        assertEquals("Unsupported SQL type [1000000]", se.getMessage());
 
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> jps.setObject(1, randomShort(), Types.CHAR));
-        assertEquals("Unsupported JDBC type [CHAR]", iae.getMessage());
+        SQLFeatureNotSupportedException iae = expectThrows(SQLFeatureNotSupportedException.class,
+                () -> jps.setObject(1, randomShort(), Types.CHAR));
+        assertEquals("Unsupported SQL type [CHAR]", iae.getMessage());
     }
 
     public void testSettingTimestampValues() throws SQLException {
@@ -366,13 +371,13 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         Timestamp someTimestamp = new Timestamp(randomLong());
         jps.setTimestamp(1, someTimestamp);
         assertEquals(someTimestamp.getTime(), ((Date)value(jps)).getTime());
-        assertEquals(TIMESTAMP, jdbcType(jps));
+        assertEquals(DATE, jdbcType(jps));
 
         Calendar nonDefaultCal = randomCalendar();
         // February 29th, 2016. 01:17:55 GMT = 1456708675000 millis since epoch
         jps.setTimestamp(1, new Timestamp(1456708675000L), nonDefaultCal);
         assertEquals(1456708675000L, convertFromUTCtoCalendar(((Date)value(jps)), nonDefaultCal));
-        assertEquals(TIMESTAMP, jdbcType(jps));
+        assertEquals(DATE, jdbcType(jps));
 
         long beforeEpochTime = randomLongBetween(Long.MIN_VALUE, 0);
         jps.setTimestamp(1, new Timestamp(beforeEpochTime), nonDefaultCal);
@@ -381,7 +386,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, someTimestamp, Types.VARCHAR);
         assertEquals(someTimestamp.toString(), value(jps).toString());
-        assertEquals(VARCHAR, jdbcType(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
     }
 
     public void testThrownExceptionsWhenSettingTimestampValues() throws SQLException {
@@ -389,7 +394,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         Timestamp someTimestamp = new Timestamp(randomLong());
 
         SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, someTimestamp, Types.INTEGER));
-        assertEquals("Conversion from type java.sql.Timestamp to INTEGER not supported", sqle.getMessage());
+        assertEquals("Conversion from type [java.sql.Timestamp] to [INTEGER] not supported", sqle.getMessage());
     }
 
     public void testSettingTimeValues() throws SQLException {
@@ -399,12 +404,12 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         Calendar nonDefaultCal = randomCalendar();
         jps.setTime(1, time, nonDefaultCal);
         assertEquals(4675000, convertFromUTCtoCalendar(((Date)value(jps)), nonDefaultCal));
-        assertEquals(TIMESTAMP, jdbcType(jps));
+        assertEquals(DATE, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, time, Types.VARCHAR);
         assertEquals(time.toString(), value(jps).toString());
-        assertEquals(VARCHAR, jdbcType(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
     }
 
     public void testThrownExceptionsWhenSettingTimeValues() throws SQLException {
@@ -412,7 +417,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         Time time = new Time(4675000);
 
         SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, time, Types.INTEGER));
-        assertEquals("Conversion from type java.sql.Time to INTEGER not supported", sqle.getMessage());
+        assertEquals("Conversion from type [java.sql.Time] to [INTEGER] not supported", sqle.getMessage());
     }
 
     public void testSettingSqlDateValues() throws SQLException {
@@ -421,18 +426,18 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         java.sql.Date someSqlDate = new java.sql.Date(randomLong());
         jps.setDate(1, someSqlDate);
         assertEquals(someSqlDate.getTime(), ((Date)value(jps)).getTime());
-        assertEquals(TIMESTAMP, jdbcType(jps));
+        assertEquals(DATE, jdbcType(jps));
 
         someSqlDate = new java.sql.Date(randomLong());
         Calendar nonDefaultCal = randomCalendar();
         jps.setDate(1, someSqlDate, nonDefaultCal);
         assertEquals(someSqlDate.getTime(), convertFromUTCtoCalendar(((Date)value(jps)), nonDefaultCal));
-        assertEquals(TIMESTAMP, jdbcType(jps));
+        assertEquals(DATE, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, someSqlDate, Types.VARCHAR);
         assertEquals(someSqlDate.toString(), value(jps).toString());
-        assertEquals(VARCHAR, jdbcType(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
     }
 
     public void testThrownExceptionsWhenSettingSqlDateValues() throws SQLException {
@@ -441,7 +446,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class,
                 () -> jps.setObject(1, new java.sql.Date(randomLong()), Types.DOUBLE));
-        assertEquals("Conversion from type " + someSqlDate.getClass().getName() + " to DOUBLE not supported", sqle.getMessage());
+        assertEquals("Conversion from type [" + someSqlDate.getClass().getName() + "] to [DOUBLE] not supported", sqle.getMessage());
     }
 
     public void testSettingCalendarValues() throws SQLException {
@@ -451,17 +456,17 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, someCalendar);
         assertEquals(someCalendar.getTime(), value(jps));
-        assertEquals(TIMESTAMP, jdbcType(jps));
+        assertEquals(DATE, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, someCalendar, Types.VARCHAR);
         assertEquals(someCalendar.toString(), value(jps).toString());
-        assertEquals(VARCHAR, jdbcType(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
 
         Calendar nonDefaultCal = randomCalendar();
         jps.setObject(1, nonDefaultCal);
         assertEquals(nonDefaultCal.getTime(), value(jps));
-        assertEquals(TIMESTAMP, jdbcType(jps));
+        assertEquals(DATE, jdbcType(jps));
     }
 
     public void testThrownExceptionsWhenSettingCalendarValues() throws SQLException {
@@ -469,7 +474,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         Calendar someCalendar = randomCalendar();
 
         SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, someCalendar, Types.DOUBLE));
-        assertEquals("Conversion from type " + someCalendar.getClass().getName() + " to DOUBLE not supported", sqle.getMessage());
+        assertEquals("Conversion from type [" + someCalendar.getClass().getName() + "] to [DOUBLE] not supported", sqle.getMessage());
     }
 
     public void testSettingDateValues() throws SQLException {
@@ -478,12 +483,12 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, someDate);
         assertEquals(someDate, value(jps));
-        assertEquals(TIMESTAMP, jdbcType(jps));
+        assertEquals(DATE, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, someDate, Types.VARCHAR);
         assertEquals(someDate.toString(), value(jps).toString());
-        assertEquals(VARCHAR, jdbcType(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
     }
 
     public void testThrownExceptionsWhenSettingDateValues() throws SQLException {
@@ -491,7 +496,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         Date someDate = new Date(randomLong());
 
         SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, someDate, Types.BIGINT));
-        assertEquals("Conversion from type " + someDate.getClass().getName() + " to BIGINT not supported", sqle.getMessage());
+        assertEquals("Conversion from type [" + someDate.getClass().getName() + "] to [BIGINT] not supported", sqle.getMessage());
     }
 
     public void testSettingLocalDateTimeValues() throws SQLException {
@@ -500,12 +505,12 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, ldt);
         assertEquals(Date.class, value(jps).getClass());
-        assertEquals(TIMESTAMP, jdbcType(jps));
+        assertEquals(DATE, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, ldt, Types.VARCHAR);
         assertEquals(ldt.toString(), value(jps).toString());
-        assertEquals(VARCHAR, jdbcType(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
     }
 
     public void testThrownExceptionsWhenSettingLocalDateTimeValues() throws SQLException {
@@ -513,7 +518,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         LocalDateTime ldt = LocalDateTime.now(Clock.systemDefaultZone());
 
         SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, ldt, Types.BIGINT));
-        assertEquals("Conversion from type " + ldt.getClass().getName() + " to BIGINT not supported", sqle.getMessage());
+        assertEquals("Conversion from type [" + ldt.getClass().getName() + "] to [BIGINT] not supported", sqle.getMessage());
     }
 
     public void testSettingByteArrayValues() throws SQLException {
@@ -522,22 +527,22 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         byte[] buffer = "some data".getBytes(StandardCharsets.UTF_8);
         jps.setBytes(1, buffer);
         assertEquals(byte[].class, value(jps).getClass());
-        assertEquals(VARBINARY, jdbcType(jps));
+        assertEquals(BINARY, jdbcType(jps));
 
         jps.setObject(1, buffer);
         assertEquals(byte[].class, value(jps).getClass());
-        assertEquals(VARBINARY, jdbcType(jps));
+        assertEquals(BINARY, jdbcType(jps));
         assertTrue(value(jps) instanceof byte[]);
 
         jps.setObject(1, buffer, Types.VARBINARY);
         assertEquals(value(jps), buffer);
-        assertEquals(VARBINARY, jdbcType(jps));
+        assertEquals(BINARY, jdbcType(jps));
 
         SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, buffer, Types.VARCHAR));
-        assertEquals("Conversion from type byte[] to VARCHAR not supported", sqle.getMessage());
+        assertEquals("Conversion from type [byte[]] to [VARCHAR] not supported", sqle.getMessage());
 
         sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, buffer, Types.DOUBLE));
-        assertEquals("Conversion from type byte[] to DOUBLE not supported", sqle.getMessage());
+        assertEquals("Conversion from type [byte[]] to [DOUBLE] not supported", sqle.getMessage());
     }
 
     public void testThrownExceptionsWhenSettingByteArrayValues() throws SQLException {
@@ -545,17 +550,28 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         byte[] buffer = "foo".getBytes(StandardCharsets.UTF_8);
 
         SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, buffer, Types.VARCHAR));
-        assertEquals("Conversion from type byte[] to VARCHAR not supported", sqle.getMessage());
+        assertEquals("Conversion from type [byte[]] to [VARCHAR] not supported", sqle.getMessage());
 
         sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, buffer, Types.DOUBLE));
-        assertEquals("Conversion from type byte[] to DOUBLE not supported", sqle.getMessage());
+        assertEquals("Conversion from type [byte[]] to [DOUBLE] not supported", sqle.getMessage());
+    }
+
+    public void testThrownExceptionsWhenSettingByteArrayValuesToEsTypes() throws SQLException {
+        JdbcPreparedStatement jps = createJdbcPreparedStatement();
+        byte[] buffer = "foo".getBytes(StandardCharsets.UTF_8);
+
+        SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, buffer, DataType.KEYWORD));
+        assertEquals("Conversion from type [byte[]] to [KEYWORD] not supported", sqle.getMessage());
+
+        sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, buffer, DataType.INTERVAL_DAY_TO_MINUTE));
+        assertEquals("Conversion from type [byte[]] to [INTERVAL_DAY_TO_MINUTE] not supported", sqle.getMessage());
     }
 
     private JdbcPreparedStatement createJdbcPreparedStatement() throws SQLException {
         return new JdbcPreparedStatement(null, JdbcConfiguration.create("jdbc:es://l:1", null, 0), "?");
     }
 
-    private SQLType jdbcType(JdbcPreparedStatement jps) throws SQLException {
+    private DataType jdbcType(JdbcPreparedStatement jps) throws SQLException {
         return jps.query.getParam(1).type;
     }
 

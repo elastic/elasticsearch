@@ -45,14 +45,6 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(24, precision(row));
         assertEquals(8, bufferLength(row));
 
-        row = rows.get(6);
-        assertEquals("point", name(row));
-        assertEquals(Types.OTHER, sqlType(row));
-
-        row = rows.get(7);
-        assertEquals("shape", name(row));
-        assertEquals(Types.OTHER, sqlType(row));
-
         row = rows.get(9);
         assertEquals("some.dotted", name(row));
         assertEquals(Types.STRUCT, sqlType(row));

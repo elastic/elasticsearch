@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -31,6 +32,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
+import org.elasticsearch.client.ccr.ResumeFollowRequest;
+import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -63,7 +66,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));
     }
 
-    public void testCCR() throws Exception {
+    public void testIndexFollowing() throws Exception {
         CcrClient ccrClient = highLevelClient().ccr();
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
@@ -95,6 +98,33 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
         AcknowledgedResponse pauseFollowResponse = execute(pauseFollowRequest, ccrClient::pauseFollow, ccrClient::pauseFollowAsync);
         assertThat(pauseFollowResponse.isAcknowledged(), is(true));
+
+        highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
+
+        ResumeFollowRequest resumeFollowRequest = new ResumeFollowRequest("follower");
+        AcknowledgedResponse resumeFollowResponse = execute(resumeFollowRequest, ccrClient::resumeFollow, ccrClient::resumeFollowAsync);
+        assertThat(resumeFollowResponse.isAcknowledged(), is(true));
+
+        assertBusy(() -> {
+            SearchRequest followerSearchRequest = new SearchRequest("follower");
+            SearchResponse followerSearchResponse = highLevelClient().search(followerSearchRequest, RequestOptions.DEFAULT);
+            assertThat(followerSearchResponse.getHits().getTotalHits(), equalTo(2L));
+        });
+
+        // Need to pause prior to unfollowing it:
+        pauseFollowRequest = new PauseFollowRequest("follower");
+        pauseFollowResponse = execute(pauseFollowRequest, ccrClient::pauseFollow, ccrClient::pauseFollowAsync);
+        assertThat(pauseFollowResponse.isAcknowledged(), is(true));
+
+        // Need to close index prior to unfollowing it:
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest("follower");
+        org.elasticsearch.action.support.master.AcknowledgedResponse closeIndexReponse =
+            highLevelClient().indices().close(closeIndexRequest, RequestOptions.DEFAULT);
+        assertThat(closeIndexReponse.isAcknowledged(), is(true));
+
+        UnfollowRequest unfollowRequest = new UnfollowRequest("follower");
+        AcknowledgedResponse unfollowResponse = execute(unfollowRequest, ccrClient::unfollow, ccrClient::unfollowAsync);
+        assertThat(unfollowResponse.isAcknowledged(), is(true));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

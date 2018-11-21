@@ -16,10 +16,10 @@ DESCRIBE "geo";
 
        column:s      |   type:s   |  mapping:s
 city                 | VARCHAR    | KEYWORD
-location             | OTHER      | GEO_POINT
+location             | GEOMETRY   | GEO_POINT
 region               | VARCHAR    | KEYWORD
 region_point         | VARCHAR    | KEYWORD
-shape                | OTHER      | GEO_SHAPE
+shape                | GEOMETRY   | GEO_SHAPE
 ;
 
 // SELECT ALL

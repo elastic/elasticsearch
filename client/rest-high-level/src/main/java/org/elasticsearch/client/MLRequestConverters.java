@@ -50,6 +50,7 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
@@ -617,6 +618,14 @@ final class MLRequestConverters {
             .addPathPart(deleteFilterRequest.getId())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        return request;
+    }
+
+    static Request mlInfo(MlInfoRequest infoRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack", "ml", "info")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         return request;
     }
 }

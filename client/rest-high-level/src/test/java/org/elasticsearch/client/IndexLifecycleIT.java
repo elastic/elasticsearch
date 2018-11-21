@@ -182,8 +182,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
         createIndex("squash", Settings.EMPTY);
 
-        ExplainLifecycleRequest req = new ExplainLifecycleRequest();
-        req.indices("foo-01", "baz-01", "squash");
+        ExplainLifecycleRequest req = new ExplainLifecycleRequest("foo-01", "baz-01", "squash");
         ExplainLifecycleResponse response = execute(req, highLevelClient().indexLifecycle()::explainLifecycle,
                 highLevelClient().indexLifecycle()::explainLifecycleAsync);
         Map<String, IndexLifecycleExplainResponse> indexResponses = response.getIndexResponses();
@@ -194,7 +193,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertEquals("foo-01", fooResponse.getIndex());
         assertEquals("hot", fooResponse.getPhase());
         assertEquals("rollover", fooResponse.getAction());
-        assertEquals("attempt_rollover", fooResponse.getStep());
+        assertEquals("check-rollover-ready", fooResponse.getStep());
         assertEquals(new PhaseExecutionInfo(policy.getName(), new Phase("", hotPhase.getMinimumAge(), hotPhase.getActions()),
                 1L, expectedPolicyModifiedDate), fooResponse.getPhaseExecutionInfo());
         IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz-01");
@@ -203,7 +202,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertEquals("baz-01", bazResponse.getIndex());
         assertEquals("hot", bazResponse.getPhase());
         assertEquals("rollover", bazResponse.getAction());
-        assertEquals("attempt_rollover", bazResponse.getStep());
+        assertEquals("check-rollover-ready", bazResponse.getStep());
         IndexLifecycleExplainResponse squashResponse = indexResponses.get("squash");
         assertNotNull(squashResponse);
         assertFalse(squashResponse.managedByILM());
@@ -272,8 +271,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         RetryLifecyclePolicyRequest retryRequest = new RetryLifecyclePolicyRequest("retry");
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
             () -> execute(
-                retryRequest, highLevelClient().indexLifecycle()::retryLifecycleStep,
-                highLevelClient().indexLifecycle()::retryLifecycleStepAsync
+                retryRequest, highLevelClient().indexLifecycle()::retryLifecyclePolicy,
+                highLevelClient().indexLifecycle()::retryLifecyclePolicyAsync
             )
         );
         assertEquals(400, ex.status().getStatus());

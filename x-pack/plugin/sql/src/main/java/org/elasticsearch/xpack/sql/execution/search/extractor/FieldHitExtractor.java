@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -13,9 +12,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
 import java.util.List;
@@ -70,16 +68,8 @@ public class FieldHitExtractor implements HitExtractor {
 
     FieldHitExtractor(StreamInput in) throws IOException {
         fieldName = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            String esType = in.readOptionalString();
-            if (esType != null) {
-                dataType = DataType.fromEsType(esType);
-            } else {
-                dataType = null;
-            }
-        } else {
-            dataType = null;
-        }
+        String esType = in.readOptionalString();
+        dataType = esType != null ? DataType.fromTypeName(esType) : null;
         useDocValue = in.readBoolean();
         hitName = in.readOptionalString();
         path = sourcePath(fieldName, useDocValue, hitName);
@@ -93,9 +83,7 @@ public class FieldHitExtractor implements HitExtractor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeOptionalString(dataType == null ? null : dataType.esType);
-        }
+        out.writeOptionalString(dataType == null ? null : dataType.esType);
         out.writeBoolean(useDocValue);
         out.writeOptionalString(hitName);
     }
@@ -136,11 +124,16 @@ public class FieldHitExtractor implements HitExtractor {
         if (values instanceof Map) {
             throw new SqlIllegalArgumentException("Objects (returned by [{}]) are not supported", fieldName);
         }
-        if (values instanceof String && dataType == DataType.DATE) {
-            return new DateTime(Long.parseLong(values.toString()), DateTimeZone.UTC);
+        if (dataType == DataType.DATE) {
+            if (values instanceof String) {
+                return DateUtils.of(Long.parseLong(values.toString()));
+            }
+            // returned by nested types...
+            if (values instanceof DateTime) {
+                return DateUtils.of((DateTime) values);
+            }
         }
-        if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean
-                || values instanceof ReadableDateTime) {
+        if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean) {
             return values;
         }
         throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);

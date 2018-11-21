@@ -65,9 +65,9 @@ include::params/index.asciidoc[]
 
 include::params/index-options.asciidoc[]
 
-include::params/index-prefixes.asciidoc[]
-
 include::params/index-phrases.asciidoc[]
+
+include::params/index-prefixes.asciidoc[]
 
 include::params/multi-fields.asciidoc[]
 

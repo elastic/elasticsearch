@@ -21,14 +21,13 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.core.AcknowledgedRequest;
 
 import java.util.Objects;
 
 /**
  * Request for the _freeze index API
  */
-public final class FreezeIndexRequest extends AcknowledgedRequest {
+public final class FreezeIndexRequest extends TimedRequest {
 
     private final String[] indices;
     private IndicesOptions indicesOptions;

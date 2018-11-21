@@ -21,14 +21,13 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.core.AcknowledgedRequest;
 
 import java.util.Objects;
 
 /**
  * Request for the _unfreeze index API
  */
-public final class UnfreezeIndexRequest extends AcknowledgedRequest {
+public final class UnfreezeIndexRequest extends TimedRequest {
 
     private final String[] indices;
     private IndicesOptions indicesOptions;
@@ -48,7 +47,6 @@ public final class UnfreezeIndexRequest extends AcknowledgedRequest {
     public String[] getIndices() {
         return indices;
     }
-
 
     /**
      * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.

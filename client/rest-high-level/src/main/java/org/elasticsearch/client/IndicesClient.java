@@ -839,6 +839,17 @@ public final class IndicesClient {
     }
 
     /**
+     * Synchronously calls the _freeze API
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public ShardsAcknowledgedResponse freeze(FreezeIndexRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::freezeIndex, options,
+            ShardsAcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
      * Asynchronously calls the _freeze API
      *
      * @param request the request
@@ -849,6 +860,18 @@ public final class IndicesClient {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::freezeIndex, options,
             ShardsAcknowledgedResponse::fromXContent, listener, emptySet());
     }
+
+    /**
+     * Synchronously calls the _unfreeze API
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public ShardsAcknowledgedResponse unfreeze(UnfreezeIndexRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::unfreezeIndex, options,
+            ShardsAcknowledgedResponse::fromXContent, emptySet());
+    }
+
 
     /**
      * Asynchronously calls the _unfreeze API
@@ -862,25 +885,4 @@ public final class IndicesClient {
             ShardsAcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
-    /**
-     * Synchronously calls the _freeze API
-     *
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     */
-    public ShardsAcknowledgedResponse freeze(FreezeIndexRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::freezeIndex, options,
-            ShardsAcknowledgedResponse::fromXContent, emptySet());
-    }
-
-    /**
-     * Synchronously calls the _freeze API
-     *
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     */
-    public ShardsAcknowledgedResponse unfreeze(UnfreezeIndexRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::unfreezeIndex, options,
-            ShardsAcknowledgedResponse::fromXContent, emptySet());
-    }
 }

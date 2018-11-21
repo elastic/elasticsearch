@@ -344,7 +344,7 @@ public class IndexResolver {
         EsField field = null;
         Map<String, EsField> props = hasChildren ? new TreeMap<>() : emptyMap();
 
-        DataType esType = DataType.fromEsType(caps.getType());
+        DataType esType = DataType.fromTypeName(caps.getType());
         switch (esType) {
             case TEXT:
                 field = new TextEsField(fieldName, props, false);

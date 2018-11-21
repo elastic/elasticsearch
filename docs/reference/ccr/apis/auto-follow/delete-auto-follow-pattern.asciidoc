@@ -6,11 +6,14 @@
 <titleabbrev>Delete Auto-Follow Pattern</titleabbrev>
 ++++
 
+beta[]
+
 Delete auto-follow patterns.
 
 ==== Description
 
-This API deletes a configured auto-follow pattern collection.
+This API deletes a configured collection of
+{stack-ov}/ccr-auto-follow.html[auto-follow patterns].
 
 ==== Request
 

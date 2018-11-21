@@ -32,8 +32,8 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
         }
         RolloverInfo rolloverInfo = indexMetaData.getRolloverInfos().get(rolloverAlias);
         if (rolloverInfo == null) {
-            throw new IllegalStateException("no rollover info found for [" + indexMetaData.getIndex().getName() + "], either the index " +
-                "has not yet rolled over or a subsequent index was created outside of Index Lifecycle Management");
+            throw new IllegalStateException("no rollover info found for [" + indexMetaData.getIndex().getName() + "] with alias [" +
+                rolloverAlias + "], the index has not yet rolled over with that alias");
         }
 
         LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState

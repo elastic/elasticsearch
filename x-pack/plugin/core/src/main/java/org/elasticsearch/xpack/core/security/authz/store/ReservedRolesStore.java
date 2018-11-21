@@ -118,7 +118,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".management-beats").privileges("create_index", "read", "write").build()
+                                        .indices(".management-beats").privileges("create_index", "read", "write").build(),
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices(".tasks").privileges("create_index", "read", "create").build()
                         },
                         null,
                         new ConditionalClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },

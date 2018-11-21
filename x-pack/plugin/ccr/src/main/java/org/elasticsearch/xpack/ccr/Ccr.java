@@ -52,13 +52,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.ccr.action.TransportGetAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.TransportUnfollowAction;
-import org.elasticsearch.xpack.ccr.repository.RemoteClusterRepository;
+import org.elasticsearch.xpack.ccr.repository.CCRRepository;
 import org.elasticsearch.xpack.ccr.rest.RestGetAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.TransportCcrStatsAction;
 import org.elasticsearch.xpack.ccr.rest.RestCcrStatsAction;
@@ -103,7 +102,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -125,7 +123,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final boolean enabled;
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
-    private SetOnce<RemoteClusterRepositoryManager> repositoryManager = new SetOnce<>();
+    private SetOnce<CCRRepositoryManager> repositoryManager = new SetOnce<>();
 
     /**
      * Construct an instance of the CCR container with the specified settings.
@@ -164,7 +162,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             return emptyList();
         }
 
-        repositoryManager.set(new RemoteClusterRepositoryManager(settings, clusterService));
+        repositoryManager.set(new CCRRepositoryManager(settings, clusterService));
 
         return Arrays.asList(
             ccrLicenseChecker,
@@ -285,22 +283,22 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
-        Repository.Factory repositoryFactory = (metadata) -> new RemoteClusterRepository(metadata, settings);
-        return Collections.singletonMap(RemoteClusterRepository.TYPE, repositoryFactory);
+        Repository.Factory repositoryFactory = (metadata) -> new CCRRepository(metadata, settings);
+        return Collections.singletonMap(CCRRepository.TYPE, repositoryFactory);
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
-    private static class RemoteClusterRepositoryManager extends RemoteClusterAware implements LocalNodeMasterListener {
+    private static class CCRRepositoryManager extends RemoteClusterAware implements LocalNodeMasterListener {
 
-        private static final Logger logger = LogManager.getLogger(RemoteClusterRepositoryManager.class);
-        private static final String SOURCE = "refreshing " + RemoteClusterRepository.TYPE + " repositories";
+        private static final Logger LOGGER = LogManager.getLogger(CCRRepositoryManager.class);
+        private static final String SOURCE = "refreshing " + CCRRepository.TYPE + " repositories";
 
         private final ClusterService clusterService;
         private final Set<String> clusters = ConcurrentCollections.newConcurrentSet();
         private volatile boolean isMasterNode = false;
 
-        private RemoteClusterRepositoryManager(Settings settings, ClusterService clusterService) {
+        private CCRRepositoryManager(Settings settings, ClusterService clusterService) {
             super(settings);
             this.clusterService = clusterService;
             clusters.addAll(buildRemoteClustersDynamicConfig(settings).keySet());
@@ -320,8 +318,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                     refreshCCRRepositories();
                 }
             } else {
-                boolean added = clusters.add(clusterAlias);
-                if (added && isMasterNode) {
+                if (clusters.add(clusterAlias) && isMasterNode) {
                     refreshCCRRepositories();
                 }
             }
@@ -354,8 +351,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                     if (repositories == null) {
                         List<RepositoryMetaData> repositoriesMetaData = new ArrayList<>(clusters.size());
                         for (String cluster : clusters) {
-                            logger.info("put repository [{}]", cluster);
-                            repositoriesMetaData.add(new RepositoryMetaData(cluster, RemoteClusterRepository.TYPE, Settings.EMPTY));
+                            LOGGER.info("put [{}] repository [{}]", CCRRepository.TYPE, cluster);
+                            repositoriesMetaData.add(new RepositoryMetaData(cluster, CCRRepository.TYPE, Settings.EMPTY));
                         }
                         repositories = new RepositoriesMetaData(repositoriesMetaData);
                     } else {
@@ -364,21 +361,25 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                         Set<String> needToAdd = new HashSet<>(clusters);
 
                         for (RepositoryMetaData repositoryMetaData : repositories.repositories()) {
-                            if (RemoteClusterRepository.TYPE.equals(repositoryMetaData.type())) {
-                                String name = repositoryMetaData.name();
-                                if (clusters.remove(name)) {
-                                    repositoriesMetaData.add(new RepositoryMetaData(name, RemoteClusterRepository.TYPE, Settings.EMPTY));
+                            String name = repositoryMetaData.name();
+                            if (CCRRepository.TYPE.equals(repositoryMetaData.type())) {
+                                if (needToAdd.remove(name)) {
+                                    repositoriesMetaData.add(new RepositoryMetaData(name, CCRRepository.TYPE, Settings.EMPTY));
                                 } else {
-                                    logger.info("delete [{}] repository [{}]", RemoteClusterRepository.TYPE, name);
+                                    LOGGER.info("delete [{}] repository [{}]", CCRRepository.TYPE, name);
                                 }
-                                needToAdd.remove(name);
                             } else {
+                                if (needToAdd.remove(name)) {
+                                    throw new IllegalStateException("Repository name conflict. Cannot put [" +
+                                        CCRRepository.TYPE + "] repository [" + name + "]. A [" +
+                                        repositoryMetaData.type() + "] repository with the same name is already registered.");
+                                }
                                 repositoriesMetaData.add(repositoryMetaData);
                             }
                         }
                         for (String cluster : needToAdd) {
-                            logger.info("put [{}] repository [{}]", RemoteClusterRepository.TYPE, cluster);
-                            repositoriesMetaData.add(new RepositoryMetaData(cluster, RemoteClusterRepository.TYPE, Settings.EMPTY));
+                            LOGGER.info("put [{}] repository [{}]", CCRRepository.TYPE, cluster);
+                            repositoriesMetaData.add(new RepositoryMetaData(cluster, CCRRepository.TYPE, Settings.EMPTY));
                         }
                         repositories = new RepositoriesMetaData(repositoriesMetaData);
                     }
@@ -390,7 +391,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    logger.warn(new ParameterizedMessage("failed to refresh [{}] repositories", RemoteClusterRepository.TYPE), e);
+                    LOGGER.warn(new ParameterizedMessage("failed to refresh [{}] repositories", CCRRepository.TYPE), e);
                 }
             });
         }

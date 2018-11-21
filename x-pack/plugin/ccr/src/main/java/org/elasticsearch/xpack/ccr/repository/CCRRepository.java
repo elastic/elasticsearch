@@ -23,13 +23,13 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import java.io.IOException;
 import java.util.List;
 
-public class RemoteClusterRepository extends AbstractLifecycleComponent implements Repository {
+public class CCRRepository extends AbstractLifecycleComponent implements Repository {
 
     public static final String TYPE = "_ccr_";
 
     private final RepositoryMetaData metadata;
 
-    public RemoteClusterRepository(RepositoryMetaData metadata, Settings settings) {
+    public CCRRepository(RepositoryMetaData metadata, Settings settings) {
         super(settings);
         this.metadata = metadata;
     }
@@ -111,9 +111,6 @@ public class RemoteClusterRepository extends AbstractLifecycleComponent implemen
 
     @Override
     public void verify(String verificationToken, DiscoveryNode localNode) {
-        // TODO: Consider adding verification that the remote cluster can be accessed. This will be tricky as
-        // TODO: there might be a race between the installation of the repository and opening the remote
-        // TODO: cluster connection.
     }
 
     @Override

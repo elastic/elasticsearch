@@ -31,7 +31,7 @@ import java.io.IOException;
 public class ResumeFollowRequestTests extends AbstractXContentTestCase<ResumeFollowRequest> {
 
     private static final ConstructingObjectParser<ResumeFollowRequest, Void> PARSER = new ConstructingObjectParser<>("test_parser",
-        (args) -> new ResumeFollowRequest((String) args[0]));
+        true, (args) -> new ResumeFollowRequest((String) args[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.FOLLOWER_INDEX_FIELD);
@@ -74,7 +74,7 @@ public class ResumeFollowRequestTests extends AbstractXContentTestCase<ResumeFol
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 
     @Override

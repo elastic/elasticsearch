@@ -6,6 +6,8 @@
 <titleabbrev>Stop {ILM}</titleabbrev>
 ++++
 
+beta[]
+
 Stop the {ILM} plugin.
 
 ==== Request

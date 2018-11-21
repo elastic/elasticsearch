@@ -16,36 +16,38 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.rollup;
+package org.elasticsearch.client.ml;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
 
-public class DeleteRollupJobResponseTests extends AbstractXContentTestCase<DeleteRollupJobResponse> {
 
-    private boolean acknowledged;
+public class UpdateModelSnapshotRequestTests extends AbstractXContentTestCase<UpdateModelSnapshotRequest> {
 
-    @Before
-    public void setupJobID() {
-        acknowledged = randomBoolean();
+    @Override
+    protected UpdateModelSnapshotRequest createTestInstance() {
+        String jobId = randomAlphaOfLengthBetween(1, 20);
+        String snapshotId = randomAlphaOfLengthBetween(1, 20);
+        UpdateModelSnapshotRequest request = new UpdateModelSnapshotRequest(jobId, snapshotId);
+        if (randomBoolean()) {
+            request.setDescription(String.valueOf(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
+            request.setRetain(randomBoolean());
+        }
+
+        return request;
     }
 
     @Override
-    protected DeleteRollupJobResponse createTestInstance() {
-        return new DeleteRollupJobResponse(acknowledged);
-    }
-
-    @Override
-    protected  DeleteRollupJobResponse doParseInstance(XContentParser parser) throws IOException {
-        return DeleteRollupJobResponse.fromXContent(parser);
+    protected UpdateModelSnapshotRequest doParseInstance(XContentParser parser) throws IOException {
+        return UpdateModelSnapshotRequest.PARSER.apply(parser, null);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
         return false;
     }
-
 }

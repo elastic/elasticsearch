@@ -16,24 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.rollup;
+package org.elasticsearch.client.ml;
 
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
+public class DeleteFilterRequestTests extends ESTestCase {
 
-public class PutRollupJobResponse extends AcknowledgedResponse {
-
-    public PutRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
+    public void test_WithNullFilter() {
+        NullPointerException ex = expectThrows(NullPointerException.class, () -> new DeleteFilterRequest(null));
+        assertEquals("[filter_id] is required", ex.getMessage());
     }
 
-    private static final ConstructingObjectParser<PutRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("delete_rollup_job_response", PutRollupJobResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
-
-    public static PutRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public void test_instance() {
+        String filterId = randomAlphaOfLengthBetween(2, 10);
+        DeleteFilterRequest deleteFilterRequest = new DeleteFilterRequest(filterId);
+        assertEquals(deleteFilterRequest.getId(), filterId);
     }
 }

@@ -90,6 +90,8 @@ import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
+import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -2050,6 +2052,82 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
+
+    public void testRevertModelSnapshot() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-revert-model-snapshot";
+        String snapshotId = "1541587919";
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a snapshot
+        String documentId = jobId + "_model_snapshot_" + snapshotId;
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc", documentId);
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"test-revert-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false, " +
+            "\"quantiles\":{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, " +
+            "\"quantile_state\":\"state\"}}", XContentType.JSON);
+        client.index(indexRequest, RequestOptions.DEFAULT);
+
+        {
+            // tag::revert-model-snapshot-request
+            RevertModelSnapshotRequest request = new RevertModelSnapshotRequest(jobId, snapshotId); // <1>
+            // end::revert-model-snapshot-request
+
+            // tag::revert-model-snapshot-delete-intervening-results
+            request.setDeleteInterveningResults(true); // <1>
+            // end::revert-model-snapshot-delete-intervening-results
+
+            // tag::revert-model-snapshot-execute
+            RevertModelSnapshotResponse response = client.machineLearning().revertModelSnapshot(request, RequestOptions.DEFAULT);
+            // end::revert-model-snapshot-execute
+
+            // tag::revert-model-snapshot-response
+            ModelSnapshot modelSnapshot = response.getModel(); // <1>
+            // end::revert-model-snapshot-response
+
+            assertEquals(snapshotId, modelSnapshot.getSnapshotId());
+            assertEquals("State persisted due to job close at 2018-11-07T10:51:59+0000", modelSnapshot.getDescription());
+            assertEquals(51722, modelSnapshot.getModelSizeStats().getModelBytes());
+        }
+        {
+            RevertModelSnapshotRequest request = new RevertModelSnapshotRequest(jobId, snapshotId);
+
+            // tag::revert-model-snapshot-execute-listener
+            ActionListener<RevertModelSnapshotResponse> listener =
+                new ActionListener<RevertModelSnapshotResponse>() {
+                    @Override
+                    public void onResponse(RevertModelSnapshotResponse revertModelSnapshotResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::revert-model-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::revert-model-snapshot-execute-async
+            client.machineLearning().revertModelSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::revert-model-snapshot-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
 
     public void testUpdateModelSnapshot() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();

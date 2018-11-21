@@ -273,10 +273,11 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-delete-calendar>>
 * <<{upid}-put-filter>>
 * <<{upid}-get-filters>>
-* <<{upid}-delete-model-snapshot>>
 * <<{upid}-update-filter>>
 * <<{upid}-delete-filter>>
 * <<{upid}-get-model-snapshots>>
+* <<{upid}-delete-model-snapshot>>
+* <<{upid}-revert-model-snapshot>>
 * <<{upid}-update-model-snapshot>>
 
 include::ml/put-job.asciidoc[]
@@ -311,11 +312,12 @@ include::ml/put-calendar-job.asciidoc[]
 include::ml/delete-calendar-job.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
 include::ml/put-filter.asciidoc[]
-include::ml/get-model-snapshots.asciidoc[]
 include::ml/get-filters.asciidoc[]
-include::ml/delete-model-snapshot.asciidoc[]
 include::ml/update-filter.asciidoc[]
 include::ml/delete-filter.asciidoc[]
+include::ml/get-model-snapshots.asciidoc[]
+include::ml/delete-model-snapshot.asciidoc[]
+include::ml/revert-model-snapshot.asciidoc[]
 include::ml/update-model-snapshot.asciidoc[]
 
 == Migration APIs

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.time.ZonedDateTime;
 import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor.quarter;
@@ -26,8 +27,8 @@ public class Quarter extends BaseDateTimeFunction {
     }
 
     @Override
-    protected Object doFold(long millis, String tzId) {
-        return quarter(millis, tzId);
+    protected Object doFold(ZonedDateTime dateTime) {
+        return quarter(dateTime);
     }
 
     @Override

@@ -29,11 +29,13 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -87,7 +89,26 @@ public class LagDetector {
     }
 
     public void startLagDetector(final long version) {
-        appliedStateTrackersByNode.values().forEach(nodeAppliedStateTracker -> nodeAppliedStateTracker.startLagDetector(version));
+        final List<NodeAppliedStateTracker> laggingTrackers
+            = appliedStateTrackersByNode.values().stream().filter(t -> t.appliedVersionLessThan(version)).collect(Collectors.toList());
+
+        if (laggingTrackers.isEmpty()) {
+            logger.trace("lag detection for version {} is unnecessary:", version, appliedStateTrackersByNode.values());
+        } else {
+            logger.trace("starting lag detector for version {}: {}", version, laggingTrackers);
+
+            threadPool.scheduleUnlessShuttingDown(clusterStateApplicationTimeout, Names.GENERIC, new Runnable() {
+                @Override
+                public void run() {
+                    laggingTrackers.forEach(t -> t.detectLag(version));
+                }
+
+                @Override
+                public String toString() {
+                    return "lag detector for version " + version + " on " + laggingTrackers;
+                }
+            });
+        }
     }
 
     @Override
@@ -116,6 +137,10 @@ public class LagDetector {
             logger.trace("{} applied version {}, max now {}", this, appliedVersion, maxAppliedVersion);
         }
 
+        boolean appliedVersionLessThan(final long version) {
+            return appliedVersion.get() < version;
+        }
+
         @Override
         public String toString() {
             return "NodeAppliedStateTracker{" +
@@ -124,38 +149,20 @@ public class LagDetector {
                 '}';
         }
 
-        void startLagDetector(final long version) {
-            final long appliedVersionWhenStarted = appliedVersion.get();
-            if (version <= appliedVersionWhenStarted) {
-                logger.trace("lag detection for {} for version {} unnecessary, node has already applied version {}",
-                    discoveryNode, version, appliedVersionWhenStarted);
+        private void detectLag(final long version) {
+            if (appliedStateTrackersByNode.get(discoveryNode) != NodeAppliedStateTracker.this) {
+                logger.trace("{}, no longer active", this);
                 return;
             }
 
-            threadPool.scheduleUnlessShuttingDown(clusterStateApplicationTimeout, Names.GENERIC, new Runnable() {
-                @Override
-                public void run() {
-                    if (appliedStateTrackersByNode.get(discoveryNode) != NodeAppliedStateTracker.this) {
-                        logger.trace("{}, no longer active", this);
-                        return;
-                    }
+            long appliedVersion = NodeAppliedStateTracker.this.appliedVersion.get();
+            if (version <= appliedVersion) {
+                logger.trace("{}, satisfied, node applied version {}", this, appliedVersion);
+                return;
+            }
 
-                    long appliedVersion = NodeAppliedStateTracker.this.appliedVersion.get();
-                    if (version <= appliedVersion) {
-                        logger.trace("{}, satisfied, node applied version {}", this, appliedVersion);
-                        return;
-                    }
-
-                    logger.debug("{}, detected lag, node has only applied version {}", this, appliedVersion);
-                    onLagDetected.accept(discoveryNode);
-                }
-
-                @Override
-                public String toString() {
-                    return "lag detection for " + discoveryNode + " started at version " + appliedVersionWhenStarted
-                        + ", expected version " + version;
-                }
-            });
+            logger.debug("{}, detected lag, node has only applied version {}", this, appliedVersion);
+            onLagDetected.accept(discoveryNode);
         }
     }
 }

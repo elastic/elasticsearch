@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -93,10 +94,11 @@ public abstract class Exporter implements AutoCloseable {
     }
 
     /**
-     * Opens up a new export bulk. May return {@code null} indicating this exporter is not ready
-     * yet to export the docs
+     * Opens up a new export bulk.
+     *
+     * @param listener Returns {@code null} to indicate that this exporter is not ready to export the docs.
      */
-    public abstract ExportBulk openBulk();
+    public abstract void openBulk(ActionListener<ExportBulk> listener);
 
     protected final boolean isClosed() {
         return closed.get();

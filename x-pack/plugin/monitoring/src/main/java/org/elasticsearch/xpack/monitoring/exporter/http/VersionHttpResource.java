@@ -10,8 +10,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -50,22 +52,33 @@ public class VersionHttpResource extends HttpResource {
      * If it does not, then there is nothing that can be done except wait until it does. There is no publishing aspect to this operation.
      */
     @Override
-    protected boolean doCheckAndPublish(final RestClient client) {
+    protected void doCheckAndPublish(final RestClient client, final ActionListener<Boolean> listener) {
         logger.trace("checking [{}] to ensure that it supports the minimum version [{}]", resourceOwnerName, minimumVersion);
 
-        try {
-            Request request = new Request("GET", "/");
-            request.addParameter("filter_path", "version.number");
-            return validateVersion(client.performRequest(request));
-        } catch (IOException | RuntimeException e) {
-            logger.error(
-                    (Supplier<?>)() ->
-                        new ParameterizedMessage("failed to verify minimum version [{}] on the [{}] monitoring cluster",
-                                                 minimumVersion, resourceOwnerName),
-                    e);
-        }
+        final Request request = new Request("GET", "/");
+        request.addParameter("filter_path", "version.number");
 
-        return false;
+        client.performRequestAsync(request, new ResponseListener() {
+            @Override
+            public void onSuccess(final Response response) {
+                try {
+                    // malformed responses can cause exceptions during validation
+                    listener.onResponse(validateVersion(response));
+                } catch (IOException | RuntimeException e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(final Exception exception) {
+                logger.error((Supplier<?>) () ->
+                             new ParameterizedMessage("failed to verify minimum version [{}] on the [{}] monitoring cluster",
+                                                      minimumVersion, resourceOwnerName),
+                             exception);
+
+                listener.onFailure(exception);
+            }
+        });
     }
 
     /**

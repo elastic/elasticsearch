@@ -23,6 +23,10 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * This repository relies on a remote cluster for Ccr restores. It is read-only so it can only be used to 
+ * restore shards/indexes that exist on the remote cluster.
+ */
 public class CcrRepository extends AbstractLifecycleComponent implements Repository {
 
     public static final String TYPE = "_ccr_";

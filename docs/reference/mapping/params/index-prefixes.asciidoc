@@ -28,7 +28,7 @@ PUT my_index
       "properties": {
         "body_text": {
           "type":  "text",
-          "index_prefixes" : { }    (1)
+          "index_prefixes" : { }    <1>
         }
       }
     }
@@ -37,7 +37,7 @@ PUT my_index
 --------------------------------
 // CONSOLE
 
-[1] An empty settings object will use the default `min_chars` and `max_chars`
+<1> An empty settings object will use the default `min_chars` and `max_chars`
 settings
 
 This example uses custom prefix length settings:

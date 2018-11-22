@@ -201,8 +201,10 @@ public class PublicationTransportHandler {
                         }
                     });
                 } else if (sendFullVersion || !previousState.nodes().nodeExists(destination)) {
+                    logger.trace("sending full cluster state version {} to {}", newState.version(), destination);
                     PublicationTransportHandler.this.sendFullClusterState(newState, serializedStates, destination, responseActionListener);
                 } else {
+                    logger.trace("sending cluster state diff for version {} to {}", newState.version(), destination);
                     PublicationTransportHandler.this.sendClusterStateDiff(newState, serializedDiffs, serializedStates, destination,
                         responseActionListener);
                 }
@@ -381,7 +383,6 @@ public class PublicationTransportHandler {
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
         final Compressor compressor = CompressorFactory.compressor(request.bytes());
         StreamInput in = request.bytes().streamInput();
-        final ClusterState incomingState;
         try {
             if (compressor != null) {
                 in = compressor.streamInput(in);
@@ -390,11 +391,13 @@ public class PublicationTransportHandler {
             in.setVersion(request.version());
             // If true we received full cluster state - otherwise diffs
             if (in.readBoolean()) {
-                incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
+                final ClusterState incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
                 fullClusterStateReceivedCount.incrementAndGet();
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(),
                     request.bytes().length());
+                final PublishWithJoinResponse response = handlePublishRequest.apply(new PublishRequest(incomingState));
                 lastSeenClusterState.set(incomingState);
+                return response;
             } else {
                 final ClusterState lastSeen = lastSeenClusterState.get();
                 if (lastSeen == null) {
@@ -402,11 +405,13 @@ public class PublicationTransportHandler {
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 } else {
                     Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeen.nodes().getLocalNode());
-                    incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
+                    final ClusterState incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
                     compatibleClusterStateDiffReceivedCount.incrementAndGet();
                     logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
                         incomingState.version(), incomingState.stateUUID(), request.bytes().length());
+                    final PublishWithJoinResponse response = handlePublishRequest.apply(new PublishRequest(incomingState));
                     lastSeenClusterState.compareAndSet(lastSeen, incomingState);
+                    return response;
                 }
             }
         } catch (IncompatibleClusterStateVersionException e) {
@@ -418,7 +423,5 @@ public class PublicationTransportHandler {
         } finally {
             IOUtils.close(in);
         }
-
-        return handlePublishRequest.apply(new PublishRequest(incomingState));
     }
 }

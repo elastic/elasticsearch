@@ -3,7 +3,7 @@
 [[ccr-get-stats]]
 === Get Cross-Cluster Replication Stats API
 ++++
-<titleabbrev>Get Follower Stats</titleabbrev>
+<titleabbrev>Get CCR Stats</titleabbrev>
 ++++
 
 beta[]
@@ -79,6 +79,12 @@ This object consists of the following fields:
   (object) an object representing shard-level stats for follower indices; refer
   to the details of the response in the
   <<ccr-get-follow-stats,get follower stats API>>
+
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have `monitor` cluster
+privileges on the cluster that contains the follower index. For more information,
+see {stack-ov}/security-privileges.html[Security privileges].
 
 ==== Example
 

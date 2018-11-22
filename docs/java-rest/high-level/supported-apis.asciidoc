@@ -266,14 +266,19 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-get-categories>>
 * <<{upid}-get-calendars>>
 * <<{upid}-put-calendar>>
+* <<{upid}-get-calendar-events>>
+* <<{upid}-post-calendar-event>>
+* <<{upid}-delete-calendar-event>>
 * <<{upid}-put-calendar-job>>
+* <<{upid}-delete-calendar-job>>
 * <<{upid}-delete-calendar>>
 * <<{upid}-put-filter>>
 * <<{upid}-get-filters>>
-* <<{upid}-delete-model-snapshot>>
 * <<{upid}-update-filter>>
 * <<{upid}-delete-filter>>
 * <<{upid}-get-model-snapshots>>
+* <<{upid}-delete-model-snapshot>>
+* <<{upid}-revert-model-snapshot>>
 * <<{upid}-update-model-snapshot>>
 
 include::ml/put-job.asciidoc[]
@@ -302,14 +307,19 @@ include::ml/get-influencers.asciidoc[]
 include::ml/get-categories.asciidoc[]
 include::ml/get-calendars.asciidoc[]
 include::ml/put-calendar.asciidoc[]
+include::ml/get-calendar-events.asciidoc[]
+include::ml/post-calendar-event.asciidoc[]
+include::ml/delete-calendar-event.asciidoc[]
 include::ml/put-calendar-job.asciidoc[]
+include::ml/delete-calendar-job.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
 include::ml/put-filter.asciidoc[]
-include::ml/get-model-snapshots.asciidoc[]
 include::ml/get-filters.asciidoc[]
-include::ml/delete-model-snapshot.asciidoc[]
 include::ml/update-filter.asciidoc[]
 include::ml/delete-filter.asciidoc[]
+include::ml/get-model-snapshots.asciidoc[]
+include::ml/delete-model-snapshot.asciidoc[]
+include::ml/revert-model-snapshot.asciidoc[]
 include::ml/update-model-snapshot.asciidoc[]
 
 == Migration APIs
@@ -367,6 +377,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-delete-role-mapping>>
 * <<java-rest-high-security-create-token>>
 * <<{upid}-invalidate-token>>
+* <<{upid}-get-privileges>>
 * <<{upid}-delete-privileges>>
 
 include::security/put-user.asciidoc[]
@@ -375,6 +386,7 @@ include::security/disable-user.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/delete-role.asciidoc[]
 include::security/delete-privileges.asciidoc[]
+include::security/get-privileges.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/clear-realm-cache.asciidoc[]
 include::security/authenticate.asciidoc[]
@@ -440,9 +452,13 @@ The Java High Level REST Client supports the following CCR APIs:
 
 * <<{upid}-ccr-put-follow>>
 * <<{upid}-ccr-pause-follow>>
+* <<{upid}-ccr-resume-follow>>
+* <<{upid}-ccr-unfollow>>
 
 include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]
+include::ccr/resume_follow.asciidoc[]
+include::ccr/unfollow.asciidoc[]
 
 == Index Lifecycle Management APIs
 
@@ -453,14 +469,18 @@ The Java High Level REST Client supports the following Index Lifecycle
 Management APIs:
 
 * <<{upid}-ilm-put-lifecycle-policy>>
+* <<{upid}-ilm-delete-lifecycle-policy>>
 * <<{upid}-ilm-get-lifecycle-policy>>
 * <<{upid}-ilm-start-ilm>>
 * <<{upid}-ilm-stop-ilm>>
 * <<{upid}-ilm-status>>
+* <<{upid}-ilm-retry-lifecycle-policy>>
 
 
 include::ilm/put_lifecycle_policy.asciidoc[]
+include::ilm/delete_lifecycle_policy.asciidoc[]
 include::ilm/get_lifecycle_policy.asciidoc[]
 include::ilm/start_lifecycle_management.asciidoc[]
 include::ilm/stop_lifecycle_management.asciidoc[]
 include::ilm/lifecycle_management_status.asciidoc[]
+include::ilm/retry_lifecycle_policy.asciidoc[]

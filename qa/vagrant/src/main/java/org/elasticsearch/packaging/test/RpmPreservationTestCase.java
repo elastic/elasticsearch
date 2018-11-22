@@ -130,7 +130,11 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
         Stream.of(
             "elasticsearch.yml",
             "jvm.options",
-            "log4j2.properties"
+            "log4j2.properties",
+            "role_mapping.yml",
+            "roles.yml",
+            "users",
+            "users_roles"
         ).forEach(configFile -> {
             final Path original = installation.config(configFile);
             final Path saved = installation.config(configFile + ".rpmsave");

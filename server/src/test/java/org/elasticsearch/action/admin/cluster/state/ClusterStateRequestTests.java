@@ -46,7 +46,7 @@ public class ClusterStateRequestTests extends ESTestCase {
             // TODO: change version to V_6_6_0 after backporting:
             if (testVersion.onOrAfter(Version.V_7_0_0)) {
                 if (randomBoolean()) {
-                    clusterStateRequest.waitForMetaDataVersion(randomNonNegativeLong());
+                    clusterStateRequest.waitForMetaDataVersion(randomLongBetween(1, Long.MAX_VALUE));
                 }
                 if (randomBoolean()) {
                     clusterStateRequest.waitForTimeout(new TimeValue(randomNonNegativeLong()));
@@ -67,11 +67,19 @@ public class ClusterStateRequestTests extends ESTestCase {
             assertThat(deserializedCSRequest.blocks(), equalTo(clusterStateRequest.blocks()));
             assertThat(deserializedCSRequest.indices(), equalTo(clusterStateRequest.indices()));
             assertOptionsMatch(deserializedCSRequest.indicesOptions(), clusterStateRequest.indicesOptions());
+            // TODO: change version to V_6_6_0 after backporting:
             if (testVersion.onOrAfter(Version.V_7_0_0)) {
                 assertThat(deserializedCSRequest.waitForMetaDataVersion(), equalTo(clusterStateRequest.waitForMetaDataVersion()));
                 assertThat(deserializedCSRequest.waitForTimeout(), equalTo(clusterStateRequest.waitForTimeout()));
             }
         }
+    }
+
+    public void testWaitForMetaDataVersion() {
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        expectThrows(IllegalArgumentException.class,
+            () -> clusterStateRequest.waitForMetaDataVersion(randomLongBetween(Long.MIN_VALUE, 0)));
+        clusterStateRequest.waitForMetaDataVersion(randomLongBetween(1, Long.MAX_VALUE));
     }
 
     private static void assertOptionsMatch(IndicesOptions in, IndicesOptions out) {

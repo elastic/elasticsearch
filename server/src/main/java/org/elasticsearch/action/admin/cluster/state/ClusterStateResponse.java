@@ -91,6 +91,7 @@ public class ClusterStateResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         clusterName = new ClusterName(in);
+        // TODO: change version to V_6_6_0 after backporting:
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
         } else {
@@ -115,6 +116,7 @@ public class ClusterStateResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         clusterName.writeTo(out);
+        // TODO: change version to V_6_6_0 after backporting:
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeOptionalWriteable(clusterState);
         } else {

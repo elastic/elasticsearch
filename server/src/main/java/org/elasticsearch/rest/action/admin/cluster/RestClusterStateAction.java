@@ -98,7 +98,9 @@ public class RestClusterStateAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                builder.field(Fields.TIMED_OUT, response.isWaitForTimedOut());
+                if (clusterStateRequest.waitForMetaDataVersion() != null) {
+                    builder.field(Fields.WAIT_FOR_TIMED_OUT, response.isWaitForTimedOut());
+                }
                 builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
                 builder.humanReadableField(Fields.CLUSTER_STATE_SIZE_IN_BYTES, Fields.CLUSTER_STATE_SIZE,
                         response.getTotalCompressedSize());
@@ -129,7 +131,7 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     static final class Fields {
-        static final String TIMED_OUT = "timed_out";
+        static final String WAIT_FOR_TIMED_OUT = "wait_for_timed_out";
         static final String CLUSTER_NAME = "cluster_name";
         static final String CLUSTER_STATE_SIZE = "compressed_size";
         static final String CLUSTER_STATE_SIZE_IN_BYTES = "compressed_size_in_bytes";

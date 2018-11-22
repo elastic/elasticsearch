@@ -6,15 +6,12 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-class MlInitializationService extends AbstractComponent implements ClusterStateListener {
+class MlInitializationService implements LocalNodeMasterListener {
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -26,21 +23,21 @@ class MlInitializationService extends AbstractComponent implements ClusterStateL
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
-        clusterService.addListener(this);
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // Wait until the gateway has recovered from disk.
-            return;
-        }
+    public void onMaster() {
+        installDailyMaintenanceService();
+    }
 
-        if (event.localNodeMaster()) {
-            installDailyMaintenanceService();
-        } else {
-            uninstallDailyMaintenanceService();
-        }
+    @Override
+    public void offMaster() {
+        uninstallDailyMaintenanceService();
+    }
+
+    @Override
+    public String executorName() {
+        return ThreadPool.Names.GENERIC;
     }
 
     private void installDailyMaintenanceService() {

@@ -443,7 +443,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 jobDataCountsPersister,
                 datafeedManager,
                 auditor,
-                new MlAssignmentNotifier(auditor, clusterService),
+                new MlAssignmentNotifier(auditor, threadPool, client, clusterService),
                 memoryTracker
         );
     }

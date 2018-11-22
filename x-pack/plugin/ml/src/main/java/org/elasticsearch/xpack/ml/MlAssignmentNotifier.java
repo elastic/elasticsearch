@@ -7,7 +7,10 @@ package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -29,12 +32,23 @@ public class MlAssignmentNotifier implements ClusterStateListener, LocalNodeMast
 
     private final Auditor auditor;
     private final ClusterService clusterService;
-
+    private final MlConfigMigrator mlConfigMigrator;
+    private final ThreadPool threadPool;
     private final AtomicBoolean enabled = new AtomicBoolean(false);
 
-    MlAssignmentNotifier(Auditor auditor, ClusterService clusterService) {
+    MlAssignmentNotifier(Auditor auditor, ThreadPool threadPool, Client client, ClusterService clusterService) {
         this.auditor = auditor;
         this.clusterService = clusterService;
+        this.mlConfigMigrator = new MlConfigMigrator(client, clusterService);
+        this.threadPool = threadPool;
+        clusterService.addLocalNodeMasterListener(this);
+    }
+
+    MlAssignmentNotifier(Auditor auditor, ThreadPool threadPool, MlConfigMigrator mlConfigMigrator, ClusterService clusterService) {
+        this.auditor = auditor;
+        this.clusterService = clusterService;
+        this.mlConfigMigrator = mlConfigMigrator;
+        this.threadPool = threadPool;
         clusterService.addLocalNodeMasterListener(this);
     }
 
@@ -71,6 +85,15 @@ public class MlAssignmentNotifier implements ClusterStateListener, LocalNodeMast
             return;
         }
 
+        mlConfigMigrator.migrateConfigsWithoutTasks(event.state(), ActionListener.wrap(
+                response -> threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(current, previous, event.state())),
+                e -> logger.error("error migrating ml configurations", e)
+        ));
+    }
+
+    private void auditChangesToMlTasks(PersistentTasksCustomMetaData current, PersistentTasksCustomMetaData previous,
+                                       ClusterState state) {
+
         for (PersistentTask<?> currentTask : current.tasks()) {
             Assignment currentAssignment = currentTask.getAssignment();
             PersistentTask<?> previousTask = previous != null ? previous.getTask(currentTask.getId()) : null;
@@ -83,7 +106,7 @@ public class MlAssignmentNotifier implements ClusterStateListener, LocalNodeMast
                 if (currentAssignment.getExecutorNode() == null) {
                     auditor.warning(jobId, "No node found to open job. Reasons [" + currentAssignment.getExplanation() + "]");
                 } else {
-                    DiscoveryNode node = event.state().nodes().get(currentAssignment.getExecutorNode());
+                    DiscoveryNode node = state.nodes().get(currentAssignment.getExecutorNode());
                     auditor.info(jobId, "Opening job on node [" + node.toString() + "]");
                 }
             } else if (MlTasks.DATAFEED_TASK_NAME.equals(currentTask.getTaskName())) {
@@ -97,7 +120,7 @@ public class MlAssignmentNotifier implements ClusterStateListener, LocalNodeMast
                         auditor.warning(jobId, msg);
                     }
                 } else {
-                    DiscoveryNode node = event.state().nodes().get(currentAssignment.getExecutorNode());
+                    DiscoveryNode node = state.nodes().get(currentAssignment.getExecutorNode());
                     if (jobId != null) {
                         auditor.info(jobId, "Starting datafeed [" + datafeedParams.getDatafeedId() + "] on node [" + node + "]");
                     }

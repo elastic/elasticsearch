@@ -1584,8 +1584,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = entry.shards();
                 final ShardSnapshotStatus currentStatus = shards.get(shardId);
                 if (currentStatus != null && currentStatus.state().completed() == false) {
-                    final ShardSnapshotStatus newStatus = Optional
-                        .ofNullable(newRoutingTable.shardRoutingTableOrNull(shardId))
+                    IndexShardRoutingTable routingTable = newRoutingTable.shardRoutingTableOrNull(shardId);
+                    assert routingTable != null;
+                    final ShardSnapshotStatus newStatus = Optional.ofNullable(routingTable)
                         .map(IndexShardRoutingTable::primaryShard)
                         .map(
                             primaryShardRouting -> determineShardSnapshotStatus(currentStatus, primaryShardRouting)
@@ -1659,11 +1660,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     newStatus = currentStatus;
                     break;
             }
-        } else if (currentState == State.INIT || currentStatus.state() == State.ABORTED) {
-            assert primaryShardRouting.relocating();
-            newStatus = failedStatus(currentStatus.nodeId());
         } else {
-            newStatus = currentStatus;
+            assert primaryShardRouting.relocating();
+            if (currentState == State.INIT || currentStatus.state() == State.ABORTED) {
+                newStatus = failedStatus(currentStatus.nodeId());
+            } else {
+                newStatus = currentStatus;
+            }
         }
         return newStatus;
     }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
@@ -46,7 +45,7 @@ import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
-import org.elasticsearch.xpack.sql.tree.Node;
+import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -66,18 +65,10 @@ import java.util.TimeZone;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.SUBSELECT;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
-    /**
-     * Verify a plan.
-     */
-    public static Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = Verifier.verify(plan, null);
-        return failures.stream().collect(toMap(Failure::source, Failure::message));
-    }
-
     /**
      * Valid functions.
      */
@@ -91,15 +82,26 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      * that deal with date and time.
      */
     private final TimeZone timeZone;
+    /**
+     * The verifier has the role of checking the analyzed tree for failures
+     * and build a list of failures. The verifier is being passed as a parameter
+     * and is instantiated in the plan executor so that the SQL specific metrics
+     * can be exposed in the transport action.
+     */
+    private final Verifier verifier;
 
-    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, TimeZone timeZone) {
+    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, TimeZone timeZone, Verifier verifier) {
         this.functionRegistry = functionRegistry;
         this.indexResolution = results;
         this.timeZone = timeZone;
+        this.verifier = verifier;
     }
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
+        // before doing any transformations, look for subselects and count them, because they
+        // will be folded in the next rules
+        // Batch metricsCheck = new Batch("MetricsCheck", new CheckSubselects());
         Batch substitution = new Batch("Substitution",
                 new CTESubstitution());
         Batch resolution = new Batch("Resolution",
@@ -113,38 +115,26 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveAggsInHaving()
                 //new ImplicitCasting()
                 );
-        return Arrays.asList(substitution, resolution);
-    }
-
-    public LogicalPlan analyzeWithMetrics(LogicalPlan plan, Map<String, CounterMetric> featuresMetrics) {
-        return analyze(plan, true, featuresMetrics);
+        return Arrays.asList(/*metricsCheck, */substitution, resolution);
     }
     
     public LogicalPlan analyze(LogicalPlan plan) {
-        return analyze(plan, true, null);
-    }
-
-    public LogicalPlan analyzeWithMetrics(LogicalPlan plan, boolean verify, Map<String, CounterMetric> featuresMetrics) {
-        return analyze(plan, verify, featuresMetrics);
+        return analyze(plan, true);
     }
     
     public LogicalPlan analyze(LogicalPlan plan, boolean verify) {
-        return analyze(plan, verify, null);
-    }
-    
-    private LogicalPlan analyze(LogicalPlan plan, boolean verify, Map<String, CounterMetric> featuresMetrics) {
         if (plan.analyzed()) {
             return plan;
         }
-        return verify ? verify(executeWithMetrics(plan, featuresMetrics), featuresMetrics) : executeWithMetrics(plan, featuresMetrics);
+        return verify ? verify(execute(plan)) : execute(plan);
     }
 
     public ExecutionInfo debugAnalyze(LogicalPlan plan) {
         return plan.analyzed() ? null : executeWithInfo(plan);
     }
 
-    public LogicalPlan verify(LogicalPlan plan, Map<String, CounterMetric> featuresMetrics) {
-        Collection<Failure> failures = Verifier.verify(plan, featuresMetrics);
+    public LogicalPlan verify(LogicalPlan plan) {
+        Collection<Failure> failures = verifier.verify(plan);
         if (!failures.isEmpty()) {
             throw new VerificationException(failures);
         }
@@ -245,6 +235,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         return containsAggregate(singletonList(exp));
     }
 
+    private Metrics metrics() {
+        return verifier.metrics();
+    }
 
     private static class CTESubstitution extends AnalyzeRule<With> {
 
@@ -945,7 +938,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         Aggregate tryResolvingCondition = new Aggregate(agg.location(), agg.child(), agg.groupings(),
                                 singletonList(new Alias(f.location(), ".having", condition)));
 
-                        LogicalPlan conditionResolved = analyze(tryResolvingCondition, false, null);
+                        LogicalPlan conditionResolved = analyze(tryResolvingCondition, false);
 
                         // if it got resolved
                         if (conditionResolved.resolved()) {
@@ -1068,6 +1061,32 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return e;
         }
     }
+    
+    private class CheckSubselects extends MetricsRule<LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            if (metrics() != null) {
+                plan.forEachDown(p -> {
+                    if (p instanceof SubQueryAlias) {
+                        metrics().inc(SUBSELECT);
+                    }
+                });
+                plan.forEachExpressionsDown(expr -> {
+                    if (expr instanceof SubQueryExpression) {
+                        metrics().inc(SUBSELECT);
+                    }
+                });
+            }
+            return plan;
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan p) {
+            return p;
+        }
+        
+    }
 
     abstract static class AnalyzeRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 
@@ -1084,5 +1103,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         protected boolean skipResolved() {
             return true;
         }
+    }
+    
+    abstract static class MetricsRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
+        @Override
+        public abstract LogicalPlan apply(LogicalPlan plan);
+
+        @Override
+        protected abstract LogicalPlan rule(LogicalPlan p);
     }
 }

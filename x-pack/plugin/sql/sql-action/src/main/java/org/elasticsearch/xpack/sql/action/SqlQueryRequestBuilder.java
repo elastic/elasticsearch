@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.util.Collections;
@@ -24,13 +25,13 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action) {
         this(client, action, "", Collections.emptyList(), null, Protocol.TIME_ZONE, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, "", Mode.PLAIN);
+            Protocol.PAGE_TIMEOUT, "", new RequestInfo(Mode.PLAIN));
     }
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action, String query, List<SqlTypedParamValue> params,
                                   QueryBuilder filter, TimeZone timeZone, int fetchSize, TimeValue requestTimeout,
-                                  TimeValue pageTimeout, String nextPageInfo, Mode mode) {
-        super(client, action, new SqlQueryRequest(mode, null, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout,
+                                  TimeValue pageTimeout, String nextPageInfo, RequestInfo reqParams) {
+        super(client, action, new SqlQueryRequest(reqParams, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout,
                 nextPageInfo));
     }
 

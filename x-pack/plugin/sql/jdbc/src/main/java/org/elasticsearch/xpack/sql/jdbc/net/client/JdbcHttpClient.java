@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.sql.SQLException;
@@ -49,7 +50,7 @@ public class JdbcHttpClient {
 
     public Cursor query(String sql, List<SqlTypedParamValue> params, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
-                SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.JDBC, null, sql, params, null,
+                SqlQueryRequest sqlRequest = new SqlQueryRequest(new RequestInfo(Mode.JDBC), sql, params, null,
                 Protocol.TIME_ZONE,
                 fetch, TimeValue.timeValueMillis(meta.timeoutInMs()), TimeValue.timeValueMillis(meta.queryTimeoutInMs()));
         SqlQueryResponse response = httpClient.query(sqlRequest);
@@ -61,8 +62,8 @@ public class JdbcHttpClient {
      * the scroll id to use to fetch the next page.
      */
     public Tuple<String, List<List<Object>>> nextPage(String cursor, RequestMeta meta) throws SQLException {
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.JDBC, null, cursor, TimeValue.timeValueMillis(meta.timeoutInMs()),
-            TimeValue.timeValueMillis(meta.queryTimeoutInMs()));
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(new RequestInfo(Mode.JDBC), cursor,
+                TimeValue.timeValueMillis(meta.timeoutInMs()), TimeValue.timeValueMillis(meta.queryTimeoutInMs()));
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new Tuple<>(response.cursor(), response.rows());
     }

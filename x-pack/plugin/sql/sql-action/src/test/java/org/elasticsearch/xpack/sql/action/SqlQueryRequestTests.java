@@ -15,7 +15,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.RestClient;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.junit.Before;
@@ -28,16 +28,18 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CANVAS;
 
 public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRequest> {
 
-    public Mode testMode;
-    public RestClient restClient;
+    public RequestInfo reqParams;
+    public String clientId;
 
     @Before
     public void setup() {
-        testMode = randomFrom(Mode.values());
-        restClient = randomFrom(RestClient.values());
+        clientId = randomFrom(CLI, CANVAS, randomAlphaOfLengthBetween(10, 20));
+        reqParams = new RequestInfo(randomFrom(Mode.values()), clientId);
     }
 
     @Override
@@ -54,10 +56,14 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
 
     @Override
     protected SqlQueryRequest createTestInstance() {
-        return new SqlQueryRequest(testMode, restClient, randomAlphaOfLength(10), randomParameters(),
+        return new SqlQueryRequest(reqParams, randomAlphaOfLength(10), randomParameters(),
                 SqlTestUtils.randomFilterOrNull(random()), randomTimeZone(),
                 between(1, Integer.MAX_VALUE), randomTV(), randomTV(), randomAlphaOfLength(10)
         );
+    }
+    
+    private RequestInfo randomReqParams() {
+        return new RequestInfo(randomFrom(Mode.values()), randomFrom(CLI, CANVAS, clientId));
     }
 
     public List<SqlTypedParamValue> randomParameters() {
@@ -91,15 +97,14 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
 
     @Override
     protected SqlQueryRequest doParseInstance(XContentParser parser) {
-        return SqlQueryRequest.fromXContent(parser, testMode, restClient);
+        return SqlQueryRequest.fromXContent(parser, reqParams);
     }
 
     @Override
     protected SqlQueryRequest mutateInstance(SqlQueryRequest instance) {
         @SuppressWarnings("unchecked")
         Consumer<SqlQueryRequest> mutator = randomFrom(
-                request -> request.mode(randomValueOtherThan(request.mode(), () -> randomFrom(Mode.values()))),
-                request -> request.restClient(randomValueOtherThan(request.restClient(), () -> randomFrom(RestClient.values()))),
+                request -> request.reqParams(randomValueOtherThan(request.reqParams(), this::randomReqParams)),
                 request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
                 request -> request.params(randomValueOtherThan(request.params(), this::randomParameters)),
                 request -> request.timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomTimeZone)),
@@ -109,7 +114,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
                         () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random()))),
                 request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor))
         );
-        SqlQueryRequest newRequest = new SqlQueryRequest(instance.mode(), instance.restClient(), instance.query(), instance.params(),
+        SqlQueryRequest newRequest = new SqlQueryRequest(instance.reqParams(), instance.query(), instance.params(),
                 instance.filter(), instance.timeZone(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(),
                 instance.cursor());
         mutator.accept(newRequest);

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
@@ -34,7 +35,7 @@ public class OptimizerRunTests extends ESTestCase {
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"));
+        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"), new Verifier());
         optimizer = new Optimizer();
     }
 

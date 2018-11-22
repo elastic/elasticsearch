@@ -8,16 +8,17 @@ package org.elasticsearch.xpack.sql.stats;
 
 import java.util.Locale;
 
-public enum Metric {
-    JDBC, ODBC, CLI, CANVAS, REST;
-    
-    public static Metric fromString(String metric) {
-        if (metric == null || metric.equalsIgnoreCase("plain")) {
-            return REST;
-        }
-        return Metric.valueOf(metric.toUpperCase(Locale.ROOT));
-    }
-    
+public enum FeatureMetric {
+    COMMAND,
+    GROUPBY,
+    HAVING,
+    JOIN,
+    LIMIT,
+    LOCAL,
+    ORDERBY,
+    SUBSELECT,
+    WHERE;
+
     @Override
     public String toString() {
         return this.name().toLowerCase(Locale.ROOT);

@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
@@ -234,13 +235,13 @@ public class SysTablesTests extends ESTestCase {
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"));
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"), new Verifier());
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
 
-        SqlSession session = new SqlSession(null, null, null, resolver, null, null, null);
+        SqlSession session = new SqlSession(null, null, null, resolver, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -42,7 +43,7 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
     }
     
     public SqlClearCursorRequest(Mode mode, String cursor) {
-        super(mode, null);
+        super(new RequestInfo(mode));
         this.cursor = cursor;
     }
 
@@ -97,7 +98,7 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test round-trip compatibility with proto.SqlClearCursorRequest
-        return new org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest(mode(), restClient(), cursor).toXContent(builder, params);
+        return new org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest(reqParams(), cursor).toXContent(builder, params);
     }
 
     public static SqlClearCursorRequest fromXContent(XContentParser parser, Mode mode) {

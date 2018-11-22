@@ -23,17 +23,21 @@ import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
-import org.elasticsearch.xpack.sql.proto.RestClient;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CANVAS;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
 
 public class RestSqlQueryAction extends BaseRestHandler {
+    private static int CLIENT_ID_MAX_LENGTH = 15;
 
     public RestSqlQueryAction(Settings settings, RestController controller) {
         super(settings);
@@ -45,8 +49,18 @@ public class RestSqlQueryAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SqlQueryRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            sqlRequest = SqlQueryRequest.fromXContent(parser, Mode.fromString(request.param("mode")),
-                                                      RestClient.fromString(request.param("client")));
+            String clientId = request.param("clientid");
+            if (clientId != null) {
+                if (clientId.length() > CLIENT_ID_MAX_LENGTH) {
+                    clientId = clientId.substring(0, CLIENT_ID_MAX_LENGTH).toLowerCase(Locale.ROOT);
+                }
+                if (!clientId.equals(CLI) && !clientId.equals(CANVAS)) {
+                    clientId = null;
+                }
+            }
+            
+            sqlRequest = SqlQueryRequest.fromXContent(parser,
+                    new RequestInfo(Mode.fromString(request.param("mode")), clientId));
         }
 
         /*

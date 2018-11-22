@@ -5,13 +5,6 @@ description = 'Run a subset of SQL tests against multiple nodes'
  * run quickly but still exercise the bits of SQL that we
  * feel should need to be tested against more than one node.
  */
- 
-dependencies {
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-      // JDBC testing dependencies
-    testCompile project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
-}
 
 integTestCluster {
   numNodes = 2

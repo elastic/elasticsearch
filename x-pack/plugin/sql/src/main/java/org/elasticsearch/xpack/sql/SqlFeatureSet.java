@@ -15,10 +15,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.sql.plugin.SqlStatsAction;
 import org.elasticsearch.xpack.sql.plugin.SqlStatsRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlStatsResponse;
-import org.elasticsearch.xpack.sql.stats.Counters;
 
 import java.util.Collections;
 import java.util.List;

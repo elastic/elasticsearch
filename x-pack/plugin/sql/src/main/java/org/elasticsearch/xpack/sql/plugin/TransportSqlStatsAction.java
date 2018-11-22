@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.sql.stats.Counters;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 
 import java.util.Arrays;
 import java.util.List;

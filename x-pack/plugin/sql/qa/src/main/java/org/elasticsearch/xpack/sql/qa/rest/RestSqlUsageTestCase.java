@@ -14,13 +14,17 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.RestClient;
+import org.elasticsearch.xpack.sql.qa.FeatureMetric;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
 
 public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     private List<IndexDocument> testData = Arrays.asList(
@@ -30,26 +34,50 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             new IndexDocument("used", "The Martian",     387),
             new IndexDocument("new",  "Moving Mars",     495)
     );
+
+    private Map<String,Integer> baseMetrics = new HashMap<String,Integer>();
+    private Integer baseCliTotalQueries = 0;
+    private Integer baseAllTotalQueries = 0;
+    private Integer baseTranslateRequests = 0;
+
+    /**
+     * This method gets the metrics' values before the test runs, in case these values
+     * were changed by other tests running in the same REST test cluster. The test itself
+     * will count the new metrics' values starting from the base values initialized here. 
+     */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @Before
+    private void getBaseMetrics() throws UnsupportedOperationException, IOException {
+        Map<String, Object> baseStats = getStats();
+        List<Map<String, Map<String, Map>>> nodesListStats = (List) baseStats.get("stats");
+        
+        for (Map perNodeStats : nodesListStats) {
+            Map featuresMetrics = (Map) ((Map) perNodeStats.get("stats")).get("features");
+            Map queriesMetrics = (Map) ((Map) perNodeStats.get("stats")).get("queries");
+            for (FeatureMetric metric : FeatureMetric.values()) {
+                baseMetrics.put(metric.toString(), (Integer) featuresMetrics.get(metric.toString()));
+            }
+            
+            baseCliTotalQueries = ((Map<String,Integer>) queriesMetrics.get(CLI)).get("total");
+            baseAllTotalQueries = ((Map<String,Integer>) queriesMetrics.get("_all")).get("total");
+            baseTranslateRequests = ((Map<String,Integer>) queriesMetrics.get("translate")).get("count");
+        }
+    }
     
-    // when this test runs in the entire suite of tests, it gets "interferences"
-    // from other tests which, by running queries against the rest test cluster
-    // will start recording metrics for those as well, not only for the ones in this test
-    @AwaitsFix(bugUrl="needs test infra that will isolate this test from the rest of the suite or cleanup between tests")
     public void testSqlRestUsage() throws IOException {
         index(testData);
         int randomWhereExecutions = randomIntBetween(1, 15);
-        int cliTotalQueries = randomWhereExecutions;
-        int allTotalQueries = randomWhereExecutions;
+        int cliTotalQueries = baseCliTotalQueries + randomWhereExecutions;
+        int allTotalQueries = baseAllTotalQueries + randomWhereExecutions;
         
         for (int i = 0; i < randomWhereExecutions; i++) {
             runCliSql("SELECT name FROM library WHERE page_count > 100 ORDER BY page_count");
         }
         
         Map<String, Object> responseAsMap = getStats();
-        assertFeatureMetric(randomWhereExecutions, responseAsMap, "where");
-        assertFeatureMetric(randomWhereExecutions, responseAsMap, "orderby");
-        assertCliQueryMetric(cliTotalQueries, responseAsMap, "total");
-        assertAllQueryMetric(allTotalQueries, responseAsMap, "total");
+        assertFeatureMetric(baseMetrics.get("where") + randomWhereExecutions, responseAsMap, "where");
+        assertFeatureMetric(baseMetrics.get("orderby") + randomWhereExecutions, responseAsMap, "orderby");
+        assertCliAndAllQueryMetrics(cliTotalQueries, allTotalQueries, responseAsMap);
         
         int randomHavingExecutions = randomIntBetween(1, 15);
         cliTotalQueries += randomHavingExecutions;
@@ -58,21 +86,20 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             runCliSql("SELECT condition FROM library GROUP BY condition HAVING MAX(page_count) > 1000");
         }
         responseAsMap = getStats();
-        assertFeatureMetric(randomHavingExecutions, responseAsMap, "having");
-        assertFeatureMetric(randomHavingExecutions, responseAsMap, "groupby");
-        assertCliQueryMetric(cliTotalQueries, responseAsMap, "total");
-        assertAllQueryMetric(allTotalQueries, responseAsMap, "total");
+        assertFeatureMetric(baseMetrics.get("having") + randomHavingExecutions, responseAsMap, "having");
+        assertFeatureMetric(baseMetrics.get("groupby") + randomHavingExecutions, responseAsMap, "groupby");
+        assertCliAndAllQueryMetrics(cliTotalQueries, allTotalQueries, responseAsMap);
         
-        int randomSubselectExecutions = randomIntBetween(1, 15);
+        /*int randomSubselectExecutions = randomIntBetween(1, 15);
         cliTotalQueries += randomSubselectExecutions;
         allTotalQueries += randomSubselectExecutions;
         for (int i = 0; i < randomSubselectExecutions; i++) {
             runCliSql("SELECT * FROM (SELECT name FROM library)");
         }
         responseAsMap = getStats();
-        assertFeatureMetric(randomSubselectExecutions, responseAsMap, "subselect");
+        assertFeatureMetric(baseMetrics.get("subselect") + randomSubselectExecutions, responseAsMap, "subselect");
         assertCliQueryMetric(cliTotalQueries, responseAsMap, "total");
-        assertAllQueryMetric(allTotalQueries, responseAsMap, "total");
+        assertAllQueryMetric(allTotalQueries, responseAsMap, "total");*/
         
         int randomLimitExecutions = randomIntBetween(1, 15);
         cliTotalQueries += randomLimitExecutions;
@@ -81,9 +108,8 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             runCliSql("SELECT * FROM library LIMIT " + testData.size());
         }
         responseAsMap = getStats();
-        assertFeatureMetric(randomLimitExecutions, responseAsMap, "limit");
-        assertCliQueryMetric(cliTotalQueries, responseAsMap, "total");
-        assertAllQueryMetric(allTotalQueries, responseAsMap, "total");
+        assertFeatureMetric(baseMetrics.get("limit") + randomLimitExecutions, responseAsMap, "limit");
+        assertCliAndAllQueryMetrics(cliTotalQueries, allTotalQueries, responseAsMap);
         
         int randomLocalExecutions = randomIntBetween(1, 15);
         cliTotalQueries += randomLocalExecutions;
@@ -92,21 +118,33 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             runCliSql("SELECT 1+2");
         }
         responseAsMap = getStats();
-        assertFeatureMetric(randomLocalExecutions, responseAsMap, "local");
-        assertCliQueryMetric(cliTotalQueries, responseAsMap, "total");
-        assertAllQueryMetric(allTotalQueries, responseAsMap, "total");
-    }
-    
-    public void testSqlRestTranslateUsage() throws IOException {
-        index(testData);
-        int randomTranslateExecutions = randomIntBetween(1, 15);
+        assertFeatureMetric(baseMetrics.get("local") + randomLocalExecutions, responseAsMap, "local");
+        assertCliAndAllQueryMetrics(cliTotalQueries, allTotalQueries, responseAsMap);
         
+        int randomCommandExecutions = randomIntBetween(1, 15);
+        cliTotalQueries += randomCommandExecutions;
+        allTotalQueries += randomCommandExecutions;
+        for (int i = 0; i < randomCommandExecutions; i++) {
+            runCliSql(randomFrom("SHOW FUNCTIONS", "SHOW COLUMNS FROM library", "SHOW SCHEMAS",
+                                 "SHOW TABLES", "SYS CATALOGS", "SYS COLUMNS LIKE '%name'",
+                                 "SYS TABLES", "SYS TYPES"));
+        }
+        responseAsMap = getStats();
+        assertFeatureMetric(baseMetrics.get("command") + randomCommandExecutions, responseAsMap, "command");
+        assertCliAndAllQueryMetrics(cliTotalQueries, allTotalQueries, responseAsMap);
+        
+        int randomTranslateExecutions = randomIntBetween(1, 15);
         for (int i = 0; i < randomTranslateExecutions; i++) {
             runTranslate("SELECT name FROM library WHERE page_count > 100 ORDER BY page_count");
         }
-        
-        Map<String, Object> responseAsMap = getStats();
-        assertTranslateQueryMetric(randomTranslateExecutions, responseAsMap);
+        responseAsMap = getStats();
+        assertTranslateQueryMetric(baseTranslateRequests + randomTranslateExecutions, responseAsMap);
+    }
+
+    private void assertCliAndAllQueryMetrics(int cliTotalQueries, int allTotalQueries, Map<String, Object> responseAsMap)
+            throws IOException {
+        assertCliQueryMetric(cliTotalQueries, responseAsMap, "total");
+        assertAllQueryMetric(allTotalQueries, responseAsMap, "total");
     }
     
     private void index(List<IndexDocument> docs) throws IOException {
@@ -148,7 +186,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void runCliSql(String sql) throws IOException {
-        runSql(Mode.PLAIN.toString(), RestClient.CLI.toString(), sql);
+        runSql(Mode.PLAIN.toString(), CLI, sql);
     }
     
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -175,7 +213,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             request.addParameter("mode", mode);        // JDBC or PLAIN mode
         }
         if (false == restClient.isEmpty()) {
-            request.addParameter("client", restClient);        // CLI, CANVAS, random string
+            request.addParameter("clientid", restClient);        // CLI, CANVAS, random string
         }
         if (randomBoolean()) {
             // JSON is the default but randomly set it sometime for extra coverage
@@ -211,7 +249,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void assertCliQueryMetric(int expected, Map<String, Object> responseAsMap, String metric) throws IOException {
-        assertQueryMetric(expected, responseAsMap, "cli", metric);
+        assertQueryMetric(expected, responseAsMap, CLI, metric);
     }
     
     private void assertAllQueryMetric(int expected, Map<String, Object> responseAsMap, String metric) throws IOException {

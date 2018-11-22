@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.xpack.sql.proto.RestClient;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -25,30 +25,27 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public abstract class AbstractSqlRequest extends ActionRequest implements ToXContent {
 
-    private Mode mode = Mode.PLAIN;
-    private RestClient restClient = null;
+    private RequestInfo reqParams;
 
     protected AbstractSqlRequest() {
 
     }
 
-    protected AbstractSqlRequest(Mode mode, RestClient restClient) {
-        this.mode = mode;
-        this.restClient = restClient;
+    protected AbstractSqlRequest(RequestInfo params) {
+        this.reqParams = params;
     }
 
     protected AbstractSqlRequest(StreamInput in) throws IOException {
         super(in);
-        mode = in.readEnum(Mode.class);
-        if (in.readBoolean()) {
-            restClient = in.readEnum(RestClient.class);
-        }
+        Mode mode = in.readEnum(Mode.class);
+        String clientId = in.readOptionalString();
+        reqParams = new RequestInfo(mode, clientId);
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (mode == null) {
+        if (reqParams == null || reqParams.mode() == null) {
             validationException = addValidationError("[mode] is required", validationException);
         }
         return validationException;
@@ -62,35 +59,36 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeEnum(mode);
-        out.writeBoolean(restClient != null);
-        if (restClient != null) {
-            out.writeEnum(restClient);
-        }
+        out.writeEnum(reqParams.mode());
+        out.writeOptionalString(reqParams.clientId());
+    }
+    
+    public RequestInfo reqParams() {
+        return reqParams;
+    }
+    
+    public void reqParams(RequestInfo reqParams) {
+        this.reqParams = reqParams;
     }
 
     public Mode mode() {
-        return mode;
+        return reqParams.mode();
     }
 
     public void mode(Mode mode) {
-        this.mode = mode;
+        this.reqParams.mode(mode);
     }
 
     public void mode(String mode) {
-        this.mode = Mode.fromString(mode);
+        this.reqParams.mode(Mode.fromString(mode));
     }
     
-    public RestClient restClient() {
-        return restClient;
+    public String clientId() {
+        return reqParams.clientId();
     }
 
-    public void restClient(RestClient restClient) {
-        this.restClient = restClient;
-    }
-
-    public void restClient(String restClient) {
-        this.restClient = RestClient.fromString(restClient);
+    public void clientId(String clientId) {
+        this.reqParams.clientId(clientId);
     }
 
     @Override
@@ -98,13 +96,12 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AbstractSqlRequest that = (AbstractSqlRequest) o;
-        return mode == that.mode
-                && Objects.equals(restClient, that.restClient);
+        return Objects.equals(reqParams, that.reqParams);
     }
 
     @Override
     public int hashCode() {
-        return restClient == null ? Objects.hash(mode) : Objects.hash(mode, restClient);
+        return reqParams.hashCode();
     }
 
 }

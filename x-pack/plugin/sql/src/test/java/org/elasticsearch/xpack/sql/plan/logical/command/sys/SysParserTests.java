@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
@@ -39,7 +40,7 @@ public class SysParserTests extends ESTestCase {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private Tuple<Command, SqlSession> sql(String sql) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"));
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"), new Verifier());
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
@@ -50,7 +51,7 @@ public class SysParserTests extends ESTestCase {
             return Void.TYPE;
         }).when(resolver).resolveAsSeparateMappings(any(), any(), any());
 
-        SqlSession session = new SqlSession(null, null, null, resolver, null, null, null);
+        SqlSession session = new SqlSession(null, null, null, resolver, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
 

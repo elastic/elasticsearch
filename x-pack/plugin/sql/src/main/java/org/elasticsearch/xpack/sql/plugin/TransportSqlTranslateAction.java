@@ -13,12 +13,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.action.SqlTranslateRequest;
 import org.elasticsearch.xpack.sql.action.SqlTranslateResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.stats.Counters;
 
 /**
  * Transport action for translating SQL queries into ES requests

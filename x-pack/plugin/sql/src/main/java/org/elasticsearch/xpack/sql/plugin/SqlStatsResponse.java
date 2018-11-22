@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.sql.stats.Counters;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 
 import java.io.IOException;
 import java.util.List;

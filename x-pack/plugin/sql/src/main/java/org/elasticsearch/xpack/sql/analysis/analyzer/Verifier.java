@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -30,6 +29,7 @@ import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -46,10 +46,19 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.lang.String.format;
+import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.HAVING;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LOCAL;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.ORDERBY;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.WHERE;
 
-final class Verifier {
+public final class Verifier {
+    private Metrics metrics;
     
-    private Verifier() {}
+    public Verifier() {}
 
     static class Failure {
         private final Node<?> source;
@@ -97,7 +106,20 @@ final class Verifier {
         return new Failure(source, format(Locale.ROOT, message, args));
     }
 
-    static Collection<Failure> verify(LogicalPlan plan, Map<String, CounterMetric> featuresMetrics) {
+    public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
+        Collection<Failure> failures = verify(plan);
+        return failures.stream().collect(toMap(Failure::source, Failure::message));
+    }
+    
+    public void metrics(Metrics metrics) {
+        this.metrics = metrics;
+    }
+    
+    public Metrics metrics() {
+        return metrics;
+    }
+
+    Collection<Failure> verify(LogicalPlan plan) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // start bottom-up
@@ -218,24 +240,24 @@ final class Verifier {
         }
         
         // gather metrics
-        if (failures.isEmpty() && featuresMetrics != null) {
+        if (failures.isEmpty() && metrics != null) {
             plan.forEachDown(p -> {
                 if (p instanceof Aggregate) {
-                    featuresMetrics.get("groupby").inc();
+                    metrics.inc(GROUPBY);
                 } else if (p instanceof OrderBy) {
-                    featuresMetrics.get("orderby").inc();
+                    metrics.inc(ORDERBY);
                 } else if (p instanceof Filter) {
                     if (((Filter) p).child() instanceof Aggregate) {
-                        featuresMetrics.get("having").inc();
+                        metrics.inc(HAVING);
                     } else {
-                        featuresMetrics.get("where").inc();
+                        metrics.inc(WHERE);
                     }
                 } else if (p instanceof Limit) {
-                    featuresMetrics.get("limit").inc();
+                    metrics.inc(LIMIT);
                 } else if (p instanceof LocalRelation) {
-                    featuresMetrics.get("local").inc();
+                    metrics.inc(LOCAL);
                 } else if (p instanceof Command) {
-                    featuresMetrics.get("command").inc();
+                    metrics.inc(COMMAND);
                 }
             });
         }

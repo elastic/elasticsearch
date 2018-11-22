@@ -40,16 +40,18 @@ public class FieldAttributeTests extends ESTestCase {
     private IndexResolution getIndexResult;
     private FunctionRegistry functionRegistry;
     private Analyzer analyzer;
+    private Verifier verifier;
 
     public FieldAttributeTests() {
         parser = new SqlParser();
         functionRegistry = new FunctionRegistry();
+        verifier = new Verifier();
 
         Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"));
+        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"), verifier);
     }
 
     private LogicalPlan plan(String sql) {
@@ -166,7 +168,7 @@ public class FieldAttributeTests extends ESTestCase {
 
         EsIndex index = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(index);
-        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"));
+        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"), verifier);
 
         VerificationException ex = expectThrows(VerificationException.class, () -> plan("SELECT test.bar FROM test"));
         assertEquals(

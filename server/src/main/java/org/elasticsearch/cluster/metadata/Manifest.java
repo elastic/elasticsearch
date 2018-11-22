@@ -171,6 +171,7 @@ public class Manifest implements ToXContentFragment {
         return requireNonNullElseDefault((Long) manifestFields[2], MISSING_GLOBAL_GENERATION);
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<Index, Long> indices(Object[] manifestFields) {
         List<IndexEntry> listOfIndices = (List<IndexEntry>) manifestFields[3];
         return listOfIndices.stream().collect(Collectors.toMap(IndexEntry::getIndex, IndexEntry::getGeneration));

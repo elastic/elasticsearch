@@ -824,6 +824,20 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(exc.getMessage(), containsString("function score query returned an invalid score: " + Float.NEGATIVE_INFINITY));
     }
 
+
+    public void testExceptionOnNegativeScores() {
+        IndexSearcher localSearcher = new IndexSearcher(reader);
+        TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
+
+        // test that field_value_factor function throws an exception on negative scores
+        FieldValueFactorFunction.Modifier modifier = FieldValueFactorFunction.Modifier.NONE;
+        final ScoreFunction fvfFunction = new FieldValueFactorFunction(FIELD, -10,  modifier, 1.0, new IndexNumericFieldDataStub());
+        FunctionScoreQuery fsQuery1 =
+            new FunctionScoreQuery(termQuery, fvfFunction, CombineFunction.REPLACE, null, Float.POSITIVE_INFINITY);
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> localSearcher.search(fsQuery1, 1));
+        assertThat(exc.getMessage(), containsString("field value function must not produce negative scores"));
+    }
+
     private static class DummyScoreFunction extends ScoreFunction {
         protected DummyScoreFunction(CombineFunction scoreCombiner) {
             super(scoreCombiner);

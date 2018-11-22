@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -39,9 +38,9 @@ public class TransportPutFeatureIndexBuilderJobAction
     private final Client client;
 
     @Inject
-    public TransportPutFeatureIndexBuilderJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService,
-            XPackLicenseState licenseState, PersistentTasksService persistentTasksService, Client client) {
+    public TransportPutFeatureIndexBuilderJobAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, XPackLicenseState licenseState,
+            PersistentTasksService persistentTasksService, Client client) {
         super(PutFeatureIndexBuilderJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, PutFeatureIndexBuilderJobAction.Request::new);
         this.licenseState = licenseState;

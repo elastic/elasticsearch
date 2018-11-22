@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -35,7 +34,7 @@ public class TransportStartFeatureIndexBuilderJobAction extends
     private final XPackLicenseState licenseState;
 
     @Inject
-    public TransportStartFeatureIndexBuilderJobAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+    public TransportStartFeatureIndexBuilderJobAction(TransportService transportService, ActionFilters actionFilters,
             ClusterService clusterService, XPackLicenseState licenseState) {
         super(StartFeatureIndexBuilderJobAction.NAME, clusterService, transportService, actionFilters,
                 StartFeatureIndexBuilderJobAction.Request::new, StartFeatureIndexBuilderJobAction.Response::new, ThreadPool.Names.SAME);

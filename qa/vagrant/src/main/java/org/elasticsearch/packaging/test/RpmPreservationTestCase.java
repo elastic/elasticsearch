@@ -100,10 +100,22 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
 
         sh.run("echo foobar | " + installation.executables().elasticsearchKeystore + " add --stdin foo.bar");
         Stream.of(
-            installation.config("elasticsearch.yml"),
-            installation.config("jvm.options"),
-            installation.config("log4j2.properties")
-        ).forEach(path -> append(path, "# foo"));
+            "elasticsearch.yml",
+            "jvm.options",
+            "log4j2.properties"
+        )
+            .map(each -> installation.config(each))
+            .forEach(path -> append(path, "# foo"));
+        if (distribution().isDefault()) {
+            Stream.of(
+                "role_mapping.yml",
+                "roles.yml",
+                "users",
+                "users_roles"
+            )
+                .map(each -> installation.config(each))
+                .forEach(path -> append(path, "# foo"));
+        }
 
         remove(distribution());
         assertRemoved(distribution());

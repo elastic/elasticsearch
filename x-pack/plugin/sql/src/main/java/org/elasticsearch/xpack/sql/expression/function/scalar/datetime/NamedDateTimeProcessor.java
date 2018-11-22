@@ -9,7 +9,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -31,8 +30,8 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
             this.apply = apply;
         }
 
-        public final String extract(Long millis, String tzId) {
-            return extract(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId)), tzId);
+        public final String extract(ZonedDateTime dateTime) {
+            return apply.apply(dateTime);
         }
 
         public final String extract(ZonedDateTime millis, String tzId) {
@@ -73,8 +72,8 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
     }
 
     @Override
-    public Object doProcess(long millis) {
-        return extractor.extract(millis, timeZone().getID());
+    public Object doProcess(ZonedDateTime dateTime) {
+        return extractor.extract(dateTime);
     }
 
     @Override

@@ -8,6 +8,8 @@
 :ILM:             ILM
 [partintro]
 --
+beta[]
+
 The <<index-lifecycle-management-api, {ilm} (ILM) APIs>> enable you to automate how you
 want to manage your indices over time. Rather than simply performing management
 actions on your indices on a set schedule, you can base actions on other factors
@@ -59,8 +61,6 @@ include::set-up-lifecycle-policy.asciidoc[]
 include::using-policies-rollover.asciidoc[]
 
 include::update-lifecycle-policy.asciidoc[]
-
-include::get-index-lifecycle-information.asciidoc[]
 
 include::error-handling.asciidoc[]
 

@@ -40,7 +40,7 @@ include::../execution.asciidoc[]
 [id="{upid}-{api}-response"]
 ==== Get Roles Response
 
-The returned +{response}+ allows to get information about the retrieved roles as follows.
+The returned +{response}+ allows getting information about the retrieved roles as follows.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

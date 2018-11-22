@@ -466,15 +466,18 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             };
             //end::get-roles-execute-listener
 
-            //Replace the emtpty listener by a blocking listener in test
-            final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener<>(listener, latch);
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<GetRolesResponse> future = new PlainActionFuture<>();
+            listener = future;
 
             //tag::get-roles-execute-async
             client.security().getRolesAsync(request, RequestOptions.DEFAULT, listener); // <1>
             //end::get-roles-execute-async
 
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+            final GetRolesResponse response = future.get(30, TimeUnit.SECONDS);
+            assertNotNull(response);
+            assertThat(response.getRoles().size(), equalTo(1));
+            assertThat(response.getRoles().get(0).getClusterPrivileges().contains("all"), equalTo(true));
         }
     }
 

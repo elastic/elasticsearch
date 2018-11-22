@@ -29,6 +29,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Response when requesting one or more roles.
+ * Returns a List of {@link Role} objects
+ */
 public final class GetRolesResponse {
 
     private final List<Role> roles;

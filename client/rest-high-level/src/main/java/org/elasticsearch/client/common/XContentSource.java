@@ -27,7 +27,7 @@ public class XContentSource {
     private final Object data;
 
     /**
-     * Constructs a new XContentSource out of the given bytes reference.
+     * Constructs a new XContentSource out of the given parser
      */
     public XContentSource(XContentParser parser) throws IOException {
         this.data = XContentUtils.readValue(parser, parser.nextToken());

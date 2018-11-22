@@ -44,7 +44,10 @@ public class ExecuteWatchResponse {
         (fields) -> new ExecuteWatchResponse((String)fields[0], (XContentSource)fields[1]));
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> new XContentSource(p), WATCH_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            p.nextToken();
+            return new XContentSource(p);
+            }, WATCH_FIELD);
     }
 
     public static ExecuteWatchResponse fromXContent(XContentParser parser) throws IOException {

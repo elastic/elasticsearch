@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -47,10 +46,10 @@ public class TransportIndicesSegmentsAction
     private final IndicesService indicesService;
 
     @Inject
-    public TransportIndicesSegmentsAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public TransportIndicesSegmentsAction(ClusterService clusterService, TransportService transportService,
                                           IndicesService indicesService, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, IndicesSegmentsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(IndicesSegmentsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 IndicesSegmentsRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }

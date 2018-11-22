@@ -128,7 +128,7 @@ public class SysColumns extends Command {
                         null,
                         indexName,
                         name,
-                        type.jdbcType.getVendorTypeNumber(),
+                        type.sqlType.getVendorTypeNumber(),
                         type.esType.toUpperCase(Locale.ROOT),
                         type.displaySize,
                         // TODO: is the buffer_length correct?

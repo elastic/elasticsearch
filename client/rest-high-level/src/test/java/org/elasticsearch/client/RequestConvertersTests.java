@@ -53,9 +53,11 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -347,6 +349,7 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
         expectedParams.put("scroll", reindexRequest.getScrollTime().getStringRep());
+        expectedParams.put("wait_for_completion", Boolean.TRUE.toString());
         Request request = RequestConverters.reindex(reindexRequest);
         assertEquals("/_reindex", request.getEndpoint());
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
@@ -968,6 +971,72 @@ public class RequestConvertersTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> new SearchRequest().types((String[]) null));
     }
 
+     public void testCountNotNullSource() throws IOException {
+        //as we create SearchSourceBuilder in CountRequest constructor
+        CountRequest countRequest = new CountRequest();
+        Request request = RequestConverters.count(countRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_count", request.getEndpoint());
+        assertNotNull(request.getEntity());
+    }
+
+    public void testCount() throws Exception {
+        String[] indices = randomIndicesNames(0, 5);
+        CountRequest countRequest = new CountRequest(indices);
+
+        int numTypes = randomIntBetween(0, 5);
+        String[] types = new String[numTypes];
+        for (int i = 0; i < numTypes; i++) {
+            types[i] = "type-" + randomAlphaOfLengthBetween(2, 5);
+        }
+        countRequest.types(types);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomCountParams(countRequest, expectedParams);
+        setRandomIndicesOptions(countRequest::indicesOptions, countRequest::indicesOptions, expectedParams);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        if (frequently()) {
+            if (randomBoolean()) {
+                searchSourceBuilder.minScore(randomFloat());
+            }
+        }
+        countRequest.source(searchSourceBuilder);
+        Request request = RequestConverters.count(countRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        String type = String.join(",", types);
+        if (Strings.hasLength(type)) {
+            endpoint.add(type);
+        }
+        endpoint.add("_count");
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(searchSourceBuilder, request.getEntity());
+    }
+
+    public void testCountNullIndicesAndTypes() {
+        expectThrows(NullPointerException.class, () -> new CountRequest((String[]) null));
+        expectThrows(NullPointerException.class, () -> new CountRequest().indices((String[]) null));
+        expectThrows(NullPointerException.class, () -> new CountRequest().types((String[]) null));
+    }
+
+    private static void setRandomCountParams(CountRequest countRequest,
+                                             Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            countRequest.routing(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("routing", countRequest.routing());
+        }
+        if (randomBoolean()) {
+            countRequest.preference(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("preference", countRequest.preference());
+        }
+    }
+
     public void testMultiSearch() throws IOException {
         int numberOfSearchRequests = randomIntBetween(0, 32);
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
@@ -988,7 +1057,8 @@ public class RequestConvertersTests extends ESTestCase {
             IndicesOptions msearchDefault = new MultiSearchRequest().indicesOptions();
             searchRequest.indicesOptions(IndicesOptions.fromOptions(randomlyGenerated.ignoreUnavailable(),
                     randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(), randomlyGenerated.expandWildcardsClosed(),
-                    msearchDefault.allowAliasesToMultipleIndices(), msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases()));
+                    msearchDefault.allowAliasesToMultipleIndices(), msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(),
+                msearchDefault.ignoreThrottled()));
             multiSearchRequest.add(searchRequest);
         }
 
@@ -1232,6 +1302,26 @@ public class RequestConvertersTests extends ESTestCase {
             assertThat(request.getParameters(), hasEntry(param.getKey(), param.getValue()));
         }
         assertToXContentBody(tvRequest, request.getEntity());
+    }
+
+    public void testMultiTermVectors() throws IOException {
+        MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest();
+
+        int numberOfRequests = randomIntBetween(0, 5);
+        for (int i = 0; i < numberOfRequests; i++) {
+            String index = randomAlphaOfLengthBetween(3, 10);
+            String type = randomAlphaOfLengthBetween(3, 10);
+            String id = randomAlphaOfLengthBetween(3, 10);
+            TermVectorsRequest tvRequest = new TermVectorsRequest(index, type, id);
+            String[] fields = generateRandomStringArray(10, 5, false, false);
+            tvRequest.setFields(fields);
+            mtvRequest.add(tvRequest);
+        }
+
+        Request request = RequestConverters.mtermVectors(mtvRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("_mtermvectors", request.getEndpoint());
+        assertToXContentBody(mtvRequest, request.getEntity());
     }
 
     public void testFieldCaps() {
@@ -1595,6 +1685,24 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
+    static IndicesOptions setRandomIndicesOptions(IndicesOptions indicesOptions, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        }
+        expectedParams.put("ignore_unavailable", Boolean.toString(indicesOptions.ignoreUnavailable()));
+        expectedParams.put("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
+        if (indicesOptions.expandWildcardsOpen() && indicesOptions.expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "open,closed");
+        } else if (indicesOptions.expandWildcardsOpen()) {
+            expectedParams.put("expand_wildcards", "open");
+        } else if (indicesOptions.expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "closed");
+        } else {
+            expectedParams.put("expand_wildcards", "none");
+        }
+        return indicesOptions;
+    }
+
     static void setRandomIncludeDefaults(GetIndexRequest request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean includeDefaults = randomBoolean();
@@ -1645,6 +1753,17 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
+    static void setRandomTimeoutTimeValue(Consumer<TimeValue> setter, TimeValue defaultTimeout,
+                                                  Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            TimeValue timeout = TimeValue.parseTimeValue(randomTimeValue(), "random_timeout");
+            setter.accept(timeout);
+            expectedParams.put("timeout", timeout.getStringRep());
+        } else {
+            expectedParams.put("timeout", defaultTimeout.getStringRep());
+        }
+    }
+
     static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
         setRandomMasterTimeout(request::masterNodeTimeout, expectedParams);
     }
@@ -1662,6 +1781,16 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("master_timeout", masterTimeout);
         } else {
             expectedParams.put("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());
+        }
+    }
+
+    static void setRandomMasterTimeout(Consumer<TimeValue> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            TimeValue masterTimeout = TimeValue.parseTimeValue(randomTimeValue(), "random_master_timeout");
+            setter.accept(masterTimeout);
+            expectedParams.put("master_timeout", masterTimeout.getStringRep());
+        } else {
+            expectedParams.put("master_timeout", defaultTimeout.getStringRep());
         }
     }
 

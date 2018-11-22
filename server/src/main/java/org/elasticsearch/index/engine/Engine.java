@@ -128,14 +128,14 @@ public abstract class Engine implements Closeable {
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     /*
      * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
-     *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still consider it active
-     *    for the duration of the configured active to inactive period. If we initialize to 0 or Long.MAX_VALUE we either immediately or never mark it
-     *    inactive if no writes at all happen to the shard.
-     *  - we also use this to flush big-ass merges on an inactive engine / shard but if we we initialize 0 or Long.MAX_VALUE we either immediately or never
-     *    commit merges even though we shouldn't from a user perspective (this can also have funky sideeffects in tests when we open indices with lots of segments
-     *    and suddenly merges kick in.
-     *  NOTE: don't use this value for anything accurate it's a best effort for freeing up diskspace after merges and on a shard level to reduce index buffer sizes on
-     *  inactive shards.
+     *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still
+     *    consider it active for the duration of the configured active to inactive period. If we initialize to 0 or Long.MAX_VALUE we
+     *    either immediately or never mark it inactive if no writes at all happen to the shard.
+     *  - we also use this to flush big-ass merges on an inactive engine / shard but if we we initialize 0 or Long.MAX_VALUE we either
+     *    immediately or never commit merges even though we shouldn't from a user perspective (this can also have funky side effects in
+     *    tests when we open indices with lots of segments and suddenly merges kick in.
+     *  NOTE: don't use this value for anything accurate it's a best effort for freeing up diskspace after merges and on a shard level to
+     *  reduce index buffer sizes on inactive shards.
      */
     protected volatile long lastWriteNanos = System.nanoTime();
 
@@ -156,7 +156,8 @@ public abstract class Engine implements Closeable {
         this.shardId = engineConfig.getShardId();
         this.allocationId = engineConfig.getAllocationId();
         this.store = engineConfig.getStore();
-        this.logger = Loggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
+        // we use the engine class directly here to make sure all subclasses have the same logger name
+        this.logger = Loggers.getLogger(Engine.class,
                 engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
     }
@@ -291,7 +292,8 @@ public abstract class Engine implements Closeable {
             assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
             long throttleTimeNS = System.nanoTime() - startOfThrottleNS;
             if (throttleTimeNS >= 0) {
-                // Paranoia (System.nanoTime() is supposed to be monotonic): time slip may have occurred but never want to add a negative number
+                // Paranoia (System.nanoTime() is supposed to be monotonic): time slip may have occurred but never want
+                // to add a negative number
                 throttleTimeMillisMetric.inc(TimeValue.nsecToMSec(throttleTimeNS));
             }
         }
@@ -729,12 +731,14 @@ public abstract class Engine implements Closeable {
      * Creates a new history snapshot for reading operations since {@code startingSeqNo} (inclusive).
      * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public abstract Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+    public abstract Translog.Snapshot readHistoryOperations(String source,
+                                                                MapperService mapperService, long startingSeqNo) throws IOException;
 
     /**
      * Returns the estimated number of history operations whose seq# at least {@code startingSeqNo}(inclusive) in this engine.
      */
-    public abstract int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+    public abstract int estimateNumberOfHistoryOperations(String source,
+                                                                MapperService mapperService, long startingSeqNo) throws IOException;
 
     /**
      * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
@@ -793,7 +797,7 @@ public abstract class Engine implements Closeable {
     /**
      * Global stats on segments.
      */
-    public final SegmentsStats segmentsStats(boolean includeSegmentFileSizes) {
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes) {
         ensureOpen();
         Set<String> segmentName = new HashSet<>();
         SegmentsStats stats = new SegmentsStats();
@@ -838,9 +842,11 @@ public abstract class Engine implements Closeable {
         boolean useCompoundFile = segmentCommitInfo.info.getUseCompoundFile();
         if (useCompoundFile) {
             try {
-                directory = engineConfig.getCodec().compoundFormat().getCompoundReader(segmentReader.directory(), segmentCommitInfo.info, IOContext.READ);
+                directory = engineConfig.getCodec().compoundFormat().getCompoundReader(segmentReader.directory(),
+                    segmentCommitInfo.info, IOContext.READ);
             } catch (IOException e) {
-                logger.warn(() -> new ParameterizedMessage("Error when opening compound reader for Directory [{}] and SegmentCommitInfo [{}]", segmentReader.directory(), segmentCommitInfo), e);
+                logger.warn(() -> new ParameterizedMessage("Error when opening compound reader for Directory [{}] and " +
+                    "SegmentCommitInfo [{}]", segmentReader.directory(), segmentCommitInfo), e);
 
                 return ImmutableOpenMap.of();
             }
@@ -856,14 +862,17 @@ public abstract class Engine implements Closeable {
                 files = directory.listAll();
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
-                logger.warn(() -> new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", finalDirectory), e);
+                logger.warn(() ->
+                    new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", finalDirectory), e);
                 return ImmutableOpenMap.of();
             }
         } else {
             try {
                 files = segmentReader.getSegmentInfo().files().toArray(new String[]{});
             } catch (IOException e) {
-                logger.warn(() -> new ParameterizedMessage("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]", segmentReader, segmentReader.getSegmentInfo()), e);
+                logger.warn(() ->
+                    new ParameterizedMessage("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]",
+                        segmentReader, segmentReader.getSegmentInfo()), e);
                 return ImmutableOpenMap.of();
             }
         }
@@ -876,10 +885,12 @@ public abstract class Engine implements Closeable {
                 length = directory.fileLength(file);
             } catch (NoSuchFileException | FileNotFoundException e) {
                 final Directory finalDirectory = directory;
-                logger.warn(() -> new ParameterizedMessage("Tried to query fileLength but file is gone [{}] [{}]", finalDirectory, file), e);
+                logger.warn(() -> new ParameterizedMessage("Tried to query fileLength but file is gone [{}] [{}]",
+                    finalDirectory, file), e);
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
-                logger.warn(() -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", finalDirectory, file), e);
+                logger.warn(() -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]",
+                    finalDirectory, file), e);
             }
             if (length == 0L) {
                 continue;
@@ -892,7 +903,8 @@ public abstract class Engine implements Closeable {
                 directory.close();
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
-                logger.warn(() -> new ParameterizedMessage("Error when closing compound reader on Directory [{}]", finalDirectory), e);
+                logger.warn(() -> new ParameterizedMessage("Error when closing compound reader on Directory [{}]",
+                    finalDirectory), e);
             }
         }
 
@@ -1081,7 +1093,8 @@ public abstract class Engine implements Closeable {
     /**
      * Triggers a forced merge on this engine
      */
-    public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade, boolean upgradeOnlyAncientSegments) throws EngineException, IOException;
+    public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
+                                        boolean upgrade, boolean upgradeOnlyAncientSegments) throws EngineException, IOException;
 
     /**
      * Snapshots the most recent index and returns a handle to it. If needed will try and "commit" the
@@ -1099,8 +1112,8 @@ public abstract class Engine implements Closeable {
     /**
      * If the specified throwable contains a fatal error in the throwable graph, such a fatal error will be thrown. Callers should ensure
      * that there are no catch statements that would catch an error in the stack as the fatal error here should go uncaught and be handled
-     * by the uncaught exception handler that we install during bootstrap. If the specified throwable does indeed contain a fatal error, the
-     * specified message will attempt to be logged before throwing the fatal error. If the specified throwable does not contain a fatal
+     * by the uncaught exception handler that we install during bootstrap. If the specified throwable does indeed contain a fatal error,
+     * the specified message will attempt to be logged before throwing the fatal error. If the specified throwable does not contain a fatal
      * error, this method is a no-op.
      *
      * @param maybeMessage the message to maybe log
@@ -1129,7 +1142,9 @@ public abstract class Engine implements Closeable {
             store.incRef();
             try {
                 if (failedEngine.get() != null) {
-                    logger.warn(() -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
+                    logger.warn(() ->
+                        new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]",
+                            reason), failure);
                     return;
                 }
                 // this must happen before we close IW or Translog such that we can check this state to opt out of failing the engine
@@ -1147,7 +1162,8 @@ public abstract class Engine implements Closeable {
                     // the shard is initializing
                     if (Lucene.isCorruptionException(failure)) {
                         try {
-                            store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])", ExceptionsHelper.unwrapCorruption(failure)));
+                            store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])",
+                                ExceptionsHelper.unwrapCorruption(failure)));
                         } catch (IOException e) {
                             logger.warn("Couldn't mark store corrupted", e);
                         }
@@ -1162,7 +1178,8 @@ public abstract class Engine implements Closeable {
                 store.decRef();
             }
         } else {
-            logger.debug(() -> new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason), failure);
+            logger.debug(() -> new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should " +
+                "be failed by now [{}]", reason), failure);
         }
     }
 
@@ -1415,7 +1432,8 @@ public abstract class Engine implements Closeable {
         }
 
         public Delete(String type, String id, Term uid, long primaryTerm) {
-            this(type, id, uid, SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
+            this(type, id, uid, SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm, Versions.MATCH_ANY, VersionType.INTERNAL,
+                Origin.PRIMARY, System.nanoTime());
         }
 
         public Delete(Delete template, VersionType versionType) {
@@ -1613,7 +1631,9 @@ public abstract class Engine implements Closeable {
                 try {
                     logger.debug("flushing shard on close - this might take some time to sync files to disk");
                     try {
-                        flush(); // TODO we might force a flush in the future since we have the write lock already even though recoveries are running.
+                        // TODO we might force a flush in the future since we have the write lock already even though recoveries
+                        // are running.
+                        flush();
                     } catch (AlreadyClosedException ex) {
                         logger.debug("engine already closed - skipping flushAndClose");
                     }
@@ -1750,7 +1770,8 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Request that this engine throttle incoming indexing requests to one thread.  Must be matched by a later call to {@link #deactivateThrottling()}.
+     * Request that this engine throttle incoming indexing requests to one thread.
+     * Must be matched by a later call to {@link #deactivateThrottling()}.
      */
     public abstract void activateThrottling();
 

@@ -24,6 +24,7 @@ Multi-document APIs::
 * <<{upid}-update-by-query>>
 * <<{upid}-delete-by-query>>
 * <<{upid}-rethrottle>>
+* <<{upid}-multi-term-vectors>>
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
@@ -37,6 +38,8 @@ include::document/reindex.asciidoc[]
 include::document/update-by-query.asciidoc[]
 include::document/delete-by-query.asciidoc[]
 include::document/rethrottle.asciidoc[]
+include::document/multi-term-vectors.asciidoc[]
+
 
 == Search APIs
 
@@ -54,6 +57,7 @@ The Java High Level REST Client supports the following Search APIs:
 * <<{upid}-field-caps>>
 * <<{upid}-rank-eval>>
 * <<{upid}-explain>>
+* <<{upid}-count>>
 
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
@@ -63,6 +67,7 @@ include::search/multi-search-template.asciidoc[]
 include::search/field-caps.asciidoc[]
 include::search/rank-eval.asciidoc[]
 include::search/explain.asciidoc[]
+include::search/count.asciidoc[]
 
 == Miscellaneous APIs
 
@@ -218,12 +223,16 @@ The Java High Level REST Client supports the following Licensing APIs:
 * <<java-rest-high-delete-license>>
 * <<java-rest-high-start-trial>>
 * <<java-rest-high-start-basic>>
+* <<java-rest-high-get-trial-status>>
+* <<java-rest-high-get-basic-status>>
 
 include::licensing/put-license.asciidoc[]
 include::licensing/get-license.asciidoc[]
 include::licensing/delete-license.asciidoc[]
 include::licensing/start-trial.asciidoc[]
 include::licensing/start-basic.asciidoc[]
+include::licensing/get-trial-status.asciidoc[]
+include::licensing/get-basic-status.asciidoc[]
 
 == Machine Learning APIs
 :upid: {mainid}-x-pack-ml
@@ -257,7 +266,20 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-get-categories>>
 * <<{upid}-get-calendars>>
 * <<{upid}-put-calendar>>
+* <<{upid}-get-calendar-events>>
+* <<{upid}-post-calendar-event>>
+* <<{upid}-delete-calendar-event>>
+* <<{upid}-put-calendar-job>>
+* <<{upid}-delete-calendar-job>>
 * <<{upid}-delete-calendar>>
+* <<{upid}-put-filter>>
+* <<{upid}-get-filters>>
+* <<{upid}-update-filter>>
+* <<{upid}-delete-filter>>
+* <<{upid}-get-model-snapshots>>
+* <<{upid}-delete-model-snapshot>>
+* <<{upid}-revert-model-snapshot>>
+* <<{upid}-update-model-snapshot>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -285,15 +307,30 @@ include::ml/get-influencers.asciidoc[]
 include::ml/get-categories.asciidoc[]
 include::ml/get-calendars.asciidoc[]
 include::ml/put-calendar.asciidoc[]
+include::ml/get-calendar-events.asciidoc[]
+include::ml/post-calendar-event.asciidoc[]
+include::ml/delete-calendar-event.asciidoc[]
+include::ml/put-calendar-job.asciidoc[]
+include::ml/delete-calendar-job.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
+include::ml/put-filter.asciidoc[]
+include::ml/get-filters.asciidoc[]
+include::ml/update-filter.asciidoc[]
+include::ml/delete-filter.asciidoc[]
+include::ml/get-model-snapshots.asciidoc[]
+include::ml/delete-model-snapshot.asciidoc[]
+include::ml/revert-model-snapshot.asciidoc[]
+include::ml/update-model-snapshot.asciidoc[]
 
 == Migration APIs
 
 The Java High Level REST Client supports the following Migration APIs:
 
 * <<java-rest-high-migration-get-assistance>>
+* <<java-rest-high-migration-upgrade>>
 
 include::migration/get-assistance.asciidoc[]
+include::migration/upgrade.asciidoc[]
 
 == Rollup APIs
 
@@ -304,15 +341,19 @@ The Java High Level REST Client supports the following Rollup APIs:
 
 * <<java-rest-high-x-pack-rollup-put-job>>
 * <<{upid}-rollup-start-job>>
+* <<{upid}-rollup-stop-job>>
 * <<{upid}-rollup-delete-job>>
 * <<java-rest-high-x-pack-rollup-get-job>>
 * <<{upid}-x-pack-rollup-get-rollup-caps>>
+* <<{upid}-x-pack-rollup-get-rollup-index-caps>>
 
 include::rollup/put_job.asciidoc[]
 include::rollup/start_job.asciidoc[]
+include::rollup/stop_job.asciidoc[]
 include::rollup/delete_job.asciidoc[]
 include::rollup/get_job.asciidoc[]
 include::rollup/get_rollup_caps.asciidoc[]
+include::rollup/get_rollup_index_caps.asciidoc[]
 
 == Security APIs
 
@@ -327,23 +368,35 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-change-password>>
 * <<java-rest-high-security-delete-role>>
 * <<{upid}-clear-roles-cache>>
+* <<{upid}-clear-realm-cache>>
+* <<{upid}-authenticate>>
+* <<{upid}-has-privileges>>
 * <<java-rest-high-security-get-certificates>>
 * <<java-rest-high-security-put-role-mapping>>
 * <<java-rest-high-security-get-role-mappings>>
 * <<java-rest-high-security-delete-role-mapping>>
 * <<java-rest-high-security-create-token>>
+* <<{upid}-invalidate-token>>
+* <<{upid}-get-privileges>>
+* <<{upid}-delete-privileges>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
 include::security/disable-user.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/delete-role.asciidoc[]
+include::security/delete-privileges.asciidoc[]
+include::security/get-privileges.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
+include::security/clear-realm-cache.asciidoc[]
+include::security/authenticate.asciidoc[]
+include::security/has-privileges.asciidoc[]
 include::security/get-certificates.asciidoc[]
 include::security/put-role-mapping.asciidoc[]
 include::security/get-role-mappings.asciidoc[]
 include::security/delete-role-mapping.asciidoc[]
 include::security/create-token.asciidoc[]
+include::security/invalidate-token.asciidoc[]
 
 == Watcher APIs
 
@@ -359,6 +412,7 @@ The Java High Level REST Client supports the following Watcher APIs:
 * <<java-rest-high-watcher-deactivate-watch>>
 * <<{upid}-ack-watch>>
 * <<{upid}-activate-watch>>
+* <<{upid}-watcher-stats>>
 
 include::watcher/start-watch-service.asciidoc[]
 include::watcher/stop-watch-service.asciidoc[]
@@ -367,6 +421,7 @@ include::watcher/delete-watch.asciidoc[]
 include::watcher/ack-watch.asciidoc[]
 include::watcher/deactivate-watch.asciidoc[]
 include::watcher/activate-watch.asciidoc[]
+include::watcher/watcher-stats.asciidoc[]
 
 == Graph APIs
 
@@ -387,3 +442,45 @@ don't leak into the rest of the documentation.
 :doc-tests-file!:
 :upid!:
 --
+
+== CCR APIs
+
+:upid: {mainid}-ccr
+:doc-tests-file: {doc-tests}/CCRDocumentationIT.java
+
+The Java High Level REST Client supports the following CCR APIs:
+
+* <<{upid}-ccr-put-follow>>
+* <<{upid}-ccr-pause-follow>>
+* <<{upid}-ccr-resume-follow>>
+* <<{upid}-ccr-unfollow>>
+
+include::ccr/put_follow.asciidoc[]
+include::ccr/pause_follow.asciidoc[]
+include::ccr/resume_follow.asciidoc[]
+include::ccr/unfollow.asciidoc[]
+
+== Index Lifecycle Management APIs
+
+:upid: {mainid}-ilm
+:doc-tests-file: {doc-tests}/ILMDocumentationIT.java
+
+The Java High Level REST Client supports the following Index Lifecycle
+Management APIs:
+
+* <<{upid}-ilm-put-lifecycle-policy>>
+* <<{upid}-ilm-delete-lifecycle-policy>>
+* <<{upid}-ilm-get-lifecycle-policy>>
+* <<{upid}-ilm-start-ilm>>
+* <<{upid}-ilm-stop-ilm>>
+* <<{upid}-ilm-status>>
+* <<{upid}-ilm-retry-lifecycle-policy>>
+
+
+include::ilm/put_lifecycle_policy.asciidoc[]
+include::ilm/delete_lifecycle_policy.asciidoc[]
+include::ilm/get_lifecycle_policy.asciidoc[]
+include::ilm/start_lifecycle_management.asciidoc[]
+include::ilm/stop_lifecycle_management.asciidoc[]
+include::ilm/lifecycle_management_status.asciidoc[]
+include::ilm/retry_lifecycle_policy.asciidoc[]

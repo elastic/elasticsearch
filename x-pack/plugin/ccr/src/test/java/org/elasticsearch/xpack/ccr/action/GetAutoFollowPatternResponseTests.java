@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 
@@ -16,11 +17,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class GetAutoFollowPatternResponseTests extends AbstractStreamableTestCase<GetAutoFollowPatternAction.Response> {
+public class GetAutoFollowPatternResponseTests extends AbstractWireSerializingTestCase<GetAutoFollowPatternAction.Response> {
 
     @Override
-    protected GetAutoFollowPatternAction.Response createBlankInstance() {
-        return new GetAutoFollowPatternAction.Response();
+    protected Writeable.Reader<GetAutoFollowPatternAction.Response> instanceReader() {
+        return GetAutoFollowPatternAction.Response::new;
     }
 
     @Override

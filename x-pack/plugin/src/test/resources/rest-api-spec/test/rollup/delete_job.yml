@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: headers
   - do:
       indices.create:
         index: foo
@@ -20,7 +22,7 @@ setup:
           {
             "index_pattern": "foo",
             "rollup_index": "foo_rollup",
-            "cron": "*/30 * * * * ?",
+            "cron": "*/30 * * * * ? 2017",
             "page_size" :10,
             "groups" : {
               "date_histogram": {
@@ -49,7 +51,7 @@ setup:
             id: "foo"
             index_pattern: "foo"
             rollup_index: "foo_rollup"
-            cron: "*/30 * * * * ?"
+            cron: "*/30 * * * * ? 2017"
             page_size: 10
             groups :
               date_histogram:
@@ -96,7 +98,7 @@ setup:
             id: "foo"
             index_pattern: "foo"
             rollup_index: "foo_rollup"
-            cron: "*/30 * * * * ?"
+            cron: "*/30 * * * * ? 2017"
             page_size: 10
             groups :
               date_histogram:
@@ -143,7 +145,7 @@ setup:
             id: "foo"
             index_pattern: "foo"
             rollup_index: "foo_rollup"
-            cron: "*/30 * * * * ?"
+            cron: "*/30 * * * * ? 2017"
             page_size: 10
             groups :
               date_histogram:

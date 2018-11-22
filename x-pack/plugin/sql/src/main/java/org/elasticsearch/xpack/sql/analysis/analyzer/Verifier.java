@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.predicate.In;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -525,7 +525,7 @@ final class Verifier {
             e.forEachUp((In in) -> {
                     DataType dt = in.value().dataType();
                     for (Expression value : in.list()) {
-                        if (!in.value().dataType().isCompatibleWith(value.dataType())) {
+                        if (areTypesCompatible(in.value().dataType(), value.dataType()) == false) {
                             localFailures.add(fail(value, "expected data type [%s], value provided is of type [%s]",
                                 dt, value.dataType()));
                             return;
@@ -533,5 +533,16 @@ final class Verifier {
                     }
                 },
                 In.class));
+    }
+
+    private static boolean areTypesCompatible(DataType left, DataType right) {
+        if (left == right) {
+            return true;
+        } else {
+            return
+                (left == DataType.NULL || right == DataType.NULL) ||
+                (left.isString() && right.isString()) ||
+                (left.isNumeric() && right.isNumeric());
+        }
     }
 }

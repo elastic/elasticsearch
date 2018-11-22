@@ -122,11 +122,11 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         boolean indexCreated = true; // If set to false, will be set to true by call to createIndex
 
         TestTransportBulkAction() {
-            super(SETTINGS, null, transportService, clusterService, ingestService,
+            super(null, transportService, clusterService, ingestService,
                 null, null, new ActionFilters(Collections.emptySet()), null,
                 new AutoCreateIndex(
                     SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    new IndexNameExpressionResolver(SETTINGS)
+                    new IndexNameExpressionResolver()
                 )
             );
         }

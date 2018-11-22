@@ -220,6 +220,14 @@ public class Vertex implements ToXContentFragment {
             this.term = term;
         }
 
+        public String getField() {
+            return field;
+        }
+
+        public String getTerm() {
+            return term;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o)

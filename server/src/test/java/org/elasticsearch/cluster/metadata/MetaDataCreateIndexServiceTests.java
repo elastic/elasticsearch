@@ -103,12 +103,12 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         {
             final Version versionCreated = VersionUtils.randomVersionBetween(
                     random(),
-                    Version.V_6_0_0_alpha1, VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1));
+                    Version.V_6_0_0_alpha1, VersionUtils.getPreviousVersion(Version.V_7_0_0));
             final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
             assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(5));
         }
         {
-            final Version versionCreated = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0_alpha1, Version.CURRENT);
+            final Version versionCreated = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
             final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
             assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(1));
         }
@@ -171,8 +171,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
             Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
-        AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+        AllocationService service = new AllocationService(new AllocationDeciders(
+            Collections.singleton(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -241,8 +241,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
             Settings.builder().put("index.blocks.write", true).put("index.number_of_routing_shards", targetShards).build()))
             .nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+        AllocationService service = new AllocationService(new AllocationDeciders(
+            Collections.singleton(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -375,9 +375,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                         .build();
 
         final AllocationService service = new AllocationService(
-                Settings.builder().build(),
-                new AllocationDeciders(Settings.EMPTY,
-                Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+                new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
                 new TestGatewayAllocator(),
                 new BalancedShardsAllocator(Settings.EMPTY),
                 EmptyClusterInfoService.INSTANCE);
@@ -447,7 +445,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertEquals(2048, MetaDataCreateIndexService.calculateNumRoutingShards(1024, Version.CURRENT));
         assertEquals(4096, MetaDataCreateIndexService.calculateNumRoutingShards(2048, Version.CURRENT));
 
-        Version latestV6 = VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1);
+        Version latestV6 = VersionUtils.getPreviousVersion(Version.V_7_0_0);
         int numShards = randomIntBetween(1, 1000);
         assertEquals(numShards, MetaDataCreateIndexService.calculateNumRoutingShards(numShards, latestV6));
         assertEquals(numShards, MetaDataCreateIndexService.calculateNumRoutingShards(numShards,

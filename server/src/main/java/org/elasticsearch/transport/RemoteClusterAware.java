@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingUpgrader;
@@ -54,7 +53,7 @@ import java.util.stream.Stream;
 /**
  * Base class for all services and components that need up-to-date information about the registered remote clusters
  */
-public abstract class RemoteClusterAware extends AbstractComponent {
+public abstract class RemoteClusterAware {
 
     static {
         // remove search.remote.* settings in 8.0.0
@@ -175,9 +174,8 @@ public abstract class RemoteClusterAware extends AbstractComponent {
      * @param settings the nodes level settings
      */
     protected RemoteClusterAware(Settings settings) {
-        super(settings);
         this.settings = settings;
-        this.clusterNameResolver = new ClusterNameExpressionResolver(settings);
+        this.clusterNameResolver = new ClusterNameExpressionResolver();
     }
 
     /**

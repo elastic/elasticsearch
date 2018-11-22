@@ -19,6 +19,11 @@ public final class Comparisons {
         return i == null ? null : i.intValue() == 0;
     }
 
+    static Boolean neq(Object l, Object r) {
+        Integer i = compare(l, r);
+        return i == null ? null : i.intValue() != 0;
+    }
+
     static Boolean lt(Object l, Object r) {
         Integer i = compare(l, r);
         return i == null ? null : i.intValue() < 0;
@@ -50,6 +55,9 @@ public final class Comparisons {
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     static Integer compare(Object l, Object r) {
+        if (l == null || r == null) {
+            return null;
+        }
         // typical number comparison
         if (l instanceof Number && r instanceof Number) {
             return compare((Number) l, (Number) r);

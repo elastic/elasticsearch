@@ -9,9 +9,17 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkProcessor;
@@ -19,10 +27,12 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -57,8 +67,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -210,14 +223,23 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             @Override
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
         };
+        int bulkSize = between(1, 20);
         BulkProcessor bulkProcessor = BulkProcessor.builder(leaderClient(), listener)
-            .setBulkActions(100)
+            .setBulkActions(bulkSize)
             .setConcurrentRequests(4)
             .build();
         AtomicBoolean run = new AtomicBoolean(true);
+        Semaphore availableDocs = new Semaphore(0);
         Thread thread = new Thread(() -> {
             int counter = 0;
             while (run.get()) {
+                try {
+                    if (availableDocs.tryAcquire(10, TimeUnit.MILLISECONDS) == false) {
+                        continue;
+                    }
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
                 final String source = String.format(Locale.ROOT, "{\"f\":%d}", counter++);
                 IndexRequest indexRequest = new IndexRequest("index1", "doc")
                     .source(source, XContentType.JSON)
@@ -228,26 +250,28 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         thread.start();
 
         // Waiting for some document being index before following the index:
-        int maxReadSize = randomIntBetween(128, 2048);
-        long numDocsIndexed = Math.min(3000 * 2, randomLongBetween(maxReadSize, maxReadSize * 10));
+        int maxOpsPerRead = randomIntBetween(10, 100);
+        int numDocsIndexed = Math.min(between(20, 300), between(maxOpsPerRead, maxOpsPerRead * 10));
+        availableDocs.release(numDocsIndexed / 2 + bulkSize);
         atLeastDocsIndexed(leaderClient(), "index1", numDocsIndexed / 3);
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followRequest.getFollowRequest().setMaxReadRequestOperationCount(maxReadSize);
-        followRequest.getFollowRequest().setMaxOutstandingReadRequests(randomIntBetween(2, 10));
-        followRequest.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(2, 10));
+        followRequest.getFollowRequest().setMaxReadRequestOperationCount(maxOpsPerRead);
+        followRequest.getFollowRequest().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
+        followRequest.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         followRequest.getFollowRequest().setMaxWriteBufferCount(randomIntBetween(1024, 10240));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
-
+        availableDocs.release(numDocsIndexed * 2  + bulkSize);
         atLeastDocsIndexed(leaderClient(), "index1", numDocsIndexed);
         run.set(false);
         thread.join();
         assertThat(bulkProcessor.awaitClose(1L, TimeUnit.MINUTES), is(true));
 
-        assertSameDocCount("index1", "index2");
+        assertIndexFullyReplicatedToFollower("index1", "index2");
+        pauseFollow("index2");
+        leaderClient().admin().indices().prepareRefresh("index1").get();
         assertTotalNumberOfOptimizedIndexing(resolveFollowerIndex("index2"), numberOfShards,
             leaderClient().prepareSearch("index1").get().getHits().totalHits);
-        pauseFollow("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfShards);
     }
 
@@ -538,6 +562,256 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         e = expectThrows(IllegalArgumentException.class,
             () -> followerClient().execute(PutAutoFollowPatternAction.INSTANCE, putAutoFollowRequest).actionGet());
         assertThat(e.getMessage(), equalTo("unknown cluster alias [another_cluster]"));
+    }
+
+    public void testLeaderIndexRed() throws Exception {
+        try {
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.transientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
+            assertAcked(leaderClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(leaderClient().admin().indices().prepareCreate("index1")
+                .setWaitForActiveShards(ActiveShardCount.NONE)
+                .setSettings(Settings.builder()
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build()));
+
+            final PutFollowAction.Request followRequest = putFollow("index1", "index2");
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest).actionGet());
+            assertThat(e.getMessage(), equalTo("no index stats available for the leader index"));
+
+            IndicesExistsResponse existsResponse = followerClient().admin().indices().exists(new IndicesExistsRequest("index2"))
+                .actionGet();
+            assertThat(existsResponse.isExists(), is(false));
+        } finally {
+            // Always unset allocation enable setting to avoid other assertions from failing too when this test fails:
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.transientSettings(Settings.builder().put("cluster.routing.allocation.enable", (String) null));
+            assertAcked(leaderClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        }
+    }
+
+    public void testUpdateDynamicLeaderIndexSettings() throws Exception {
+        final String leaderIndexSettings = getIndexSettings(1, 0,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderYellow("leader");
+
+        final PutFollowAction.Request followRequest = putFollow("leader", "follower");
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        BooleanSupplier hasFollowIndexBeenClosedChecker = hasFollowIndexBeenClosed("follower");
+
+        final long firstBatchNumDocs = randomIntBetween(2, 64);
+        for (long i = 0; i < firstBatchNumDocs; i++) {
+            leaderClient().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+        }
+        assertBusy(() -> assertThat(followerClient().prepareSearch("follower").get().getHits().totalHits, equalTo(firstBatchNumDocs)));
+
+        // Sanity check that the setting has not been set in follower index:
+        {
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+            getSettingsRequest.indices("follower");
+            GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
+            assertThat(getSettingsResponse.getSetting("follower", "index.max_ngram_diff"), nullValue());
+        }
+        assertThat(getFollowTaskSettingsVersion("follower"), equalTo(1L));
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest("leader");
+        updateSettingsRequest.settings(Settings.builder().put("index.max_ngram_diff", 2));
+        assertAcked(leaderClient().admin().indices().updateSettings(updateSettingsRequest).actionGet());
+
+        final int secondBatchNumDocs = randomIntBetween(2, 64);
+        for (long i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
+            leaderClient().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+        }
+        assertBusy(() -> {
+            // Check that the setting has been set in follower index:
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+            getSettingsRequest.indices("follower");
+            GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
+            assertThat(getSettingsResponse.getSetting("follower", "index.max_ngram_diff"), equalTo("2"));
+            assertThat(getFollowTaskSettingsVersion("follower"), equalTo(2L));
+
+            try {
+                assertThat(followerClient().prepareSearch("follower").get().getHits().totalHits,
+                    equalTo(firstBatchNumDocs + secondBatchNumDocs));
+            } catch (Exception e) {
+                throw new AssertionError("error while searching", e);
+            }
+        });
+        assertThat(hasFollowIndexBeenClosedChecker.getAsBoolean(), is(false));
+    }
+
+    public void testLeaderIndexSettingNotPercolatedToFollower() throws Exception {
+        // Sets an index setting on leader index that is excluded from being replicated to the follower index and
+        // expects that this setting is not replicated to the follower index, but does expect that the settings version
+        // is incremented.
+        final String leaderIndexSettings = getIndexSettings(1, 0,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderYellow("leader");
+
+        final PutFollowAction.Request followRequest = putFollow("leader", "follower");
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        BooleanSupplier hasFollowIndexBeenClosedChecker = hasFollowIndexBeenClosed("follower");
+
+        final long firstBatchNumDocs = randomIntBetween(2, 64);
+        for (long i = 0; i < firstBatchNumDocs; i++) {
+            leaderClient().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+        }
+        assertBusy(() -> assertThat(followerClient().prepareSearch("follower").get().getHits().totalHits, equalTo(firstBatchNumDocs)));
+
+        // Sanity check that the setting has not been set in follower index:
+        {
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+            getSettingsRequest.indices("follower");
+            GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
+            assertThat(getSettingsResponse.getSetting("follower", "index.number_of_replicas"), equalTo("0"));
+        }
+        assertThat(getFollowTaskSettingsVersion("follower"), equalTo(1L));
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest("leader");
+        updateSettingsRequest.settings(Settings.builder().put("index.number_of_replicas", 1));
+        assertAcked(leaderClient().admin().indices().updateSettings(updateSettingsRequest).actionGet());
+
+        final int secondBatchNumDocs = randomIntBetween(2, 64);
+        for (long i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
+            leaderClient().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+        }
+        assertBusy(() -> {
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+            getSettingsRequest.indices("follower");
+            GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
+            assertThat(getSettingsResponse.getSetting("follower", "index.number_of_replicas"), equalTo("0"));
+            assertThat(getFollowTaskSettingsVersion("follower"), equalTo(2L));
+
+            try {
+                assertThat(followerClient().prepareSearch("follower").get().getHits().totalHits,
+                    equalTo(firstBatchNumDocs + secondBatchNumDocs));
+            } catch (Exception e) {
+                throw new AssertionError("error while searching", e);
+            }
+        });
+        assertThat(hasFollowIndexBeenClosedChecker.getAsBoolean(), is(false));
+    }
+
+    public void testUpdateAnalysisLeaderIndexSettings() throws Exception {
+        final String leaderIndexSettings = getIndexSettings(1, 0,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderYellow("leader");
+
+        final PutFollowAction.Request followRequest = putFollow("leader", "follower");
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        BooleanSupplier hasFollowIndexBeenClosedChecker = hasFollowIndexBeenClosed("follower");
+
+        final long firstBatchNumDocs = randomIntBetween(2, 64);
+        for (long i = 0; i < firstBatchNumDocs; i++) {
+            leaderClient().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+        }
+
+        assertBusy(() -> assertThat(followerClient().prepareSearch("follower").get().getHits().totalHits, equalTo(firstBatchNumDocs)));
+        assertThat(getFollowTaskSettingsVersion("follower"), equalTo(1L));
+        assertThat(getFollowTaskMappingVersion("follower"), equalTo(1L));
+
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest("leader");
+        assertAcked(leaderClient().admin().indices().close(closeIndexRequest).actionGet());
+
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest("leader");
+        updateSettingsRequest.settings(Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "custom")
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "keyword")
+        );
+        assertAcked(leaderClient().admin().indices().updateSettings(updateSettingsRequest).actionGet());
+
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest("leader");
+        assertAcked(leaderClient().admin().indices().open(openIndexRequest).actionGet());
+        ensureLeaderGreen("leader");
+
+        PutMappingRequest putMappingRequest = new PutMappingRequest("leader");
+        putMappingRequest.type("doc");
+        putMappingRequest.source("new_field", "type=text,analyzer=my_analyzer");
+        assertAcked(leaderClient().admin().indices().putMapping(putMappingRequest).actionGet());
+
+        final int secondBatchNumDocs = randomIntBetween(2, 64);
+        for (long i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
+            final String source = String.format(Locale.ROOT, "{\"new_field\":\"value %d\"}", i);
+            leaderClient().prepareIndex("leader", "doc").setSource(source, XContentType.JSON).get();
+        }
+
+        assertBusy(() -> {
+            assertThat(getFollowTaskSettingsVersion("follower"), equalTo(2L));
+            assertThat(getFollowTaskMappingVersion("follower"), equalTo(2L));
+
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+            getSettingsRequest.indices("follower");
+            GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
+            assertThat(getSettingsResponse.getSetting("follower", "index.analysis.analyzer.my_analyzer.type"), equalTo("custom"));
+            assertThat(getSettingsResponse.getSetting("follower", "index.analysis.analyzer.my_analyzer.tokenizer"), equalTo("keyword"));
+
+            GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
+            getMappingsRequest.indices("follower");
+            GetMappingsResponse getMappingsResponse = followerClient().admin().indices().getMappings(getMappingsRequest).actionGet();
+            MappingMetaData mappingMetaData = getMappingsResponse.getMappings().get("follower").get("doc");
+            assertThat(XContentMapValues.extractValue("properties.new_field.type", mappingMetaData.sourceAsMap()), equalTo("text"));
+            assertThat(XContentMapValues.extractValue("properties.new_field.analyzer", mappingMetaData.sourceAsMap()),
+                equalTo("my_analyzer"));
+
+            try {
+                assertThat(followerClient().prepareSearch("follower").get().getHits().totalHits,
+                    equalTo(firstBatchNumDocs + secondBatchNumDocs));
+            } catch (Exception e) {
+                throw new AssertionError("error while searching", e);
+            }
+        });
+        assertThat(hasFollowIndexBeenClosedChecker.getAsBoolean(), is(true));
+    }
+
+    private long getFollowTaskSettingsVersion(String followerIndex) {
+        long settingsVersion = -1L;
+        for (ShardFollowNodeTaskStatus status : getFollowTaskStatuses(followerIndex)) {
+            if (settingsVersion == -1L) {
+                settingsVersion = status.followerSettingsVersion();
+            } else {
+                assert settingsVersion == status.followerSettingsVersion();
+            }
+        }
+        return settingsVersion;
+    }
+
+    private long getFollowTaskMappingVersion(String followerIndex) {
+        long mappingVersion = -1L;
+        for (ShardFollowNodeTaskStatus status : getFollowTaskStatuses(followerIndex)) {
+            if (mappingVersion == -1L) {
+                mappingVersion = status.followerMappingVersion();
+            } else {
+                assert mappingVersion == status.followerMappingVersion();
+            }
+        }
+        return mappingVersion;
+    }
+
+    private List<ShardFollowNodeTaskStatus> getFollowTaskStatuses(String followerIndex) {
+        FollowStatsAction.StatsRequest request = new StatsRequest();
+        request.setIndices(new String[]{followerIndex});
+        FollowStatsAction.StatsResponses response = followerClient().execute(FollowStatsAction.INSTANCE, request).actionGet();
+        return response.getStatsResponses().stream()
+            .map(FollowStatsAction.StatsResponse::status)
+            .filter(status -> status.followerIndex().equals(followerIndex))
+            .collect(Collectors.toList());
+    }
+
+    private BooleanSupplier hasFollowIndexBeenClosed(String indexName) {
+        String electedMasterNode = getFollowerCluster().getMasterName();
+        ClusterService clusterService = getFollowerCluster().getInstance(ClusterService.class, electedMasterNode);
+        AtomicBoolean closed = new AtomicBoolean(false);
+        clusterService.addListener(event -> {
+            IndexMetaData indexMetaData = event.state().metaData().index(indexName);
+            if (indexMetaData != null  && indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                closed.set(true);
+            }
+        });
+        return closed::get;
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {

@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -45,10 +44,10 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportMultiTermVectorsAction(Settings settings, TransportService transportService,
-                                           ClusterService clusterService, TransportShardMultiTermsVectorAction shardAction,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, MultiTermVectorsAction.NAME, transportService, actionFilters, MultiTermVectorsRequest::new);
+    public TransportMultiTermVectorsAction(TransportService transportService, ClusterService clusterService,
+                                           TransportShardMultiTermsVectorAction shardAction, ActionFilters actionFilters,
+                                           IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(MultiTermVectorsAction.NAME, transportService, actionFilters, MultiTermVectorsRequest::new);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -65,16 +64,20 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
         Map<ShardId, MultiTermVectorsShardRequest> shardRequests = new HashMap<>();
         for (int i = 0; i < request.requests.size(); i++) {
             TermVectorsRequest termVectorsRequest = request.requests.get(i);
-            termVectorsRequest.routing(clusterState.metaData().resolveIndexRouting(termVectorsRequest.routing(), termVectorsRequest.index()));
+            termVectorsRequest.routing(clusterState.metaData().resolveIndexRouting(termVectorsRequest.routing(),
+                termVectorsRequest.index()));
             if (!clusterState.metaData().hasConcreteIndex(termVectorsRequest.index())) {
                 responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(termVectorsRequest.index(),
                         termVectorsRequest.type(), termVectorsRequest.id(), new IndexNotFoundException(termVectorsRequest.index()))));
                 continue;
             }
             String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, termVectorsRequest).getName();
-            if (termVectorsRequest.routing() == null && clusterState.getMetaData().routingRequired(concreteSingleIndex, termVectorsRequest.type())) {
-                responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id(),
-                        new IllegalArgumentException("routing is required for [" + concreteSingleIndex + "]/[" + termVectorsRequest.type() + "]/[" + termVectorsRequest.id() + "]"))));
+            if (termVectorsRequest.routing() == null &&
+                    clusterState.getMetaData().routingRequired(concreteSingleIndex, termVectorsRequest.type())) {
+                responses.set(i, new MultiTermVectorsItemResponse(null,
+                    new MultiTermVectorsResponse.Failure(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id(),
+                        new IllegalArgumentException("routing is required for [" + concreteSingleIndex + "]/[" +
+                            termVectorsRequest.type() + "]/[" + termVectorsRequest.id() + "]"))));
                 continue;
             }
             ShardId shardId = clusterService.operationRouting().shardId(clusterState, concreteSingleIndex,

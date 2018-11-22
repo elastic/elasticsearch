@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
@@ -37,10 +36,9 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
-    public TransportSqlQueryAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+    public TransportSqlQueryAction(TransportService transportService, ActionFilters actionFilters,
                                    PlanExecutor planExecutor, SqlLicenseChecker sqlLicenseChecker) {
-        super(settings, SqlQueryAction.NAME, transportService, actionFilters,
-            (Writeable.Reader<SqlQueryRequest>) SqlQueryRequest::new);
+        super(SqlQueryAction.NAME, transportService, actionFilters, (Writeable.Reader<SqlQueryRequest>) SqlQueryRequest::new);
 
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
@@ -74,7 +72,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
         for (Schema.Entry entry : rowSet.schema()) {
             if (Mode.isDriver(request.mode())) {
-                columns.add(new ColumnInfo("", entry.name(), entry.type().esType, entry.type().jdbcType,
+                columns.add(new ColumnInfo("", entry.name(), entry.type().esType, entry.type().sqlType.getVendorTypeNumber(),
                         entry.type().displaySize));
             } else {
                 columns.add(new ColumnInfo("", entry.name(), entry.type().esType));

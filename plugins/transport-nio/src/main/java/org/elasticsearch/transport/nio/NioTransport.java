@@ -19,8 +19,10 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -41,7 +43,6 @@ import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -56,8 +57,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 public class NioTransport extends TcpTransport {
-
-    private static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = Transports.NIO_TRANSPORT_WORKER_THREAD_NAME_PREFIX;
+    private static final Logger logger = LogManager.getLogger(NioTransport.class);
 
     public static final Setting<Integer> NIO_WORKER_COUNT =
         new Setting<>("transport.nio.worker_count",
@@ -69,10 +69,10 @@ public class NioTransport extends TcpTransport {
     private volatile NioGroup nioGroup;
     private volatile TcpChannelFactory clientChannelFactory;
 
-    protected NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                 PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
-                 CircuitBreakerService circuitBreakerService) {
-        super("nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+    protected NioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
+                           PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
+                           CircuitBreakerService circuitBreakerService) {
+        super("nio", settings, version, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
         this.pageCacheRecycler = pageCacheRecycler;
     }
 
@@ -83,10 +83,9 @@ public class NioTransport extends TcpTransport {
     }
 
     @Override
-    protected NioTcpChannel initiateChannel(DiscoveryNode node, ActionListener<Void> connectListener) throws IOException {
+    protected NioTcpChannel initiateChannel(DiscoveryNode node) throws IOException {
         InetSocketAddress address = node.getAddress().address();
         NioTcpChannel channel = nioGroup.openChannel(address, clientChannelFactory);
-        channel.addConnectListener(ActionListener.toBiConsumer(connectListener));
         return channel;
     }
 
@@ -94,7 +93,7 @@ public class NioTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX),
+            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX),
                 NioTransport.NIO_WORKER_COUNT.get(settings), (s) -> new EventHandler(this::onNonChannelException, s));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");

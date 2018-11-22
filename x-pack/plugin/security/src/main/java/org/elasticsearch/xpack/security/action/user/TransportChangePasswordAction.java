@@ -30,7 +30,7 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
     @Inject
     public TransportChangePasswordAction(Settings settings, TransportService transportService,
                                          ActionFilters actionFilters, NativeUsersStore nativeUsersStore) {
-        super(settings, ChangePasswordAction.NAME, transportService, actionFilters, ChangePasswordRequest::new);
+        super(ChangePasswordAction.NAME, transportService, actionFilters, ChangePasswordRequest::new);
         this.settings = settings;
         this.nativeUsersStore = nativeUsersStore;
     }

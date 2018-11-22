@@ -196,8 +196,12 @@ SKEWNESS        |AGGREGATE
 STDDEV_POP      |AGGREGATE      
 SUM_OF_SQUARES  |AGGREGATE      
 VAR_POP         |AGGREGATE      
-DAY             |SCALAR         
-DAYNAME         |SCALAR         
+COALESCE        |CONDITIONAL
+IFNULL          |CONDITIONAL
+ISNULL          |CONDITIONAL
+NVL             |CONDITIONAL
+DAY             |SCALAR
+DAYNAME         |SCALAR
 DAYOFMONTH      |SCALAR         
 DAYOFWEEK       |SCALAR         
 DAYOFYEAR       |SCALAR         
@@ -1509,3 +1513,87 @@ SELECT TRUNCATE(-345.153, 1) AS trimmed;
 // end::mathTruncateWithPositiveParameter
 ;
 
+
+coalesceReturnNonNull
+// tag::coalesceReturnNonNull
+SELECT COALESCE(null, 'elastic', 'search') AS "coalesce";
+
+    coalesce
+---------------
+elastic
+// end::coalesceReturnNonNull
+;
+
+
+coalesceReturnNull
+// tag::coalesceReturnNull
+SELECT COALESCE(null, null, null, null) AS "coalesce";
+
+    coalesce
+---------------
+null
+// end::coalesceReturnNull
+;
+
+ifNullReturnFirst
+// tag::ifNullReturnFirst
+SELECT IFNULL('elastic', null) AS "ifnull";
+
+    ifnull
+---------------
+elastic
+// end::ifNullReturnFirst
+;
+
+
+ifNullReturnSecond
+// tag::ifNullReturnSecond
+SELECT IFNULL(null, 'search') AS "ifnull";
+
+    ifnull
+---------------
+search
+// end::ifNullReturnSecond
+;
+
+isNullReturnFirst
+// tag::isNullReturnFirst
+SELECT ISNULL('elastic', null) AS "isnull";
+
+    isnull
+---------------
+elastic
+// end::isNullReturnFirst
+;
+
+
+isNullReturnSecond
+// tag::isNullReturnSecond
+SELECT ISNULL(null, 'search') AS "isnull";
+
+    isnull
+---------------
+search
+// end::isNullReturnSecond
+;
+
+nvlReturnFirst
+// tag::nvlReturnFirst
+SELECT NVL('elastic', null) AS "nvl";
+
+    nvl
+---------------
+elastic
+// end::nvlReturnFirst
+;
+
+
+nvlReturnSecond
+// tag::nvlReturnSecond
+SELECT NVL(null, 'search') AS "nvl";
+
+    nvl
+---------------
+search
+// end::nvlReturnSecond
+;

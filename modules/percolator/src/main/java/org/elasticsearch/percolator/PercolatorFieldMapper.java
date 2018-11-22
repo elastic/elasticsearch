@@ -327,7 +327,7 @@ public class PercolatorFieldMapper extends FieldMapper {
                         extractedTerms.add(builder.toBytesRef());
                     }
                 }
-                if (info.getPointDimensionCount() == 1) { // not != 0 because range fields are not supported
+                if (info.getPointIndexDimensionCount() == 1) { // not != 0 because range fields are not supported
                     PointValues values = reader.getPointValues(info.name);
                     List<byte[]> encodedPointValues = new ArrayList<>();
                     encodedPointValues.add(values.getMinPackedValue().clone());
@@ -409,7 +409,15 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
         createQueryBuilderField(indexVersion, queryBuilderField, queryBuilder, context);
-        Query query = toQuery(queryShardContext, isMapUnmappedFieldAsText(), queryBuilder);
+
+        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new QueryShardContext(queryShardContext) {
+
+            @Override
+            public boolean convertNowRangeToMatchAll() {
+                return true;
+            }
+        });
+        Query query = toQuery(queryShardContext, isMapUnmappedFieldAsText(), queryBuilderForProcessing);
         processQuery(query, context);
     }
 

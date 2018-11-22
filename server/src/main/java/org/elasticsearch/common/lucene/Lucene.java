@@ -29,8 +29,12 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -40,13 +44,20 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
@@ -209,7 +220,7 @@ public class Lucene {
                 throw new IllegalStateException("no commit found in the directory");
             }
         }
-        final CommitPoint cp = new CommitPoint(si, directory);
+        final IndexCommit cp = getIndexCommit(si, directory);
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
                 .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setIndexCommit(cp)
@@ -219,6 +230,13 @@ public class Lucene {
             // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
         }
         return si;
+    }
+
+    /**
+     * Returns an index commit for the given {@link SegmentInfos} in the given directory.
+     */
+    public static IndexCommit getIndexCommit(SegmentInfos si, Directory directory) throws IOException {
+        return new CommitPoint(si, directory);
     }
 
     /**
@@ -283,7 +301,7 @@ public class Lucene {
     private static TotalHits readTotalHits(StreamInput in) throws IOException {
         long totalHits = in.readVLong();
         TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
             totalHitsRelation = in.readEnum(TotalHits.Relation.class);
         }
         return new TotalHits(totalHits, totalHitsRelation);
@@ -402,7 +420,7 @@ public class Lucene {
 
     private static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
         out.writeVLong(totalHits.value);
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
             out.writeEnum(totalHits.relation);
         } else if (totalHits.value > 0 && totalHits.relation != TotalHits.Relation.EQUAL_TO) {
             throw new IllegalArgumentException("Cannot serialize approximate total hit counts to nodes that are on a version < 7.0.0");
@@ -608,7 +626,7 @@ public class Lucene {
     }
 
     private static Number readExplanationValue(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
             final int numberType = in.readByte();
             switch (numberType) {
             case 0:
@@ -640,7 +658,7 @@ public class Lucene {
     }
 
     private static void writeExplanationValue(StreamOutput out, Number value) throws IOException {
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
             if (value instanceof Float) {
                 out.writeByte((byte) 0);
                 out.writeFloat(value.floatValue());
@@ -971,6 +989,88 @@ public class Lucene {
      */
     public static NumericDocValuesField newSoftDeletesField() {
         return new NumericDocValuesField(SOFT_DELETES_FIELD, 1);
+    }
+
+    /**
+     * Returns an empty leaf reader with the given max docs. The reader will be fully deleted.
+     */
+    public static LeafReader emptyReader(final int maxDoc) {
+        return new LeafReader() {
+            final Bits liveDocs = new Bits.MatchNoBits(maxDoc);
+
+            public Terms terms(String field) {
+                return null;
+            }
+
+            public NumericDocValues getNumericDocValues(String field) {
+                return null;
+            }
+
+            public BinaryDocValues getBinaryDocValues(String field) {
+                return null;
+            }
+
+            public SortedDocValues getSortedDocValues(String field) {
+                return null;
+            }
+
+            public SortedNumericDocValues getSortedNumericDocValues(String field) {
+                return null;
+            }
+
+            public SortedSetDocValues getSortedSetDocValues(String field) {
+                return null;
+            }
+
+            public NumericDocValues getNormValues(String field) {
+                return null;
+            }
+
+            public FieldInfos getFieldInfos() {
+                return new FieldInfos(new FieldInfo[0]);
+            }
+
+            public Bits getLiveDocs() {
+                return this.liveDocs;
+            }
+
+            public PointValues getPointValues(String fieldName) {
+                return null;
+            }
+
+            public void checkIntegrity() {
+            }
+
+            public Fields getTermVectors(int docID) {
+                return null;
+            }
+
+            public int numDocs() {
+                return 0;
+            }
+
+            public int maxDoc() {
+                return maxDoc;
+            }
+
+            public void document(int docID, StoredFieldVisitor visitor) {
+            }
+
+            protected void doClose() {
+            }
+
+            public LeafMetaData getMetaData() {
+                return new LeafMetaData(Version.LATEST.major, Version.LATEST, (Sort)null);
+            }
+
+            public CacheHelper getCoreCacheHelper() {
+                return null;
+            }
+
+            public CacheHelper getReaderCacheHelper() {
+                return null;
+            }
+        };
     }
 
     /**

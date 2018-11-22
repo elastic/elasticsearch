@@ -54,7 +54,7 @@ public final class StatsCollector extends Collector {
             final XPackLicenseState licenseState,
             final CcrClient ccrClient,
             final ThreadContext threadContext) {
-        super(settings, TYPE, clusterService, CCR_STATS_TIMEOUT, licenseState);
+        super(TYPE, clusterService, CCR_STATS_TIMEOUT, licenseState);
         this.settings = settings;
         this.ccrClient = ccrClient;
         this.threadContext = threadContext;

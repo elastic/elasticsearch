@@ -19,8 +19,12 @@ SKEWNESS        |AGGREGATE
 STDDEV_POP      |AGGREGATE      
 SUM_OF_SQUARES  |AGGREGATE      
 VAR_POP         |AGGREGATE      
-DAY             |SCALAR         
-DAYNAME         |SCALAR         
+COALESCE        |CONDITIONAL
+IFNULL          |CONDITIONAL
+ISNULL          |CONDITIONAL
+NVL             |CONDITIONAL
+DAY             |SCALAR
+DAYNAME         |SCALAR
 DAYOFMONTH      |SCALAR         
 DAYOFWEEK       |SCALAR         
 DAYOFYEAR       |SCALAR         

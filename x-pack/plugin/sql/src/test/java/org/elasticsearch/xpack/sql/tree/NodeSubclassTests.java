@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -24,7 +25,8 @@ import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipesTests;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.predicate.In;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IFNull;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPipe;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
@@ -86,7 +88,7 @@ import static org.mockito.Mockito.mock;
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
 
     private static final List<Class<? extends Node<?>>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.asList(
-        In.class, InPipe.class, Percentile.class, Percentiles.class, PercentileRanks.class);
+        IFNull.class, In.class, InPipe.class, Percentile.class, Percentiles.class, PercentileRanks.class);
 
     private final Class<T> subclass;
 
@@ -585,7 +587,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     /**
      * Find all subclasses of a particular class.
      */
-    private static <T> List<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
+    public static <T> List<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
         @SuppressWarnings("unchecked") // The map is built this way
         List<Class<? extends T>> lookup = (List<Class<? extends T>>) subclassCache.get(clazz);
         if (lookup != null) {

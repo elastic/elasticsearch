@@ -66,7 +66,7 @@ class BuildPlugin implements Plugin<Project> {
     void apply(Project project) {
         if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
               throw new InvalidUserDataException('elasticsearch.standalone-test, '
-                + 'elasticearch.standalone-rest-test, and elasticsearch.build '
+                + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
         }
         final String minimumGradleVersion
@@ -442,7 +442,7 @@ class BuildPlugin implements Plugin<Project> {
             // such that we don't have to pass hardcoded files to gradle
             repos.mavenLocal()
         }
-        repos.mavenCentral()
+        repos.jcenter()
         repos.maven {
             name "elastic"
             url "https://artifacts.elastic.co/maven"
@@ -696,18 +696,12 @@ class BuildPlugin implements Plugin<Project> {
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
             // fixup the jar manifest
             jarTask.doFirst {
-                final Version versionWithoutSnapshot = new Version(
-                        VersionProperties.elasticsearch.major,
-                        VersionProperties.elasticsearch.minor,
-                        VersionProperties.elasticsearch.revision,
-                        VersionProperties.elasticsearch.suffix,
-                        false)
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 jarTask.manifest.attributes(
-                        'X-Compile-Elasticsearch-Version': versionWithoutSnapshot,
+                        'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
-                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.elasticsearch.isSnapshot(),
+                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
                         'Build-Java-Version': project.compilerJavaVersion)
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
@@ -779,9 +773,32 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     static void applyCommonTestConfig(Project project) {
+        String defaultParallel = 'auto'
+        // Count physical cores on any Linux distro ( don't count hyper-threading )
+        if (project.file("/proc/cpuinfo").exists()) {
+            Map<String, Integer> socketToCore = [:]
+            String currentID = ""
+            project.file("/proc/cpuinfo").readLines().forEach({ line ->
+                if (line.contains(":")) {
+                    List<String> parts = line.split(":", 2).collect({it.trim()})
+                    String name = parts[0], value = parts[1]
+                    // the ID of the CPU socket
+                    if (name == "physical id") {
+                        currentID = value
+                    }
+                    // Number  of cores not including hyper-threading
+                    if (name == "cpu cores") {
+                        assert currentID.isEmpty() == false
+                        socketToCore[currentID] = Integer.valueOf(value)
+                        currentID = ""
+                    }
+                }
+            })
+            defaultParallel = socketToCore.values().sum().toString();
+        }
         project.tasks.withType(RandomizedTestingTask) {
             jvm "${project.runtimeJavaHome}/bin/java"
-            parallelism System.getProperty('tests.jvms', 'auto')
+            parallelism System.getProperty('tests.jvms', defaultParallel)
             ifNoTests System.getProperty('tests.ifNoTests', 'fail')
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true

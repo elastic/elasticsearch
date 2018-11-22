@@ -11,12 +11,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
 
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 
@@ -48,6 +42,11 @@ public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestC
         assertEquals(false, new Equals(EMPTY, l(3), l(4)).makePipe().asProcessor().process(null));
     }
 
+    public void testNEq() {
+        assertEquals(false, new NotEquals(EMPTY, l(4), l(4)).makePipe().asProcessor().process(null));
+        assertEquals(true, new NotEquals(EMPTY, l(3), l(4)).makePipe().asProcessor().process(null));
+    }
+
     public void testGt() {
         assertEquals(true, new GreaterThan(EMPTY, l(4), l(3)).makePipe().asProcessor().process(null));
         assertEquals(false, new GreaterThan(EMPTY, l(3), l(4)).makePipe().asProcessor().process(null));
@@ -73,11 +72,12 @@ public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestC
     }
     
     public void testHandleNull() {
-        assertNull(new Equals(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
-        assertNull(new GreaterThan(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
-        assertNull(new GreaterThanOrEqual(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
-        assertNull(new LessThan(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
-        assertNull(new LessThanOrEqual(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
+        assertNull(new Equals(EMPTY, Literal.NULL, l(3)).makePipe().asProcessor().process(null));
+        assertNull(new NotEquals(EMPTY, Literal.NULL, l(3)).makePipe().asProcessor().process(null));
+        assertNull(new GreaterThan(EMPTY, Literal.NULL, l(3)).makePipe().asProcessor().process(null));
+        assertNull(new GreaterThanOrEqual(EMPTY, Literal.NULL, l(3)).makePipe().asProcessor().process(null));
+        assertNull(new LessThan(EMPTY, Literal.NULL, l(3)).makePipe().asProcessor().process(null));
+        assertNull(new LessThanOrEqual(EMPTY, Literal.NULL, l(3)).makePipe().asProcessor().process(null));
     }
     
     private static Literal l(Object value) {

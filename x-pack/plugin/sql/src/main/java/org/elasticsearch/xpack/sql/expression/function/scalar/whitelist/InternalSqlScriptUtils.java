@@ -21,16 +21,25 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunct
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.IsNotNullProcessor;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.CoalesceProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
+import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.time.Duration;
+import java.time.Period;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -38,6 +47,7 @@ import java.util.Map;
  * Acts as a registry of the various static methods used <b>internally</b> by the scalar functions
  * (to simplify the whitelist definition).
  */
+@SuppressWarnings("unused")
 public final class InternalSqlScriptUtils {
 
     private InternalSqlScriptUtils() {}
@@ -50,7 +60,7 @@ public final class InternalSqlScriptUtils {
     public static <T> Object docValue(Map<String, ScriptDocValues<T>> doc, String fieldName) {
         if (doc.containsKey(fieldName)) {
             ScriptDocValues<T> docValues = doc.get(fieldName);
-            if (docValues.size() > 0) {
+            if (!docValues.isEmpty()) {
                 return docValues.get(0);
             }
         }
@@ -81,6 +91,10 @@ public final class InternalSqlScriptUtils {
         return BinaryComparisonOperation.EQ.apply(left, right);
     }
 
+    public static Boolean neq(Object left, Object right) {
+        return BinaryComparisonOperation.NEQ.apply(left, right);
+    }
+
     public static Boolean lt(Object left, Object right) {
         return BinaryComparisonOperation.LT.apply(left, right);
     }
@@ -109,8 +123,23 @@ public final class InternalSqlScriptUtils {
         return NotProcessor.apply(expression);
     }
 
-    public static Boolean notNull(Object expression) {
-        return IsNotNullProcessor.apply(expression);
+    public static Boolean isNull(Object expression) {
+        return CheckNullOperation.IS_NULL.apply(expression);
+    }
+
+    public static Boolean isNotNull(Object expression) {
+        return CheckNullOperation.IS_NOT_NULL.apply(expression);
+    }
+
+    public static Boolean in(Object value, List<Object> values) {
+        return InProcessor.apply(value, values);
+    }
+
+    //
+    // Null
+    //
+    public static Object coalesce(List<Object> expressions) {
+        return CoalesceProcessor.apply(expressions);
     }
 
     //
@@ -123,19 +152,19 @@ public final class InternalSqlScriptUtils {
     //
     // Math
     //
-    public static Number add(Number left, Number right) {
+    public static Object add(Object left, Object right) {
         return BinaryArithmeticOperation.ADD.apply(left, right);
     }
 
-    public static Number div(Number left, Number right) {
+    public static Object div(Object left, Object right) {
         return BinaryArithmeticOperation.DIV.apply(left, right);
     }
 
-    public static Number mod(Number left, Number right) {
+    public static Object mod(Object left, Object right) {
         return BinaryArithmeticOperation.MOD.apply(left, right);
     }
 
-    public static Number mul(Number left, Number right) {
+    public static Object mul(Object left, Object right) {
         return BinaryArithmeticOperation.MUL.apply(left, right);
     }
 
@@ -143,7 +172,7 @@ public final class InternalSqlScriptUtils {
         return UnaryArithmeticOperation.NEGATE.apply(value);
     }
 
-    public static Number sub(Number left, Number right) {
+    public static Object sub(Object left, Object right) {
         return BinaryArithmeticOperation.SUB.apply(left, right);
     }
 
@@ -282,13 +311,35 @@ public final class InternalSqlScriptUtils {
         return QuarterProcessor.quarter(asDateTime(dateTime), tzId);
     }
 
-    private static ZonedDateTime asDateTime(Object dateTime) {
+    public static ZonedDateTime asDateTime(Object dateTime) {
         if (dateTime instanceof JodaCompatibleZonedDateTime) {
             return ((JodaCompatibleZonedDateTime) dateTime).getZonedDateTime();
         }
+        if (dateTime instanceof ZonedDateTime) {
+            return (ZonedDateTime) dateTime;
+        }
+        if (dateTime instanceof Number) {
+            return DateUtils.of(((Number) dateTime).longValue());
+        }
+
         throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
     }
     
+    public static IntervalDayTime intervalDayTime(String text, String typeName) {
+        if (text == null || typeName == null) {
+            return null;
+        }
+        return new IntervalDayTime(Duration.parse(text), DataType.fromTypeName(typeName));
+    }
+
+    public static IntervalYearMonth intervalYearMonth(String text, String typeName) {
+        if (text == null || typeName == null) {
+            return null;
+        }
+
+        return new IntervalYearMonth(Period.parse(text), DataType.fromTypeName(typeName));
+    }
+
     //
     // String functions
     //

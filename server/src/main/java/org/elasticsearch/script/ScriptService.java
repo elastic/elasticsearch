@@ -19,6 +19,8 @@
 
 package org.elasticsearch.script;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
@@ -32,13 +34,13 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -48,6 +50,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -56,7 +59,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
-public class ScriptService extends AbstractComponent implements Closeable, ClusterStateApplier {
+public class ScriptService implements Closeable, ClusterStateApplier {
+
+    private static final Logger logger = LogManager.getLogger(ScriptService.class);
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
@@ -97,8 +102,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
         Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
-        Setting.intSetting("script.max_size_in_bytes", 65535, Property.NodeScope);
-    // public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
+        Setting.intSetting("script.max_size_in_bytes", 65535, 0, Property.Dynamic, Property.NodeScope);
     public static final Setting<Tuple<Integer, TimeValue>> SCRIPT_MAX_COMPILATIONS_RATE =
             new Setting<>("script.max_compilations_rate", "75/5m", MAX_COMPILATION_RATE_FUNCTION, Property.Dynamic, Property.NodeScope);
 
@@ -122,13 +126,14 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     private ClusterState clusterState;
 
+    private int maxSizeInBytes;
+
     private Tuple<Integer, TimeValue> rate;
     private long lastInlineCompileTime;
     private double scriptsPerTimeWindow;
     private double compilesAllowedPerNano;
 
     public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
-        super(settings);
         this.settings = Objects.requireNonNull(settings);
         this.engines = Objects.requireNonNull(engines);
         this.contexts = Objects.requireNonNull(contexts);
@@ -221,10 +226,12 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
         this.lastInlineCompileTime = System.nanoTime();
+        this.setMaxSizeInBytes(SCRIPT_MAX_SIZE_IN_BYTES.get(settings));
         this.setMaxCompilationRate(SCRIPT_MAX_COMPILATIONS_RATE.get(settings));
     }
 
     void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
+        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_SIZE_IN_BYTES, this::setMaxSizeInBytes);
         clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_RATE, this::setMaxCompilationRate);
     }
 
@@ -239,6 +246,22 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             throw new IllegalArgumentException("script_lang not supported [" + lang + "]");
         }
         return scriptEngine;
+    }
+
+    /**
+     * Changes the maximum number of bytes a script's source is allowed to have.
+     * @param newMaxSizeInBytes The new maximum number of bytes.
+     */
+    void setMaxSizeInBytes(int newMaxSizeInBytes) {
+        for (Map.Entry<String, StoredScriptSource> source : getScriptsFromClusterState().entrySet()) {
+            if (source.getValue().getSource().getBytes(StandardCharsets.UTF_8).length > newMaxSizeInBytes) {
+                throw new IllegalArgumentException("script.max_size_in_bytes cannot be set to [" + newMaxSizeInBytes + "], " +
+                        "stored script [" + source.getKey() + "] exceeds the new value with a size of " +
+                        "[" + source.getValue().getSource().getBytes(StandardCharsets.UTF_8).length + "]");
+            }
+        }
+
+        maxSizeInBytes = newMaxSizeInBytes;
     }
 
     /**
@@ -293,6 +316,13 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         if (isContextEnabled(context) == false) {
             throw new IllegalArgumentException("cannot execute scripts using [" + context.name + "] context");
+        }
+
+        if (type == ScriptType.INLINE) {
+            if (idOrCode.getBytes(StandardCharsets.UTF_8).length > maxSizeInBytes) {
+                throw new IllegalArgumentException("exceeded max allowed inline script size in bytes [" + maxSizeInBytes + "] " +
+                        "with size [" + idOrCode.getBytes(StandardCharsets.UTF_8).length + "] for script [" + idOrCode + "]");
+            }
         }
 
         if (logger.isTraceEnabled()) {
@@ -369,7 +399,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             // Otherwise reject the request
             throw new CircuitBreakingException("[script] Too many dynamic script compilations within, max: [" +
                     rate.v1() + "/" + rate.v2() +"]; please use indexed, or scripts with parameters instead; " +
-                            "this limit can be changed by the [" + SCRIPT_MAX_COMPILATIONS_RATE.getKey() + "] setting");
+                            "this limit can be changed by the [" + SCRIPT_MAX_COMPILATIONS_RATE.getKey() + "] setting",
+                CircuitBreaker.Durability.TRANSIENT);
         }
     }
 
@@ -390,6 +421,20 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return contextsAllowed == null || contextsAllowed.isEmpty() == false;
     }
 
+    Map<String, StoredScriptSource> getScriptsFromClusterState() {
+        if (clusterState == null) {
+            return Collections.emptyMap();
+        }
+
+        ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
+
+        if (scriptMetadata == null) {
+            return Collections.emptyMap();
+        }
+
+        return scriptMetadata.getStoredScripts();
+    }
+
     StoredScriptSource getScriptFromClusterState(String id) {
         ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
 
@@ -408,10 +453,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     public void putStoredScript(ClusterService clusterService, PutStoredScriptRequest request,
                                 ActionListener<AcknowledgedResponse> listener) {
-        int max = SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
-
-        if (request.content().length() > max) {
-            throw new IllegalArgumentException("exceeded max allowed stored script size in bytes [" + max + "] with size [" +
+        if (request.content().length() > maxSizeInBytes) {
+            throw new IllegalArgumentException("exceeded max allowed stored script size in bytes [" + maxSizeInBytes + "] with size [" +
                 request.content().length() + "] for script [" + request.id() + "]");
         }
 

@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -50,9 +49,9 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
     private final AuthorizationService authorizationService;
 
     @Inject
-    public TransportGetUserPrivilegesAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportGetUserPrivilegesAction(ThreadPool threadPool, TransportService transportService,
                                             ActionFilters actionFilters, AuthorizationService authorizationService) {
-        super(settings, GetUserPrivilegesAction.NAME, transportService, actionFilters, GetUserPrivilegesRequest::new);
+        super(GetUserPrivilegesAction.NAME, transportService, actionFilters, GetUserPrivilegesRequest::new);
         this.threadPool = threadPool;
         this.authorizationService = authorizationService;
     }

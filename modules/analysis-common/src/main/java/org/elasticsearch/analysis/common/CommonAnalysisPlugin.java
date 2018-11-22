@@ -22,7 +22,6 @@ package org.elasticsearch.analysis.common;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;

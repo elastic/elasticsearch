@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -29,7 +28,7 @@ public class TransportStopFeatureIndexBuilderJobAction extends
         StopFeatureIndexBuilderJobAction.Response, StopFeatureIndexBuilderJobAction.Response> {
 
     @Inject
-    public TransportStopFeatureIndexBuilderJobAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+    public TransportStopFeatureIndexBuilderJobAction(TransportService transportService, ActionFilters actionFilters,
             ClusterService clusterService) {
         super(StopFeatureIndexBuilderJobAction.NAME, clusterService, transportService, actionFilters,
                 StopFeatureIndexBuilderJobAction.Request::new, StopFeatureIndexBuilderJobAction.Response::new, ThreadPool.Names.SAME);

@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -36,9 +35,9 @@ public class TransportDeleteFeatureIndexBuilderJobAction
     private static final Logger logger = LogManager.getLogger(TransportDeleteFeatureIndexBuilderJobAction.class);
 
     @Inject
-    public TransportDeleteFeatureIndexBuilderJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          PersistentTasksService persistentTasksService, ClusterService clusterService) {
+    public TransportDeleteFeatureIndexBuilderJobAction(TransportService transportService, ThreadPool threadPool,
+            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+            PersistentTasksService persistentTasksService, ClusterService clusterService) {
         super(DeleteFeatureIndexBuilderJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, DeleteFeatureIndexBuilderJobAction.Request::new);
         this.persistentTasksService = persistentTasksService;

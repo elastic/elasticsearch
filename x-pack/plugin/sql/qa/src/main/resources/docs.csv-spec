@@ -199,8 +199,9 @@ VAR_POP         |AGGREGATE
 COALESCE        |CONDITIONAL
 IFNULL          |CONDITIONAL
 ISNULL          |CONDITIONAL
+NVL             |CONDITIONAL
 DAY             |SCALAR
-DAYNAME         |SCALAR         
+DAYNAME         |SCALAR
 DAYOFMONTH      |SCALAR         
 DAYOFWEEK       |SCALAR         
 DAYOFYEAR       |SCALAR         
@@ -1555,7 +1556,6 @@ search
 // end::ifNullReturnSecond
 ;
 
-
 isNullReturnFirst
 // tag::isNullReturnFirst
 SELECT ISNULL('elastic', null) AS "isnull";
@@ -1575,4 +1575,25 @@ SELECT ISNULL(null, 'search') AS "isnull";
 ---------------
 search
 // end::isNullReturnSecond
+;
+
+nvlReturnFirst
+// tag::nvlReturnFirst
+SELECT NVL('elastic', null) AS "nvl";
+
+    nvl
+---------------
+elastic
+// end::nvlReturnFirst
+;
+
+
+nvlReturnSecond
+// tag::nvlReturnSecond
+SELECT NVL(null, 'search') AS "nvl";
+
+    nvl
+---------------
+search
+// end::nvlReturnSecond
 ;

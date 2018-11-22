@@ -146,7 +146,7 @@ public class FunctionRegistry {
         // Scalar functions
         // conditional
         addToMap(def(Coalesce.class, Coalesce::new));
-        addToMap(def(IFNull.class, IFNull::new, "ISNULL"));
+        addToMap(def(IFNull.class, IFNull::new, "ISNULL", "NVL"));
         // Date
         addToMap(def(DayName.class, DayName::new, "DAYNAME"),
                 def(DayOfMonth.class, DayOfMonth::new, "DAYOFMONTH", "DAY", "DOM"),

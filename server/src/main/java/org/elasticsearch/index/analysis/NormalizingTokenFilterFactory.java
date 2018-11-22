@@ -19,12 +19,19 @@
 
 package org.elasticsearch.index.analysis;
 
-/** Elasticsearch counterpart of {@link org.apache.lucene.analysis.util.MultiTermAwareComponent}. */
-public interface MultiTermAwareComponent {
+import org.apache.lucene.analysis.TokenStream;
 
-    /** Returns an analysis component to handle analysis if multi-term queries.
-     * The returned component must be a TokenizerFactory, TokenFilterFactory or CharFilterFactory.
-     */
-    Object getMultiTermComponent();
+/**
+ * A TokenFilterFactory that may be used for normalization
+ *
+ * The default implementation delegates {@link #normalize(TokenStream)} to
+ * {@link #create(TokenStream)}}.
+ */
+public interface NormalizingTokenFilterFactory extends TokenFilterFactory {
+
+    @Override
+    default TokenStream normalize(TokenStream tokenStream) {
+        return create(tokenStream);
+    }
 
 }

@@ -26,7 +26,7 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
 
-class TypeUtils {
+final class TypeUtils {
 
     private TypeUtils() {}
 

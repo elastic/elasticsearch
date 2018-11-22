@@ -57,6 +57,7 @@ import static java.util.Calendar.MINUTE;
 import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 
 public class ResultSetTestCase extends JdbcIntegrationTestCase {
     
@@ -1524,10 +1525,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         String elasticsearchAddress = getProtocol() + "://" + elasticsearchAddress();
         String address = "jdbc:es://" + elasticsearchAddress;
         Properties connectionProperties = connectionProperties();
-        connectionProperties.put("timezone", timeZoneId);
+        connectionProperties.put(JDBC_TIMEZONE, timeZoneId);
         Connection connection = DriverManager.getConnection(address, connectionProperties);
         
-        assertNotNull("The timezone should be specified", connectionProperties.getProperty("timezone"));
+        assertNotNull("The timezone should be specified", connectionProperties.getProperty(JDBC_TIMEZONE));
         return connection;
     }
 
@@ -1537,11 +1538,11 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         String address = "jdbc:es://" + elasticsearchAddress;
         dataSource.setUrl(address);
         Properties connectionProperties = connectionProperties();
-        connectionProperties.put("timezone", timeZoneId);
+        connectionProperties.put(JDBC_TIMEZONE, timeZoneId);
         dataSource.setProperties(connectionProperties);
         Connection connection = dataSource.getConnection();
         
-        assertNotNull("The timezone should be specified", connectionProperties.getProperty("timezone"));
+        assertNotNull("The timezone should be specified", connectionProperties.getProperty(JDBC_TIMEZONE));
         return connection;
     }
 }

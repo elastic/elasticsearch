@@ -24,6 +24,7 @@ import javax.sql.DataSource;
 public class EsDataSource implements DataSource, Wrapper {
 
     static {
+        // invoke Version to perform classpath/jar sanity checks
         Version.CURRENT.toString();
     }
 

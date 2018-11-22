@@ -70,6 +70,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.FreezeIndexRequest;
 import org.elasticsearch.client.GetAliasesResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -2526,5 +2527,85 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::analyze-field-request
         }
 
+    }
+
+    public void testFreezeIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"), RequestOptions.DEFAULT);
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::freeze-index-request
+            FreezeIndexRequest request = new FreezeIndexRequest("index"); // <1>
+            // end::freeze-index-request
+
+            // tag::open-index-request-timeout
+            request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
+            // end::open-index-request-timeout
+            // tag::open-index-request-masterTimeout
+            request.setMasterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::open-index-request-masterTimeout
+            // tag::open-index-request-waitForActiveShards
+            request.waitForActiveShards(2); // <1>
+            request.waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
+            // end::open-index-request-waitForActiveShards
+
+            // tag::open-index-request-indicesOptions
+            request.indicesOptions(IndicesOptions.strictExpandOpen()); // <1>
+            // end::open-index-request-indicesOptions
+
+            // tag::open-index-execute
+            OpenIndexResponse openIndexResponse = client.indices().open(request, RequestOptions.DEFAULT);
+            // end::open-index-execute
+
+            // tag::open-index-response
+            boolean acknowledged = openIndexResponse.isAcknowledged(); // <1>
+            boolean shardsAcked = openIndexResponse.isShardsAcknowledged(); // <2>
+            // end::open-index-response
+            assertTrue(acknowledged);
+            assertTrue(shardsAcked);
+
+            // tag::open-index-execute-listener
+            ActionListener<OpenIndexResponse> listener =
+                new ActionListener<OpenIndexResponse>() {
+                    @Override
+                    public void onResponse(OpenIndexResponse openIndexResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::open-index-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::open-index-execute-async
+            client.indices().openAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::open-index-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::open-index-notfound
+            try {
+                OpenIndexRequest request = new OpenIndexRequest("does_not_exist");
+                client.indices().open(request, RequestOptions.DEFAULT);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.BAD_REQUEST) {
+                    // <1>
+                }
+            }
+            // end::open-index-notfound
+        }
     }
 }

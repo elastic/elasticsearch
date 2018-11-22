@@ -502,7 +502,7 @@ public class FunctionRegistry {
             return name.toUpperCase(Locale.ROOT);
         }
 
-        // translate CamelCase to camel_case
+        // translate CamelCase to CAMEL_CASE
         return StringUtils.camelCaseToUnderscore(name);
     }
 }

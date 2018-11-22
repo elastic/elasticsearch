@@ -8,10 +8,11 @@ package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.EQ;
 
 public class NullIfProcessor implements Processor {
 
@@ -50,7 +51,7 @@ public class NullIfProcessor implements Processor {
     }
 
     public static Object apply(Object leftValue, Object rightValue) {
-        if (BinaryComparisonProcessor.BinaryComparisonOperation.EQ.apply(leftValue, rightValue) == Boolean.TRUE) {
+        if (EQ.apply(leftValue, rightValue) == Boolean.TRUE) {
             return null;
         }
         return leftValue;

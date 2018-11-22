@@ -21,24 +21,25 @@ import java.util.List;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
- * Name is `NULLIf` to avoid having it registered as `NULL_IF` instead of `NULLIF`.
+ * Accepts 2 arguments of any data type and returns null if they are equal,
+ * and the 1st argument otherwise.
  */
-public class NULLIf extends ConditionalFunction {
+public class NullIf extends ConditionalFunction {
 
     private DataType dataType;
 
-    public NULLIf(Location location, Expression left, Expression right) {
+    public NullIf(Location location, Expression left, Expression right) {
         super(location, Arrays.asList(left, right));
     }
 
     @Override
-    protected NodeInfo<? extends NULLIf> info() {
-        return NodeInfo.create(this, NULLIf::new, children().get(0), children().get(1));
+    protected NodeInfo<? extends NullIf> info() {
+        return NodeInfo.create(this, NullIf::new, children().get(0), children().get(1));
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new NULLIf(location(), newChildren.get(0), newChildren.get(1));
+        return new NullIf(location(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override

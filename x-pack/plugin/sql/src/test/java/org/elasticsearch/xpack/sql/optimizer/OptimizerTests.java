@@ -37,8 +37,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.IFNull;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.NULLIf;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
@@ -452,35 +452,35 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testSimplifyIfNullNulls() {
-        Expression e = new SimplifyCoalesce().rule(new IFNull(EMPTY, Literal.NULL, Literal.NULL));
+        Expression e = new SimplifyCoalesce().rule(new IfNull(EMPTY, Literal.NULL, Literal.NULL));
         assertEquals(Coalesce.class, e.getClass());
         assertEquals(0, e.children().size());
     }
 
     public void testSimplifyIfNullWithNullAndValue() {
-        Expression e = new SimplifyCoalesce().rule(new IFNull(EMPTY, Literal.NULL, ONE));
+        Expression e = new SimplifyCoalesce().rule(new IfNull(EMPTY, Literal.NULL, ONE));
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
 
-        e = new SimplifyCoalesce().rule(new IFNull(EMPTY, ONE, Literal.NULL));
+        e = new SimplifyCoalesce().rule(new IfNull(EMPTY, ONE, Literal.NULL));
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
     }
 
     public void testSimplifyNullIfNulls() {
-        Expression e = new SimplifyNullIf().rule(new NULLIf(EMPTY, Literal.NULL, Literal.NULL));
+        Expression e = new SimplifyNullIf().rule(new NullIf(EMPTY, Literal.NULL, Literal.NULL));
         assertEquals(Literal.NULL, e);
     }
 
     public void testSimplifyNullIfAndNullValue() {
-        Expression e = new SimplifyNullIf().rule(new NULLIf(EMPTY, ONE, Literal.NULL));
+        Expression e = new SimplifyNullIf().rule(new NullIf(EMPTY, ONE, Literal.NULL));
         assertEquals(ONE, e);
-        e = new SimplifyNullIf().rule(new NULLIf(EMPTY, Literal.NULL, ONE));
+        e = new SimplifyNullIf().rule(new NullIf(EMPTY, Literal.NULL, ONE));
         assertEquals(ONE, e);
     }
 
     public void testFoldNullNotAppliedOnNullIf() {
-        Expression orig = new NULLIf(EMPTY, ONE, Literal.NULL);
+        Expression orig = new NullIf(EMPTY, ONE, Literal.NULL);
         Expression f = new FoldNull().rule(orig);
         assertEquals(orig, f);
     }

@@ -173,11 +173,11 @@ NULLIF ( expression<1>, expression<2> )
 <2> 2nd expression
 
 
-*Output*: `NULL` if the 2 expressions are equal, otherwise the 1st expression.
+*Output*: `null` if the 2 expressions are equal, otherwise the 1st expression.
 
 .Description
 
-Returns `NULL` when the two input expressions are equal and
+Returns `null` when the two input expressions are equal and
 if not, it returns the 1st expression.
 
 

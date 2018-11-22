@@ -6,13 +6,6 @@
 
 set -ex
 
-MARKER_FILE=/etc/marker
-
-if [ -f $MARKER_FILE ]; then
-  echo "Already provisioned..."
-  exit 0;
-fi
-
 VDIR=/fixture
 RESOURCES=$VDIR/src/main/resources
 CERTS_DIR=$RESOURCES/certs
@@ -87,7 +80,3 @@ EOL
 
 ldapmodify -D Administrator@ad.test.elasticsearch.com -w Passw0rd -H ldaps://127.0.0.1:636 -f /tmp/entrymods -v
 
-touch $MARKER_FILE
-
-# keep the container alive
-while true ; do sleep 3600 ; done

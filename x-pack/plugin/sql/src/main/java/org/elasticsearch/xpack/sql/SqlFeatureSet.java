@@ -15,6 +15,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.sql.plugin.SqlStatsAction;
 import org.elasticsearch.xpack.sql.plugin.SqlStatsRequest;
@@ -65,7 +66,7 @@ public class SqlFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public void usage(ActionListener<Usage> listener) {
+    public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         if (enabled) {
             SqlStatsRequest request = new SqlStatsRequest();
             request.includeStats(true);

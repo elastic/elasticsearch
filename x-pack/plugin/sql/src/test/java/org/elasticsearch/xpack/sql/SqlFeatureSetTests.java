@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.sql.plugin.SqlStatsAction;
 import org.elasticsearch.xpack.sql.plugin.SqlStatsResponse;

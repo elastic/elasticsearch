@@ -27,6 +27,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     private final PlanExecutor planExecutor;
     private final SqlLicenseChecker sqlLicenseChecker;
     private final CounterMetric counter = new CounterMetric();
+    private static String TRANSLATE_METRIC = "queries.translate.count";
 
     @Inject
     public TransportSqlTranslateAction(TransportService transportService, ActionFilters actionFilters,
@@ -51,7 +52,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     
     public Counters stats() {
         Counters counters = new Counters();
-        counters.inc("queries.translate.count", counter.count());
+        counters.inc(TransportSqlTranslateAction.TRANSLATE_METRIC, counter.count());
         
         return counters;
     }

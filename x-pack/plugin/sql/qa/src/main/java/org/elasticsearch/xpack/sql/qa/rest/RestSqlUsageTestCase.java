@@ -203,7 +203,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void runSql(String sql) throws IOException {
-        String mode = (clientType == ClientType.JDBC.toString() || clientType == ClientType.ODBC.toString()) ?
+        String mode = (clientType.equals(ClientType.JDBC.toString()) || clientType.equals(ClientType.ODBC.toString())) ?
                 clientType.toString() : Mode.PLAIN.toString();
         runSql(mode, clientType, sql);
     }

@@ -21,13 +21,11 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -360,11 +358,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, DEFAULT_MAPPING, e.getMessage());
             }
-            try {
-                defaultMappingSource = mappings.get(DEFAULT_MAPPING).string();
-            } catch (IOException e) {
-                throw new ElasticsearchGenerationException("failed to un-compress", e);
-            }
+            defaultMappingSource = mappings.get(DEFAULT_MAPPING).string();
         }
 
         final String defaultMappingSourceOrLastStored;

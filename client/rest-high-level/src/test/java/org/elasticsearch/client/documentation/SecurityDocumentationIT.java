@@ -451,9 +451,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            //tag::get-roles-execute-listener
             GetRolesRequest request = new GetRolesRequest("my_role");
-            ActionListener<GetRolesResponse> listener = new ActionListener<GetRolesResponse>() {
+            ActionListener<GetRolesResponse> listener;
+
+            //tag::get-roles-execute-listener
+            listener = new ActionListener<GetRolesResponse>() {
                 @Override
                 public void onResponse(GetRolesResponse getRolesResponse) {
                     // <1>
@@ -465,6 +467,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             };
             //end::get-roles-execute-listener
+
+            assertNotNull(listener);
 
             // Replace the empty listener by a blocking listener in test
             final PlainActionFuture<GetRolesResponse> future = new PlainActionFuture<>();

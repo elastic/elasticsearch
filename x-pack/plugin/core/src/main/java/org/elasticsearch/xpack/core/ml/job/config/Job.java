@@ -423,7 +423,11 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         if (establishedModelMemory != null && establishedModelMemory > 0) {
             return establishedModelMemory + PROCESS_MEMORY_OVERHEAD.getBytes();
         }
-        return ByteSizeUnit.MB.toBytes(analysisLimits.getModelMemoryLimit()) + PROCESS_MEMORY_OVERHEAD.getBytes();
+        long modelMemoryLimit = AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB;
+        if (analysisLimits != null && analysisLimits.getModelMemoryLimit() != null) {
+            modelMemoryLimit = analysisLimits.getModelMemoryLimit();
+        }
+        return ByteSizeUnit.MB.toBytes(modelMemoryLimit) + PROCESS_MEMORY_OVERHEAD.getBytes();
     }
 
     /**

@@ -22,8 +22,9 @@ VAR_POP         |AGGREGATE
 COALESCE        |CONDITIONAL
 IFNULL          |CONDITIONAL
 ISNULL          |CONDITIONAL
+NVL             |CONDITIONAL
 DAY             |SCALAR
-DAYNAME         |SCALAR         
+DAYNAME         |SCALAR
 DAYOFMONTH      |SCALAR         
 DAYOFWEEK       |SCALAR         
 DAYOFYEAR       |SCALAR         

@@ -31,7 +31,7 @@ public class FeatureIndexBuilderJobPersistentTasksExecutor extends PersistentTas
 
     public FeatureIndexBuilderJobPersistentTasksExecutor(Client client, SchedulerEngine schedulerEngine,
             ThreadPool threadPool) {
-        super("xpack/feature_index_builder/job", FeatureIndexBuilder.TASK_THREAD_POOL_NAME);
+        super(FeatureIndexBuilder.TASK_NAME, FeatureIndexBuilder.TASK_THREAD_POOL_NAME);
         this.client = client;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;

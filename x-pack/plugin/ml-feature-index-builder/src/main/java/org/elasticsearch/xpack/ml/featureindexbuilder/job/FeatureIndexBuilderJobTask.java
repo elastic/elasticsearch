@@ -57,6 +57,10 @@ public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implemen
         return job.getConfig();
     }
 
+    public FeatureIndexBuilderJobState getState() {
+        return new FeatureIndexBuilderJobState(indexer.getState(), indexer.getPosition());
+    }
+
     public synchronized void start(ActionListener<Response> listener) {
         // TODO: safeguards missing, see rollup code
         indexer.start();

@@ -37,10 +37,12 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.DeleteFeatureIndexBuilderJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.StopFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportDeleteFeatureIndexBuilderJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportGetDataFrameJobsAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportPutFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportStartFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportStopFeatureIndexBuilderJobAction;
@@ -48,6 +50,7 @@ import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobState;
 import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestDeleteFeatureIndexBuilderJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestGetDataFrameJobsAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestPutFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestStartFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestStopFeatureIndexBuilderJobAction;
@@ -67,6 +70,7 @@ import static java.util.Collections.emptyList;
 public class FeatureIndexBuilder extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
     public static final String NAME = "feature_index_builder";
+    public static final String TASK_NAME = "xpack/feature_index_builder/job";
     public static final String BASE_PATH = "/_xpack/feature_index_builder/";
     public static final String TASK_THREAD_POOL_NAME = "ml_feature_index_builder_indexing";
 
@@ -112,7 +116,8 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
                 new RestPutFeatureIndexBuilderJobAction(settings, restController),
                 new RestStartFeatureIndexBuilderJobAction(settings, restController),
                 new RestStopFeatureIndexBuilderJobAction(settings, restController),
-                new RestDeleteFeatureIndexBuilderJobAction(settings, restController)
+                new RestDeleteFeatureIndexBuilderJobAction(settings, restController),
+                new RestGetDataFrameJobsAction(settings, restController)
         );
     }
 
@@ -126,7 +131,8 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
                 new ActionHandler<>(PutFeatureIndexBuilderJobAction.INSTANCE, TransportPutFeatureIndexBuilderJobAction.class),
                 new ActionHandler<>(StartFeatureIndexBuilderJobAction.INSTANCE, TransportStartFeatureIndexBuilderJobAction.class),
                 new ActionHandler<>(StopFeatureIndexBuilderJobAction.INSTANCE, TransportStopFeatureIndexBuilderJobAction.class),
-                new ActionHandler<>(DeleteFeatureIndexBuilderJobAction.INSTANCE, TransportDeleteFeatureIndexBuilderJobAction.class)
+                new ActionHandler<>(DeleteFeatureIndexBuilderJobAction.INSTANCE, TransportDeleteFeatureIndexBuilderJobAction.class),
+                new ActionHandler<>(GetDataFrameJobsAction.INSTANCE, TransportGetDataFrameJobsAction.class)
                 );
     }
 

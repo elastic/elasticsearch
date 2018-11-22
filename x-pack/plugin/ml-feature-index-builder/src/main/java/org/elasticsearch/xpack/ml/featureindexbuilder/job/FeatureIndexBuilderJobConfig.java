@@ -41,7 +41,7 @@ public class FeatureIndexBuilderJobConfig implements NamedWriteable, ToXContentO
     private final SourceConfig sourceConfig;
     private final AggregationConfig aggregationConfig;
 
-    private static final ConstructingObjectParser<FeatureIndexBuilderJobConfig, String> PARSER = new ConstructingObjectParser<>(NAME, false,
+    public static final ConstructingObjectParser<FeatureIndexBuilderJobConfig, String> PARSER = new ConstructingObjectParser<>(NAME, false,
             (args, optionalId) -> {
                 String id = args[0] != null ? (String) args[0] : optionalId;
                 String indexPattern = (String) args[1];

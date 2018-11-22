@@ -1632,7 +1632,7 @@ public final class MachineLearningClient {
      * Gets Machine Learning information about default values and limits.
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-info.html">Machine Learning info</a>
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-info.html">Machine Learning info</a>
      *
      * @param request The request of Machine Learning info
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1651,7 +1651,7 @@ public final class MachineLearningClient {
      * Gets Machine Learning information about default values and limits, asynchronously.
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-info.html">Machine Learning info</a>
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-info.html">Machine Learning info</a>
      *
      * @param request The request of Machine Learning info
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

@@ -56,7 +56,8 @@ public class PutPrivilegesRequestTests extends ESTestCase {
             assertThat(ile.getMessage(), equalTo("privileges are required"));
         } else {
             final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, refreshPolicy);
-            assertThat(putPrivilegesRequest.getPrivileges(), equalTo(privileges));
+            assertThat(putPrivilegesRequest.getPrivileges().values().stream().flatMap(List::stream).collect(Collectors.toList()),
+                    equalTo(privileges));
             assertThat(putPrivilegesRequest.getRefreshPolicy(), equalTo(refreshPolicy));
         }
     }

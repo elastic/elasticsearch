@@ -155,3 +155,38 @@ include-tagged::{sql-specs}/docs.csv-spec[nvlReturnFirst]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[nvlReturnSecond]
 ----
+
+
+[[sql-functions-conditional-nullif]]
+==== `NULLIF`
+
+.Synopsis
+[source, sql]
+----
+NULLIF ( expression<1>, expression<2> )
+----
+
+*Input*:
+
+<1> 1st expression
+
+<2> 2nd expression
+
+
+*Output*: `NULL` if the 2 expressions are equal, otherwise the 1st expression.
+
+.Description
+
+Returns `NULL` when the two input expressions are equal and
+if not, it returns the 1st expression.
+
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[nullIfReturnFirst]
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[nullIfReturnNull]
+----

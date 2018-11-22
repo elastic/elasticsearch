@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NULLIf;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
@@ -131,6 +132,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new FoldNull(),
                 new ConstantFolding(),
                 new SimplifyCoalesce(),
+                new SimplifyNullIf(),
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
@@ -1172,6 +1174,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return Literal.of(in, null);
                 }
 
+            } else if (e instanceof NULLIf) {
+                return e; // Special rule SimplifyNullIf is applied instead
+
             } else if (e.nullable() && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
             }
@@ -1223,6 +1228,35 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                 if (newChildren.size() < c.children().size()) {
                     return new Coalesce(c.location(), newChildren);
+                }
+            }
+            return e;
+        }
+    }
+
+    static class SimplifyNullIf extends OptimizerExpressionRule {
+
+        SimplifyNullIf() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof NULLIf) {
+                NULLIf c = (NULLIf) e;
+
+                List<Expression> newChildren = new ArrayList<>();
+                for (Expression child : c.children()) {
+                    if (Expressions.isNull(child) == false) {
+                        newChildren.add(child);
+                    }
+                }
+
+                if (newChildren.isEmpty()) {
+                    return Literal.NULL;
+                }
+                if (newChildren.size() == 1) {
+                    return newChildren.get(0);
                 }
             }
             return e;

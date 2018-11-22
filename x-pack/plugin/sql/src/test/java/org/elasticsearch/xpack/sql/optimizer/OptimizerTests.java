@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IFNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NULLIf;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneDuplicateFunctions;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneSubqueryAliases;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceFoldableAttributes;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyCoalesce;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyNullIf;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
@@ -463,6 +465,24 @@ public class OptimizerTests extends ESTestCase {
         e = new SimplifyCoalesce().rule(new IFNull(EMPTY, ONE, Literal.NULL));
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
+    }
+
+    public void testSimplifyNullIfNulls() {
+        Expression e = new SimplifyNullIf().rule(new NULLIf(EMPTY, Literal.NULL, Literal.NULL));
+        assertEquals(Literal.NULL, e);
+    }
+
+    public void testSimplifyNullIfAndNullValue() {
+        Expression e = new SimplifyNullIf().rule(new NULLIf(EMPTY, ONE, Literal.NULL));
+        assertEquals(ONE, e);
+        e = new SimplifyNullIf().rule(new NULLIf(EMPTY, Literal.NULL, ONE));
+        assertEquals(ONE, e);
+    }
+
+    public void testFoldNullNotAppliedOnNullIf() {
+        Expression orig = new NULLIf(EMPTY, ONE, Literal.NULL);
+        Expression f = new FoldNull().rule(orig);
+        assertEquals(orig, f);
     }
 
     //

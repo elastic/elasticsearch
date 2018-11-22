@@ -194,12 +194,14 @@ public class JdbcAssert {
                     else if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {
                         assertEquals(msg, expected.getTimestamp(column), actual.getTimestamp(column));
                     }
-                    // and floats/doubles
+                    // and floats/doubles/booleans
                     else if (type == Types.DOUBLE) {
                         // the 1d/1f difference is used due to rounding/flooring
                         assertEquals(msg, (double) expectedObject, (double) actualObject, 1d);
                     } else if (type == Types.FLOAT) {
                         assertEquals(msg, (float) expectedObject, (float) actualObject, 1f);
+                    } else if (Types.BOOLEAN) {
+                        assertEquals(msg, getBoolean(expectedObject), getBoolean(actualObject));
                     }
                     // finally the actual comparison
                     else {
@@ -236,5 +238,19 @@ public class JdbcAssert {
         }
 
         return columnType;
+    }
+
+    private static boolean getBoolean(Object o){
+        Boolean aBoolean = convertInstanceOfObject(o, Boolean.class);
+        if (aBoolean == null) return false;
+        return aBoolean;
+    }
+
+    private static <T> T convertInstanceOfObject(Object o, Class<T> clazz) {
+        try {
+            return clazz.cast(o);
+        } catch (ClassCastException e) {
+            return null;
+        }
     }
 }

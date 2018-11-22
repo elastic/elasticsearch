@@ -613,15 +613,11 @@ public class IndicesService extends AbstractLifecycleComponent
             (type, mapping) -> {
                 assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS:
                     "mapping update consumer only required by local shards recovery";
-                try {
-                    client.admin().indices().preparePutMapping()
-                        .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
-                        .setType(type)
-                        .setSource(mapping.source().string(), XContentType.JSON)
-                        .get();
-                } catch (IOException ex) {
-                    throw new ElasticsearchException("failed to stringify mapping source", ex);
-                }
+                client.admin().indices().preparePutMapping()
+                    .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
+                    .setType(type)
+                    .setSource(mapping.source().string(), XContentType.JSON)
+                    .get();
             }, this);
         return indexShard;
     }

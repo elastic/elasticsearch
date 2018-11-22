@@ -379,7 +379,7 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
                         indices.stream().map(imd -> imd.getIndex().getName()).collect(Collectors.toList()));
             }
             IndexMetaData indexMetaData = indices.get(0);
-            MappingMetaData docMapping = indexMetaData.mapping("doc");
+            MappingMetaData docMapping = indexMetaData.getMappings().get("doc");
             if (docMapping == null) {
                 if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster()) {
                     putAuditIndexMappingsAndStart(index);

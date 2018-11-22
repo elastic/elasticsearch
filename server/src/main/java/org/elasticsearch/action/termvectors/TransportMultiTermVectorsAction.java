@@ -73,7 +73,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
             }
             String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, termVectorsRequest).getName();
             if (termVectorsRequest.routing() == null &&
-                    clusterState.getMetaData().routingRequired(concreteSingleIndex, termVectorsRequest.type())) {
+                    clusterState.getMetaData().routingRequired(concreteSingleIndex)) {
                 responses.set(i, new MultiTermVectorsItemResponse(null,
                     new MultiTermVectorsResponse.Failure(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id(),
                         new IllegalArgumentException("routing is required for [" + concreteSingleIndex + "]/[" +

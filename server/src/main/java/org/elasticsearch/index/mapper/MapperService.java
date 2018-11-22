@@ -219,7 +219,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         for (DocumentMapper documentMapper : updatedEntries.values()) {
             String mappingType = documentMapper.type();
-            CompressedXContent incomingMappingSource = newIndexMetaData.mapping(mappingType).source();
+            MappingMetaData mappingMetaData;
+            if (mappingType.equals(MapperService.DEFAULT_MAPPING)) {
+                mappingMetaData = newIndexMetaData.defaultMapping();
+            } else {
+                mappingMetaData = newIndexMetaData.mapping();
+                assert mappingType.equals(mappingMetaData.type());
+            }
+            CompressedXContent incomingMappingSource = mappingMetaData.source();
 
             String op = existingMappers.contains(mappingType) ? "updated" : "added";
             if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
@@ -255,13 +262,25 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (currentIndexMetaData.getMappingVersion() == newIndexMetaData.getMappingVersion()) {
                 // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
                 assert updatedEntries.isEmpty() : updatedEntries;
-                for (final ObjectCursor<MappingMetaData> mapping : newIndexMetaData.getMappings().values()) {
-                    final CompressedXContent currentSource = currentIndexMetaData.mapping(mapping.value.type()).source();
-                    final CompressedXContent newSource = mapping.value.source();
+
+                MappingMetaData defaultMapping = newIndexMetaData.defaultMapping();
+                if (defaultMapping != null) {
+                    final CompressedXContent currentSource = currentIndexMetaData.defaultMapping().source();
+                    final CompressedXContent newSource = defaultMapping.source();
                     assert currentSource.equals(newSource) :
-                            "expected current mapping [" + currentSource + "] for type [" + mapping.value.type() + "] "
+                            "expected current mapping [" + currentSource + "] for type [" + defaultMapping.type() + "] "
                                     + "to be the same as new mapping [" + newSource + "]";
                 }
+
+                MappingMetaData mapping = newIndexMetaData.mapping();
+                if (mapping != null) {
+                    final CompressedXContent currentSource = currentIndexMetaData.mapping().source();
+                    final CompressedXContent newSource = mapping.source();
+                    assert currentSource.equals(newSource) :
+                            "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
+                                    + "to be the same as new mapping [" + newSource + "]";
+                }
+
             } else {
                 // if the mapping version is changed, it should increase, there should be updates, and the mapping should be different
                 final long currentMappingVersion = currentIndexMetaData.getMappingVersion();
@@ -271,7 +290,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                                 + "to be less than new mapping version [" + newMappingVersion + "]";
                 assert updatedEntries.isEmpty() == false;
                 for (final DocumentMapper documentMapper : updatedEntries.values()) {
-                    final MappingMetaData currentMapping = currentIndexMetaData.mapping(documentMapper.type());
+                    final MappingMetaData currentMapping;
+                    if (documentMapper.type().equals(MapperService.DEFAULT_MAPPING)) {
+                        currentMapping = currentIndexMetaData.defaultMapping();
+                    } else {
+                        currentMapping = currentIndexMetaData.mapping();
+                        assert documentMapper.type().equals(currentMapping.type());
+                    }
                     if (currentMapping != null) {
                         final CompressedXContent currentSource = currentMapping.source();
                         final CompressedXContent newSource = documentMapper.mappingSource();

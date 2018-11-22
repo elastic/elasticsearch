@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,10 +36,10 @@ public class TransportRunAnalyticsAction extends HandledTransportAction<RunAnaly
 
 
     @Inject
-    public TransportRunAnalyticsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                       ActionFilters actionFilters, Client client, ClusterService clusterService, Environment environment,
+    public TransportRunAnalyticsAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
+                                       Client client, ClusterService clusterService, Environment environment,
                                        AnalyticsProcessManager analyticsProcessManager) {
-        super(settings, RunAnalyticsAction.NAME, transportService, actionFilters,
+        super(RunAnalyticsAction.NAME, transportService, actionFilters,
             (Supplier<RunAnalyticsAction.Request>) RunAnalyticsAction.Request::new);
         this.transportService = transportService;
         this.threadPool = threadPool;

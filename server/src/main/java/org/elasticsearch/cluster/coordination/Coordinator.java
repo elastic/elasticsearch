@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -1183,13 +1184,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     // TODO: only here temporarily for BWC development, remove once complete
-    public static Settings.Builder addZen1Attribute(Settings.Builder builder) {
-        return builder.put("node.attr.zen1", true);
+    public static Settings.Builder addZen1Attribute(boolean isZen1Node, Settings.Builder builder) {
+        return builder.put("node.attr.zen1", isZen1Node);
     }
 
     // TODO: only here temporarily for BWC development, remove once complete
     public static boolean isZen1Node(DiscoveryNode discoveryNode) {
         return discoveryNode.getVersion().before(Version.V_7_0_0) ||
-            discoveryNode.getAttributes().containsKey("zen1");
+            (Booleans.isTrue(discoveryNode.getAttributes().getOrDefault("zen1", "false")));
     }
 }

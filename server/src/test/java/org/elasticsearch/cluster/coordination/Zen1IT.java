@@ -18,8 +18,13 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -33,12 +38,13 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 @TestLogging("org.elasticsearch.cluster.coordination:TRACE,org.elasticsearch.discovery.zen:TRACE")
 public class Zen1IT extends ESIntegTestCase {
 
-    private static Settings ZEN1_SETTINGS = Coordinator.addZen1Attribute(Settings.builder()
+    private static Settings ZEN1_SETTINGS = Coordinator.addZen1Attribute(true, Settings.builder()
         .put(TestZenDiscovery.USE_ZEN2.getKey(), false)
         .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)) // Zen2 does not know about mock pings
         .build();
@@ -129,7 +135,7 @@ public class Zen1IT extends ESIntegTestCase {
     }
 
     private void testRollingUpgradeFromZen1ToZen2(final int nodeCount) throws Exception {
-        final List<String> zen1Nodes = internalCluster().startNodes(nodeCount, ZEN1_SETTINGS);
+        final List<String> nodes = internalCluster().startNodes(nodeCount, ZEN1_SETTINGS);
 
         createIndex("test",
             Settings.builder()
@@ -139,20 +145,32 @@ public class Zen1IT extends ESIntegTestCase {
                 .build());
         ensureGreen("test");
 
-        for (final String zen1Node : zen1Nodes) {
-            logger.info("--> upgrading {}", zen1Node);
+        internalCluster().rollingRestart(new RestartCallback() {
+            @Override
+            public void doAfterNodes(int n, Client client) {
+                ensureGreen("test");
+            }
 
-            internalCluster().restartNode(zen1Node, new RestartCallback(){
-                @Override
-                public Settings onNodeStopped(String nodeName) {
-                    return ZEN2_SETTINGS;
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                String viaNode = randomValueOtherThan(nodeName, () -> randomFrom(nodes));
+                final ClusterHealthRequestBuilder clusterHealthRequestBuilder = client(viaNode).admin().cluster().prepareHealth()
+                    .setWaitForEvents(Priority.LANGUID)
+                    .setWaitForNodes(Integer.toString(nodeCount - 1))
+                    .setTimeout(TimeValue.timeValueSeconds(30));
+                if (nodeCount == 2) {
+                    clusterHealthRequestBuilder.setWaitForYellowStatus();
+                } else {
+                    clusterHealthRequestBuilder.setWaitForGreenStatus();
                 }
-            });
+                ClusterHealthResponse clusterHealthResponse = clusterHealthRequestBuilder.get();
+                assertFalse(nodeName, clusterHealthResponse.isTimedOut());
+                return Coordinator.addZen1Attribute(false, Settings.builder().put(ZEN2_SETTINGS)).build();
+            }
+        });
 
-            ensureStableCluster(nodeCount);
-            ensureGreen("test");
-        }
-
+        ensureStableCluster(nodeCount);
+        ensureGreen("test");
         assertThat(internalCluster().size(), equalTo(nodeCount));
     }
 

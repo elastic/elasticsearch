@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.stats;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -31,9 +32,10 @@ public class Metrics {
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics = new HashMap<>();
     // map that holds one counter per sql query "feature" (having, limit, order by, group by...) 
     private final Map<FeatureMetric, CounterMetric> featuresMetrics = new HashMap<>();
-    // because the hook in the Verifier/Analyzer is being called several times during the query analysis flow
-    // we keep a set of flags so that we don't count a certain metric more than once
-    private final Map<FeatureMetric, Boolean> featuresCollected = new HashMap<>();
+    // Because the hook in the Verifier/Analyzer is being called several times during the query analysis flow
+    // (both times from SqlSession: analyzer.analyze() which calls verify() and then explicitly calling verify())
+    // we use a set of flags so that we don't count a certain "feature" metric more than once.
+    private final BitSet b = new BitSet(FeatureMetric.values().length);
     private String QPREFIX = "queries.";
     private String FPREFIX = "features.";
     
@@ -48,20 +50,16 @@ public class Metrics {
         }
         for (FeatureMetric featureMetric : FeatureMetric.values()) {
             featuresMetrics.put(featureMetric,  new CounterMetric());
-            featuresCollected.put(featureMetric, false);
         }
     }
 
     /**
      * Increments the "total" counter for a metric
+     * This method should be called only once per query.
      */
     public void total(QueryMetric metric) {
-        // flags initialized here because this is the "entry point" in the query execution
-        // when a query comes in, it is counted against a metric client type (rest, cli, jdbc, odbc...) 
-        for (FeatureMetric featureMetric : FeatureMetric.values()) {
-            featuresCollected.put(featureMetric, false);
-        }
         inc(metric, OperationType.TOTAL);
+        b.clear();
     }
     
     /**
@@ -84,8 +82,8 @@ public class Metrics {
     
     public void inc(FeatureMetric metric) {
         // count each "feature" metric only once by checking its flag
-        if (!featuresCollected.get(metric)) {
-            featuresCollected.put(metric, true);
+        if (!b.get(metric.ordinal())) {
+            b.set(metric.ordinal());
             this.featuresMetrics.get(metric).inc();
         }
     }

@@ -36,9 +36,11 @@ public class PlanExecutor {
 
     private final IndexResolver indexResolver;
     private final PreAnalyzer preAnalyzer;
+    private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
-    private final Verifier verifier;
+    
+    private final Metrics metrics = new Metrics();
 
     public PlanExecutor(Client client, IndexResolver indexResolver, NamedWriteableRegistry writeableRegistry) {
         this.client = client;
@@ -48,10 +50,9 @@ public class PlanExecutor {
         this.functionRegistry = new FunctionRegistry();
 
         this.preAnalyzer = new PreAnalyzer();
+        this.verifier = new Verifier(metrics);
         this.optimizer = new Optimizer();
         this.planner = new Planner();
-        
-        this.verifier = new Verifier();
     }
 
     private SqlSession newSession(Configuration cfg) {
@@ -81,7 +82,7 @@ public class PlanExecutor {
         cursor.clear(cfg, client, listener);
     }
     
-    public void metrics(Metrics metrics) {
-        this.verifier.metrics(metrics);
+    public Metrics metrics() {
+        return this.metrics;
     }
 }

@@ -16,22 +16,22 @@ import java.util.Objects;
  */
 public abstract class AbstractSqlRequest implements ToXContentFragment {
 
-    private RequestInfo reqParams;
+    private RequestInfo requestInfo;
 
-    protected AbstractSqlRequest(RequestInfo reqParams) {
-        this.reqParams = reqParams;
+    protected AbstractSqlRequest(RequestInfo requestInfo) {
+        this.requestInfo = requestInfo;
     }
 
-    public RequestInfo reqParams() {
-        return reqParams;
+    public RequestInfo requestInfo() {
+        return requestInfo;
     }
 
     public Mode mode() {
-        return reqParams.mode();
+        return requestInfo.mode();
     }
     
     public String clientId() {
-        return reqParams.clientId();
+        return requestInfo.clientId();
     }
 
     @Override
@@ -39,12 +39,12 @@ public abstract class AbstractSqlRequest implements ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AbstractSqlRequest that = (AbstractSqlRequest) o;
-        return Objects.equals(reqParams, that.reqParams);
+        return Objects.equals(requestInfo, that.requestInfo);
     }
 
     @Override
     public int hashCode() {
-        return reqParams.hashCode();
+        return requestInfo.hashCode();
     }
 
 }

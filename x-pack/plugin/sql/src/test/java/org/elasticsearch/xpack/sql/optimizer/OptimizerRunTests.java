@@ -35,7 +35,7 @@ public class OptimizerRunTests extends ESTestCase {
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"), new Verifier());
+        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"), new Verifier(null));
         optimizer = new Optimizer();
     }
 

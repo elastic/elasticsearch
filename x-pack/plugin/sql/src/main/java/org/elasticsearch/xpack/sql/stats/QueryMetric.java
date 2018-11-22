@@ -14,10 +14,11 @@ public enum QueryMetric {
     CANVAS, CLI, JDBC, ODBC, REST;
     
     public static QueryMetric fromString(String metric) {
-        if (metric == null || metric.equalsIgnoreCase("plain")) {
+        try {
+            return QueryMetric.valueOf(metric.toUpperCase(Locale.ROOT));
+        } catch (Exception e) {
             return REST;
         }
-        return QueryMetric.valueOf(metric.toUpperCase(Locale.ROOT));
     }
     
     @Override

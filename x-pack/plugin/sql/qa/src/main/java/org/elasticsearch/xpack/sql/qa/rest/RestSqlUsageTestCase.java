@@ -22,9 +22,8 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-
-import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
 
 public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     private List<IndexDocument> testData = Arrays.asList(
@@ -34,11 +33,23 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             new IndexDocument("used", "The Martian",     387),
             new IndexDocument("new",  "Moving Mars",     495)
     );
+    
+    private enum ClientType {
+        CANVAS, CLI, JDBC, ODBC, REST;
+
+        @Override
+        public String toString() {
+            return this.name().toLowerCase(Locale.ROOT);
+        }
+        
+    }
 
     private Map<String,Integer> baseMetrics = new HashMap<String,Integer>();
-    private Integer baseCliTotalQueries = 0;
+    private Integer baseClientTypeTotalQueries = 0;
     private Integer baseAllTotalQueries = 0;
     private Integer baseTranslateRequests = 0;
+    private String clientType;
+    private boolean ignoreClientType;
 
     /**
      * This method gets the metrics' values before the test runs, in case these values
@@ -50,6 +61,15 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     private void getBaseMetrics() throws UnsupportedOperationException, IOException {
         Map<String, Object> baseStats = getStats();
         List<Map<String, Map<String, Map>>> nodesListStats = (List) baseStats.get("stats");
+        // used for "client.id" request parameter value, but also for getting the stats from ES
+        clientType = randomFrom(ClientType.values()).toString();
+        ignoreClientType = randomBoolean();
+        
+        // "client.id" parameter will not be sent in the requests
+        // and "clientType" will only be used for getting the stats back from ES
+        if (ignoreClientType) {
+            clientType = ClientType.REST.toString();
+        }
         
         for (Map perNodeStats : nodesListStats) {
             Map featuresMetrics = (Map) ((Map) perNodeStats.get("stats")).get("features");
@@ -58,7 +78,8 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
                 baseMetrics.put(metric.toString(), (Integer) featuresMetrics.get(metric.toString()));
             }
             
-            baseCliTotalQueries = ((Map<String,Integer>) queriesMetrics.get(CLI)).get("total");
+            // initialize the "base" metric values with whatever values are already recorder on ES
+            baseClientTypeTotalQueries = ((Map<String,Integer>) queriesMetrics.get(clientType)).get("total");
             baseAllTotalQueries = ((Map<String,Integer>) queriesMetrics.get("_all")).get("total");
             baseTranslateRequests = ((Map<String,Integer>) queriesMetrics.get("translate")).get("count");
         }
@@ -66,73 +87,69 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     
     public void testSqlRestUsage() throws IOException {
         index(testData);
+        
+        // random WHERE and ORDER BY queries
         int randomWhereExecutions = randomIntBetween(1, 15);
-        int cliTotalQueries = baseCliTotalQueries + randomWhereExecutions;
+        int clientTypeTotalQueries = baseClientTypeTotalQueries + randomWhereExecutions;
         int allTotalQueries = baseAllTotalQueries + randomWhereExecutions;
         
         for (int i = 0; i < randomWhereExecutions; i++) {
-            runCliSql("SELECT name FROM library WHERE page_count > 100 ORDER BY page_count");
+            runSql("SELECT name FROM library WHERE page_count > 100 ORDER BY page_count");
         }
         
         Map<String, Object> responseAsMap = getStats();
         assertFeatureMetric(baseMetrics.get("where") + randomWhereExecutions, responseAsMap, "where");
         assertFeatureMetric(baseMetrics.get("orderby") + randomWhereExecutions, responseAsMap, "orderby");
-        assertCliAndAllQueryMetrics(cliTotalQueries, allTotalQueries, responseAsMap);
+        assertClientTypeAndAllQueryMetrics(clientTypeTotalQueries, allTotalQueries, responseAsMap);
         
+        // random HAVING and GROUP BY queries
         int randomHavingExecutions = randomIntBetween(1, 15);
-        cliTotalQueries += randomHavingExecutions;
+        clientTypeTotalQueries += randomHavingExecutions;
         allTotalQueries += randomHavingExecutions;
         for (int i = 0; i < randomHavingExecutions; i++) {
-            runCliSql("SELECT condition FROM library GROUP BY condition HAVING MAX(page_count) > 1000");
+            runSql("SELECT condition FROM library GROUP BY condition HAVING MAX(page_count) > 1000");
         }
         responseAsMap = getStats();
         assertFeatureMetric(baseMetrics.get("having") + randomHavingExecutions, responseAsMap, "having");
         assertFeatureMetric(baseMetrics.get("groupby") + randomHavingExecutions, responseAsMap, "groupby");
-        assertCliAndAllQueryMetrics(cliTotalQueries, allTotalQueries, responseAsMap);
+        assertClientTypeAndAllQueryMetrics(clientTypeTotalQueries, allTotalQueries, responseAsMap);
         
-        /*int randomSubselectExecutions = randomIntBetween(1, 15);
-        cliTotalQueries += randomSubselectExecutions;
-        allTotalQueries += randomSubselectExecutions;
-        for (int i = 0; i < randomSubselectExecutions; i++) {
-            runCliSql("SELECT * FROM (SELECT name FROM library)");
-        }
-        responseAsMap = getStats();
-        assertFeatureMetric(baseMetrics.get("subselect") + randomSubselectExecutions, responseAsMap, "subselect");
-        assertCliQueryMetric(cliTotalQueries, responseAsMap, "total");
-        assertAllQueryMetric(allTotalQueries, responseAsMap, "total");*/
-        
+        // random LIMIT queries
         int randomLimitExecutions = randomIntBetween(1, 15);
-        cliTotalQueries += randomLimitExecutions;
+        clientTypeTotalQueries += randomLimitExecutions;
         allTotalQueries += randomLimitExecutions;
         for (int i = 0; i < randomLimitExecutions; i++) {
-            runCliSql("SELECT * FROM library LIMIT " + testData.size());
+            runSql("SELECT * FROM library LIMIT " + testData.size());
         }
         responseAsMap = getStats();
         assertFeatureMetric(baseMetrics.get("limit") + randomLimitExecutions, responseAsMap, "limit");
-        assertCliAndAllQueryMetrics(cliTotalQueries, allTotalQueries, responseAsMap);
+        assertClientTypeAndAllQueryMetrics(clientTypeTotalQueries, allTotalQueries, responseAsMap);
         
+        // random LOCALly executed queries
         int randomLocalExecutions = randomIntBetween(1, 15);
-        cliTotalQueries += randomLocalExecutions;
+        clientTypeTotalQueries += randomLocalExecutions;
         allTotalQueries += randomLocalExecutions;
         for (int i = 0; i < randomLocalExecutions; i++) {
-            runCliSql("SELECT 1+2");
+            runSql("SELECT 1+2");
         }
         responseAsMap = getStats();
         assertFeatureMetric(baseMetrics.get("local") + randomLocalExecutions, responseAsMap, "local");
-        assertCliAndAllQueryMetrics(cliTotalQueries, allTotalQueries, responseAsMap);
+        assertClientTypeAndAllQueryMetrics(clientTypeTotalQueries, allTotalQueries, responseAsMap);
         
+        // random COMMANDs
         int randomCommandExecutions = randomIntBetween(1, 15);
-        cliTotalQueries += randomCommandExecutions;
+        clientTypeTotalQueries += randomCommandExecutions;
         allTotalQueries += randomCommandExecutions;
         for (int i = 0; i < randomCommandExecutions; i++) {
-            runCliSql(randomFrom("SHOW FUNCTIONS", "SHOW COLUMNS FROM library", "SHOW SCHEMAS",
+            runSql(randomFrom("SHOW FUNCTIONS", "SHOW COLUMNS FROM library", "SHOW SCHEMAS",
                                  "SHOW TABLES", "SYS CATALOGS", "SYS COLUMNS LIKE '%name'",
                                  "SYS TABLES", "SYS TYPES"));
         }
         responseAsMap = getStats();
         assertFeatureMetric(baseMetrics.get("command") + randomCommandExecutions, responseAsMap, "command");
-        assertCliAndAllQueryMetrics(cliTotalQueries, allTotalQueries, responseAsMap);
+        assertClientTypeAndAllQueryMetrics(clientTypeTotalQueries, allTotalQueries, responseAsMap);
         
+        // random TRANSLATE requests
         int randomTranslateExecutions = randomIntBetween(1, 15);
         for (int i = 0; i < randomTranslateExecutions; i++) {
             runTranslate("SELECT name FROM library WHERE page_count > 100 ORDER BY page_count");
@@ -141,9 +158,9 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         assertTranslateQueryMetric(baseTranslateRequests + randomTranslateExecutions, responseAsMap);
     }
 
-    private void assertCliAndAllQueryMetrics(int cliTotalQueries, int allTotalQueries, Map<String, Object> responseAsMap)
+    private void assertClientTypeAndAllQueryMetrics(int clientTypeTotalQueries, int allTotalQueries, Map<String, Object> responseAsMap)
             throws IOException {
-        assertCliQueryMetric(cliTotalQueries, responseAsMap, "total");
+        assertClientTypeQueryMetric(clientTypeTotalQueries, responseAsMap, "total");
         assertAllQueryMetric(allTotalQueries, responseAsMap, "total");
     }
     
@@ -185,8 +202,10 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         client().performRequest(request);
     }
     
-    private void runCliSql(String sql) throws IOException {
-        runSql(Mode.PLAIN.toString(), CLI, sql);
+    private void runSql(String sql) throws IOException {
+        String mode = (clientType == ClientType.JDBC.toString() || clientType == ClientType.ODBC.toString()) ?
+                clientType.toString() : Mode.PLAIN.toString();
+        runSql(mode, clientType, sql);
     }
     
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -212,8 +231,9 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         if (false == mode.isEmpty()) {
             request.addParameter("mode", mode);        // JDBC or PLAIN mode
         }
-        if (false == restClient.isEmpty()) {
-            request.addParameter("clientid", restClient);        // CLI, CANVAS, random string
+        // randomly use the "client.id" parameter or not
+        if (false == ignoreClientType) {
+            request.addParameter("client.id", restClient);
         }
         if (randomBoolean()) {
             // JSON is the default but randomly set it sometime for extra coverage
@@ -248,8 +268,8 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         assertEquals(expected, actualMetricValue);
     }
     
-    private void assertCliQueryMetric(int expected, Map<String, Object> responseAsMap, String metric) throws IOException {
-        assertQueryMetric(expected, responseAsMap, CLI, metric);
+    private void assertClientTypeQueryMetric(int expected, Map<String, Object> responseAsMap, String metric) throws IOException {
+        assertQueryMetric(expected, responseAsMap, clientType, metric);
     }
     
     private void assertAllQueryMetric(int expected, Map<String, Object> responseAsMap, String metric) throws IOException {

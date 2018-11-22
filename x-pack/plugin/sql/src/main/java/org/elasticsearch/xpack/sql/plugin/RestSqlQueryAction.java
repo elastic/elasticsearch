@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.sql.proto.RequestInfo.CANVAS;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
 
 public class RestSqlQueryAction extends BaseRestHandler {
-    private static int CLIENT_ID_MAX_LENGTH = 15;
+    private static String CLIENT_ID = "client.id";
 
     public RestSqlQueryAction(Settings settings, RestController controller) {
         super(settings);
@@ -49,11 +49,9 @@ public class RestSqlQueryAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SqlQueryRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            String clientId = request.param("clientid");
+            String clientId = request.param(CLIENT_ID);
             if (clientId != null) {
-                if (clientId.length() > CLIENT_ID_MAX_LENGTH) {
-                    clientId = clientId.substring(0, CLIENT_ID_MAX_LENGTH).toLowerCase(Locale.ROOT);
-                }
+                clientId = clientId.toLowerCase(Locale.ROOT);
                 if (!clientId.equals(CLI) && !clientId.equals(CANVAS)) {
                     clientId = null;
                 }

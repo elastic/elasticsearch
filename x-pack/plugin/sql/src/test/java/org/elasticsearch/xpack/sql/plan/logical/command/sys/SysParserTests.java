@@ -40,7 +40,8 @@ public class SysParserTests extends ESTestCase {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private Tuple<Command, SqlSession> sql(String sql) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"), new Verifier());
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"),
+                                         new Verifier(null));
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), true);
 
         IndexResolver resolver = mock(IndexResolver.class);

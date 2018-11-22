@@ -125,7 +125,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             return transformations;
         }
     }
-    
+
     protected TreeType execute(TreeType plan) {
         return executeWithInfo(plan).after;
     }

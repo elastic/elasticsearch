@@ -33,9 +33,9 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final List<SqlTypedParamValue> params;
 
 
-    public SqlQueryRequest(RequestInfo reqParams, String query, List<SqlTypedParamValue> params, TimeZone timeZone,
+    public SqlQueryRequest(RequestInfo requestInfo, String query, List<SqlTypedParamValue> params, TimeZone timeZone,
                            int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, String cursor) {
-        super(reqParams);
+        super(requestInfo);
         this.query = query;
         this.params = params;
         this.timeZone = timeZone;
@@ -46,13 +46,13 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.cursor = cursor;
     }
 
-    public SqlQueryRequest(RequestInfo reqParams, String query, List<SqlTypedParamValue> params, ToXContent filter,
+    public SqlQueryRequest(RequestInfo requestInfo, String query, List<SqlTypedParamValue> params, ToXContent filter,
                            TimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-        this(reqParams, query, params, timeZone, fetchSize, requestTimeout, pageTimeout, filter, null);
+        this(requestInfo, query, params, timeZone, fetchSize, requestTimeout, pageTimeout, filter, null);
     }
 
-    public SqlQueryRequest(RequestInfo reqParams, String cursor, TimeValue requestTimeout, TimeValue pageTimeout) {
-        this(reqParams, "", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout,
+    public SqlQueryRequest(RequestInfo requestInfo, String cursor, TimeValue requestTimeout, TimeValue pageTimeout) {
+        this(requestInfo, "", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout,
              pageTimeout, null, cursor);
     }
 

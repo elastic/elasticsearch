@@ -27,10 +27,11 @@ public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslat
             Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT);
     }
 
-    public SqlTranslateRequestBuilder(ElasticsearchClient client, SqlTranslateAction action, RequestInfo reqParams, String query,
+    public SqlTranslateRequestBuilder(ElasticsearchClient client, SqlTranslateAction action, RequestInfo requestInfo, String query,
                                       QueryBuilder filter, List<SqlTypedParamValue> params, TimeZone timeZone, int fetchSize,
                                       TimeValue requestTimeout, TimeValue pageTimeout) {
-        super(client, action, new SqlTranslateRequest(reqParams, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout));
+        super(client, action,
+                new SqlTranslateRequest(requestInfo, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout));
     }
 
     public SqlTranslateRequestBuilder query(String query) {

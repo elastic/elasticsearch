@@ -77,7 +77,7 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
                 request -> request.filter(randomValueOtherThan(request.filter(),
                         () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random())))
         );
-        SqlTranslateRequest newRequest = new SqlTranslateRequest(instance.reqParams(), instance.query(), instance.params(),
+        SqlTranslateRequest newRequest = new SqlTranslateRequest(instance.requestInfo(), instance.query(), instance.params(),
                 instance.filter(), instance.timeZone(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout());
         mutator.accept(newRequest);
         return newRequest;

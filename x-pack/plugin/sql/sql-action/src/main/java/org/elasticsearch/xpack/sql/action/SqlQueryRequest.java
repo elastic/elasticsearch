@@ -46,9 +46,9 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     public SqlQueryRequest() {
     }
 
-    public SqlQueryRequest(RequestInfo reqParams, String query, List<SqlTypedParamValue> params, QueryBuilder filter,
+    public SqlQueryRequest(RequestInfo requestInfo, String query, List<SqlTypedParamValue> params, QueryBuilder filter,
                            TimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, String cursor) {
-        super(reqParams, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
+        super(requestInfo, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
         this.cursor = cursor;
     }
 
@@ -110,13 +110,13 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
-        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(reqParams(), query(), params(), timeZone(), fetchSize(),
+        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(requestInfo(), query(), params(), timeZone(), fetchSize(),
             requestTimeout(), pageTimeout(), filter(), cursor()).toXContent(builder, params);
     }
 
-    public static SqlQueryRequest fromXContent(XContentParser parser, RequestInfo reqParams) {
+    public static SqlQueryRequest fromXContent(XContentParser parser, RequestInfo requestInfo) {
         SqlQueryRequest request = PARSER.apply(parser, null);
-        request.reqParams(reqParams);
+        request.requestInfo(requestInfo);
         return request;
     }
 }

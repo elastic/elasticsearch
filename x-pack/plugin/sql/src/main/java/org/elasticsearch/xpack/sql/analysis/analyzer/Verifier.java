@@ -56,9 +56,11 @@ import static org.elasticsearch.xpack.sql.stats.FeatureMetric.ORDERBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.WHERE;
 
 public final class Verifier {
-    private Metrics metrics;
+    private final Metrics metrics;
     
-    public Verifier() {}
+    public Verifier(Metrics metrics) {
+        this.metrics = metrics;
+    }
 
     static class Failure {
         private final Node<?> source;
@@ -109,10 +111,6 @@ public final class Verifier {
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
         Collection<Failure> failures = verify(plan);
         return failures.stream().collect(toMap(Failure::source, Failure::message));
-    }
-    
-    public void metrics(Metrics metrics) {
-        this.metrics = metrics;
     }
     
     public Metrics metrics() {
@@ -241,25 +239,27 @@ public final class Verifier {
         
         // gather metrics
         if (failures.isEmpty() && metrics != null) {
-            plan.forEachDown(p -> {
-                if (p instanceof Aggregate) {
-                    metrics.inc(GROUPBY);
-                } else if (p instanceof OrderBy) {
-                    metrics.inc(ORDERBY);
-                } else if (p instanceof Filter) {
-                    if (((Filter) p).child() instanceof Aggregate) {
-                        metrics.inc(HAVING);
-                    } else {
-                        metrics.inc(WHERE);
-                    }
-                } else if (p instanceof Limit) {
-                    metrics.inc(LIMIT);
-                } else if (p instanceof LocalRelation) {
-                    metrics.inc(LOCAL);
-                } else if (p instanceof Command) {
-                    metrics.inc(COMMAND);
-                }
-            });
+            if (plan.anyMatch(p -> p instanceof Aggregate)) {
+                metrics.inc(GROUPBY);
+            };
+            if (plan.anyMatch(p -> p instanceof OrderBy)) {
+                metrics.inc(ORDERBY);
+            };
+            if (plan.anyMatch(p -> p instanceof Filter && ((Filter) p).child() instanceof Aggregate)) {
+                metrics.inc(HAVING);
+            };
+            if (plan.anyMatch(p -> p instanceof Filter && false == ((Filter) p).child() instanceof Aggregate)) {
+                metrics.inc(WHERE);
+            };
+            if (plan.anyMatch(p -> p instanceof Limit)) {
+                metrics.inc(LIMIT);
+            };
+            if (plan.anyMatch(p -> p instanceof LocalRelation)) {
+                metrics.inc(LOCAL);
+            };
+            if (plan.anyMatch(p -> p instanceof Command)) {
+                metrics.inc(COMMAND);
+            };
         }
 
         return failures;

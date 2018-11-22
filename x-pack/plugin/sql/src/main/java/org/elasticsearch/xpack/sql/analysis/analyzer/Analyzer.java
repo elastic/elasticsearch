@@ -1069,7 +1069,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
     
-    private class CheckSubselects extends MetricsRule<LogicalPlan> {
+    private class CheckSubselects<T extends LogicalPlan> extends Rule<T, LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
@@ -1089,12 +1089,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         @Override
-        protected LogicalPlan rule(LogicalPlan p) {
-            return p;
+        protected LogicalPlan rule(T e) {
+            return e;
         }
-        
-    }
 
+    }
+    
     abstract static class AnalyzeRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 
         // transformUp (post-order) - that is first children and then the node
@@ -1110,13 +1110,5 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         protected boolean skipResolved() {
             return true;
         }
-    }
-    
-    abstract static class MetricsRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
-        @Override
-        public abstract LogicalPlan apply(LogicalPlan plan);
-
-        @Override
-        protected abstract LogicalPlan rule(LogicalPlan p);
     }
 }

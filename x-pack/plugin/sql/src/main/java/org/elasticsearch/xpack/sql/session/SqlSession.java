@@ -37,9 +37,9 @@ public class SqlSession {
     private final FunctionRegistry functionRegistry;
     private final IndexResolver indexResolver;
     private final PreAnalyzer preAnalyzer;
+    private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
-    private final Verifier verifier;
 
     // TODO rename to `configuration`
     private final Configuration settings;

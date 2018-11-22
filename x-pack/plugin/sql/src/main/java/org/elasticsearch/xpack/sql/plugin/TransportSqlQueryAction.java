@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
-import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.stats.QueryMetric;
 import org.elasticsearch.xpack.sql.type.Schema;
 
@@ -37,7 +36,6 @@ import static java.util.Collections.unmodifiableList;
 public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse> {
     private final PlanExecutor planExecutor;
     private final SqlLicenseChecker sqlLicenseChecker;
-    private static final Metrics metrics = new Metrics();
 
     @Inject
     public TransportSqlQueryAction(TransportService transportService, ActionFilters actionFilters,
@@ -46,7 +44,6 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
 
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
-        planExecutor.metrics(metrics);
     }
 
     @Override
@@ -66,21 +63,21 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         
         // mode() shouldn't be null
         QueryMetric metric = QueryMetric.from(request.mode(), request.clientId());
-        metrics.total(metric);
+        planExecutor.metrics().total(metric);
 
         if (Strings.hasText(request.cursor()) == false) {
             planExecutor.sql(cfg, request.query(), request.params(),
                     ActionListener.wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)),
                             e -> {
-                                metrics.failed(metric);
+                                planExecutor.metrics().failed(metric);
                                 listener.onFailure(e);
                             }));
         } else {
-            metrics.paging(metric);
+            planExecutor.metrics().paging(metric);
             planExecutor.nextPage(cfg, Cursors.decodeFromString(request.cursor()),
                     ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet, null)),
                             e -> {
-                                metrics.failed(metric);
+                                planExecutor.metrics().failed(metric);
                                 listener.onFailure(e);
                             }));
         }
@@ -115,6 +112,6 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     }
     
     public Counters stats() {
-        return metrics.stats();
+        return planExecutor.metrics().stats();
     }
 }

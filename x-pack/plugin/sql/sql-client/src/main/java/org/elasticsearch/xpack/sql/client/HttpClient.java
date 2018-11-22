@@ -37,6 +37,7 @@ import java.util.TimeZone;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
+import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.CLIENT_ID;
 
 /**
  * A specialized high-level REST client with support for SQL-related functions.
@@ -65,7 +66,7 @@ public class HttpClient {
 
     public SqlQueryResponse queryInit(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
-        // method called only from CLI. "clientid" is set to "cli"
+        // method called only from CLI. "client.id" is set to "cli"
         SqlQueryRequest sqlRequest = new SqlQueryRequest(new RequestInfo(Mode.PLAIN, CLI), query, Collections.emptyList(), null,
             TimeZone.getTimeZone("UTC"), fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()),
             TimeValue.timeValueMillis(cfg.pageTimeout()));
@@ -77,7 +78,7 @@ public class HttpClient {
     }
 
     public SqlQueryResponse nextPage(String cursor) throws SQLException {
-        // method called only from CLI. "clientid" is set to "cli"
+        // method called only from CLI. "client.id" is set to "cli"
         SqlQueryRequest sqlRequest = new SqlQueryRequest(new RequestInfo(Mode.PLAIN, CLI), cursor,
                 TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()));
         return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
@@ -96,7 +97,7 @@ public class HttpClient {
         byte[] requestBytes = toXContent(request);
         String query = "error_trace&mode=" +
                         request.mode() +
-                        (request.clientId() != null ? "&clientid=" + request.clientId() : "");
+                        (request.clientId() != null ? "&" + CLIENT_ID + "=" + request.clientId() : "");
         Tuple<XContentType, byte[]> response =
             AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Tuple<XContentType, byte[]>>>) () ->
                 JreHttpUrlConnection.http(path, query, cfg, con ->

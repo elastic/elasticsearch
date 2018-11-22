@@ -22,6 +22,7 @@ The following mapping parameters are common to some or all field datatypes:
 * <<ignore-malformed,`ignore_malformed`>>
 * <<index-options,`index_options`>>
 * <<index-phrases,`index_phrases`>>
+* <<index-prefixes,`index_prefixes`>>
 * <<mapping-index,`index`>>
 * <<multi-fields,`fields`>>
 * <<norms,`norms`>>
@@ -65,6 +66,8 @@ include::params/index.asciidoc[]
 include::params/index-options.asciidoc[]
 
 include::params/index-phrases.asciidoc[]
+
+include::params/index-prefixes.asciidoc[]
 
 include::params/multi-fields.asciidoc[]
 

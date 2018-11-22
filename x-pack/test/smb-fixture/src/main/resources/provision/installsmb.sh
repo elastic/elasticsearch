@@ -18,12 +18,6 @@ RESOURCES=$VDIR/src/main/resources
 CERTS_DIR=$RESOURCES/certs
 SSL_DIR=/var/lib/samba/private/tls
 
-# Update package manager
-apt-get update -qqy
-
-# Install krb5 packages
-apt-get install -qqy samba ldap-utils
-
 # install ssl certs
 mkdir -p $SSL_DIR
 cp $CERTS_DIR/*.pem $SSL_DIR

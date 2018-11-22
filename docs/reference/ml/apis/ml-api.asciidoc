@@ -80,7 +80,7 @@ machine learning APIs and in advanced job configuration options in Kibana.
 [[ml-api-ml-info-endpoint]]
 === Info
 
-* <<ml-info,Machine learning info>>
+* <<get-ml-info,Machine learning info>>
 
 //ADD
 include::post-calendar-event.asciidoc[]
@@ -117,12 +117,11 @@ include::get-datafeed-stats.asciidoc[]
 include::get-influencer.asciidoc[]
 include::get-job.asciidoc[]
 include::get-job-stats.asciidoc[]
+include::get-ml-info.asciidoc[]
 include::get-snapshot.asciidoc[]
 include::get-calendar-event.asciidoc[]
 include::get-filter.asciidoc[]
 include::get-record.asciidoc[]
-//INFO
-include::ml-info.asciidoc[]
 //OPEN
 include::open-job.asciidoc[]
 //POST

@@ -1,0 +1,24 @@
+version: '3'
+services:
+  peppa:
+    hostname: kerberos.build.elastic.co
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: "bash /fixture/src/main/resources/provision/peppa.sh"
+    volumes:
+      - ./build/peppa:/fixture/build
+    ports:
+    - "60088:88"
+    - "60088:88/udp"
+  hdfs:
+    hostname: kerberos.build.elastic.co
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: "bash /fixture/src/main/resources/provision/hdfs.sh"
+    volumes:
+      - ./build/hdfs:/fixture/build
+    ports:
+    - "60089:88"
+    - "60089:88/udp"

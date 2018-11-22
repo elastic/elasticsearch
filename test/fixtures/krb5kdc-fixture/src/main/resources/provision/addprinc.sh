@@ -19,6 +19,12 @@
 
 set -e
 
+krb5kdc
+kadmind
+service krb5kdc start
+service kadmin start
+service krb524 start
+
 if [[ $# -lt 1 ]]; then
   echo 'Usage: addprinc.sh principalName [password]'
   echo '  principalName    user principal name without realm'
@@ -30,7 +36,7 @@ PRINC="$1"
 PASSWD="$2"
 USER=$(echo $PRINC | tr "/" "_")
 
-VDIR=/vagrant
+VDIR=/fixture
 RESOURCES=$VDIR/src/main/resources
 PROV_DIR=$RESOURCES/provision
 ENVPROP_FILE=$RESOURCES/env.properties
@@ -64,3 +70,7 @@ else
     sudo kadmin -p $ADMIN_PRIN -kt $ADMIN_KTAB -q "addprinc -pw $PASSWD $PRINC"
   fi
 fi
+
+# We are running as root in the container, allow non root users running the container to be able to clean these up
+cp $LOCALSTATEDIR/krb5.conf $BUILD_DIR/krb5.conf.template
+chmod -R 777 $BUILD_DIR

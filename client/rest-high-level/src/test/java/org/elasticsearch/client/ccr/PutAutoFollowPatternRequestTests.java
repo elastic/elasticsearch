@@ -32,6 +32,7 @@ import java.util.List;
 
 public class PutAutoFollowPatternRequestTests extends AbstractXContentTestCase<PutAutoFollowPatternRequest> {
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PutAutoFollowPatternRequest, Void> PARSER = new ConstructingObjectParser<>("test_parser",
         true, (args) -> new PutAutoFollowPatternRequest("name", (String) args[0], (List<String>) args[1]));
 

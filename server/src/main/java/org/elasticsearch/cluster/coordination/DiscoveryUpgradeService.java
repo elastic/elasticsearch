@@ -200,6 +200,8 @@ public class DiscoveryUpgradeService {
                                 try {
                                     initialConfigurationConsumer.accept(new VotingConfiguration(discoveryNodes.stream()
                                         .map(DiscoveryNode::getId).collect(Collectors.toSet())));
+                                } catch (Exception e) {
+                                    logger.debug("exception during bootstrapping upgrade, retrying", e);
                                 } finally {
                                     scheduleNextAttempt();
                                 }

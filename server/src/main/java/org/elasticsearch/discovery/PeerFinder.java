@@ -501,7 +501,7 @@ public abstract class PeerFinder {
             final List<ZenPing.PingResponse> pingResponses = new ArrayList<>();
             final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
             pingResponses.add(new ZenPing.PingResponse(transportService.getLocalNode(), peersResponse.getMasterNode().orElse(null),
-                clusterName, 0L));
+                clusterName, ClusterState.UNKNOWN_VERSION));
             peersResponse.getKnownPeers().forEach(dn -> pingResponses.add(
                 new ZenPing.PingResponse(dn, null, clusterName, ClusterState.UNKNOWN_VERSION)));
             channel.sendResponse(new UnicastZenPing.UnicastPingResponse(request.id, pingResponses.toArray(new ZenPing.PingResponse[0])));

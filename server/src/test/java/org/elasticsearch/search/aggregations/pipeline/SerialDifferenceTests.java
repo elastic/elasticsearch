@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.TestAggregatorFactory;
@@ -73,6 +72,7 @@ public class SerialDifferenceTests extends BasePipelineAggregationTestCase<Seria
         final SerialDiffPipelineAggregationBuilder builder = new SerialDiffPipelineAggregationBuilder("name", "invalid_agg>metric");
         IllegalStateException ex = expectThrows(IllegalStateException.class,
                 () -> builder.validate(parentFactory, Collections.emptySet(), aggBuilders));
-        assertEquals("serial_diff aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent", ex.getMessage());
+        assertEquals("serial_diff aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent",
+                ex.getMessage());
     }
 }

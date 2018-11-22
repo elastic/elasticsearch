@@ -68,7 +68,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -1431,23 +1430,22 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected AggregatorFactory getRandomSequentiallyOrderedParentAgg() throws IOException {
-        Random rand = new Random();
         AggregatorFactory factory = null;
-        switch (rand.nextInt(3)) {
+        switch (randomIntBetween(0, 2)) {
         case 0:
-            factory = new HistogramAggregatorFactory("name", mock(ValuesSourceConfig.class), 0.0d, 0.0d, mock(InternalOrder.class), false, 0l,
-                    0.0d, 1.0d, mock(SearchContext.class), null, new AggregatorFactories.Builder(), Collections.emptyMap());
+            factory = new HistogramAggregatorFactory("name", mock(ValuesSourceConfig.class), 0.0d, 0.0d, mock(InternalOrder.class), false,
+                    0L, 0.0d, 1.0d, mock(SearchContext.class), null, new AggregatorFactories.Builder(), Collections.emptyMap());
             break;
         case 1:
-            factory = new DateHistogramAggregatorFactory("name", mock(ValuesSourceConfig.class), 0l, mock(InternalOrder.class), false, 0l,
+            factory = new DateHistogramAggregatorFactory("name", mock(ValuesSourceConfig.class), 0L, mock(InternalOrder.class), false, 0L,
                     mock(Rounding.class), mock(Rounding.class), mock(ExtendedBounds.class), mock(SearchContext.class),
                     mock(AggregatorFactory.class), new AggregatorFactories.Builder(), Collections.emptyMap());
             break;
         case 2:
         default:
             RoundingInfo[] roundings = new RoundingInfo[1];
-            factory = new AutoDateHistogramAggregatorFactory("name", mock(ValuesSourceConfig.class), 1,
-                    roundings, mock(SearchContext.class), null, new AggregatorFactories.Builder(), Collections.emptyMap());
+            factory = new AutoDateHistogramAggregatorFactory("name", mock(ValuesSourceConfig.class), 1, roundings,
+                    mock(SearchContext.class), null, new AggregatorFactories.Builder(), Collections.emptyMap());
         }
 
         return factory;

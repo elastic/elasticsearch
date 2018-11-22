@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.TestAggregatorFactory;
@@ -127,7 +126,7 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
         final MovAvgPipelineAggregationBuilder builder = new MovAvgPipelineAggregationBuilder("name", "valid");
         builder.validate(getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
     }
-    
+
     /**
      * The validation should throw an IllegalArgumentException, since parent
      * aggregation is not a type of HistogramAggregatorFactory,
@@ -141,6 +140,7 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
         final MovAvgPipelineAggregationBuilder builder = new MovAvgPipelineAggregationBuilder("name", "invalid_agg>metric");
         IllegalStateException ex = expectThrows(IllegalStateException.class,
                 () -> builder.validate(parentFactory, Collections.emptySet(), aggBuilders));
-        assertEquals("moving_avg aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent", ex.getMessage());
+        assertEquals("moving_avg aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent",
+                ex.getMessage());
     }
 }

@@ -174,7 +174,7 @@ public class MovFnUnitTests extends AggregatorTestCase {
         final MovFnPipelineAggregationBuilder builder = new MovFnPipelineAggregationBuilder("name", "invalid_agg>metric", script, 1);
         builder.validate(getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
     }
-    
+
     /**
      * The validation should throw an IllegalArgumentException, since parent
      * aggregation is not a type of HistogramAggregatorFactory,
@@ -189,6 +189,7 @@ public class MovFnUnitTests extends AggregatorTestCase {
         final MovFnPipelineAggregationBuilder builder = new MovFnPipelineAggregationBuilder("name", "invalid_agg>metric", script, 1);
         IllegalStateException ex = expectThrows(IllegalStateException.class,
                 () -> builder.validate(parentFactory, Collections.emptySet(), aggBuilders));
-        assertEquals("moving_fn aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent", ex.getMessage());
+        assertEquals("moving_fn aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent",
+                ex.getMessage());
     }
 }

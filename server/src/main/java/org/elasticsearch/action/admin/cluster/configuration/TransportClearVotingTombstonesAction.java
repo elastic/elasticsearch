@@ -30,9 +30,9 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -77,10 +77,10 @@ public class TransportClearVotingTombstonesAction
         final long startTimeMillis = threadPool.relativeTimeInMillis();
 
         final Predicate<ClusterState> allTombstonedNodesRemoved = newState -> {
-            for (DiscoveryNode tombstone : initialState.getVotingTombstones()) {
+            for (VotingTombstone tombstone : initialState.getVotingTombstones()) {
                 // NB checking for the existence of any node with this persistent ID, because persistent IDs are how votes are counted.
                 // Calling nodeExists(tombstone) is insufficient because this compares on the ephemeral ID.
-                if (newState.nodes().nodeExists(tombstone.getId())) {
+                if (newState.nodes().nodeExists(tombstone.getNodeId())) {
                     return false;
                 }
             }

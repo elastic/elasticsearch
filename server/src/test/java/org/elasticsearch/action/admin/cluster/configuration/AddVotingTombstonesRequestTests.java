@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
@@ -55,20 +56,27 @@ public class AddVotingTombstonesRequestTests extends ESTestCase {
     public void testResolve() {
         final DiscoveryNode localNode
             = new DiscoveryNode("local", "local", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
+        final VotingTombstone localNodeTombstone = new VotingTombstone(localNode);
         final DiscoveryNode otherNode1
             = new DiscoveryNode("other1", "other1", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
+        final VotingTombstone otherNode1Tombstone = new VotingTombstone(otherNode1);
         final DiscoveryNode otherNode2
             = new DiscoveryNode("other2", "other2", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
+        final VotingTombstone otherNode2Tombstone = new VotingTombstone(otherNode2);
         final DiscoveryNode otherDataNode
             = new DiscoveryNode("data", "data", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder()
             .add(localNode).add(otherNode1).add(otherNode2).add(otherDataNode).localNodeId(localNode.getId())).build();
 
-        assertThat(makeRequest().resolveNodes(clusterState), containsInAnyOrder(localNode, otherNode1, otherNode2));
-        assertThat(makeRequest("_all").resolveNodes(clusterState), containsInAnyOrder(localNode, otherNode1, otherNode2));
-        assertThat(makeRequest("_local").resolveNodes(clusterState), contains(localNode));
-        assertThat(makeRequest("other*").resolveNodes(clusterState), containsInAnyOrder(otherNode1, otherNode2));
+        assertThat(makeRequest().resolveNodes(clusterState),
+                containsInAnyOrder(localNodeTombstone, otherNode1Tombstone, otherNode2Tombstone));
+        assertThat(makeRequest("_all").resolveNodes(clusterState),
+                containsInAnyOrder(localNodeTombstone, otherNode1Tombstone, otherNode2Tombstone));
+        assertThat(makeRequest("_local").resolveNodes(clusterState),
+                contains(localNodeTombstone));
+        assertThat(makeRequest("other*").resolveNodes(clusterState),
+                containsInAnyOrder(otherNode1Tombstone, otherNode2Tombstone));
 
         assertThat(expectThrows(IllegalArgumentException.class, () -> makeRequest("not-a-node").resolveNodes(clusterState)).getMessage(),
             equalTo("add voting tombstones request for [not-a-node] matched no master-eligible nodes"));
@@ -77,20 +85,24 @@ public class AddVotingTombstonesRequestTests extends ESTestCase {
     public void testResolveAndCheckMaximum() {
         final DiscoveryNode localNode
             = new DiscoveryNode("local", "local", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
+        final VotingTombstone localNodeTombstone = new VotingTombstone(localNode);
         final DiscoveryNode otherNode1
             = new DiscoveryNode("other1", "other1", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
+        final VotingTombstone otherNode1Tombstone = new VotingTombstone(otherNode1);
         final DiscoveryNode otherNode2
             = new DiscoveryNode("other2", "other2", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
+        final VotingTombstone otherNode2Tombstone = new VotingTombstone(otherNode2);
 
         final ClusterState.Builder builder = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder()
             .add(localNode).add(otherNode1).add(otherNode2).localNodeId(localNode.getId()));
-        builder.metaData(MetaData.builder().coordinationMetaData(CoordinationMetaData.builder().addVotingTombstone(otherNode1).build()));
+        builder.metaData(MetaData.builder()
+                .coordinationMetaData(CoordinationMetaData.builder().addVotingTombstone(otherNode1Tombstone).build()));
         final ClusterState clusterState = builder.build();
 
         assertThat(makeRequest().resolveNodesAndCheckMaximum(clusterState, 3, "setting.name"),
-            containsInAnyOrder(localNode, otherNode2));
+                containsInAnyOrder(localNodeTombstone, otherNode2Tombstone));
         assertThat(makeRequest("_local").resolveNodesAndCheckMaximum(clusterState, 2, "setting.name"),
-            contains(localNode));
+                contains(localNodeTombstone));
 
         assertThat(expectThrows(IllegalArgumentException.class,
             () -> makeRequest().resolveNodesAndCheckMaximum(clusterState, 2, "setting.name")).getMessage(),

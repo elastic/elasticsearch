@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,15 +44,12 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -418,20 +415,18 @@ public class MetaDataTests extends ESTestCase {
         return new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(randomInt(10), 20, false)));
     }
 
-    private Set<DiscoveryNode> randomDiscoveryNodeSet() {
+    private Set<VotingTombstone> randomVotingTombstones() {
         final int size = randomIntBetween(1, 10);
-        final Set<DiscoveryNode> nodes = new HashSet<>(size);
+        final Set<VotingTombstone> nodes = new HashSet<>(size);
         while (nodes.size() < size) {
-            assertTrue(nodes.add(new DiscoveryNode(randomAlphaOfLength(10), randomAlphaOfLength(10),
-                    UUIDs.randomBase64UUID(random()), randomAlphaOfLength(10), randomAlphaOfLength(10), buildNewFakeTransportAddress(),
-                    emptyMap(), singleton(DiscoveryNode.Role.MASTER), Version.CURRENT)));
+            assertTrue(nodes.add(new VotingTombstone(randomAlphaOfLength(10), randomAlphaOfLength(10))));
         }
         return nodes;
     }
 
     public void testXContentWithCoordinationMetaData() throws IOException {
         CoordinationMetaData originalMeta = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
-                Collections.emptySet()); //TODO use non-empty tombstones set once toXContent for tombstones is implemented
+                randomVotingTombstones());
 
         MetaData metaData = MetaData.builder().coordinationMetaData(originalMeta).build();
 
@@ -448,10 +443,10 @@ public class MetaDataTests extends ESTestCase {
 
     public void testGlobalStateEqualsCoordinationMetaData() {
         CoordinationMetaData coordinationMetaData1 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(),
-                randomVotingConfig(), randomDiscoveryNodeSet());
+                randomVotingConfig(), randomVotingTombstones());
         MetaData metaData1 = MetaData.builder().coordinationMetaData(coordinationMetaData1).build();
         CoordinationMetaData coordinationMetaData2 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(),
-                randomVotingConfig(), randomDiscoveryNodeSet());
+                randomVotingConfig(), randomVotingTombstones());
         MetaData metaData2 = MetaData.builder().coordinationMetaData(coordinationMetaData2).build();
 
         assertTrue(MetaData.isGlobalStateEquals(metaData1, metaData1));

@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
@@ -207,7 +208,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
         }
         if (randomBoolean()) {
-            metaBuilder.addVotingTombstone(randomNode("node-" + randomAlphaOfLength(10)));
+            metaBuilder.addVotingTombstone(new VotingTombstone(randomNode("node-" + randomAlphaOfLength(10))));
         }
         return builder;
     }

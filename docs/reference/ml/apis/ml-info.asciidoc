@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-info]]
-=== Machine Learning Info API
+=== Get Machine Learning Info API
 ++++
-<titleabbrev>Machine Learning Info </titleabbrev>
+<titleabbrev>Get Machine Learning Info</titleabbrev>
 ++++
 
 Returns defaults and limits used by machine learning.
@@ -25,8 +25,8 @@ what those defaults are.
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API.  The `machine_learning_admin` and `machine_learning_user`
 roles provide these privileges. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges] and
-{xpack-ref}/built-in-roles.html[Built-in Roles].
+{stack-ov}/security-privileges.html[Security Privileges] and
+{stack-ov}/built-in-roles.html[Built-in Roles].
 
 
 ==== Examples

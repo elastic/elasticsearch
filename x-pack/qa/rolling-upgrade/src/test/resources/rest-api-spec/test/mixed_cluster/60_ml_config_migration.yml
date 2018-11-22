@@ -14,14 +14,15 @@
 
   - do:
       xpack.ml.get_job_stats:
-          job_id: migration-old-cluster-open-job
+          job_id: migration*
   - match: { count: 2 }
   - match: { jobs.0.job_id: migration-old-cluster-closed-job}
   - match: { jobs.0.state: closed }
   - is_false: jobs.0.node
   - match: { jobs.1.job_id: migration-old-cluster-open-job}
   - match: { jobs.1.state: opened }
-  - is_true: jobs.1.node
+#  TODO can't test for assignment here as the job may not be re-allocated yet
+#  - is_true: jobs.1.node
   - is_false: jobs.1.assignment_explanation
 
   - do:
@@ -38,7 +39,8 @@
         datafeed_id: migration*
   - match: { datafeeds.0.datafeed_id: migration-old-cluster-started-datafeed}
   - match: { datafeeds.0.state: started }
-  - is_true: datafeeds.0.node
+#  TODO can't test for assignment here as the datafeed may not be re-allocated yet
+#  - is_true: datafeeds.0.node
   - match: { datafeeds.1.datafeed_id: migration-old-cluster-stopped-datafeed}
   - match: { datafeeds.1.state: stopped }
   - is_false: datafeeds.1.node

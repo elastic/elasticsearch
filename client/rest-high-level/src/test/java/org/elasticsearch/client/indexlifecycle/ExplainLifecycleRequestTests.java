@@ -29,6 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExplainLifecycleRequestTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35822")
     public void testEqualsAndHashcode() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copy, this::mutateInstance);
     }

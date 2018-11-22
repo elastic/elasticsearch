@@ -182,63 +182,9 @@ public class TimeValue implements Comparable<TimeValue> {
         return daysFrac();
     }
 
-    /**
-     * Returns a {@link String} representation of the current {@link TimeValue}.
-     *
-     * Note that this method might produce fractional time values (ex 1.6m) which cannot be
-     * parsed by method like {@link TimeValue#parse(String, String, String)}.
-     */
     @Override
     public String toString() {
-        if (duration < 0) {
-            return Long.toString(duration);
-        }
-        long nanos = nanos();
-        if (nanos == 0) {
-            return "0s";
-        }
-        double value = nanos;
-        String suffix = "nanos";
-        if (nanos >= C6) {
-            value = daysFrac();
-            suffix = "d";
-        } else if (nanos >= C5) {
-            value = hoursFrac();
-            suffix = "h";
-        } else if (nanos >= C4) {
-            value = minutesFrac();
-            suffix = "m";
-        } else if (nanos >= C3) {
-            value = secondsFrac();
-            suffix = "s";
-        } else if (nanos >= C2) {
-            value = millisFrac();
-            suffix = "ms";
-        } else if (nanos >= C1) {
-            value = microsFrac();
-            suffix = "micros";
-        }
-        return formatDecimal(value) + suffix;
-    }
-
-    private static String formatDecimal(double value) {
-        String p = String.valueOf(value);
-        int ix = p.indexOf('.') + 1;
-        int ex = p.indexOf('E');
-        char fraction = p.charAt(ix);
-        if (fraction == '0') {
-            if (ex != -1) {
-                return p.substring(0, ix - 1) + p.substring(ex);
-            } else {
-                return p.substring(0, ix - 1);
-            }
-        } else {
-            if (ex != -1) {
-                return p.substring(0, ix) + fraction + p.substring(ex);
-            } else {
-                return p.substring(0, ix) + fraction;
-            }
-        }
+        return getStringRep();
     }
 
     public String getStringRep() {

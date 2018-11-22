@@ -41,15 +41,6 @@ public class TimeValueTests extends ESTestCase {
         assertThat(TimeUnit.DAYS.toDays(10), equalTo(new TimeValue(10, TimeUnit.DAYS).days()));
     }
 
-    public void testToString() {
-        assertThat("10ms", equalTo(new TimeValue(10, TimeUnit.MILLISECONDS).toString()));
-        assertThat("1.5s", equalTo(new TimeValue(1533, TimeUnit.MILLISECONDS).toString()));
-        assertThat("1.5m", equalTo(new TimeValue(90, TimeUnit.SECONDS).toString()));
-        assertThat("1.5h", equalTo(new TimeValue(90, TimeUnit.MINUTES).toString()));
-        assertThat("1.5d", equalTo(new TimeValue(36, TimeUnit.HOURS).toString()));
-        assertThat("1000d", equalTo(new TimeValue(1000, TimeUnit.DAYS).toString()));
-    }
-
     public void testMinusOne() {
         assertThat(new TimeValue(-1).nanos(), lessThan(0L));
     }
@@ -184,6 +175,14 @@ public class TimeValueTests extends ESTestCase {
         assertEquals("90m", new TimeValue(90, TimeUnit.MINUTES).getStringRep());
         assertEquals("36h", new TimeValue(36, TimeUnit.HOURS).getStringRep());
         assertEquals("1000d", new TimeValue(1000, TimeUnit.DAYS).getStringRep());
+    }
+
+    /**
+     * Just check that {@link TimeValue#toString()} uses {@link TimeValue#getStringRep()} under the hood.
+     */
+    public void testToString() {
+        TimeValue tv = new TimeValue(randomLong(), randomFrom(TimeUnit.values()));
+        assertEquals(tv.toString(), tv.getStringRep());
     }
 
     public void testCompareEquality() {

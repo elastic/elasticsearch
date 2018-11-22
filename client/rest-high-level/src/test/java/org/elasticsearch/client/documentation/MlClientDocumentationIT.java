@@ -1746,7 +1746,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             "{\"logger\":\"controller\",\"timestamp\":1478261151445," +
                 "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\"," +
                 "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
-        Files.writeString(anInterestingFile, contents, StandardCharsets.UTF_8);
+        Files.write(anInterestingFile, Collections.singleton(contents), StandardCharsets.UTF_8);
 
         {
             // tag::find-file-structure-request

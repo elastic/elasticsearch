@@ -503,7 +503,7 @@ public abstract class PeerFinder {
             pingResponses.add(new ZenPing.PingResponse(transportService.getLocalNode(), peersResponse.getMasterNode().orElse(null),
                 clusterName, ClusterState.UNKNOWN_VERSION));
             peersResponse.getKnownPeers().forEach(dn -> pingResponses.add(
-                new ZenPing.PingResponse(0L, dn, null, clusterName, ClusterState.UNKNOWN_VERSION)));
+                new ZenPing.PingResponse(ZenPing.PingResponse.FAKE_PING_ID, dn, null, clusterName, ClusterState.UNKNOWN_VERSION)));
             channel.sendResponse(new UnicastZenPing.UnicastPingResponse(request.id, pingResponses.toArray(new ZenPing.PingResponse[0])));
         }
     }

@@ -40,11 +40,18 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 
 public interface ZenPing extends Releasable {
 
+
     void start();
 
     void ping(Consumer<PingCollection> resultsConsumer, TimeValue timeout);
 
     class PingResponse implements Writeable {
+
+        /**
+         * An ID of a ping response that was generated on behalf of another node. Needs to be less than all other ping IDs so that fake ping
+         * responses don't override real ones.
+         */
+        public static long FAKE_PING_ID = -1;
 
         private static final AtomicLong idGenerator = new AtomicLong();
 

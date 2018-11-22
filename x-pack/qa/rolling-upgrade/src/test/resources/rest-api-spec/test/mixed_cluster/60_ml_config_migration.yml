@@ -1,6 +1,10 @@
 ---
 "Test get old cluster jobs & datafeeds":
 
+  - skip:
+      version:  "- 6.1.0"
+      reason:   "Wildcard expansion of jobs and datafeeds was added in 6.1.0"
+
   - do:
       xpack.ml.get_jobs:
           job_id: migration*
@@ -11,18 +15,14 @@
   - do:
       xpack.ml.get_job_stats:
           job_id: migration-old-cluster-open-job
-#  - match: { count: 2 }
-#  - match: { jobs.0.job_id: migration-old-cluster-closed-job}
-#  - match: { jobs.0.state: closed }
-#  - is_false: jobs.0.node
-#  - match: { jobs.1.job_id: migration-old-cluster-open-job}
-#  - match: { jobs.1.state: opened }
-#  - is_true: jobs.1.node
-#  - is_false: jobs.1.assignment_explanation
-  - match: { jobs.0.job_id: migration-old-cluster-open-job }
-  - match: { jobs.0.state: opened }
-  - is_true: jobs.0.node
-  - is_false: jobs.0.assignment_explanation
+  - match: { count: 2 }
+  - match: { jobs.0.job_id: migration-old-cluster-closed-job}
+  - match: { jobs.0.state: closed }
+  - is_false: jobs.0.node
+  - match: { jobs.1.job_id: migration-old-cluster-open-job}
+  - match: { jobs.1.state: opened }
+  - is_true: jobs.1.node
+  - is_false: jobs.1.assignment_explanation
 
   - do:
       xpack.ml.get_datafeeds:

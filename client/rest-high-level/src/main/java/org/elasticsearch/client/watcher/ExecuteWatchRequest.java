@@ -23,7 +23,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * An execute watch request to execute a watch by id
+ * An execute watch request to execute a watch by id or inline
  */
 public class ExecuteWatchRequest implements Validatable, ToXContentObject {
 

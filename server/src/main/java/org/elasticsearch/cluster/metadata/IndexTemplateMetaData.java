@@ -341,6 +341,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         public static void toInnerXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params)
             throws IOException {
+            // TODO make default include_type_name choice a constant on MapperService? See duplicate code in RestGetMappingAction
+            boolean includeTypeName = params.paramAsBoolean("include_type_name", true);
 
             builder.field("order", indexTemplateMetaData.order());
             if (indexTemplateMetaData.version() != null) {
@@ -361,8 +363,16 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                         // the type name is the root value, reduce it
                         mapping = (Map<String, Object>) mapping.get(cursor.key);
                     }
-                    builder.field(cursor.key);
-                    builder.map(mapping);
+                    if (includeTypeName) {
+                        builder.field(cursor.key);
+                        builder.map(mapping);                        
+                    } else {
+                        // Pull all nested properties for doc type up a level
+                        for (Map.Entry<String, ?> value : mapping.entrySet()) {
+                            builder.field(value.getKey());
+                            builder.value(value.getValue());
+                        }                                               
+                    }
                 }
                 builder.endObject();
             } else {

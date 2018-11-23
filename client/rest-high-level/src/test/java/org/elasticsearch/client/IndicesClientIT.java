@@ -80,6 +80,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -1229,8 +1231,25 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 + "reason=unknown setting [index.no_idea_what_you_are_talking_about] please check that any required plugins are installed, "
                 + "or check the breaking changes documentation for removed settings]"));
     }
+    
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings("deprecation")    
+    public void testPutCustomTypedTemplateHasWarnings() throws Exception {
+        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest()
+            .name("my-template")
+            .patterns(Arrays.asList("pattern-1", "name-*"))
+            .order(10)
+            .create(randomBoolean())
+            .mapping("custom_doc_type", "host_name", "type=keyword", "description", "type=text");
+
+            
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(putTemplateRequest,
+                highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync));
+        assertThat(exception.getDetailedMessage(), containsString("[types removal]"));
+        assertThat(exception.status(), equalTo(RestStatus.OK));
+    }    
+
+    @SuppressWarnings({"unchecked","deprecation"})
     public void testPutTemplate() throws Exception {
         PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest()
             .name("my-template")
@@ -1238,23 +1257,48 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .order(10)
             .create(randomBoolean())
             .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
-            .mapping("doc", "host_name", "type=keyword", "description", "type=text")
+            .simplifiedMapping("host_name", "type=keyword", "description", "type=text")
             .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
 
+        IndicesClient indicesClient = highLevelClient().indices();
         AcknowledgedResponse putTemplateResponse = execute(putTemplateRequest,
-            highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync);
+                indicesClient::putTemplate, indicesClient::putTemplateAsync);
         assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
 
-        Map<String, Object> templates = getAsMap("/_template/my-template");
+        
+        Map<String, Object> templates = getAsMap("/_template/my-template?include_type_name=false");
         assertThat(templates.keySet(), hasSize(1));
         assertThat(extractValue("my-template.order", templates), equalTo(10));
         assertThat(extractRawValues("my-template.index_patterns", templates), contains("pattern-1", "name-*"));
         assertThat(extractValue("my-template.settings.index.number_of_shards", templates), equalTo("3"));
         assertThat(extractValue("my-template.settings.index.number_of_replicas", templates), equalTo("0"));
-        assertThat(extractValue("my-template.mappings.doc.properties.host_name.type", templates), equalTo("keyword"));
-        assertThat(extractValue("my-template.mappings.doc.properties.description.type", templates), equalTo("text"));
+        assertThat(extractValue("my-template.mappings.properties.host_name.type", templates), equalTo("keyword"));
+        assertThat(extractValue("my-template.mappings.properties.description.type", templates), equalTo("text"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
+        
+        // Test the typed version of the template has the default doc type name
+        templates = getAsMap("/_template/my-template");
+        assertThat(extractValue("my-template.mappings._doc.properties.host_name.type", templates), equalTo("keyword"));
+        assertThat(extractValue("my-template.mappings._doc.properties.description.type", templates), equalTo("text"));
+        
+        // Now test with the getIndexTemplatesResponse untyped mappings
+        GetIndexTemplatesRequest untypedGet = new GetIndexTemplatesRequest("my-template");
+        untypedGet.includeTypeNamesInResponse(false);
+        GetIndexTemplatesResponse getTemplate1 = execute(untypedGet, indicesClient::getTemplate, indicesClient::getTemplateAsync);
+        IndexTemplateMetaData typelessTemplate = getTemplate1.getIndexTemplates().get(0);
+        ImmutableOpenMap<String, CompressedXContent> mappings = typelessTemplate.getMappings();
+        assertNull(mappings.get("_doc"));
+        assertNotNull(mappings.get("properties"));
+        
+        // Now test with the getIndexTemplatesResponse typed mappings
+        GetIndexTemplatesRequest typedMappingRequest = new GetIndexTemplatesRequest("my-template");
+        typedMappingRequest.includeTypeNamesInResponse(true);
+        getTemplate1 = execute(typedMappingRequest, indicesClient::getTemplate, indicesClient::getTemplateAsync);
+        IndexTemplateMetaData typedTemplate = getTemplate1.getIndexTemplates().get(0);
+        mappings = typedTemplate.getMappings();
+        assertNotNull(mappings.get("_doc"));
+        assertNull(mappings.get("properties"));
     }
 
     public void testPutTemplateBadRequests() throws Exception {

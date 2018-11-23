@@ -47,6 +47,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -83,6 +84,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private Settings settings = EMPTY_SETTINGS;
 
+    // All puts on this map should be done using internalMapping() to ensure doc type name is part of mapping->doctype->properties JSON
     private Map<String, String> mappings = new HashMap<>();
 
     private final Set<Alias> aliases = new HashSet<>();
@@ -209,15 +211,27 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     /**
-     * Adds mapping that will be added when the index gets created.
+     * Adds mapping that will be added when the index gets created using a custom doc type
      *
      * @param type   The mapping type
      * @param source The mapping source
      * @param xContentType The type of content contained within the source
+     * @deprecated use {@link #mappingNoDocType(String, XContentType)} instead 
      */
+    @Deprecated
     public PutIndexTemplateRequest mapping(String type, String source, XContentType xContentType) {
-        return mapping(type, new BytesArray(source), xContentType);
+        return internalMapping(type, XContentHelper.convertToMap(new BytesArray(source), true, xContentType).v2());
     }
+    
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param source The mapping source
+     * @param xContentType The type of content contained within the source
+     */
+    public PutIndexTemplateRequest mappingNoDocType(String source, XContentType xContentType) {
+        return mapping(MapperService.SINGLE_MAPPING_NAME, new BytesArray(source), xContentType);
+    }    
 
     /**
      * The cause for this index template creation.
@@ -232,14 +246,27 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     /**
-     * Adds mapping that will be added when the index gets created.
-     *
+     * Adds mapping that will be added when the index gets created using a choice of 
+     * custom document type
+     * 
      * @param type   The mapping type
      * @param source The mapping source
+     * @deprecated use {@link #mappingNoDocType(XContentBuilder)} instead
      */
+    @Deprecated
     public PutIndexTemplateRequest mapping(String type, XContentBuilder source) {
-        return mapping(type, BytesReference.bytes(source), source.contentType());
+        return internalMapping(type, XContentHelper.convertToMap(BytesReference.bytes(source), true, source.contentType()).v2());
     }
+    
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param source The mapping source
+     */
+    public PutIndexTemplateRequest mappingNoDocType(XContentBuilder source) {
+        return mapping(MapperService.SINGLE_MAPPING_NAME, source);
+    }    
 
     /**
      * Adds mapping that will be added when the index gets created.
@@ -247,24 +274,47 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * @param type   The mapping type
      * @param source The mapping source
      * @param xContentType the source content type
+     * @deprecated use {@link #mappingNoDocType(BytesReference, XContentType)} instead
      */
-    public PutIndexTemplateRequest mapping(String type, BytesReference source, XContentType xContentType) {
-        Objects.requireNonNull(xContentType);
-        try {
-            mappings.put(type, XContentHelper.convertToJson(source, false, false, xContentType));
-            return this;
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to convert source to json", e);
-        }
+    @Deprecated
+    public PutIndexTemplateRequest mapping(String type, BytesReference source, XContentType xContentType) {        
+        internalMapping(type, XContentHelper.convertToMap(source, true, xContentType).v2());
+        return this;
     }
-
+    
     /**
      * Adds mapping that will be added when the index gets created.
      *
-     * @param type   The mapping type
+     * @param source The mapping source
+     * @param xContentType the source content type
+     */
+    public PutIndexTemplateRequest mappingNoDocType(BytesReference source, XContentType xContentType) {
+        return mapping(MapperService.SINGLE_MAPPING_NAME, source, xContentType);
+    }    
+    
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
      * @param source The mapping source
      */
+    public PutIndexTemplateRequest mapping(Map<String, Object> source) {
+        return internalMapping(MapperService.SINGLE_MAPPING_NAME, source);
+    }
+    
+    /**
+     * Adds mapping that will be added when the index gets created using a custom
+     * document type name
+     *
+     * @param type   The mapping type
+     * @param source The mapping source
+     * @deprecated use {@link #mapping(Map)} instead 
+     */
+    @Deprecated
     public PutIndexTemplateRequest mapping(String type, Map<String, Object> source) {
+        return internalMapping(type, source);
+    }    
+
+    private PutIndexTemplateRequest internalMapping(String type, Map<String, Object> source) {
         // wrap it in a type map if its not
         if (source.size() != 1 || !source.containsKey(type)) {
             source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
@@ -272,7 +322,13 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            return mapping(type, builder);
+            Objects.requireNonNull(builder.contentType());
+            try {
+                mappings.put(type, XContentHelper.convertToJson(BytesReference.bytes(builder), false, false,  builder.contentType()));
+                return this;
+            } catch (IOException e) {
+                throw new UncheckedIOException("failed to convert source to json", e);
+            }            
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -281,11 +337,22 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
+     * @deprecated use {@link #simplifiedMapping(Object...)} instead
      */
+    @Deprecated
     public PutIndexTemplateRequest mapping(String type, Object... source) {
         mapping(type, PutMappingRequest.buildFromSimplifiedDef(type, source));
         return this;
     }
+    
+    /**
+     * A specialized simplified mapping source method, takes the form of simple properties definition:
+     * ("field1", "type=string,store=true").
+     * Uses the default document type "_doc"
+     */
+    public PutIndexTemplateRequest simplifiedMapping(Object... source) {
+        return mapping(MapperService.SINGLE_MAPPING_NAME, source);
+    }    
 
     public Map<String, String> mappings() {
         return this.mappings;
@@ -293,7 +360,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     /**
      * The template source definition.
+     * @deprecated use {@link #sourceNoDocTypes(XContentBuilder)} instead
      */
+    @Deprecated
     public PutIndexTemplateRequest source(XContentBuilder templateBuilder) {
         try {
             return source(BytesReference.bytes(templateBuilder), templateBuilder.contentType());
@@ -305,8 +374,35 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * The template source definition.
      */
-    @SuppressWarnings("unchecked")
+    public PutIndexTemplateRequest sourceNoDocTypes(XContentBuilder templateBuilder) {
+        try {
+            return sourceNoDocTypes(BytesReference.bytes(templateBuilder), templateBuilder.contentType());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to build json for template request", e);
+        }
+    }    
+    
+    /**
+     * The template source definition with no doc types expected in the mapping.
+     * @deprecated use {@link #sourceNoDocTypes(Map)} instead
+     */
+    @Deprecated
     public PutIndexTemplateRequest source(Map<String, Object> templateSource) {
+        return source(templateSource, true);
+    }
+    
+    /**
+     * The template source definition with no doc types expected in the mapping.
+     */
+    public PutIndexTemplateRequest sourceNoDocTypes(Map<String, Object> templateSource) {
+        return source(templateSource, false);
+    }    
+    
+    /**
+     * The template source definition.
+     */
+    @SuppressWarnings("unchecked")
+    private PutIndexTemplateRequest source(Map<String, Object> templateSource, boolean includeDocTypesInMapping) {
         Map<String, Object> source = templateSource;
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
@@ -339,13 +435,17 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("mappings")) {
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
-                for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
-                    if (!(entry1.getValue() instanceof Map)) {
-                        throw new IllegalArgumentException(
-                            "Malformed [mappings] section for type [" + entry1.getKey() +
-                                "], should include an inner object describing the mapping");
+                if (includeDocTypesInMapping == false) {
+                    internalMapping(MapperService.SINGLE_MAPPING_NAME, mappings);
+                } else {
+                    for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
+                        if (!(entry1.getValue() instanceof Map)) {
+                            throw new IllegalArgumentException(
+                                "Malformed [mappings] section for type [" + entry1.getKey() +
+                                    "], should include an inner object describing the mapping");
+                        }
+                        internalMapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                     }
-                    mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
             } else if (name.equals("aliases")) {
                 aliases((Map<String, Object>) entry.getValue());
@@ -355,34 +455,83 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         }
         return this;
     }
+    
+    /**
+     * Returns true if the mapping uses custom types. Is used in the HighLevelRestClient to manage
+     * formatting of requests to a server
+     */
+    public boolean isCustomTyped () {
+        for (String key : mappings.keySet()) {
+            if(key.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * The template source definition with doc types in mapping
+     * @deprecated use {@link #sourceNoDocTypes(String, XContentType)} instead
+     */
+    @Deprecated
+    public PutIndexTemplateRequest source(String templateSource, XContentType xContentType) {
+        return source(XContentHelper.convertToMap(xContentType.xContent(), templateSource, true), true);
+    }    
 
     /**
-     * The template source definition.
+     * The template source definition with no doc types expected in the mapping.
      */
-    public PutIndexTemplateRequest source(String templateSource, XContentType xContentType) {
-        return source(XContentHelper.convertToMap(xContentType.xContent(), templateSource, true));
+    public PutIndexTemplateRequest sourceNoDocTypes(String templateSource, XContentType xContentType) {
+        return sourceNoDocTypes(XContentHelper.convertToMap(xContentType.xContent(), templateSource, true));
     }
 
     /**
-     * The template source definition.
+     * The template source definition with doc types in mapping
+     * @deprecated use {@link #sourceNoDocTypes(byte[], XContentType)} instead
      */
+    @Deprecated
     public PutIndexTemplateRequest source(byte[] source, XContentType xContentType) {
         return source(source, 0, source.length, xContentType);
     }
+    
+    /**
+     * The template source definition with no doc types expected in the mapping.
+     */
+    public PutIndexTemplateRequest sourceNoDocTypes(byte[] source, XContentType xContentType) {
+        return sourceNoDocTypes(source, 0, source.length, xContentType);
+    }    
 
     /**
-     * The template source definition.
+     * The template source definition with doc types in mapping
+     * @deprecated use {@link #sourceNoDocTypes(byte[], int, int, XContentType)} instead
      */
+    @Deprecated
     public PutIndexTemplateRequest source(byte[] source, int offset, int length, XContentType xContentType) {
         return source(new BytesArray(source, offset, length), xContentType);
     }
+    
+    /**
+     * The template source definition with no doc types expected in the mapping.
+     */
+    public PutIndexTemplateRequest sourceNoDocTypes(byte[] source, int offset, int length, XContentType xContentType) {
+        return sourceNoDocTypes(new BytesArray(source, offset, length), xContentType);
+    }    
 
     /**
-     * The template source definition.
+     * The template source definition with doc types in mapping
+     * @deprecated use {@link #sourceNoDocTypes(BytesReference, XContentType)} instead
      */
+    @Deprecated
     public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType) {
         return source(XContentHelper.convertToMap(source, true, xContentType).v2());
     }
+    
+    /**
+     * The template source definition with no doc types expected in the mapping.
+     */
+    public PutIndexTemplateRequest sourceNoDocTypes(BytesReference source, XContentType xContentType) {
+        return source(XContentHelper.convertToMap(source, true, xContentType).v2(), false);
+    }    
 
     public Set<Alias> aliases() {
         return this.aliases;
@@ -529,15 +678,35 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         settings.toXContent(builder, params);
         builder.endObject();
 
-        builder.startObject("mappings");
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            builder.field(entry.getKey());
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entry.getValue())) {
-                builder.copyCurrentStructure(parser);
-            }
+        if (isCustomTyped()) {
+            builder.startObject("mappings");
+            for (Map.Entry<String, String> entry : mappings.entrySet()) {
+                builder.field(entry.getKey());
+                String mappingDef = entry.getValue();
+                if(isCustomTyped() == false) {
+                    // export as typeless mapping format - strip the _doc  from the mappings->_doc->properties
+                    String val = entry.getValue();
+                    Map<String, Object> mappingAsMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, val, true);
+                    XContentBuilder mappingMinusTypeBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+                    mappingMinusTypeBuilder.map((Map<String, ?>) mappingAsMap.get(MapperService.SINGLE_MAPPING_NAME));
+                    mappingDef = BytesReference.bytes(mappingMinusTypeBuilder).utf8ToString();
+                }
+                try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, mappingDef)) {
+                    builder.copyCurrentStructure(parser);
+                }
+            }            
+            builder.endObject();
+        } else {
+            assert mappings.size() <= 1; // Highlander rule applies to doc types: there can be only one
+            for (Map.Entry<String, String> entry : mappings.entrySet()) {
+                builder.field("mappings");
+                try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entry.getValue())) {
+                    builder.copyCurrentStructure(parser);
+                }
+            }            
         }
-        builder.endObject();
 
         builder.startObject("aliases");
         for (Alias alias : aliases) {

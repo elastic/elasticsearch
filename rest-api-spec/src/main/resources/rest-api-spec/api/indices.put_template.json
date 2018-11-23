@@ -33,6 +33,10 @@
         "flat_settings": {
            "type": "boolean",
            "description": "Return settings in flat format (default: false)"
+        },
+        "include_type_name": {
+          "type" : "boolean",
+          "description" : "Whether a type is included in the body of the mappings. (default: true)"
         }
       }
     },

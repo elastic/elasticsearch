@@ -38,6 +38,9 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(RestPutIndexTemplateAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying document types in template mappings is deprecated."
+            + "Use `include_type_name=false` parameter in REST requests to assert they are type-free.";    
+    
 
     public RestPutIndexTemplateAction(Settings settings, RestController controller) {
         super(settings);
@@ -63,7 +66,15 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
-        putRequest.source(request.requiredContent(), request.getXContentType());
+        if (request.paramAsBoolean("include_type_name", true)) {
+            putRequest.source(request.requiredContent(), request.getXContentType());
+            // Check if a mapping was provided - sometimes a template can just be settings.
+            if (putRequest.isCustomTyped()) {
+                deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            }
+        } else {
+            putRequest.sourceNoDocTypes(request.requiredContent(), request.getXContentType());
+        }
         return channel -> client.admin().indices().putTemplate(putRequest, new RestToXContentListener<>(channel));
     }
 

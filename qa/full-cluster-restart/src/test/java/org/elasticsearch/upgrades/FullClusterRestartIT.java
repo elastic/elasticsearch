@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
@@ -899,8 +900,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         templateBuilder.endObject().endObject();
         Request createTemplateRequest = new Request("PUT", "/_template/test_template");
         createTemplateRequest.setJsonEntity(Strings.toString(templateBuilder));
+        createTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
+        if (false == isRunningAgainstOldCluster()) {        
+            createTemplateRequest.addParameter("include_type_name", Boolean.TRUE.toString());
+        }
         client().performRequest(createTemplateRequest);
-
         if (isRunningAgainstOldCluster()) {
             // Create the repo
             XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject(); {

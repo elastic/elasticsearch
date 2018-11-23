@@ -199,3 +199,79 @@
       indices.put_template:
         name: test
         body: {}
+
+---
+"Put template with mappings and doc type":
+  - do:
+      indices.put_template:
+        name: test
+        body:
+          index_patterns: test-*
+          mappings:
+            _doc:
+              properties:
+                description:
+                  type: "text"
+  - do:
+      indices.get_template:
+        name: test
+  - match: {test.index_patterns: ["test-*"]}
+  - match: {test.mappings._doc.properties.description.type: text}
+
+---
+"Put template with mappings and no doc type":
+  - skip:
+      version: " - 6.99.99"
+      reason:  this uses a new API that has been added in 7.0
+  - do:
+      indices.put_template:
+        name: test
+        include_type_name: false
+        body:
+          index_patterns: test-*
+          mappings:
+              properties:
+                description:
+                    type: "text"
+  - do:
+      indices.get_template:
+        name: test
+  - match: {test.index_patterns: ["test-*"]}
+  - match: {test.mappings._doc.properties.description.type: text}
+
+  # Also test we can GET without the type
+  - do:
+      indices.get_template:
+        name: test
+        include_type_name: false
+  - match: {test.index_patterns: ["test-*"]}
+  - match: {test.mappings.properties.description.type: text}
+
+---
+"Put template with mappings no doc type and no fields":
+  - skip:
+      version: " - 6.99.99"
+      reason:  this uses a new API that has been added in 7.0
+  - do:
+      indices.put_template:
+        name: test
+        include_type_name: false
+        body:
+          index_patterns: test-*
+          mappings:
+            _source:
+              enabled: false
+  - do:
+      indices.get_template:
+        name: test
+  - match: {test.index_patterns: ["test-*"]}
+  - match: {test.mappings._doc._source.enabled: false}
+
+  # Also test we can GET without the type
+  - do:
+      indices.get_template:
+        name: test
+        include_type_name: false
+  - match: {test.index_patterns: ["test-*"]}
+  - match: {test.mappings._source.enabled: false}
+

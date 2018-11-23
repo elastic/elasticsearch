@@ -34,6 +34,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetIndexTemplatesRequest extends MasterNodeReadRequest<GetIndexTemplatesRequest> {
 
     private String[] names;
+    
+    private boolean includeTypeNamesInResponse = true;
 
     public GetIndexTemplatesRequest() {
     }
@@ -45,6 +47,14 @@ public class GetIndexTemplatesRequest extends MasterNodeReadRequest<GetIndexTemp
     public GetIndexTemplatesRequest(StreamInput in) throws IOException {
         super(in);
         names = in.readStringArray();
+    }
+    
+    public boolean includeTypeNamesInResponse() {
+        return includeTypeNamesInResponse;
+    }
+
+    public void includeTypeNamesInResponse(boolean includeTypeNamesInResponse) {
+        this.includeTypeNamesInResponse = includeTypeNamesInResponse;
     }
 
     @Override

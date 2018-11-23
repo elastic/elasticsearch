@@ -16,25 +16,23 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT _template/template_1
+PUT _template/template_1?include_type_name=false
 {
   "index_patterns": ["te*", "bar*"],
   "settings": {
     "number_of_shards": 1
   },
   "mappings": {
-    "_doc": {
-      "_source": {
-        "enabled": false
+    "_source": {
+      "enabled": false
+    },
+    "properties": {
+      "host_name": {
+        "type": "keyword"
       },
-      "properties": {
-        "host_name": {
-          "type": "keyword"
-        },
-        "created_at": {
-          "type": "date",
-          "format": "EEE MMM dd HH:mm:ss Z yyyy"
-        }
+      "created_at": {
+        "type": "date",
+        "format": "EEE MMM dd HH:mm:ss Z yyyy"
       }
     }
   }
@@ -49,6 +47,11 @@ everywhere in the JSON document except before the initial opening curly bracket.
 Defines a template named `template_1`, with a template pattern of `te*` or `bar*`.
 The settings and mappings will be applied to any index name that matches
 the `te*` or `bar*` pattern.
+
+NOTE: This mapping example uses a "typeless" format new to 7.0.
+Previous versions of elasticsearch included document type names in the "mappings"section 
+but here we have set the `include_type_name=false` parameter in the URL to use the new format.
+The old approach of including type names in mappings is still supported but is now deprecated.
 
 It is also possible to include aliases in an index template as follows:
 
@@ -149,7 +152,7 @@ orders overriding them. For example:
 
 [source,js]
 --------------------------------------------------
-PUT /_template/template_1
+PUT /_template/template_1?include_type_name=false
 {
     "index_patterns" : ["*"],
     "order" : 0,
@@ -157,13 +160,11 @@ PUT /_template/template_1
         "number_of_shards" : 1
     },
     "mappings" : {
-        "_doc" : {
-            "_source" : { "enabled" : false }
-        }
+        "_source" : { "enabled" : false }
     }
 }
 
-PUT /_template/template_2
+PUT /_template/template_2?include_type_name=false
 {
     "index_patterns" : ["te*"],
     "order" : 1,
@@ -171,9 +172,7 @@ PUT /_template/template_2
         "number_of_shards" : 1
     },
     "mappings" : {
-        "_doc" : {
-            "_source" : { "enabled" : true }
-        }
+        "_source" : { "enabled" : true }
     }
 }
 --------------------------------------------------
@@ -188,6 +187,11 @@ order templates, with lower order templates providing the basis.
 
 NOTE: Multiple matching templates with the same order value will 
 result in a non-deterministic merging order.
+
+NOTE: This mapping example uses the "typeless" format new to 7.0.
+Previous versions of elasticsearch included document type names in the "mappings"section 
+but here we have set the `include_type_name=false` parameter in the URL to use the new format.
+The old approach of including type names in mappings is still supported but is now deprecated.
 
 [float]
 [[versioning-templates]]

@@ -278,7 +278,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             client.security().putUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-user-execute-async
 
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));            
         }
     }
 

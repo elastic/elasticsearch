@@ -351,6 +351,7 @@ final class IndicesRequestConverters {
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withMasterTimeout(putIndexTemplateRequest.masterNodeTimeout());
+        params.putParam("include_type_name", Boolean.toString(putIndexTemplateRequest.isCustomTyped()));
         if (putIndexTemplateRequest.create()) {
             params.putParam("create", Boolean.TRUE.toString());
         }
@@ -395,6 +396,9 @@ final class IndicesRequestConverters {
         final RequestConverters.Params params = new RequestConverters.Params(request);
         params.withLocal(getIndexTemplatesRequest.isLocal());
         params.withMasterTimeout(getIndexTemplatesRequest.getMasterNodeTimeout());
+        if(getIndexTemplatesRequest.includeTypeNamesInResponse() == false) {
+            params.putParam("include_type_name", Boolean.toString(getIndexTemplatesRequest.includeTypeNamesInResponse()));            
+        }
         return request;
     }
 

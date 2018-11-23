@@ -455,6 +455,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "  }\n" +
             "}", ContentType.APPLICATION_JSON);
         Request templateRequest = new Request("PUT", "_template/test");
+        templateRequest.addParameter("include_type_name", Boolean.FALSE.toString());
         templateRequest.setEntity(template);
         client().performRequest(templateRequest);
 

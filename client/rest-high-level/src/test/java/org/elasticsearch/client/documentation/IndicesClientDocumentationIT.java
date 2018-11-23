@@ -2119,16 +2119,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::put-template-request-mappings-json
-            request.mapping("_doc", // <1>
+            request.mappingNoDocType(
                 "{\n" +
-                    "  \"_doc\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"message\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      }\n" +
+                    "  \"properties\": {\n" +
+                    "    \"message\": {\n" +
+                    "      \"type\": \"text\"\n" +
                     "    }\n" +
                     "  }\n" +
-                    "}", // <2>
+                    "}", // <1>
                 XContentType.JSON);
             // end::put-template-request-mappings-json
             assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2136,14 +2134,16 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             //tag::put-template-request-mappings-map
             Map<String, Object> jsonMap = new HashMap<>();
-            Map<String, Object> message = new HashMap<>();
-            message.put("type", "text");
-            Map<String, Object> properties = new HashMap<>();
-            properties.put("message", message);
-            Map<String, Object> mapping = new HashMap<>();
-            mapping.put("properties", properties);
-            jsonMap.put("_doc", mapping);
-            request.mapping("_doc", jsonMap); // <1>
+            {
+                Map<String, Object> properties = new HashMap<>();
+                {
+                    Map<String, Object> message = new HashMap<>();
+                    message.put("type", "text");
+                    properties.put("message", message);
+                }
+                jsonMap.put("properties", properties);                
+            }
+            request.mapping(jsonMap); // <1>
             //end::put-template-request-mappings-map
             assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
@@ -2152,28 +2152,24 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             {
-                builder.startObject("_doc");
+                builder.startObject("properties");
                 {
-                    builder.startObject("properties");
+                    builder.startObject("message");
                     {
-                        builder.startObject("message");
-                        {
-                            builder.field("type", "text");
-                        }
-                        builder.endObject();
+                        builder.field("type", "text");
                     }
                     builder.endObject();
                 }
                 builder.endObject();
             }
             builder.endObject();
-            request.mapping("_doc", builder); // <1>
+            request.mappingNoDocType(builder); // <1>
             //end::put-template-request-mappings-xcontent
             assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
         {
             //tag::put-template-request-mappings-shortcut
-            request.mapping("_doc", "message", "type=text"); // <1>
+            request.simplifiedMapping("message", "type=text"); // <1>
             //end::put-template-request-mappings-shortcut
             assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
@@ -2192,7 +2188,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-template-request-version
 
         // tag::put-template-whole-source
-        request.source("{\n" +
+        request.sourceNoDocTypes("{\n" +
             "  \"index_patterns\": [\n" +
             "    \"log-*\",\n" +
             "    \"pattern-1\"\n" +
@@ -2202,11 +2198,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             "    \"number_of_shards\": 1\n" +
             "  },\n" +
             "  \"mappings\": {\n" +
-            "    \"_doc\": {\n" +
-            "      \"properties\": {\n" +
-            "        \"message\": {\n" +
-            "          \"type\": \"text\"\n" +
-            "        }\n" +
+            "    \"properties\": {\n" +
+            "      \"message\": {\n" +
+            "        \"type\": \"text\"\n" +
             "      }\n" +
             "    }\n" +
             "  },\n" +
@@ -2269,13 +2263,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
             putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
             putRequest.settings(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1));
-            putRequest.mapping("_doc",
+            putRequest.mappingNoDocType(
                     "{\n" +
-                    "  \"_doc\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"message\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      }\n" +
+                    "  \"properties\": {\n" +
+                    "    \"message\": {\n" +
+                    "      \"type\": \"text\"\n" +
                     "    }\n" +
                     "  }\n" +
                     "}", XContentType.JSON);

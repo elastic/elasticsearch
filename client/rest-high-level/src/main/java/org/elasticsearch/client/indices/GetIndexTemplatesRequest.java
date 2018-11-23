@@ -40,6 +40,7 @@ public class GetIndexTemplatesRequest implements Validatable {
 
     private TimeValue masterNodeTimeout = TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
     private boolean local = false;
+    private boolean includeTypeNamesInResponse = true;
 
     /**
      * Create a request to read the content of one or more index templates. If no template names are provided, all templates will be read
@@ -96,4 +97,13 @@ public class GetIndexTemplatesRequest implements Validatable {
     public void setLocal(boolean local) {
         this.local = local;
     }
+    
+    
+    public boolean includeTypeNamesInResponse() {
+        return includeTypeNamesInResponse;
+    }
+
+    public void includeTypeNamesInResponse(boolean includeTypeNamesInResponse) {
+        this.includeTypeNamesInResponse = includeTypeNamesInResponse;
+    }    
 }

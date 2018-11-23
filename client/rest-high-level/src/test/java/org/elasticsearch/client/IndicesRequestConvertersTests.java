@@ -817,14 +817,16 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.settings(Settings.builder().put("setting-" + ESTestCase.randomInt(), ESTestCase.randomTimeValue()));
         }
+        Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put("include_type_name", "false"); 
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.mapping("doc-" + ESTestCase.randomInt(),
                 "field-" + ESTestCase.randomInt(), "type=" + ESTestCase.randomFrom("text", "keyword"));
+            expectedParams.put("include_type_name", "true"); // Custom doc types will set the  "include_type_name" = true flag
         }
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.alias(new Alias("alias-" + ESTestCase.randomInt()));
         }
-        Map<String, String> expectedParams = new HashMap<>();
         if (ESTestCase.randomBoolean()) {
             expectedParams.put("create", Boolean.TRUE.toString());
             putTemplateRequest.create(true);

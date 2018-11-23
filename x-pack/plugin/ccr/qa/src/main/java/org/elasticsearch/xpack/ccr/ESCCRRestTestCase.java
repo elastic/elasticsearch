@@ -100,7 +100,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         request.addParameter("q", query);
         Map<String, ?> response = toMap(client.performRequest(request));
 
-        int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+        int numDocs = (int) XContentMapValues.extractValue("hits.total.value", response);
         assertThat(numDocs, equalTo(expectedNumDocs));
 
         List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);

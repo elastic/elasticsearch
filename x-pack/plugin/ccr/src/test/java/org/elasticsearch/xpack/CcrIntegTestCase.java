@@ -452,7 +452,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             SearchRequest request = new SearchRequest(index);
             request.source(new SearchSourceBuilder().size(0));
             SearchResponse response = client.search(request).actionGet();
-            return response.getHits().getTotalHits() >= numDocsReplicated;
+            return response.getHits().getTotalHits().value >= numDocsReplicated;
         }, 60, TimeUnit.SECONDS);
     }
 

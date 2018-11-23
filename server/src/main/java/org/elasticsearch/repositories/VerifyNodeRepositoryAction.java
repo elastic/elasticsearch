@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -67,7 +66,7 @@ public class VerifyNodeRepositoryAction {
         transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest::new, ThreadPool.Names.SNAPSHOT, new VerifyNodeRepositoryRequestHandler());
     }
 
-    public void verify(String repository, boolean readOnly, String verificationToken, final ActionListener<VerifyResponse> listener) {
+    public void verify(String repository, String verificationToken, final ActionListener<VerifyResponse> listener) {
         final DiscoveryNodes discoNodes = clusterService.state().nodes();
         final DiscoveryNode localNode = discoNodes.getLocalNode();
 
@@ -75,9 +74,6 @@ public class VerifyNodeRepositoryAction {
         final List<DiscoveryNode> nodes = new ArrayList<>();
         for (ObjectCursor<DiscoveryNode> cursor : masterAndDataNodes) {
             DiscoveryNode node = cursor.value;
-            if (readOnly && node.getVersion().before(Version.V_7_0_0)) {
-                continue;
-            }
             nodes.add(node);
         }
         final CopyOnWriteArrayList<VerificationFailure> errors = new CopyOnWriteArrayList<>();

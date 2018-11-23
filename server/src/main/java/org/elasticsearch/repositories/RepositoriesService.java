@@ -214,14 +214,13 @@ public class RepositoriesService implements ClusterStateApplier {
 
     public void verifyRepository(final String repositoryName, final ActionListener<VerifyResponse> listener) {
         final Repository repository = repository(repositoryName);
-        final boolean readOnly = repository.isReadOnly();
         try {
             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                 try {
                     final String verificationToken = repository.startVerification();
                     if (verificationToken != null) {
                         try {
-                            verifyAction.verify(repositoryName, readOnly, verificationToken, new ActionListener<VerifyResponse>() {
+                            verifyAction.verify(repositoryName, verificationToken, new ActionListener<VerifyResponse>() {
                                 @Override
                                 public void onResponse(VerifyResponse verifyResponse) {
                                     threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {

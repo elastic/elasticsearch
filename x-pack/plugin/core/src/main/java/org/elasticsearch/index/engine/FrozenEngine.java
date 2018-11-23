@@ -32,6 +32,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -76,7 +77,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
         boolean success = false;
         Directory directory = store.directory();
         try (DirectoryReader reader = DirectoryReader.open(directory)) {
-            canMatchReader = new RewriteCachingDirectoryReader(directory, reader.leaves());
+            canMatchReader = ElasticsearchDirectoryReader.wrap(new RewriteCachingDirectoryReader(directory, reader.leaves()),
+                config.getShardId());
             success = true;
         } catch (IOException e) {
             throw new UncheckedIOException(e);

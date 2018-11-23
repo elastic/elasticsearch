@@ -204,8 +204,8 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         assertAllQueryMetric(allTotalQueries, responseAsMap, "total");
     }
     
-    private void assertClientTypeAndAllFailedQueryMetrics(int clientTypeFailedQueries, int allFailedQueries, Map<String, Object> responseAsMap)
-            throws IOException {
+    private void assertClientTypeAndAllFailedQueryMetrics(int clientTypeFailedQueries, int allFailedQueries,
+            Map<String, Object> responseAsMap) throws IOException {
         assertClientTypeQueryMetric(clientTypeFailedQueries, responseAsMap, "failed");
         assertAllQueryMetric(allFailedQueries, responseAsMap, "failed");
     }

@@ -2,6 +2,7 @@
 "Verify that we can still find things with the template":
   - do:
       search_template:
+        rest_total_hits_as_int: true
         index: test_search_template
         body:
           id: test_search_template

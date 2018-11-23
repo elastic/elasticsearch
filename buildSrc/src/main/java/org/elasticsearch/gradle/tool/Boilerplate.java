@@ -22,7 +22,7 @@ import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.SourceSetContainer;
 
-abstract public class Boilerplate {
+public abstract class Boilerplate {
 
     public static SourceSetContainer getJavaSourceSets(Project project) {
         return project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();

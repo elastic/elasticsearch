@@ -23,10 +23,14 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -38,10 +42,19 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class TestingConventionsTasks extends DefaultTask {
 
+    private static final String TEST_CLASS_SUFIX = "Tests";
+    private static final String INTEG_TEST_CLASS_SUFIX = "IT";
+    private static final String TEST_METHOD_PREFIX = "test";
+    private final List<String> problems;
+    /**
+     * Are there tests to execute ? Accounts for @Ignore and @AwaitsFix
+     */
     private Boolean activeTestsExists;
 
     private List<String> testClassNames;
@@ -50,26 +63,53 @@ public class TestingConventionsTasks extends DefaultTask {
         setDescription("Tests various testing conventions");
         // Run only after everything is compiled
         Boilerplate.getJavaSourceSets(getProject()).all(sourceSet -> dependsOn(sourceSet.getClassesTaskName()));
+        problems = new ArrayList<>();
     }
 
     @TaskAction
     public void test() throws IOException {
+        activeTestsExists = false;
 
         try (URLClassLoader isolatedClassLoader = new URLClassLoader(
             getTestsClassPath().getFiles().stream().map(this::fileToUrl).toArray(URL[]::new)
         )) {
-            getTestClassNames().stream()
+            List<? extends Class<?>> classes = getTestClassNames().stream()
                 .map(name -> loadClassWithoutInitializing(name, isolatedClassLoader))
                 .collect(Collectors.toList());
+
+            Predicate<Class<?>> isStaticClass = clazz -> Modifier.isStatic(clazz.getModifiers());
+            Predicate<Class<?>> isPublicClass = clazz -> Modifier.isPublic(clazz.getModifiers());
+            Predicate<Class<?>> implementsNamingConvention = clazz -> clazz.getName().endsWith(TEST_CLASS_SUFIX) ||
+                clazz.getName().endsWith(INTEG_TEST_CLASS_SUFIX);
+
+            checkNoneExists(
+                "Test classes implemented by inner classes will not run",
+                classes.stream()
+                    .filter(isStaticClass)
+                    .filter(implementsNamingConvention.or(this::seemsLikeATest))
+            );
+
+            checkNoneExists(
+                "Seem like test classes but don't match naming convention",
+                classes.stream()
+                    .filter(isStaticClass.negate())
+                    .filter(isPublicClass)
+                    .filter(this::seemsLikeATest)
+                    .filter(implementsNamingConvention.negate())
+            );
         }
 
-        activeTestsExists = true;
-
-        getSuccessMarker().getParentFile().mkdirs();
-        Files.write(getSuccessMarker().toPath(), new byte[]{}, StandardOpenOption.CREATE);
+        if (problems.isEmpty()) {
+            getSuccessMarker().getParentFile().mkdirs();
+            Files.write(getSuccessMarker().toPath(), new byte[]{}, StandardOpenOption.CREATE);
+        } else {
+            problems.forEach(getProject().getLogger()::error);
+            throw new IllegalStateException("Testing conventions are not honored");
+        }
     }
 
     @Input
+    @SkipWhenEmpty
     public List<String> getTestClassNames() {
         if (testClassNames == null) {
             testClassNames = Boilerplate.getJavaSourceSets(getProject()).getByName("test").getOutput().getClassesDirs()
@@ -84,6 +124,63 @@ public class TestingConventionsTasks extends DefaultTask {
     @OutputFile
     public File getSuccessMarker() {
         return new File(getProject().getBuildDir(), "markers/" + getName());
+    }
+
+    private void checkNoneExists(String message, Stream<? extends Class<?>> stream) {
+        List<Class<?>> entries = stream.collect(Collectors.toList());
+        if (entries.isEmpty() == false) {
+            problems.add(message + ":");
+            entries.stream()
+                .map(each -> "  * " + each.getName())
+            .forEach(problems::add);
+        }
+    }
+
+    private boolean seemsLikeATest(Class<?> clazz) {
+        try {
+            ClassLoader classLoader = clazz.getClassLoader();
+            Class<?> junitTest;
+            try {
+                junitTest = classLoader.loadClass("junit.framework.Test");
+            } catch (ClassNotFoundException e) {
+                throw new IllegalStateException("Could not load junit.framework.Test. It's expected that this class is " +
+                    "available on the tests classpath");
+            }
+            if (junitTest.isAssignableFrom(clazz)) {
+                getLogger().info("{} is a test because it extends junit.framework.Test", clazz.getName());
+                return true;
+            }
+            for (Method method : clazz.getMethods()) {
+                if (matchesTestMethodNamingConvention(clazz, method)) return true;
+                if (isAnnotated(clazz, method, junitTest)) return true;
+            }
+            return false;
+        } catch (NoClassDefFoundError e) {
+            throw new IllegalStateException("Failed to inspect class " + clazz.getName(), e);
+        }
+    }
+
+    private boolean matchesTestMethodNamingConvention(Class<?> clazz, Method method) {
+        if (method.getName().startsWith(TEST_METHOD_PREFIX) &&
+            Modifier.isStatic(method.getModifiers()) == false &&
+            method.getReturnType().equals(Void.class)
+        ) {
+            getLogger().info("{} is a test because it has method: {}", clazz.getName(), method.getName());
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isAnnotated(Class<?> clazz, Method method, Class<?> annotation) {
+        for (Annotation presentAnnotation : method.getAnnotations()) {
+            if (annotation.isAssignableFrom(presentAnnotation.getClass())) {
+                getLogger().info("{} is a test because {} is annotated with junit.framework.Test",
+                    clazz.getName(), method.getName()
+                );
+                return true;
+            }
+        }
+        return false;
     }
 
     private FileCollection getTestsClassPath() {
@@ -104,7 +201,7 @@ public class TestingConventionsTasks extends DefaultTask {
                 private String packageName;
 
                 @Override
-                public final FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
                     // First we visit the root directory
                     if (packageName == null) {
                         // And it package is empty string regardless of the directory name
@@ -116,16 +213,16 @@ public class TestingConventionsTasks extends DefaultTask {
                 }
 
                 @Override
-                public final FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
                     // Go up one package by jumping back to the second to last '.'
                     packageName = packageName.substring(0, 1 + packageName.lastIndexOf('.', packageName.length() - 2));
                     return FileVisitResult.CONTINUE;
                 }
 
                 @Override
-                public final FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     String filename = file.getFileName().toString();
-                    if (filename.endsWith(".class") && filename.contains("$") == false) {
+                    if (filename.endsWith(".class")) {
                         String className = filename.substring(0, filename.length() - ".class".length());
                         classes.add(packageName + className);
                     }

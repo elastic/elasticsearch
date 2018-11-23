@@ -87,7 +87,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "      \"cluster_coordination\" : {\n" +
                     "        \"term\" : 0,\n" +
                     "        \"last_committed_config\" : [ ],\n" +
-                    "        \"last_accepted_config\" : [ ]\n" +
+                    "        \"last_accepted_config\" : [ ],\n" +
+                    "        \"voting_tombstones\" : [ ]\n" +
                     "      },\n" +
                     "      \"templates\" : { },\n" +
                     "      \"indices\" : {\n" +
@@ -181,7 +182,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "      \"cluster_coordination\" : {\n" +
                     "        \"term\" : 0,\n" +
                     "        \"last_committed_config\" : [ ],\n" +
-                    "        \"last_accepted_config\" : [ ]\n" +
+                    "        \"last_accepted_config\" : [ ],\n" +
+                    "        \"voting_tombstones\" : [ ]\n" +
                     "      },\n" +
                     "      \"templates\" : { },\n" +
                     "      \"indices\" : {\n" +

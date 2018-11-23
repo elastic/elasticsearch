@@ -785,19 +785,19 @@ public class CoordinatorTests extends ESTestCase {
             assertThat(value(cn.getLastAppliedClusterState()), is(finalValue));
             if (cn == leader) {
                 // leader does not update publish stats as it's not using the serialized state
-                assertEquals(prePublishStats.get(cn).getFullClusterStateReceivedCount(),
+                assertEquals(cn.toString(), prePublishStats.get(cn).getFullClusterStateReceivedCount(),
                     postPublishStats.get(cn).getFullClusterStateReceivedCount());
-                assertEquals(prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount(),
+                assertEquals(cn.toString(), prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount(),
                     postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount());
-                assertEquals(prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
+                assertEquals(cn.toString(), prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
                     postPublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount());
             } else {
                 // followers receive a diff
-                assertEquals(prePublishStats.get(cn).getFullClusterStateReceivedCount(),
+                assertEquals(cn.toString(), prePublishStats.get(cn).getFullClusterStateReceivedCount(),
                     postPublishStats.get(cn).getFullClusterStateReceivedCount());
-                assertEquals(prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + 1,
+                assertEquals(cn.toString(), prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + 1,
                     postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount());
-                assertEquals(prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
+                assertEquals(cn.toString(), prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
                     postPublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount());
             }
         }
@@ -819,17 +819,21 @@ public class CoordinatorTests extends ESTestCase {
     }
 
     public void testIncompatibleDiffResendsFullState() {
-        final Cluster cluster = new Cluster(randomIntBetween(2, 5));
+        final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode follower = cluster.getAnyNodeExcept(leader);
+        logger.info("--> blackholing {}", follower);
         follower.blackhole();
         final PublishClusterStateStats prePublishStats = follower.coordinator.stats().getPublishStats();
+        logger.info("--> submitting first value to {}", leader);
         leader.submitValue(randomLong());
         cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY + defaultMillis(PUBLISH_TIMEOUT_SETTING), "publish first state");
+        logger.info("--> healing {}", follower);
         follower.heal();
+        logger.info("--> submitting second value to {}", leader);
         leader.submitValue(randomLong());
         cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
         final PublishClusterStateStats postPublishStats = follower.coordinator.stats().getPublishStats();

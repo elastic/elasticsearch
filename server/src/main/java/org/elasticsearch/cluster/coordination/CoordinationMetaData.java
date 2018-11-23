@@ -125,8 +125,8 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         return builder
             .field(TERM_PARSE_FIELD.getPreferredName(), term)
             .field(LAST_COMMITTED_CONFIGURATION_FIELD.getPreferredName(), lastCommittedConfiguration)
-                .field(LAST_ACCEPTED_CONFIGURATION_FIELD.getPreferredName(), lastAcceptedConfiguration)
-                .field(VOTING_TOMBSTONES_FIELD.getPreferredName(), votingTombstones);
+            .field(LAST_ACCEPTED_CONFIGURATION_FIELD.getPreferredName(), lastAcceptedConfiguration)
+            .field(VOTING_TOMBSTONES_FIELD.getPreferredName(), votingTombstones);
     }
 
     public static CoordinationMetaData fromXContent(XContentParser parser) throws IOException {

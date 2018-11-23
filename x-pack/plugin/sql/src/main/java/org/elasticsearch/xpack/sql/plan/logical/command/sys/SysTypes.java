@@ -117,7 +117,7 @@ public class SysTypes extends Command {
 
     @Override
     public int hashCode() {
-        return getClass().hashCode();
+        return type.hashCode();
     }
 
     @Override
@@ -130,6 +130,6 @@ public class SysTypes extends Command {
             return false;
         }
 
-        return true;
+        return type.equals(((SysTypes) obj).type);
     }
 }

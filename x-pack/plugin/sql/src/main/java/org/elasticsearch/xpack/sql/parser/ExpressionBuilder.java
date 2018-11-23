@@ -545,10 +545,10 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                         "Invalid interval declaration; trailing unit [{}] specified but the value is with numeric (single unit), "
                         + "use the string notation instead", trailing);
             }
-            value = of(interval.valueNumeric, negative, leading);
+            value = of(interval.valueNumeric, leading);
             valueAsText = interval.valueNumeric.getText();
         } else {
-            value = visitIntervalValue(interval.valuePattern, negative, intervalType);
+            value = of(interval.valuePattern, negative, intervalType);
             valueAsText = interval.valuePattern.getText();
         }
 
@@ -560,8 +560,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         return new Literal(source(ctx), name, timeInterval, intervalType);
     }
 
-    private TemporalAmount of(NumberContext valueNumeric, boolean negative, TimeUnit unit) {
+    private TemporalAmount of(NumberContext valueNumeric, TimeUnit unit) {
         // expect numbers for now
+        // as the number parsing handles the -, there's no need to look at that
         Literal value = (Literal) visit(valueNumeric);
         Number numeric = (Number) value.fold();
 
@@ -572,7 +573,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         return Intervals.of(source(valueNumeric), numeric.longValue(), unit);
     }
 
-    private TemporalAmount visitIntervalValue(StringContext valuePattern, boolean negative, DataType intervalType) {
+    private TemporalAmount of(StringContext valuePattern, boolean negative, DataType intervalType) {
         String valueString = string(valuePattern);
         Location loc = source(valuePattern);
         TemporalAmount interval = Intervals.parseInterval(loc, valueString, intervalType);

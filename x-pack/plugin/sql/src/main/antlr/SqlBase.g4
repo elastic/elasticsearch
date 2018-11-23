@@ -288,11 +288,6 @@ interval
     : INTERVAL sign=(PLUS | MINUS)? (valueNumeric=number | valuePattern=string) leading=intervalField (TO trailing=intervalField)? 
     ;
     
-intervalValue
-    : number
-    | string
-    ;
-
 intervalField
     : YEAR | YEARS | MONTH | MONTHS | DAY | DAYS | HOUR | HOURS | MINUTE | MINUTES | SECOND | SECONDS
     ;

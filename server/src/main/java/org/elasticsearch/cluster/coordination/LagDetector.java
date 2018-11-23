@@ -95,12 +95,12 @@ public class LagDetector {
         if (laggingTrackers.isEmpty()) {
             logger.trace("lag detection for version {} is unnecessary: {}", version, appliedStateTrackersByNode.values());
         } else {
-            logger.trace("starting lag detector for version {}: {}", version, laggingTrackers);
+            logger.debug("starting lag detector for version {}: {}", version, laggingTrackers);
 
             threadPool.scheduleUnlessShuttingDown(clusterStateApplicationTimeout, Names.GENERIC, new Runnable() {
                 @Override
                 public void run() {
-                    laggingTrackers.forEach(t -> t.detectLag(version));
+                    laggingTrackers.forEach(t -> t.checkForLag(version));
                 }
 
                 @Override
@@ -149,19 +149,19 @@ public class LagDetector {
                 '}';
         }
 
-        private void detectLag(final long version) {
-            if (appliedStateTrackersByNode.get(discoveryNode) != NodeAppliedStateTracker.this) {
-                logger.trace("{}, no longer active", this);
+        void checkForLag(final long version) {
+            if (appliedStateTrackersByNode.get(discoveryNode) != this) {
+                logger.trace("{} no longer active when checking version {}", this, version);
                 return;
             }
 
-            long appliedVersion = NodeAppliedStateTracker.this.appliedVersion.get();
+            long appliedVersion = this.appliedVersion.get();
             if (version <= appliedVersion) {
-                logger.trace("{}, satisfied, node applied version {}", this, appliedVersion);
+                logger.trace("{} satisfied when checking version {}, node applied version {}", this, version, appliedVersion);
                 return;
             }
 
-            logger.debug("{}, detected lag, node has only applied version {}", this, appliedVersion);
+            logger.debug("{}, detected lag at version {}, node has only applied version {}", this, version, appliedVersion);
             onLagDetected.accept(discoveryNode);
         }
     }

@@ -11,20 +11,16 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.update.UpdateAction;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -36,7 +32,6 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
@@ -44,12 +39,8 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.time.Duration;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -88,7 +79,6 @@ public class AutoDetectResultProcessor {
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
     final Semaphore updateModelSnapshotSemaphore = new Semaphore(1);
-    volatile CountDownLatch onCloseActionsLatch;
     private final FlushListener flushListener;
     private volatile boolean processKilled;
     private volatile boolean failed;
@@ -149,18 +139,8 @@ public class AutoDetectResultProcessor {
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
             }
-            if (processKilled == false) {
-                try {
-                    onAutodetectClose();
-                } catch (Exception e) {
-                    if (onCloseActionsLatch != null) {
-                        onCloseActionsLatch.countDown();
-                    }
-                    throw e;
-                }
-            }
-
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
+
         } catch (Exception e) {
             failed = true;
 
@@ -313,6 +293,9 @@ public class AutoDetectResultProcessor {
     }
 
     protected void updateModelSnapshotOnJob(ModelSnapshot modelSnapshot) {
+        JobUpdate update = new JobUpdate.Builder(jobId).setModelSnapshotId(modelSnapshot.getSnapshotId()).build();
+        UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
+
         try {
             // This blocks the main processing thread in the unlikely event
             // there are 2 model snapshots queued up. But it also has the
@@ -324,52 +307,20 @@ public class AutoDetectResultProcessor {
             return;
         }
 
-        Map<String, Object> update = new HashMap<>();
-        update.put(Job.MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshot.getSnapshotId());
-        update.put(Job.MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(), modelSnapshot.getMinVersion().toString());
+        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
+            @Override
+            public void onResponse(PutJobAction.Response response) {
+                updateModelSnapshotSemaphore.release();
+                LOGGER.debug("[{}] Updated job with model snapshot id [{}]", jobId, modelSnapshot.getSnapshotId());
+            }
 
-        updateJob(jobId, update, new ActionListener<UpdateResponse>() {
-                    @Override
-                    public void onResponse(UpdateResponse updateResponse) {
-                        updateModelSnapshotSemaphore.release();
-                        LOGGER.debug("[{}] Updated job with model snapshot id [{}]", jobId, modelSnapshot.getSnapshotId());
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        updateModelSnapshotSemaphore.release();
-                        LOGGER.error("[" + jobId + "] Failed to update job with new model snapshot id [" +
-                                modelSnapshot.getSnapshotId() + "]", e);
-                    }
-                });
-    }
-
-    private void onAutodetectClose() {
-        onCloseActionsLatch = new CountDownLatch(1);
-
-        ActionListener<UpdateResponse> updateListener = ActionListener.wrap(
-                updateResponse -> {
-                    onCloseActionsLatch.countDown();
-                },
-                e -> {
-                    LOGGER.error("[" + jobId + "] Failed to finalize job on autodetect close", e);
-                    onCloseActionsLatch.countDown();
-                }
-        );
-
-        updateJob(jobId, Collections.singletonMap(Job.FINISHED_TIME.getPreferredName(), new Date()),
-                new ThreadedActionListener<>(LOGGER, client.threadPool(),
-                        MachineLearning.UTILITY_THREAD_POOL_NAME, updateListener, false)
-        );
-    }
-
-    private void updateJob(String jobId, Map<String, Object> update, ActionListener<UpdateResponse> listener) {
-        UpdateRequest updateRequest = new UpdateRequest(AnomalyDetectorsIndex.configIndexName(),
-                ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
-        updateRequest.retryOnConflict(3);
-        updateRequest.doc(update);
-        updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateAction.INSTANCE, updateRequest, listener);
+            @Override
+            public void onFailure(Exception e) {
+                updateModelSnapshotSemaphore.release();
+                LOGGER.error("[" + jobId + "] Failed to update job with new model snapshot id [" +
+                        modelSnapshot.getSnapshotId() + "]", e);
+            }
+        });
     }
 
     public void awaitCompletion() throws TimeoutException {
@@ -379,13 +330,6 @@ public class AutoDetectResultProcessor {
             if (completionLatch.await(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(),
                     TimeUnit.MINUTES) == false) {
                 throw new TimeoutException("Timed out waiting for results processor to complete for job " + jobId);
-            }
-
-            // Once completionLatch has passed then onCloseActionsLatch must either
-            // be set or null, it will not be set later.
-            if (onCloseActionsLatch != null && onCloseActionsLatch.await(
-                    MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(), TimeUnit.MINUTES) == false) {
-                throw new TimeoutException("Timed out waiting for results processor run post close actions " + jobId);
             }
 
             // Input stream has been completely processed at this point.

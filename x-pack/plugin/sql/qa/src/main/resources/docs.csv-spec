@@ -1618,7 +1618,7 @@ SELECT NULLIF('elastic', 'elastic') AS "nullif";
 ---------------
 null
 // end::nullIfReturnNull
-
+;
 
 nullEqualsCompareWithNull
 // tag::nullEqualsCompareWithNull

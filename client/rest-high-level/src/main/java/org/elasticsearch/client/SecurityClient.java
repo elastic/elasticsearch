@@ -410,7 +410,7 @@ public final class SecurityClient {
     }
 
     /**
-     * Retrieves roles in the native roles store.
+     * Asynchronously retrieves roles from the native roles store.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role.html">
      * the docs</a> for more.
      *
@@ -424,7 +424,7 @@ public final class SecurityClient {
     }
 
     /**
-     * Retrieves roles in the native realm.
+     * Retrieves roles from the native roles store.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role.html">
      * the docs</a> for more.
      *

@@ -21,6 +21,8 @@ package org.elasticsearch.client.security.user.privileges;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
@@ -89,13 +91,17 @@ public final class Role {
     private final Map<String, Object> metadata;
     private final Map<String, Object> transientMetadata;
 
-    private Role(@Nullable String name, @Nullable Collection<String> clusterPrivileges,
+    private Role(String name, @Nullable Collection<String> clusterPrivileges,
                  @Nullable GlobalPrivileges globalApplicationPrivileges,
                  @Nullable Collection<IndicesPrivileges> indicesPrivileges,
                  @Nullable Collection<ApplicationResourcePrivileges> applicationResourcePrivileges,
                  @Nullable Collection<String> runAsPrivilege, @Nullable Map<String, Object> metadata,
                  @Nullable Map<String, Object> transientMetadata) {
-        this.name = name;
+        if (Strings.hasText(name) == false){
+            throw new IllegalArgumentException("role name must be provided");
+        } else {
+            this.name = name;
+        }
         // no cluster privileges are granted unless otherwise specified
         this.clusterPrivileges = Collections
                 .unmodifiableSet(clusterPrivileges != null ? new HashSet<>(clusterPrivileges) : Collections.emptySet());
@@ -214,8 +220,7 @@ public final class Role {
 
     public static final class Builder {
 
-        private @Nullable
-        String name = null;
+        private @Nullable String name = null;
         private @Nullable Collection<String> clusterPrivileges = null;
         private @Nullable GlobalPrivileges globalApplicationPrivileges = null;
         private @Nullable Collection<IndicesPrivileges> indicesPrivileges = null;
@@ -228,7 +233,11 @@ public final class Role {
         }
 
         public Builder name(String name) {
-            this.name = name;
+            if (Strings.hasText(name) == false){
+                throw new IllegalArgumentException("role name must be provided");
+            } else {
+                this.name = name;
+            }
             return this;
         }
 
@@ -317,6 +326,7 @@ public final class Role {
         public static final String TRANSPORT_CLIENT = "transport_client";
         public static final String MANAGE_SECURITY = "manage_security";
         public static final String MANAGE_SAML = "manage_saml";
+        public static final String MANAGE_TOKEN = "manage_token";
         public static final String MANAGE_PIPELINE = "manage_pipeline";
         public static final String MANAGE_CCR = "manage_ccr";
         public static final String READ_CCR = "read_ccr";

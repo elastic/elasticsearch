@@ -8,12 +8,8 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.update.UpdateAction;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -23,7 +19,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
@@ -34,7 +31,6 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
@@ -42,7 +38,6 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import java.time.Duration;
@@ -51,7 +46,6 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -62,7 +56,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -90,21 +83,9 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     public void setUpMocks() {
         executor = new ScheduledThreadPoolExecutor(1);
         client = mock(Client.class);
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<UpdateResponse> listener = (ActionListener<UpdateResponse>) invocation.getArguments()[2];
-            listener.onResponse(new UpdateResponse());
-            return null;
-        }).when(client).execute(same(UpdateAction.INSTANCE), any(), any());
         threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        ExecutorService executorService = mock(ExecutorService.class);
-        org.elasticsearch.mock.orig.Mockito.doAnswer(invocation -> {
-            ((Runnable) invocation.getArguments()[0]).run();
-            return null;
-        }).when(executorService).execute(any(Runnable.class));
-        when(threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)).thenReturn(executorService);
         auditor = mock(Auditor.class);
         renormalizer = mock(Renormalizer.class);
         persister = mock(JobResultsPersister.class);
@@ -133,9 +114,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         processorUnderTest.process(process);
         processorUnderTest.awaitCompletion();
         verify(renormalizer, times(1)).waitUntilIdle();
-        verify(client, times(1)).execute(same(UpdateAction.INSTANCE), any(), any());
         assertEquals(0, processorUnderTest.completionLatch.getCount());
-        assertEquals(0, processorUnderTest.onCloseActionsLatch.getCount());
     }
 
     public void testProcessResult_bucket() {
@@ -352,12 +331,11 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
         verify(persister, times(1)).persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        ArgumentCaptor<UpdateRequest> requestCaptor = ArgumentCaptor.forClass(UpdateRequest.class);
-        verify(client).execute(same(UpdateAction.INSTANCE), requestCaptor.capture(), any());
-        verifyNoMoreInteractions(persister);
+        UpdateJobAction.Request expectedJobUpdateRequest = UpdateJobAction.Request.internal(JOB_ID,
+                new JobUpdate.Builder(JOB_ID).setModelSnapshotId("a_snapshot_id").build());
 
-        UpdateRequest capturedRequest = requestCaptor.getValue();
-        assertNotNull(capturedRequest.doc().sourceAsMap().get(Job.MODEL_SNAPSHOT_ID.getPreferredName()));
+        verify(client).execute(same(UpdateJobAction.INSTANCE), eq(expectedJobUpdateRequest), any());
+        verifyNoMoreInteractions(persister);
     }
 
     public void testProcessResult_quantiles_givenRenormalizationIsEnabled() {
@@ -413,7 +391,6 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         processorUnderTest.awaitCompletion();
         assertEquals(0, processorUnderTest.completionLatch.getCount());
         assertEquals(1, processorUnderTest.updateModelSnapshotSemaphore.availablePermits());
-        assertEquals(0, processorUnderTest.onCloseActionsLatch.getCount());
     }
 
     public void testPersisterThrowingDoesntBlockProcessing() {
@@ -467,7 +444,6 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         processorUnderTest.process(process);
 
         processorUnderTest.awaitCompletion();
-        assertNull(processorUnderTest.onCloseActionsLatch);
         assertEquals(0, processorUnderTest.completionLatch.getCount());
         assertEquals(1, processorUnderTest.updateModelSnapshotSemaphore.availablePermits());
 
@@ -477,7 +453,6 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         verify(renormalizer).shutdown();
         verify(renormalizer, times(1)).waitUntilIdle();
         verify(flushListener, times(1)).clear();
-        verify(client, never()).execute(same(UpdateAction.INSTANCE), any(), any());
     }
 
     private void setupScheduleDelayTime(TimeValue delay) {

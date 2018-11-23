@@ -27,9 +27,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
+import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 
-public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
+public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     private final CharArraySet articles;
 
@@ -43,8 +43,4 @@ public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory implem
         return new ElisionFilter(tokenStream, articles);
     }
 
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
-    }
 }

@@ -856,6 +856,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterIntervalLiteral(SqlBaseParser.IntervalLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitIntervalLiteral(SqlBaseParser.IntervalLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterNumericLiteral(SqlBaseParser.NumericLiteralContext ctx) { }
   /**
    * {@inheritDoc}
@@ -971,6 +983,42 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitBooleanValue(SqlBaseParser.BooleanValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterInterval(SqlBaseParser.IntervalContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitInterval(SqlBaseParser.IntervalContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterIntervalValue(SqlBaseParser.IntervalValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitIntervalValue(SqlBaseParser.IntervalValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterIntervalField(SqlBaseParser.IntervalFieldContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitIntervalField(SqlBaseParser.IntervalFieldContext ctx) { }
   /**
    * {@inheritDoc}
    *

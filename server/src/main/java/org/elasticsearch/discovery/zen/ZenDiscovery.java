@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -87,6 +88,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class ZenDiscovery extends AbstractLifecycleComponent implements Discovery, PingContextProvider, IncomingClusterStateListener {
+    private static final Logger logger = LogManager.getLogger(ZenDiscovery.class);
 
     public static final Setting<TimeValue> PING_TIMEOUT_SETTING =
         Setting.positiveTimeSetting("discovery.zen.ping_timeout", timeValueSeconds(3), Property.NodeScope);

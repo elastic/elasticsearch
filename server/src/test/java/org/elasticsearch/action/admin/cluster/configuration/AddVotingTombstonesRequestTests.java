@@ -78,8 +78,9 @@ public class AddVotingTombstonesRequestTests extends ESTestCase {
         assertThat(makeRequest("other*").resolveVotingTombstones(clusterState),
                 containsInAnyOrder(otherNode1Tombstone, otherNode2Tombstone));
 
-        assertThat(expectThrows(IllegalArgumentException.class, () -> makeRequest("not-a-node").resolveVotingTombstones(clusterState)).getMessage(),
-            equalTo("add voting tombstones request for [not-a-node] matched no master-eligible nodes"));
+        assertThat(expectThrows(IllegalArgumentException.class,
+                () -> makeRequest("not-a-node").resolveVotingTombstones(clusterState)).getMessage(),
+                    equalTo("add voting tombstones request for [not-a-node] matched no master-eligible nodes"));
     }
 
     public void testResolveAndCheckMaximum() {

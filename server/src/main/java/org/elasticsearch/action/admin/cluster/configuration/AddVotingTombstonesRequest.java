@@ -84,7 +84,8 @@ public class AddVotingTombstonesRequest extends MasterNodeRequest<AddVotingTombs
         return resolvedNodes;
     }
 
-    Set<VotingTombstone> resolveVotingTombstonesAndCheckMaximum(ClusterState currentState, int maxTombstoneCount, String maximumSettingKey) {
+    Set<VotingTombstone> resolveVotingTombstonesAndCheckMaximum(ClusterState currentState, int maxTombstoneCount,
+                                                                String maximumSettingKey) {
         final Set<VotingTombstone> resolvedNodes = resolveVotingTombstones(currentState);
 
         final int oldTombstoneCount = currentState.getVotingTombstones().size();

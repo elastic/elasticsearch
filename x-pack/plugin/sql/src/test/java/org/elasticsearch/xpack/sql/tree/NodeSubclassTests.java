@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipesTests;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IFNull;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPipe;
@@ -87,7 +88,7 @@ import static org.mockito.Mockito.mock;
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
 
     private static final List<Class<? extends Node<?>>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.asList(
-        In.class, InPipe.class, Percentile.class, Percentiles.class, PercentileRanks.class);
+        IFNull.class, In.class, InPipe.class, Percentile.class, Percentiles.class, PercentileRanks.class);
 
     private final Class<T> subclass;
 

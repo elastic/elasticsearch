@@ -199,11 +199,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
         assertThat(kibanaRole.cluster().check(MonitoringBulkAction.NAME, request), is(true));
 
-        // SAML
+        // SAML and token
         assertThat(kibanaRole.cluster().check(SamlPrepareAuthenticationAction.NAME, request), is(true));
         assertThat(kibanaRole.cluster().check(SamlAuthenticateAction.NAME, request), is(true));
         assertThat(kibanaRole.cluster().check(InvalidateTokenAction.NAME, request), is(true));
-        assertThat(kibanaRole.cluster().check(CreateTokenAction.NAME, request), is(false));
+        assertThat(kibanaRole.cluster().check(CreateTokenAction.NAME, request), is(true));
 
         // Application Privileges
         DeletePrivilegesRequest deleteKibanaPrivileges = new DeletePrivilegesRequest("kibana-.kibana", new String[]{ "all", "read" });

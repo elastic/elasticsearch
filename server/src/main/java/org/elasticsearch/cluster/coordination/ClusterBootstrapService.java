@@ -41,6 +41,9 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Function;
 
 public class ClusterBootstrapService {
 
@@ -51,12 +54,17 @@ public class ClusterBootstrapService {
     public static final Setting<Integer> INITIAL_MASTER_NODE_COUNT_SETTING =
         Setting.intSetting("cluster.unsafe_initial_master_node_count", 0, 0, Property.NodeScope);
 
+    public static final Setting<List<String>> INITIAL_MASTER_NODES =
+        Setting.listSetting("cluster.unsafe_initial_master_nodes", Collections.emptyList(), Function.identity(), Property.NodeScope);
+
     private final int initialMasterNodeCount;
+    private final List<String> initialMasterNodes;
     private final TransportService transportService;
     private volatile boolean running;
 
     public ClusterBootstrapService(Settings settings, TransportService transportService) {
         initialMasterNodeCount = INITIAL_MASTER_NODE_COUNT_SETTING.get(settings);
+        initialMasterNodes = INITIAL_MASTER_NODES.get(settings);
         this.transportService = transportService;
     }
 
@@ -73,6 +81,7 @@ public class ClusterBootstrapService {
 
                 final GetDiscoveredNodesRequest request = new GetDiscoveredNodesRequest();
                 request.setWaitForNodes(initialMasterNodeCount);
+                request.setRequiredNodes(initialMasterNodes);
                 request.setTimeout(null);
                 logger.trace("sending {}", request);
                 transportService.sendRequest(transportService.getLocalNode(), GetDiscoveredNodesAction.NAME, request,

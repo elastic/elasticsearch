@@ -40,7 +40,7 @@ public class PlanExecutor {
     private final Optimizer optimizer;
     private final Planner planner;
     
-    private final Metrics metrics = new Metrics();
+    private final Metrics metrics;
 
     public PlanExecutor(Client client, IndexResolver indexResolver, NamedWriteableRegistry writeableRegistry) {
         this.client = client;
@@ -48,6 +48,8 @@ public class PlanExecutor {
 
         this.indexResolver = indexResolver;
         this.functionRegistry = new FunctionRegistry();
+        
+        this.metrics = new Metrics();
 
         this.preAnalyzer = new PreAnalyzer();
         this.verifier = new Verifier(metrics);
@@ -56,7 +58,7 @@ public class PlanExecutor {
     }
 
     private SqlSession newSession(Configuration cfg) {
-        return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, optimizer, planner, verifier);
+        return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, verifier, optimizer, planner);
     }
 
     public void searchSource(Configuration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<SearchSourceBuilder> listener) {

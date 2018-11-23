@@ -48,12 +48,12 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
         return "sql_stats";
     }
     
-    static class Node extends BaseNodeRequest {
+    static class NodeStatsRequest extends BaseNodeRequest {
         boolean includeStats;
         
-        Node() {}
+        NodeStatsRequest() {}
 
-        Node(SqlStatsRequest request, String nodeId) {
+        NodeStatsRequest(SqlStatsRequest request, String nodeId) {
             super(nodeId);
             includeStats = request.includeStats();
         }

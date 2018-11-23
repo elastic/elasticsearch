@@ -16,7 +16,7 @@ import java.util.Objects;
  */
 public abstract class AbstractSqlRequest implements ToXContentFragment {
 
-    private RequestInfo requestInfo;
+    private final RequestInfo requestInfo;
 
     protected AbstractSqlRequest(RequestInfo requestInfo) {
         this.requestInfo = requestInfo;

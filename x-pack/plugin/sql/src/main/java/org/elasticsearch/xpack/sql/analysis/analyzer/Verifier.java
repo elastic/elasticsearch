@@ -57,6 +57,10 @@ import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LOCAL;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.ORDERBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.WHERE;
 
+/**
+ * The verifier has the role of checking the analyzed tree for failures and build a list of failures following this check.
+ * It is created in the plan executor along with the metrics instance passed as constructor parameter.
+ */
 public final class Verifier {
     private final Metrics metrics;
     
@@ -113,10 +117,6 @@ public final class Verifier {
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
         Collection<Failure> failures = verify(plan);
         return failures.stream().collect(toMap(Failure::source, Failure::message));
-    }
-    
-    public Metrics metrics() {
-        return metrics;
     }
 
     Collection<Failure> verify(LogicalPlan plan) {
@@ -240,7 +240,7 @@ public final class Verifier {
         }
         
         // gather metrics
-        if (failures.isEmpty() && metrics != null) {
+        if (failures.isEmpty()) {
             BitSet b = new BitSet(FeatureMetric.values().length);
             plan.forEachDown(p -> {
                 if (p instanceof Aggregate) {

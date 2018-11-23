@@ -20,7 +20,7 @@ import java.util.List;
  * Performs the stats operation.
  */
 public class TransportSqlStatsAction extends TransportNodesAction<SqlStatsRequest, SqlStatsResponse,
-        SqlStatsRequest.Node, SqlStatsResponse.Node> {
+        SqlStatsRequest.NodeStatsRequest, SqlStatsResponse.NodeStatsResponse> {
     
     // the plan executor holds the metrics
     private final PlanExecutor planExecutor;
@@ -29,29 +29,30 @@ public class TransportSqlStatsAction extends TransportNodesAction<SqlStatsReques
     public TransportSqlStatsAction(TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor) {
         super(SqlStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                SqlStatsRequest::new, SqlStatsRequest.Node::new, ThreadPool.Names.MANAGEMENT, SqlStatsResponse.Node.class);
+              SqlStatsRequest::new, SqlStatsRequest.NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT,
+              SqlStatsResponse.NodeStatsResponse.class);
         this.planExecutor = planExecutor;
     }
 
     @Override
-    protected SqlStatsResponse newResponse(SqlStatsRequest request, List<SqlStatsResponse.Node> nodes,
-                                               List<FailedNodeException> failures) {
+    protected SqlStatsResponse newResponse(SqlStatsRequest request, List<SqlStatsResponse.NodeStatsResponse> nodes,
+                                           List<FailedNodeException> failures) {
         return new SqlStatsResponse(clusterService.getClusterName(), nodes, failures);
     }
 
     @Override
-    protected SqlStatsRequest.Node newNodeRequest(String nodeId, SqlStatsRequest request) {
-        return new SqlStatsRequest.Node(request, nodeId);
+    protected SqlStatsRequest.NodeStatsRequest newNodeRequest(String nodeId, SqlStatsRequest request) {
+        return new SqlStatsRequest.NodeStatsRequest(request, nodeId);
     }
 
     @Override
-    protected SqlStatsResponse.Node newNodeResponse() {
-        return new SqlStatsResponse.Node();
+    protected SqlStatsResponse.NodeStatsResponse newNodeResponse() {
+        return new SqlStatsResponse.NodeStatsResponse();
     }
 
     @Override
-    protected SqlStatsResponse.Node nodeOperation(SqlStatsRequest.Node request) {
-        SqlStatsResponse.Node statsResponse = new SqlStatsResponse.Node(clusterService.localNode());
+    protected SqlStatsResponse.NodeStatsResponse nodeOperation(SqlStatsRequest.NodeStatsRequest request) {
+        SqlStatsResponse.NodeStatsResponse statsResponse = new SqlStatsResponse.NodeStatsResponse(clusterService.localNode());
         statsResponse.setStats(planExecutor.metrics().stats());
         
         return statsResponse;

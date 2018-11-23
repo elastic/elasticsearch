@@ -46,15 +46,15 @@ public class SqlSession {
 
     public SqlSession(SqlSession other) {
         this(other.settings, other.client, other.functionRegistry, other.indexResolver,
-                other.preAnalyzer, other.optimizer, other.planner, other.verifier);
+             other.preAnalyzer, other.verifier, other.optimizer, other.planner);
     }
 
     public SqlSession(Configuration settings, Client client, FunctionRegistry functionRegistry,
             IndexResolver indexResolver,
             PreAnalyzer preAnalyzer,
+            Verifier verifier,
             Optimizer optimizer,
-            Planner planner,
-            Verifier verifier) {
+            Planner planner) {
         this.client = client;
         this.functionRegistry = functionRegistry;
 

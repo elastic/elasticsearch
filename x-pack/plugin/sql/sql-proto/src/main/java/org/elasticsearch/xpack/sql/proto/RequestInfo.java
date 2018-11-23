@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.sql.proto;
 import java.util.Objects;
 
 public class RequestInfo {
-    public static String CLI = "cli";
-    public static String CANVAS = "canvas";
+    public static final String CLI = "cli";
+    public static final String CANVAS = "canvas";
     
     private Mode mode;
     private String clientId;
     
     public RequestInfo(Mode mode) {
-        this.mode = mode;
+        this(mode, null);
     }
     
     public RequestInfo(Mode mode, String clientId) {

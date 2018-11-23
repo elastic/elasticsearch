@@ -107,9 +107,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     @Override
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
-        modules.add(b -> {
-            XPackPlugin.bindFeatureSet(b, SqlFeatureSet.class);
-        });
+        modules.add(b -> XPackPlugin.bindFeatureSet(b, SqlFeatureSet.class));
         return modules;
     }
 

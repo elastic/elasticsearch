@@ -77,9 +77,9 @@ public class SqlFeatureSetTests extends ESTestCase {
             ActionListener<SqlStatsResponse> listener =
                     (ActionListener<SqlStatsResponse>) mock.getArguments()[2];
 
-            List<SqlStatsResponse.Node> nodes = new ArrayList<>();
+            List<SqlStatsResponse.NodeStatsResponse> nodes = new ArrayList<>();
             DiscoveryNode first = new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.CURRENT);
-            SqlStatsResponse.Node firstNode = new SqlStatsResponse.Node(first);
+            SqlStatsResponse.NodeStatsResponse firstNode = new SqlStatsResponse.NodeStatsResponse(first);
             Counters firstCounters = new Counters();
             firstCounters.inc("foo.foo", 1);
             firstCounters.inc("foo.bar.baz", 1);
@@ -87,7 +87,7 @@ public class SqlFeatureSetTests extends ESTestCase {
             nodes.add(firstNode);
 
             DiscoveryNode second = new DiscoveryNode("second", buildNewFakeTransportAddress(), Version.CURRENT);
-            SqlStatsResponse.Node secondNode = new SqlStatsResponse.Node(second);
+            SqlStatsResponse.NodeStatsResponse secondNode = new SqlStatsResponse.NodeStatsResponse(second);
             Counters secondCounters = new Counters();
             secondCounters.inc("spam", 1);
             secondCounters.inc("foo.bar.baz", 4);

@@ -73,7 +73,7 @@ public class SqlFeatureSet implements XPackFeatureSet {
             client.execute(SqlStatsAction.INSTANCE, request, ActionListener.wrap(r -> {
                 List<Counters> countersPerNode = r.getNodes()
                         .stream()
-                        .map(SqlStatsResponse.Node::getStats)
+                        .map(SqlStatsResponse.NodeStatsResponse::getStats)
                         .filter(Objects::nonNull)
                         .collect(Collectors.toList());
                 Counters mergedCounters = Counters.merge(countersPerNode);

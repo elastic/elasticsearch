@@ -20,29 +20,29 @@ import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import java.io.IOException;
 import java.util.List;
 
-public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.Node> implements ToXContentObject {
+public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeStatsResponse> implements ToXContentObject {
     
     public SqlStatsResponse() {
     }
     
-    public SqlStatsResponse(ClusterName clusterName, List<Node> nodes, List<FailedNodeException> failures) {
+    public SqlStatsResponse(ClusterName clusterName, List<NodeStatsResponse> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
-    protected List<Node> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(Node::readNodeResponse);
+    protected List<NodeStatsResponse> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(NodeStatsResponse::readNodeResponse);
     }
 
     @Override
-    protected void writeNodesTo(StreamOutput out, List<Node> nodes) throws IOException {
+    protected void writeNodesTo(StreamOutput out, List<NodeStatsResponse> nodes) throws IOException {
         out.writeStreamableList(nodes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("stats");
-        for (Node node : getNodes()) {
+        for (NodeStatsResponse node : getNodes()) {
             node.toXContent(builder, params);
         }
         builder.endArray();
@@ -50,14 +50,14 @@ public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.Node> i
         return builder;
     }
 
-    public static class Node extends BaseNodeResponse implements ToXContentObject {
+    public static class NodeStatsResponse extends BaseNodeResponse implements ToXContentObject {
         
         private Counters stats;
         
-        public Node() {
+        public NodeStatsResponse() {
         }
 
-        public Node(DiscoveryNode node) {
+        public NodeStatsResponse(DiscoveryNode node) {
             super(node);
         }
         
@@ -96,8 +96,8 @@ public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.Node> i
             return builder;
         }
         
-        static SqlStatsResponse.Node readNodeResponse(StreamInput in) throws IOException {
-            SqlStatsResponse.Node node = new SqlStatsResponse.Node();
+        static SqlStatsResponse.NodeStatsResponse readNodeResponse(StreamInput in) throws IOException {
+            SqlStatsResponse.NodeStatsResponse node = new SqlStatsResponse.NodeStatsResponse();
             node.readFrom(in);
             return node;
         }

@@ -161,10 +161,13 @@ public class VerifierMetricsTests extends ESTestCase {
     }
     
     public void testTwoQueriesExecuted() {
-        Verifier verifier = new Verifier(new Metrics());
+        Metrics metrics = new Metrics();
+        Verifier verifier = new Verifier(metrics);
         sqlWithVerifier("SELECT languages FROM test WHERE languages > 2 GROUP BY languages LIMIT 5", verifier);
-        Counters c = sqlWithVerifier("SELECT languages FROM test WHERE languages > 2 GROUP BY languages HAVING MAX(languages) > 3"
-                                  + " ORDER BY languages LIMIT 5", verifier);
+        sqlWithVerifier("SELECT languages FROM test WHERE languages > 2 GROUP BY languages HAVING MAX(languages) > 3 "
+                      + "ORDER BY languages LIMIT 5", verifier);
+        Counters c = metrics.stats();
+        
         assertEquals(2L, where(c));
         assertEquals(2L, limit(c));
         assertEquals(2L, groupby(c));
@@ -176,10 +179,12 @@ public class VerifierMetricsTests extends ESTestCase {
     
     public void testTwoCommandsExecuted() {
         String command1 = randomFrom(commands);
-        Verifier verifier = new Verifier(new Metrics());
-        
+        Metrics metrics = new Metrics();
+        Verifier verifier = new Verifier(metrics);
         sqlWithVerifier(command1, verifier);
-        Counters c = sqlWithVerifier(randomValueOtherThan(command1, () -> randomFrom(commands)), verifier);
+        sqlWithVerifier(randomValueOtherThan(command1, () -> randomFrom(commands)), verifier);
+        Counters c = metrics.stats();
+        
         assertEquals(0, where(c));
         assertEquals(0, limit(c));
         assertEquals(0, groupby(c));
@@ -218,20 +223,27 @@ public class VerifierMetricsTests extends ESTestCase {
     }
     
     private Counters sql(String sql) {
-        return sqlWithVerifier(sql, null);
+        return sql(sql, null);
     }
     
-    private Counters sqlWithVerifier(String sql, Verifier verifier) {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping);
-        return sql(IndexResolution.valid(test), sql, verifier);
+    private void sqlWithVerifier(String sql, Verifier verifier) {
+        sql(sql, verifier);
     }
 
-    private Counters sql(IndexResolution getIndexResult, String sql, Verifier v) {
-        Verifier verifier = v == null ? new Verifier(new Metrics()) : v;
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, TimeZone.getTimeZone("UTC"), verifier);
+    private Counters sql(String sql, Verifier v) {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-basic.json");
+        EsIndex test = new EsIndex("test", mapping);
+        
+        Verifier verifier = v;
+        Metrics metrics = null;
+        if (v == null) {
+            metrics = new Metrics();
+            verifier = new Verifier(metrics);
+        }
+
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"), verifier);
         analyzer.analyze(parser.createStatement(sql), true);
         
-        return verifier.metrics().stats();
+        return metrics == null ? null : metrics.stats();
     }
 }

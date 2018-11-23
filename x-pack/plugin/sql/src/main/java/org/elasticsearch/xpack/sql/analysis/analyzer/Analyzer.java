@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
-import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -83,10 +82,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      */
     private final TimeZone timeZone;
     /**
-     * The verifier has the role of checking the analyzed tree for failures
-     * and build a list of failures. The verifier is being passed as a parameter
-     * and is instantiated in the plan executor so that the SQL specific metrics
-     * can be exposed in the transport action.
+     * The verifier has the role of checking the analyzed tree for failures and build a list of failures.
      */
     private final Verifier verifier;
 
@@ -236,10 +232,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
     private static boolean containsAggregate(Expression exp) {
         return containsAggregate(singletonList(exp));
-    }
-
-    private Metrics metrics() {
-        return verifier.metrics();
     }
 
     private static class CTESubstitution extends AnalyzeRule<With> {

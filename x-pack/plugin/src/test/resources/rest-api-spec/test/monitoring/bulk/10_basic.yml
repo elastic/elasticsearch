@@ -31,6 +31,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-kibana-*
         body: { "query": { "term" : { "type": "test_type" } } }
 
@@ -59,6 +60,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-kibana-*
         body: { "query": { "term" : { "type": "default_type" } } }
 
@@ -68,6 +70,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-kibana-*
         body: { "query": { "term" : { "type": "custom_type" } } }
 
@@ -77,6 +80,7 @@
   # We actively ignore indexing requests made to the _data index starting with 5.5
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-data-*
 
   - match: { hits.total: 0 }
@@ -105,6 +109,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-kibana-*
         body: { "query": { "term" : { "type": "default_type" } } }
 
@@ -112,6 +117,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-kibana-*
         body: { "query": { "term" : { "type": "custom_type" } } }
 
@@ -120,6 +126,7 @@
   # We actively ignore indexing requests made to the _data index starting with 5.5, even for the old versions
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-data-*
 
   - match: { hits.total: 0 }
@@ -184,6 +191,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-beats-*
   - match: { hits.total: 2 }
 

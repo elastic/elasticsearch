@@ -37,6 +37,7 @@ setup:
 
   - do:
       msearch_template:
+        rest_total_hits_as_int: true
         body:
           - index: index_*
           - source: '{"query": {"match": {"foo": "{{value}}"} } }'
@@ -72,6 +73,7 @@ setup:
 
   - do:
       msearch_template:
+        rest_total_hits_as_int: true
         body:
           # Search 0 is OK
           - index: index_*
@@ -110,6 +112,7 @@ setup:
   - do:
       catch: /(.)*action_request_validation_exception(.)*template.is.missing(.)*/
       msearch_template:
+        rest_total_hits_as_int: true
         body:
           # Search 0 is OK
           - index: index_*
@@ -136,6 +139,7 @@ setup:
 
   - do:
       msearch_template:
+        rest_total_hits_as_int: true
         body:
           - index: index_*
           - id: stored_template_1

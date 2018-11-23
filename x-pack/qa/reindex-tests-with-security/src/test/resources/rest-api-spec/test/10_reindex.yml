@@ -47,6 +47,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -80,6 +81,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -168,10 +170,12 @@ setup:
   - do:
       catch: missing
       search:
+        rest_total_hits_as_int: true
         index: other_dest
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
   - length:   { hits.hits: 1  }
   - match: { hits.hits.0._index: dest }
@@ -208,6 +212,7 @@ setup:
   # We copied just one doc, presumably the one without the hidden field
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -218,6 +223,7 @@ setup:
   # We didn't copy the doc with the hidden field
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -250,6 +256,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -259,6 +266,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -268,6 +276,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:

@@ -24,6 +24,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -46,6 +47,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -71,6 +73,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -97,6 +100,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -128,6 +132,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -150,6 +155,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -172,6 +178,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -194,6 +201,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -216,6 +224,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -238,6 +247,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -275,6 +285,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -326,6 +337,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:
@@ -365,6 +377,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 script_fields:
@@ -392,6 +405,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 aggs:
@@ -429,6 +443,7 @@
     - do:
         catch: bad_request
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 aggs:
@@ -463,6 +478,7 @@
     - do:
         catch: bad_request
         search:
+            rest_total_hits_as_int: true
             index: test
             body:
                 query:

@@ -132,6 +132,7 @@ teardown:
       headers:
         Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       msearch_template:
+        rest_total_hits_as_int: true
         body:
           - index: foobar
           - source:

@@ -28,6 +28,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: _all
         body:
           query:
@@ -38,6 +39,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_1
         body:
           query:
@@ -51,6 +53,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_2
         body:
           query:
@@ -68,6 +71,7 @@ setup:
     - do:
         catch: bad_request
         search:
+          rest_total_hits_as_int: true
           body:
             match:
               foo: bar

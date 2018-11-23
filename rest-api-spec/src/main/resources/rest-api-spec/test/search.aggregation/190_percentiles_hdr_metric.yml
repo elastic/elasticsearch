@@ -55,6 +55,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -88,6 +89,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -127,6 +129,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -164,6 +167,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             constant_score:
@@ -206,6 +210,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_missing:
@@ -230,6 +235,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_missing:
@@ -246,6 +252,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -273,6 +280,7 @@ setup:
   - do:
       catch: /\[numberOfSignificantValueDigits\] must be between 0 and 5/
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -284,6 +292,7 @@ setup:
   - do:
       catch: /\[numberOfSignificantValueDigits\] must be between 0 and 5/
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -295,6 +304,7 @@ setup:
   - do:
       catch: bad_request
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -306,6 +316,7 @@ setup:
   - do:
       catch: /\[percents\] must not be empty/
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -317,6 +328,7 @@ setup:
   - do:
       catch: bad_request
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -328,6 +340,7 @@ setup:
   - do:
       catch: bad_request
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -339,6 +352,7 @@ setup:
   - do:
       catch: bad_request
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_string:
@@ -351,6 +365,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -383,6 +398,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:
@@ -418,6 +434,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             percentiles_int:

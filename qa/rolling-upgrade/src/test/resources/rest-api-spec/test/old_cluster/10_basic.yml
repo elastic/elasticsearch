@@ -119,6 +119,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: queries
         body:
           query:
@@ -131,6 +132,8 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
+                rest_total_hits_as_int: true
         index: queries
         body:
           sort: _id
@@ -146,6 +149,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: queries
         body:
           sort: _id

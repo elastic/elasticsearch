@@ -229,8 +229,8 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
     }
 
     public static class VotingTombstone implements Writeable, ToXContentFragment {
-        private String nodeId;
-        private String nodeName;
+        private final String nodeId;
+        private final String nodeName;
 
         public VotingTombstone(DiscoveryNode node) {
             this(node.getId(), node.getName());

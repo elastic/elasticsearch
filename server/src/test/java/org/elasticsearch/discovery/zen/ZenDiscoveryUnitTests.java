@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
@@ -50,6 +51,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.discovery.zen.ZenDiscovery.ZenNodeRemovalClusterStateTaskExecutor;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -357,12 +359,17 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
                 listener.onSuccess(source);
             }
+
+            @Override
+            public void addLowPriorityApplier(ClusterStateApplier applier) {
+                
+            }
         };
         ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service,
             new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
             masterService, clusterApplier, clusterSettings, hostsResolver -> Collections.emptyList(),
             ESAllocationTestCase.createAllocationService(),
-            Collections.emptyList());
+            Collections.emptyList(), mock(GatewayMetaState.class));
         zenDiscovery.start();
         return zenDiscovery;
     }

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateApplier;
 
 import java.util.function.Supplier;
 
@@ -57,4 +58,6 @@ public interface ClusterApplier {
          */
         void onFailure(String source, Exception e);
     }
+
+    void addLowPriorityApplier(ClusterStateApplier applier);
 }

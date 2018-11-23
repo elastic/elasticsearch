@@ -25,6 +25,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -1584,6 +1585,11 @@ public class CoordinatorTests extends ESTestCase {
                             }
                             break;
                     }
+                }
+
+                @Override
+                public void addLowPriorityApplier(ClusterStateApplier applier) {
+
                 }
             }
         }

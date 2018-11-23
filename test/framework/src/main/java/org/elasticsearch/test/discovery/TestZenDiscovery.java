@@ -38,6 +38,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.ZenPing;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,22 +77,24 @@ public class TestZenDiscovery extends ZenDiscovery {
                                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                                   MasterService masterService, ClusterApplier clusterApplier,
                                                                   ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider,
-                                                                  AllocationService allocationService) {
+                                                                  AllocationService allocationService, GatewayMetaState gatewayMetaState) {
             // we don't get the latest setting which were updated by the extra settings for the plugin. TODO: fix.
             Settings fixedSettings = Settings.builder().put(settings).putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()).build();
             return Collections.singletonMap("test-zen", () -> {
                 if (USE_ZEN2.get(settings)) {
                     // TODO: needs a proper storage layer
                     Supplier<CoordinationState.PersistedState> persistedStateSupplier =
-                        () -> new InMemoryPersistedState(0L, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
+                        () -> /*new InMemoryPersistedState(0L, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                             .nodes(DiscoveryNodes.builder().add(transportService.getLocalNode())
-                                .localNodeId(transportService.getLocalNode().getId()).build()).build());
+                                .localNodeId(transportService.getLocalNode().getId()).build()).build());*/
+                               {gatewayMetaState.setLocalNode(transportService.getLocalNode()); return gatewayMetaState;};
+                    //TODO which implementation to use? testDeleteIndexStore fails if gatewayMetaState does not receive ClusterState updates
                     return new Coordinator("test_node", fixedSettings, clusterSettings, transportService, namedWriteableRegistry,
                         allocationService, masterService, persistedStateSupplier, hostsProvider, clusterApplier,
                         new Random(Randomness.get().nextLong()));
                 } else {
                     return new TestZenDiscovery(fixedSettings, threadPool, transportService, namedWriteableRegistry, masterService,
-                        clusterApplier, clusterSettings, hostsProvider, allocationService);
+                        clusterApplier, clusterSettings, hostsProvider, allocationService, gatewayMetaState);
                 }
             });
         }
@@ -113,9 +116,9 @@ public class TestZenDiscovery extends ZenDiscovery {
     private TestZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
                              NamedWriteableRegistry namedWriteableRegistry, MasterService masterService,
                              ClusterApplier clusterApplier, ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider,
-                             AllocationService allocationService) {
+                             AllocationService allocationService, GatewayMetaState gatewayMetaState) {
         super(settings, threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier, clusterSettings,
-            hostsProvider, allocationService, Collections.emptyList());
+            hostsProvider, allocationService, Collections.emptyList(), gatewayMetaState);
     }
 
     @Override

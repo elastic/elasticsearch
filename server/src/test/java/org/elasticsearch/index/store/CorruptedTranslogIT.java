@@ -101,6 +101,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
             // Good, all shards should be failed because there is only a
             // single shard and its translog is corrupt
         }
+
     }
 
 

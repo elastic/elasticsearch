@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.single;
 
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -69,7 +70,11 @@ public class SingleNodeDiscoveryTests extends ESTestCase {
                                 clusterState.set(clusterStateSupplier.get());
                                 listener.onSuccess(source);
                             }
-                        });
+
+                        @Override
+                        public void addLowPriorityApplier(ClusterStateApplier applier) {
+                        }
+                    });
             discovery.start();
             discovery.startInitialJoin();
             final DiscoveryNodes nodes = clusterState.get().nodes();

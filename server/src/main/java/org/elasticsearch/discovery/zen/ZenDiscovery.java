@@ -58,6 +58,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction.IncomingClusterStateListener;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -159,7 +160,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
                         NamedWriteableRegistry namedWriteableRegistry, MasterService masterService, ClusterApplier clusterApplier,
                         ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider, AllocationService allocationService,
-                        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators) {
+                        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, GatewayMetaState gatewayMetaState) {
         super(settings);
         this.onJoinValidators = addBuiltInJoinValidators(onJoinValidators);
         this.masterService = masterService;
@@ -227,6 +228,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         transportService.registerRequestHandler(
             DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
+
+        clusterApplier.addLowPriorityApplier(gatewayMetaState);
     }
 
     static Collection<BiConsumer<DiscoveryNode,ClusterState>> addBuiltInJoinValidators(

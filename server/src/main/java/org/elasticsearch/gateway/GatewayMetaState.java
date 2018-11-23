@@ -110,9 +110,9 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
     }
 
     public void setLocalNode(DiscoveryNode localNode) {
-        previousClusterState = ClusterState.builder(previousClusterState)
-                .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
-                .build();
+            previousClusterState = ClusterState.builder(previousClusterState)
+                    .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
+                    .build();
     }
 
     protected void upgradeMetaData(MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
@@ -159,7 +159,9 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
     }
 
     protected boolean isMasterOrDataNode() {
-        return DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings);
+        //return DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings);
+        //TODO figure out whether to check it, in Zen2 it leads to NPE
+        return true;
     }
 
     private void ensureAtomicMoveSupported() throws IOException {
@@ -218,6 +220,8 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
     @Override
     public void setLastAcceptedState(ClusterState clusterState) {
         assert clusterState.blocks().disableStatePersistence() == false;
+
+        logger.error("setLastAcceptedState {}", clusterState);
 
         try {
             incrementalWrite = previousClusterState.term() == clusterState.term();

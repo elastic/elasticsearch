@@ -22,10 +22,12 @@ package org.elasticsearch.discovery;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -38,6 +40,7 @@ import org.elasticsearch.discovery.zen.FileBasedUnicastHostsProvider;
 import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -57,6 +60,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+
 /**
  * A module for loading classes for node discovery.
  */
@@ -73,7 +78,7 @@ public class DiscoveryModule {
     public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService,
                            NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService, MasterService masterService,
                            ClusterApplier clusterApplier, ClusterSettings clusterSettings, List<DiscoveryPlugin> plugins,
-                           AllocationService allocationService, Path configFile) {
+                           AllocationService allocationService, Path configFile, GatewayMetaState gatewayMetaState) {
         final Collection<BiConsumer<DiscoveryNode,ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedHostsProvider(settings, transportService));
@@ -118,15 +123,20 @@ public class DiscoveryModule {
         Map<String, Supplier<Discovery>> discoveryTypes = new HashMap<>();
         discoveryTypes.put("zen",
             () -> new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier,
-                clusterSettings, hostsProvider, allocationService, Collections.unmodifiableCollection(joinValidators)));
+                clusterSettings, hostsProvider, allocationService, Collections.unmodifiableCollection(joinValidators), gatewayMetaState));
+        discoveryTypes.put("zen2", () -> new Coordinator(NODE_NAME_SETTING.get(settings), settings, clusterSettings, transportService,
+                namedWriteableRegistry, allocationService, masterService,
+                () -> {gatewayMetaState.setLocalNode(transportService.getLocalNode()); return gatewayMetaState;},
+                hostsProvider, clusterApplier, Randomness.get()));
         discoveryTypes.put("single-node", () -> new SingleNodeDiscovery(settings, transportService, masterService, clusterApplier));
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getDiscoveryTypes(threadPool, transportService, namedWriteableRegistry,
-                masterService, clusterApplier, clusterSettings, hostsProvider, allocationService).entrySet().forEach(entry -> {
-                if (discoveryTypes.put(entry.getKey(), entry.getValue()) != null) {
-                    throw new IllegalArgumentException("Cannot register discovery type [" + entry.getKey() + "] twice");
-                }
-            });
+                masterService, clusterApplier, clusterSettings, hostsProvider, allocationService, gatewayMetaState).entrySet()
+                    .forEach(entry -> {
+                        if (discoveryTypes.put(entry.getKey(), entry.getValue()) != null) {
+                            throw new IllegalArgumentException("Cannot register discovery type [" + entry.getKey() + "] twice");
+                        }
+                    });
         }
         String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
         Supplier<Discovery> discoverySupplier = discoveryTypes.get(discoveryType);

@@ -198,8 +198,8 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
             final Request searchRequest = new Request("GET", "rollup/_search");
             try {
                 Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
-                assertNotNull(ObjectPath.eval("hits.total", searchResponse));
-                assertThat(ObjectPath.eval("hits.total", searchResponse), equalTo(expectedCount));
+                assertNotNull(ObjectPath.eval("hits.total.value", searchResponse));
+                assertThat(ObjectPath.eval("hits.total.value", searchResponse), equalTo(expectedCount));
 
                 for (int i = 0; i < expectedCount; i++) {
                     String id = ObjectPath.eval("hits.hits." + i + "._id", searchResponse);

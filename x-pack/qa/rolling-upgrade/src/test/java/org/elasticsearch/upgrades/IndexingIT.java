@@ -142,7 +142,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
 
     private void assertCount(String index, int count) throws IOException {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
-        searchTestIndexRequest.addParameter("filter_path", "hits.total");
+        searchTestIndexRequest.addParameter("filter_path", "hits.total.value");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
         assertEquals("{\"hits\":{\"total\":" + count + "}}",
                 EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));

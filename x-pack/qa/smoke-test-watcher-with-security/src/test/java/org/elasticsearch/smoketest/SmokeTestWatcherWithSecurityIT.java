@@ -324,7 +324,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 searchRequest.setJsonEntity(Strings.toString(builder));
                 Response response = client().performRequest(searchRequest);
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);
-                int totalHits = objectPath.evaluate("hits.total");
+                int totalHits = objectPath.evaluate("hits.total.value");
                 assertThat(totalHits, is(greaterThanOrEqualTo(1)));
                 String watchid = objectPath.evaluate("hits.hits.0._source.watch_id");
                 assertThat(watchid, is(watchId));

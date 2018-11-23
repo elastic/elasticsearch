@@ -235,7 +235,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchHits hits = searchResponse.getHits();
             // end::search-hits-get
             // tag::search-hits-info
-            long totalHits = hits.getTotalHits();
+            long totalHits = hits.getTotalHits().value;
             float maxScore = hits.getMaxScore();
             // end::search-hits-info
             // tag::search-hits-singleHit
@@ -577,7 +577,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             String scrollId = searchResponse.getScrollId(); // <3>
             SearchHits hits = searchResponse.getHits();  // <4>
             // end::search-scroll-init
-            assertEquals(3, hits.getTotalHits());
+            assertEquals(3, hits.getTotalHits().value);
             assertEquals(1, hits.getHits().length);
             assertNotNull(scrollId);
 
@@ -587,7 +587,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchResponse searchScrollResponse = client.scroll(scrollRequest, RequestOptions.DEFAULT);
             scrollId = searchScrollResponse.getScrollId();  // <2>
             hits = searchScrollResponse.getHits(); // <3>
-            assertEquals(3, hits.getTotalHits());
+            assertEquals(3, hits.getTotalHits().value);
             assertEquals(1, hits.getHits().length);
             assertNotNull(scrollId);
             // end::search-scroll2
@@ -617,7 +617,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::search-scroll-execute-sync
 
             assertEquals(0, searchResponse.getFailedShards());
-            assertEquals(3L, searchResponse.getHits().getTotalHits());
+            assertEquals(3L, searchResponse.getHits().getTotalHits().value);
 
             // tag::search-scroll-execute-listener
             ActionListener<SearchResponse> scrollListener =
@@ -754,7 +754,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::search-template-response
 
         assertNotNull(searchResponse);
-        assertTrue(searchResponse.getHits().totalHits > 0);
+        assertTrue(searchResponse.getHits().getTotalHits().value > 0);
 
         // tag::render-search-template-request
         request.setSimulate(true); // <1>
@@ -805,7 +805,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
         SearchResponse searchResponse = response.getResponse();
         assertNotNull(searchResponse);
-        assertTrue(searchResponse.getHits().totalHits > 0);
+        assertTrue(searchResponse.getHits().getTotalHits().value > 0);
 
         // tag::search-template-execute-listener
         ActionListener<SearchTemplateResponse> listener = new ActionListener<SearchTemplateResponse>() {
@@ -883,7 +883,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertEquals(searchTerms.length, multiResponse.getResponses().length);
         assertNotNull(multiResponse.getResponses()[0]);
         SearchResponse searchResponse = multiResponse.getResponses()[0].getResponse().getResponse();
-        assertTrue(searchResponse.getHits().totalHits > 0);
+        assertTrue(searchResponse.getHits().getTotalHits().value > 0);
 
     }
 
@@ -926,7 +926,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertEquals(searchTerms.length, multiResponse.getResponses().length);
         assertNotNull(multiResponse.getResponses()[0]);
         SearchResponse searchResponse = multiResponse.getResponses()[0].getResponse().getResponse();
-        assertTrue(searchResponse.getHits().totalHits > 0);
+        assertTrue(searchResponse.getHits().getTotalHits().value > 0);
 
         // tag::multi-search-template-execute-listener
         ActionListener<MultiSearchTemplateResponse> listener = new ActionListener<MultiSearchTemplateResponse>() {
@@ -1210,11 +1210,11 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             MultiSearchResponse.Item firstResponse = response.getResponses()[0];   // <1>
             assertNull(firstResponse.getFailure());                                // <2>
             SearchResponse searchResponse = firstResponse.getResponse();           // <3>
-            assertEquals(4, searchResponse.getHits().getTotalHits());
+            assertEquals(4, searchResponse.getHits().getTotalHits().value);
             MultiSearchResponse.Item secondResponse = response.getResponses()[1];  // <4>
             assertNull(secondResponse.getFailure());
             searchResponse = secondResponse.getResponse();
-            assertEquals(1, searchResponse.getHits().getTotalHits());
+            assertEquals(1, searchResponse.getHits().getTotalHits().value);
             // end::multi-search-response
 
             // tag::multi-search-execute-listener

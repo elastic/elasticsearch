@@ -25,6 +25,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfig;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -126,17 +128,17 @@ public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Respon
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private List<GetDataFrameJobSingleResponse> jobResponses;
+        private List<FeatureIndexBuilderJobConfig> jobConfigurations;
 
-        public Response(List<GetDataFrameJobSingleResponse> jobResponses) {
+        public Response(List<FeatureIndexBuilderJobConfig> jobConfigs) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.jobResponses = jobResponses;
+            this.jobConfigurations = jobConfigs;
         }
 
-        public Response(List<GetDataFrameJobSingleResponse> jobResponses, List<TaskOperationFailure> taskFailures,
+        public Response(List<FeatureIndexBuilderJobConfig> jobResponses, List<TaskOperationFailure> taskFailures,
                 List<? extends FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.jobResponses = jobResponses;
+            this.jobConfigurations = jobResponses;
         }
 
         public Response() {
@@ -148,30 +150,30 @@ public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Respon
             readFrom(in);
         }
 
-        public List<GetDataFrameJobSingleResponse> getJobResponses() {
-            return jobResponses;
+        public List<FeatureIndexBuilderJobConfig> getJobResponses() {
+            return jobConfigurations;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            jobResponses = in.readList(GetDataFrameJobSingleResponse::new);
+            jobConfigurations = in.readList(FeatureIndexBuilderJobConfig::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(jobResponses);
+            out.writeList(jobConfigurations);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(COUNT.getPreferredName(), jobResponses.size());
+            builder.field(COUNT.getPreferredName(), jobConfigurations.size());
             // XContentBuilder does not support passing the params object for Iterables
             builder.field(JOBS.getPreferredName());
             builder.startArray();
-            for (GetDataFrameJobSingleResponse jobResponse : jobResponses) {
+            for (FeatureIndexBuilderJobConfig jobResponse : jobConfigurations) {
                 jobResponse.toXContent(builder, params);
             }
             builder.endArray();
@@ -181,7 +183,7 @@ public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Respon
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobResponses);
+            return Objects.hash(jobConfigurations);
         }
 
         @Override
@@ -195,7 +197,7 @@ public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Respon
             }
 
             final Response that = (Response) other;
-            return Objects.equals(this.jobResponses, that.jobResponses);
+            return Objects.equals(this.jobConfigurations, that.jobConfigurations);
         }
 
         @Override

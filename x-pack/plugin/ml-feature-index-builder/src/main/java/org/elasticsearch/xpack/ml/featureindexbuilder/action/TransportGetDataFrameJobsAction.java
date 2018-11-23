@@ -26,6 +26,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.featureindexbuilder.FeatureIndexBuilder;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsAction.Request;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsAction.Response;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfig;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobTask;
 
 import java.io.IOException;
@@ -49,9 +50,9 @@ public class TransportGetDataFrameJobsAction extends
     @Override
     protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,
             List<FailedNodeException> failedNodeExceptions) {
-        List<GetDataFrameJobSingleResponse> responses = tasks.stream().map(GetDataFrameJobsAction.Response::getJobResponses)
+        List<FeatureIndexBuilderJobConfig> configs = tasks.stream().map(GetDataFrameJobsAction.Response::getJobResponses)
                 .flatMap(Collection::stream).collect(Collectors.toList());
-        return new Response(responses, taskOperationFailures, failedNodeExceptions);
+        return new Response(configs, taskOperationFailures, failedNodeExceptions);
     }
 
     @Override
@@ -61,17 +62,16 @@ public class TransportGetDataFrameJobsAction extends
 
     @Override
     protected void taskOperation(Request request, FeatureIndexBuilderJobTask task, ActionListener<Response> listener) {
-        List<GetDataFrameJobSingleResponse> responses = Collections.emptyList();
+        List<FeatureIndexBuilderJobConfig> configs = Collections.emptyList();
 
         assert task.getConfig().getId().equals(request.getId()) || request.getId().equals(MetaData.ALL);
 
         // Little extra insurance, make sure we only return jobs that aren't cancelled
         if (task.isCancelled() == false) {
-            GetDataFrameJobSingleResponse response = new GetDataFrameJobSingleResponse(task.getState(), task.getConfig());
-            responses = Collections.singletonList(response);
+            configs = Collections.singletonList(task.getConfig());
         }
 
-        listener.onResponse(new Response(responses));
+        listener.onResponse(new Response(configs));
     }
 
     @Override

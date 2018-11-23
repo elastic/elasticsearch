@@ -1056,7 +1056,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             int ptr = 9;
                             for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
                                 InternalTopHits topHits = bucket.getAggregations().get("top_hits");
-                                assertThat(topHits.getHits().totalHits, equalTo((long) ptr));
+                                assertThat(topHits.getHits().getTotalHits().value, equalTo((long) ptr));
                                 if (withScore) {
                                     assertThat(topHits.getHits().getMaxScore(), equalTo(1f));
                                 } else {

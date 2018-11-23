@@ -292,8 +292,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache()
             .getMissCount(), equalTo(0L));
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits(),
-                equalTo((long) numDocs));
+            assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get()
+                    .getHits().getTotalHits().value, equalTo((long) numDocs));
             assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().
                 getMemorySizeInBytes(), greaterThan(0L));
         }
@@ -319,8 +319,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         });
 
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits(),
-                equalTo((long) numDocs));
+            assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get()
+                    .getHits().getTotalHits().value, equalTo((long) numDocs));
             assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMemorySizeInBytes(), greaterThan(0L));
         }
@@ -332,12 +332,12 @@ public class IndexStatsIT extends ESIntegTestCase {
         // test explicit request parameter
 
         assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).setRequestCache(false).get()
-            .getHits().getTotalHits(), equalTo((long) numDocs));
+            .getHits().getTotalHits().value, equalTo((long) numDocs));
         assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache()
             .getMemorySizeInBytes(), equalTo(0L));
 
         assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).setRequestCache(true).get()
-            .getHits().getTotalHits(), equalTo((long) numDocs));
+            .getHits().getTotalHits().value, equalTo((long) numDocs));
         assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache()
             .getMemorySizeInBytes(), greaterThan(0L));
 
@@ -348,12 +348,12 @@ public class IndexStatsIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false)));
 
         assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get()
-            .getHits().getTotalHits(), equalTo((long) numDocs));
+            .getHits().getTotalHits().value, equalTo((long) numDocs));
         assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache()
             .getMemorySizeInBytes(), equalTo(0L));
 
         assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).setRequestCache(true).get()
-            .getHits().getTotalHits(), equalTo((long) numDocs));
+            .getHits().getTotalHits().value, equalTo((long) numDocs));
         assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache()
             .getMemorySizeInBytes(), greaterThan(0L));
     }

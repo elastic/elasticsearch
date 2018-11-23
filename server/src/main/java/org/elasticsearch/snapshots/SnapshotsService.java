@@ -346,7 +346,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param partial                    allow partial snapshots
      * @param userCreateSnapshotListener listener
      */
-    private void beginSnapshot(final ClusterState clusterState,
+    public void beginSnapshot(final ClusterState clusterState,
                                final SnapshotsInProgress.Entry snapshot,
                                final boolean partial,
                                final CreateSnapshotListener userCreateSnapshotListener) {

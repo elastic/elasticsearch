@@ -33,6 +33,15 @@
  - match: { index.mappings.properties.bar.type: "long" }
 
  - do:
+      indices.put_mapping:
+          include_type_name: false
+          index: index
+          body:
+              properties:
+                  foo:
+                      type: "keyword" # also test no-op updates that trigger special logic wrt the mapping version
+
+ - do:
       catch: bad_request
       indices.put_mapping:
           index: index

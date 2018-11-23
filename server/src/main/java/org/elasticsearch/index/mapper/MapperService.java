@@ -293,7 +293,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         currentMapping = currentIndexMetaData.defaultMapping();
                     } else {
                         currentMapping = currentIndexMetaData.mapping();
-                        assert documentMapper.type().equals(currentMapping.type());
+                        assert currentMapping == null || documentMapper.type().equals(currentMapping.type());
                     }
                     if (currentMapping != null) {
                         final CompressedXContent currentSource = currentMapping.source();

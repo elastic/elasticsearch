@@ -3501,7 +3501,7 @@ public class IndexShardTests extends IndexShardTestCase {
         return Settings.builder().put(super.threadPoolSettings()).put("thread_pool.estimated_time_interval", "5ms").build();
     }
 
-    public void testDeleteOnWrongType() throws IOException {
+    public void testTypelessDelete() throws IOException {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

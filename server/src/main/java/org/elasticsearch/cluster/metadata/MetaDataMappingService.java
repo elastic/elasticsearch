@@ -306,7 +306,7 @@ public class MetaDataMappingService {
                     }
                 }
                 CompressedXContent existingSource = null;
-                DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
+                DocumentMapper existingMapper = mapperService.documentMapper(typeForUpdate);
                 if (existingMapper != null) {
                     existingSource = existingMapper.mappingSource();
                 }

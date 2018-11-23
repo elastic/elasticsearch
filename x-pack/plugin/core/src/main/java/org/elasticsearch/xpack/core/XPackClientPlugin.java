@@ -37,6 +37,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.beats.BeatsFeatureSetUsage;
@@ -345,7 +346,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 ExplainLifecycleAction.INSTANCE,
                 RemoveIndexLifecyclePolicyAction.INSTANCE,
                 MoveToStepAction.INSTANCE,
-                RetryAction.INSTANCE
+                RetryAction.INSTANCE,
+                TransportFreezeIndexAction.FreezeIndexAction.INSTANCE
         );
     }
 

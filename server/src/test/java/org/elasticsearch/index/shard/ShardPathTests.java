@@ -43,8 +43,10 @@ public class ShardPathTests extends ESTestCase {
             ShardId shardId = new ShardId("foo", "0xDEADBEEF", 0);
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);
-            ShardStateMetaData.FORMAT.write(new ShardStateMetaData(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
-            ShardPath shardPath = ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings));
+            ShardStateMetaData.FORMAT.write(new ShardStateMetaData(true, "0xDEADBEEF",
+                AllocationId.newInitializing()), path);
+            ShardPath shardPath =
+                ShardPath.loadShardPath(logger, env, shardId, IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings));
             assertEquals(path, shardPath.getDataPath());
             assertEquals("0xDEADBEEF", shardPath.getShardId().getIndex().getUUID());
             assertEquals("foo", shardPath.getShardId().getIndexName());
@@ -87,7 +89,8 @@ public class ShardPathTests extends ESTestCase {
     public void testIllegalCustomDataPath() {
         Index index = new Index("foo", "foo");
         final Path path = createTempDir().resolve(index.getUUID()).resolve("0");
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new ShardPath(true, path, path, new ShardId(index, 0)));
+        Exception e = expectThrows(IllegalArgumentException.class, () ->
+            new ShardPath(true, path, path, new ShardId(index, 0)));
         assertThat(e.getMessage(), is("shard state path must be different to the data path when using custom data paths"));
     }
 

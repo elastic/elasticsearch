@@ -225,12 +225,6 @@ public class ElasticsearchMappings {
                 .startObject(AnalysisConfig.INFLUENCERS.getPreferredName())
                     .field(TYPE, KEYWORD)
                 .endObject()
-                .startObject(AnalysisConfig.OVERLAPPING_BUCKETS.getPreferredName())
-                    .field(TYPE, BOOLEAN)
-                .endObject()
-                .startObject(AnalysisConfig.RESULT_FINALIZATION_WINDOW.getPreferredName())
-                    .field(TYPE, LONG)   // TODO This should be made a time value
-                .endObject()
                 .startObject(AnalysisConfig.MULTIVARIATE_BY_FIELDS.getPreferredName())
                     .field(TYPE, BOOLEAN)
                 .endObject()

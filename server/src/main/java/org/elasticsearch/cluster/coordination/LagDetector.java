@@ -80,12 +80,13 @@ public class LagDetector {
     }
 
     public void setAppliedVersion(final DiscoveryNode discoveryNode, final long appliedVersion) {
-        final NodeAppliedStateTracker nodeAppliedStateTracker = appliedStateTrackersByNode.get(discoveryNode);
-        if (nodeAppliedStateTracker == null) {
-            logger.trace("node {} applied version {} but this node's version is not being tracked", discoveryNode, appliedVersion);
-        } else {
-            nodeAppliedStateTracker.increaseAppliedVersion(appliedVersion);
+        if (discoveryNode.equals(localNodeSupplier.get())) {
+            return;
         }
+
+        final NodeAppliedStateTracker nodeAppliedStateTracker = appliedStateTrackersByNode.get(discoveryNode);
+        assert nodeAppliedStateTracker != null : "untracked node " + discoveryNode + " applied version " + appliedVersion;
+        nodeAppliedStateTracker.increaseAppliedVersion(appliedVersion);
     }
 
     public void startLagDetector(final long version) {

@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunct
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.CoalesceProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
@@ -30,8 +32,12 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Unar
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
+import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.time.Duration;
+import java.time.Period;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
@@ -146,19 +152,19 @@ public final class InternalSqlScriptUtils {
     //
     // Math
     //
-    public static Number add(Number left, Number right) {
+    public static Object add(Object left, Object right) {
         return BinaryArithmeticOperation.ADD.apply(left, right);
     }
 
-    public static Number div(Number left, Number right) {
+    public static Object div(Object left, Object right) {
         return BinaryArithmeticOperation.DIV.apply(left, right);
     }
 
-    public static Number mod(Number left, Number right) {
+    public static Object mod(Object left, Object right) {
         return BinaryArithmeticOperation.MOD.apply(left, right);
     }
 
-    public static Number mul(Number left, Number right) {
+    public static Object mul(Object left, Object right) {
         return BinaryArithmeticOperation.MUL.apply(left, right);
     }
 
@@ -166,7 +172,7 @@ public final class InternalSqlScriptUtils {
         return UnaryArithmeticOperation.NEGATE.apply(value);
     }
 
-    public static Number sub(Number left, Number right) {
+    public static Object sub(Object left, Object right) {
         return BinaryArithmeticOperation.SUB.apply(left, right);
     }
 
@@ -305,13 +311,35 @@ public final class InternalSqlScriptUtils {
         return QuarterProcessor.quarter(asDateTime(dateTime), tzId);
     }
 
-    private static ZonedDateTime asDateTime(Object dateTime) {
+    public static ZonedDateTime asDateTime(Object dateTime) {
         if (dateTime instanceof JodaCompatibleZonedDateTime) {
             return ((JodaCompatibleZonedDateTime) dateTime).getZonedDateTime();
         }
+        if (dateTime instanceof ZonedDateTime) {
+            return (ZonedDateTime) dateTime;
+        }
+        if (dateTime instanceof Number) {
+            return DateUtils.of(((Number) dateTime).longValue());
+        }
+
         throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
     }
     
+    public static IntervalDayTime intervalDayTime(String text, String typeName) {
+        if (text == null || typeName == null) {
+            return null;
+        }
+        return new IntervalDayTime(Duration.parse(text), DataType.fromTypeName(typeName));
+    }
+
+    public static IntervalYearMonth intervalYearMonth(String text, String typeName) {
+        if (text == null || typeName == null) {
+            return null;
+        }
+
+        return new IntervalYearMonth(Period.parse(text), DataType.fromTypeName(typeName));
+    }
+
     //
     // String functions
     //

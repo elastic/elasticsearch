@@ -16,7 +16,6 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.type.DataType;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -65,11 +64,11 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
             List<SqlTypedParamValue> arr = new ArrayList<>(len);
             for (int i = 0; i < len; i++) {
                 @SuppressWarnings("unchecked") Supplier<SqlTypedParamValue> supplier = randomFrom(
-                        () -> new SqlTypedParamValue(DataType.BOOLEAN, randomBoolean()),
-                        () -> new SqlTypedParamValue(DataType.LONG, randomLong()),
-                        () -> new SqlTypedParamValue(DataType.DOUBLE, randomDouble()),
-                        () -> new SqlTypedParamValue(DataType.NULL, null),
-                        () -> new SqlTypedParamValue(DataType.KEYWORD, randomAlphaOfLength(10))
+                        () -> new SqlTypedParamValue("boolean", randomBoolean()),
+                        () -> new SqlTypedParamValue("long", randomLong()),
+                        () -> new SqlTypedParamValue("double", randomDouble()),
+                        () -> new SqlTypedParamValue("null", null),
+                        () -> new SqlTypedParamValue("keyword", randomAlphaOfLength(10))
                 );
                 arr.add(supplier.get());
             }

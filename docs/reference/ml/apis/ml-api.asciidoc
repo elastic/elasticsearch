@@ -76,6 +76,12 @@ machine learning APIs and in advanced job configuration options in Kibana.
 
 * <<ml-find-file-structure,Find file structure>>
 
+[float]
+[[ml-api-ml-info-endpoint]]
+=== Info
+
+* <<get-ml-info,Machine learning info>>
+
 //ADD
 include::post-calendar-event.asciidoc[]
 include::put-calendar-job.asciidoc[]
@@ -111,6 +117,7 @@ include::get-datafeed-stats.asciidoc[]
 include::get-influencer.asciidoc[]
 include::get-job.asciidoc[]
 include::get-job-stats.asciidoc[]
+include::get-ml-info.asciidoc[]
 include::get-snapshot.asciidoc[]
 include::get-calendar-event.asciidoc[]
 include::get-filter.asciidoc[]

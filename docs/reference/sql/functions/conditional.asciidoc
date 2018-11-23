@@ -44,3 +44,114 @@ include-tagged::{sql-specs}/docs.csv-spec[coalesceReturnNonNull]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[coalesceReturnNull]
 ----
+
+
+[[sql-functions-conditional-ifnull]]
+==== `IFNULL`
+
+.Synopsis
+[source, sql]
+----
+IFNULL ( expression<1>, expression<2> )
+----
+
+*Input*:
+
+<1> 1st expression
+
+<2> 2nd expression
+
+
+*Output*: 2nd expression if 1st expression is null, otherwise 1st expression.
+
+.Description
+
+Variant of <<sql-functions-conditional-coalesce>> with only two arguments.
+Returns the first of its arguments that is not null.
+If all arguments are null, then it returns `null`.
+
+
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[ifNullReturnFirst]
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[ifNullReturnSecond]
+----
+
+
+[[sql-functions-conditional-isnull]]
+==== `ISNULL`
+
+.Synopsis
+[source, sql]
+----
+ISNULL ( expression<1>, expression<2> )
+----
+
+*Input*:
+
+<1> 1st expression
+
+<2> 2nd expression
+
+
+*Output*: 2nd expression if 1st expression is null, otherwise 1st expression.
+
+.Description
+
+Variant of <<sql-functions-conditional-coalesce>> with only two arguments.
+Returns the first of its arguments that is not null.
+If all arguments are null, then it returns `null`.
+
+
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[isNullReturnFirst]
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[isNullReturnSecond]
+----
+
+
+[[sql-functions-conditional-nvl]]
+==== `NVL`
+
+.Synopsis
+[source, sql]
+----
+NVL ( expression<1>, expression<2> )
+----
+
+*Input*:
+
+<1> 1st expression
+
+<2> 2nd expression
+
+
+*Output*: 2nd expression if 1st expression is null, otherwise 1st expression.
+
+.Description
+
+Variant of <<sql-functions-conditional-coalesce>> with only two arguments.
+Returns the first of its arguments that is not null.
+If all arguments are null, then it returns `null`.
+
+
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[nvlReturnFirst]
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[nvlReturnSecond]
+----

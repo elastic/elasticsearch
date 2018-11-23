@@ -953,11 +953,11 @@ public class TransportReplicationActionTests extends ESTestCase {
             logger.debug("got exception:" , throwable);
             assertTrue(throwable.getClass() + " is not a retry exception", action.retryPrimaryException(throwable));
             if (wrongAllocationId) {
-                assertThat(throwable.getMessage(), containsString("expected aID [_not_a_valid_aid_] but found [" +
+                assertThat(throwable.getMessage(), containsString("expected allocation id [_not_a_valid_aid_] but found [" +
                     primary.allocationId().getId() + "]"));
             } else {
-                assertThat(throwable.getMessage(), containsString("expected aID [" + primary.allocationId().getId() + "] with term [" +
-                    requestTerm + "] but found [" + primaryTerm + "]"));
+                assertThat(throwable.getMessage(), containsString("expected allocation id [" + primary.allocationId().getId()
+                    + "] with term [" + requestTerm + "] but found [" + primaryTerm + "]"));
             }
         }
     }

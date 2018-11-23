@@ -203,7 +203,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 search.addParameter("preference", "_only_nodes:" + node);
                 Map<String, Object> responseBody = entityAsMap(client().performRequest(search));
                 assertNoFailures(responseBody);
-                int hits = (int) XContentMapValues.extractValue("hits.total", responseBody);
+                int hits = (int) XContentMapValues.extractValue("hits.total.value", responseBody);
                 counts.add(hits);
             }
             assertEquals("All nodes should have a consistent number of documents", 1, counts.size());
@@ -268,7 +268,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // We can read from the alias just like we can read from the index.
         String aliasName = "%23" + index; // %23 == #
         Map<String, Object> searchRsp = entityAsMap(client().performRequest(new Request("GET", "/" + aliasName + "/_search")));
-        int totalHits = (int) XContentMapValues.extractValue("hits.total", searchRsp);
+        int totalHits = (int) XContentMapValues.extractValue("hits.total.value", searchRsp);
         assertEquals(count, totalHits);
         if (isRunningAgainstOldCluster() == false) {
             // We can remove the alias.
@@ -380,7 +380,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(totalShards, greaterThan(1));
         int successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
         assertEquals(totalShards, successfulShards);
-        int totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+        int totalHits = (int) XContentMapValues.extractValue("hits.total.value", response);
         assertEquals(numDocs, totalHits);
 
         response = entityAsMap(client().performRequest(new Request("GET", "/" + shrunkenIndex+ "/_search")));
@@ -389,7 +389,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(1, totalShards);
         successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
         assertEquals(1, successfulShards);
-        totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+        totalHits = (int) XContentMapValues.extractValue("hits.total.value", response);
         assertEquals(numDocs, totalHits);
     }
 
@@ -445,7 +445,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(totalShards, greaterThan(1));
         int successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
         assertEquals(totalShards, successfulShards);
-        int totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+        int totalHits = (int) XContentMapValues.extractValue("hits.total.value", response);
         assertEquals(numDocs, totalHits);
 
         if (isRunningAgainstOldCluster() == false) {
@@ -455,7 +455,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertEquals(1, totalShards);
             successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
             assertEquals(1, successfulShards);
-            totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+            totalHits = (int) XContentMapValues.extractValue("hits.total.value", response);
             assertEquals(numDocs, totalHits);
         }
     }
@@ -513,7 +513,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertNoFailures(count);
 
         int expectedCount = bulkCount + (isRunningAgainstOldCluster() ? 0 : bulkCount);
-        assertEquals(expectedCount, (int) XContentMapValues.extractValue("hits.total", count));
+        assertEquals(expectedCount, (int) XContentMapValues.extractValue("hits.total.value", count));
     }
 
     void assertBasicSearchWorks(int count) throws IOException {
@@ -521,7 +521,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         {
             Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
             assertNoFailures(response);
-            int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+            int numDocs = (int) XContentMapValues.extractValue("hits.total.value", response);
             logger.info("Found {} in old index", numDocs);
             assertEquals(count, numDocs);
         }
@@ -660,7 +660,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     static void assertTotalHits(int expectedTotalHits, Map<?, ?> response) {
-        int actualTotalHits = (Integer) XContentMapValues.extractValue("hits.total", response);
+        int actualTotalHits = (Integer) XContentMapValues.extractValue("hits.total.value", response);
         assertEquals(expectedTotalHits, actualTotalHits);
     }
 

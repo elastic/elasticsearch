@@ -99,17 +99,17 @@ public class AddVotingTombstonesRequestTests extends ESTestCase {
                 .coordinationMetaData(CoordinationMetaData.builder().addVotingTombstone(otherNode1Tombstone).build()));
         final ClusterState clusterState = builder.build();
 
-        assertThat(makeRequest().resolveVotingTombstones(clusterState, 3, "setting.name"),
+        assertThat(makeRequest().resolveVotingTombstonesAndCheckMaximum(clusterState, 3, "setting.name"),
                 containsInAnyOrder(localNodeTombstone, otherNode2Tombstone));
-        assertThat(makeRequest("_local").resolveVotingTombstones(clusterState, 2, "setting.name"),
+        assertThat(makeRequest("_local").resolveVotingTombstonesAndCheckMaximum(clusterState, 2, "setting.name"),
                 contains(localNodeTombstone));
 
         assertThat(expectThrows(IllegalArgumentException.class,
-            () -> makeRequest().resolveVotingTombstones(clusterState, 2, "setting.name")).getMessage(),
+            () -> makeRequest().resolveVotingTombstonesAndCheckMaximum(clusterState, 2, "setting.name")).getMessage(),
             equalTo("add voting tombstones request for [] would add [2] voting tombstones to the existing [1] which would exceed the " +
                 "maximum of [2] set by [setting.name]"));
         assertThat(expectThrows(IllegalArgumentException.class,
-            () -> makeRequest("_local").resolveVotingTombstones(clusterState, 1, "setting.name")).getMessage(),
+            () -> makeRequest("_local").resolveVotingTombstonesAndCheckMaximum(clusterState, 1, "setting.name")).getMessage(),
             equalTo("add voting tombstones request for [_local] would add [1] voting tombstones to the existing [1] which would exceed " +
                 "the maximum of [1] set by [setting.name]"));
     }

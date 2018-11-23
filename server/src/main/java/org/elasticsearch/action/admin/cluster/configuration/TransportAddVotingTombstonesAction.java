@@ -146,7 +146,7 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
     }
 
     private static Set<VotingTombstone> resolveVotingTombstonesAndCheckMaximum(AddVotingTombstonesRequest request, ClusterState state) {
-        return request.resolveVotingTombstones(state,
+        return request.resolveVotingTombstonesAndCheckMaximum(state,
             MAXIMUM_VOTING_TOMBSTONES_SETTING.get(state.metaData().settings()), MAXIMUM_VOTING_TOMBSTONES_SETTING.getKey());
     }
 

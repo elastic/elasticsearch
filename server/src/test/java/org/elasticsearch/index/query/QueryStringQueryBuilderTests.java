@@ -1431,6 +1431,17 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
     }
 
+    public void testAnalyzedPrefix() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        Query query = new QueryStringQueryBuilder("quick* @&*")
+            .field(STRING_FIELD_NAME)
+            .analyzer("standard")
+            .analyzeWildcard(true)
+            .toQuery(createShardContext());
+        Query expected = new PrefixQuery(new Term(STRING_FIELD_NAME, "quick"));
+        assertEquals(expected, query);
+    }
+
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings)
             .put(indexSettings)

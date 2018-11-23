@@ -39,7 +39,7 @@
         },
         "wait_for_timeout" : {
           "type": "time",
-          "description": "The maximum time to wait for wait_for_metadata_version before stop waiting and then the last observed cluster state is returned"
+          "description": "The maximum time to wait for wait_for_metadata_version before timing out"
         },
         "ignore_unavailable": {
             "type" : "boolean",

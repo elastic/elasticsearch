@@ -187,7 +187,8 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
 
     public ClusterStateRequest waitForMetaDataVersion(long waitForMetaDataVersion) {
         if (waitForMetaDataVersion < 1) {
-            throw new IllegalArgumentException("waitForMetaDataVersion should be >= 1");
+            throw new IllegalArgumentException("provided waitForMetaDataVersion should be >= 1, but instead is [" +
+                waitForMetaDataVersion + "]");
         }
         this.waitForMetaDataVersion = waitForMetaDataVersion;
         return this;

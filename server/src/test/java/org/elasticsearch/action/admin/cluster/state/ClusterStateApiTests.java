@@ -34,6 +34,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
 
     public void testWaitForMetaDataVersion() throws Exception {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.waitForTimeout(TimeValue.timeValueHours(1));
         ActionFuture<ClusterStateResponse> future1 = client().admin().cluster().state(clusterStateRequest);
         assertThat(future1.isDone(), is(true));
         assertThat(future1.actionGet().isWaitForTimedOut(), is(false));
@@ -42,7 +43,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
         // Verify that cluster state api returns after the cluster settings have been updated:
         clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.waitForMetaDataVersion(metadataVersion + 1);
-        clusterStateRequest.waitForTimeout(TimeValue.timeValueSeconds(1)); // Fail fast
+
         ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(clusterStateRequest);
         assertThat(future2.isDone(), is(false));
 
@@ -61,6 +62,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
         // Verify that the timed out property has been set"
         metadataVersion = response.getState().getMetaData().version();
         clusterStateRequest.waitForMetaDataVersion(metadataVersion + 1);
+        clusterStateRequest.waitForTimeout(TimeValue.timeValueSeconds(1)); // Fail fast
         ActionFuture<ClusterStateResponse> future3 = client().admin().cluster().state(clusterStateRequest);
         assertBusy(() -> {
             assertThat(future3.isDone(), is(true));

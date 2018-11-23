@@ -80,8 +80,8 @@ public class ClusterStateResponse extends ActionResponse {
     }
 
     /**
-     * Returns whether waiting for a cluster state wait a metadata version equal or higher than the specified
-     * metadata version timed out.
+     * Returns whether the request timed out waiting for a cluster state with a metadata version equal or
+     * higher than the specified metadata.
      */
     public boolean isWaitForTimedOut() {
         return waitForTimedOut;

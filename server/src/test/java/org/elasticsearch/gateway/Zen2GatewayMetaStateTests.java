@@ -34,7 +34,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportService;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -44,11 +43,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class Zen2GatewayMetaStateTests extends ESTestCase {
-    private class Zen2GatewayMetaStateUT extends Zen2GatewayMetaState {
-        Zen2GatewayMetaStateUT(Settings settings, NodeEnvironment nodeEnvironment, TransportService transportService) throws IOException {
+    private class GatewayMetaStateUT extends GatewayMetaState {
+        GatewayMetaStateUT(Settings settings, NodeEnvironment nodeEnvironment) throws IOException {
             super(settings, nodeEnvironment, new MetaStateService(nodeEnvironment, xContentRegistry()),
-                    Mockito.mock(MetaDataIndexUpgradeService.class), Mockito.mock(MetaDataUpgrader.class),
-                    transportService);
+                    Mockito.mock(MetaDataIndexUpgradeService.class), Mockito.mock(MetaDataUpgrader.class));
         }
 
         @Override
@@ -60,7 +58,6 @@ public class Zen2GatewayMetaStateTests extends ESTestCase {
     private NodeEnvironment nodeEnvironment;
     private ClusterName clusterName;
     private Settings settings;
-    private TransportService transportService;
     private DiscoveryNode localNode;
 
     @Override
@@ -70,8 +67,6 @@ public class Zen2GatewayMetaStateTests extends ESTestCase {
                 Sets.newHashSet(DiscoveryNode.Role.MASTER), Version.CURRENT);
         clusterName = new ClusterName(randomAlphaOfLength(10));
         settings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value()).build();
-        transportService = Mockito.mock(TransportService.class);
-        Mockito.when(transportService.getLocalNode()).thenReturn(localNode);
         super.setUp();
     }
 
@@ -81,11 +76,13 @@ public class Zen2GatewayMetaStateTests extends ESTestCase {
         super.tearDown();
     }
 
-    private Zen2GatewayMetaStateUT newGateway() throws IOException {
-        return new Zen2GatewayMetaStateUT(settings, nodeEnvironment, transportService);
+    private GatewayMetaStateUT newGateway() throws IOException {
+        GatewayMetaStateUT gateway = new GatewayMetaStateUT(settings, nodeEnvironment);
+        gateway.setLocalNode(localNode);
+        return gateway;
     }
 
-    private Zen2GatewayMetaStateUT maybeNew(Zen2GatewayMetaStateUT gateway) throws IOException {
+    private GatewayMetaStateUT maybeNew(GatewayMetaStateUT gateway) throws IOException {
         if (randomBoolean()) {
             return newGateway();
         }
@@ -93,7 +90,7 @@ public class Zen2GatewayMetaStateTests extends ESTestCase {
     }
 
     public void testInitialState() throws IOException {
-        Zen2GatewayMetaStateUT gateway = newGateway();
+        GatewayMetaStateUT gateway = newGateway();
         ClusterState state = gateway.getLastAcceptedState();
         assertThat(state.getClusterName(), equalTo(clusterName));
         assertTrue(MetaData.isGlobalStateEquals(state.metaData(), MetaData.EMPTY_META_DATA));
@@ -105,7 +102,7 @@ public class Zen2GatewayMetaStateTests extends ESTestCase {
     }
 
     public void testSetCurrentTerm() throws IOException {
-        Zen2GatewayMetaStateUT gateway = newGateway();
+        GatewayMetaStateUT gateway = newGateway();
 
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             final long currentTerm = randomNonNegativeLong();
@@ -157,7 +154,7 @@ public class Zen2GatewayMetaStateTests extends ESTestCase {
     }
 
     public void testSetLastAcceptedState() throws IOException {
-        Zen2GatewayMetaStateUT gateway = newGateway();
+        GatewayMetaStateUT gateway = newGateway();
         final long term = randomNonNegativeLong();
 
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
@@ -180,7 +177,7 @@ public class Zen2GatewayMetaStateTests extends ESTestCase {
     }
 
     public void testSetLastAcceptedStateTermChanged() throws IOException {
-        Zen2GatewayMetaStateUT gateway = newGateway();
+        GatewayMetaStateUT gateway = newGateway();
 
         final String indexName = randomAlphaOfLength(10);
         final int numberOfShards = randomIntBetween(1, 5);
@@ -204,7 +201,7 @@ public class Zen2GatewayMetaStateTests extends ESTestCase {
     }
 
     public void testCurrentTermAndTermAreDifferent() throws IOException {
-        Zen2GatewayMetaStateUT gateway = newGateway();
+        GatewayMetaStateUT gateway = newGateway();
 
         long currentTerm = randomNonNegativeLong();
         long term  = randomValueOtherThan(currentTerm, () -> randomNonNegativeLong());
@@ -219,7 +216,7 @@ public class Zen2GatewayMetaStateTests extends ESTestCase {
     }
 
     public void testMarkAcceptedConfigAsCommitted() throws IOException {
-        Zen2GatewayMetaStateUT gateway = newGateway();
+        GatewayMetaStateUT gateway = newGateway();
 
         CoordinationMetaData coordinationMetaData = createCoordinationMetaData(randomNonNegativeLong());
         ClusterState state = createClusterState(randomNonNegativeLong(),

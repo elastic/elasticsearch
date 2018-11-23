@@ -416,7 +416,7 @@ public class MetaDataTests extends ESTestCase {
     }
 
     private Set<VotingTombstone> randomVotingTombstones() {
-        final int size = randomIntBetween(1, 10);
+        final int size = randomIntBetween(0, 10);
         final Set<VotingTombstone> nodes = new HashSet<>(size);
         while (nodes.size() < size) {
             assertTrue(nodes.add(new VotingTombstone(randomAlphaOfLength(10), randomAlphaOfLength(10))));

@@ -940,7 +940,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                         .prepareSearch(indexName)
                         .setTypes(IndexAuditTrail.DOC_TYPE)
                         .get();
-                if (searchResponse.getHits().getTotalHits() > 0L) {
+                if (searchResponse.getHits().getTotalHits().value > 0L) {
                     searchResponseSetOnce.set(searchResponse);
                     return true;
                 }
@@ -953,7 +953,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         SearchResponse response = searchResponseSetOnce.get();
         assertNotNull(response);
 
-        assertEquals(1, response.getHits().getTotalHits());
+        assertEquals(1, response.getHits().getTotalHits().value);
         return response.getHits().getHits()[0];
     }
 

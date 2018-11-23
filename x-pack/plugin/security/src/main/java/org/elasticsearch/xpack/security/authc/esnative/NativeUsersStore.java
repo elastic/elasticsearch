@@ -179,7 +179,7 @@ public class NativeUsersStore {
                     new ActionListener<SearchResponse>() {
                         @Override
                         public void onResponse(SearchResponse response) {
-                            listener.onResponse(response.getHits().getTotalHits());
+                            listener.onResponse(response.getHits().getTotalHits().value);
                         }
 
                         @Override
@@ -582,7 +582,7 @@ public class NativeUsersStore {
                         @Override
                         public void onResponse(SearchResponse searchResponse) {
                             Map<String, ReservedUserInfo> userInfos = new HashMap<>();
-                            assert searchResponse.getHits().getTotalHits() <= 10 :
+                            assert searchResponse.getHits().getTotalHits().value <= 10 :
                                 "there are more than 10 reserved users we need to change this to retrieve them all!";
                             for (SearchHit searchHit : searchResponse.getHits().getHits()) {
                                 Map<String, Object> sourceMap = searchHit.getSourceAsMap();

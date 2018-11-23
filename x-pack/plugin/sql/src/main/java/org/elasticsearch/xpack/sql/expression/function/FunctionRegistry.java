@@ -83,7 +83,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.IFNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -93,11 +94,13 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
@@ -108,6 +111,15 @@ import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toList;
 
 public class FunctionRegistry {
+
+    private static final Set<String> EXCLUDE_FROM_NAME_NORMALIZATION = new HashSet<>();
+
+    static {
+        EXCLUDE_FROM_NAME_NORMALIZATION.add(IfNull.class.getSimpleName());
+        EXCLUDE_FROM_NAME_NORMALIZATION.add(NullIf.class.getSimpleName());
+    }
+
+
     // list of functions grouped by type of functions (aggregate, statistics, math etc) and ordered alphabetically inside each group
     // a single function will have one entry for itself with its name associated to its instance and, also, one entry for each alias
     // it has with the alias name associated to the FunctionDefinition instance
@@ -146,7 +158,8 @@ public class FunctionRegistry {
         // Scalar functions
         // conditional
         addToMap(def(Coalesce.class, Coalesce::new));
-        addToMap(def(IFNull.class, IFNull::new, "ISNULL", "NVL"));
+        addToMap(def(IfNull.class, IfNull::new, "ISNULL", "NVL"));
+        addToMap(def(NullIf.class, NullIf::new));
         // Date
         addToMap(def(DayName.class, DayName::new, "DAYNAME"),
                 def(DayOfMonth.class, DayOfMonth::new, "DAYOFMONTH", "DAY", "DOM"),
@@ -485,7 +498,11 @@ public class FunctionRegistry {
     }
 
     private static String normalize(String name) {
-        // translate CamelCase to camel_case
+        if (EXCLUDE_FROM_NAME_NORMALIZATION.contains(name)) {
+            return name.toUpperCase(Locale.ROOT);
+        }
+
+        // translate CamelCase to CAMEL_CASE
         return StringUtils.camelCaseToUnderscore(name);
     }
 }

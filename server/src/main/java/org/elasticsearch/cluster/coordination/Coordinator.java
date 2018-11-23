@@ -517,9 +517,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse())
                 : preVoteCollector + " vs " + getPreVoteResponse();
 
-            final Set<DiscoveryNode> lagDetectorTrackedNodes = new HashSet<>(lagDetector.getTrackedNodes());
-            assert lagDetectorTrackedNodes.contains(getLocalNode()) == false;
-            assert followersChecker.getKnownFollowers().equals(lagDetectorTrackedNodes);
+            assert lagDetector.getTrackedNodes().contains(getLocalNode()) == false : lagDetector.getTrackedNodes();
+            assert followersChecker.getKnownFollowers().equals(lagDetector.getTrackedNodes())
+                : followersChecker.getKnownFollowers() + " vs " + lagDetector.getTrackedNodes();
 
             if (mode == Mode.LEADER) {
                 final boolean becomingMaster = getStateForMasterService().term() != getCurrentTerm();

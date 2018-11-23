@@ -51,7 +51,7 @@ public final class GetRolesResponse {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-            roles.add(Role.PARSER.parse(parser, null));
+            roles.add(Role.PARSER.parse(parser, parser.currentName()));
         }
         return new GetRolesResponse(roles);
     }

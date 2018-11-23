@@ -27,7 +27,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Request object to retrieve roles from the security index
+ * Request object to retrieve roles from the native roles store
  */
 public final class GetRolesRequest implements Validatable {
 

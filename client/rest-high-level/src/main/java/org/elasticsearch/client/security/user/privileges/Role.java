@@ -22,14 +22,9 @@ package org.elasticsearch.client.security.user.privileges;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -42,10 +37,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Represents an aggregation of privileges. This does not have a name
- * identifier.
+ * Represents an aggregation of privileges.
  */
-public final class Role implements ToXContentObject {
+public final class Role {
 
     public static final ParseField CLUSTER = new ParseField("cluster");
     public static final ParseField GLOBAL = new ParseField("global");
@@ -56,8 +50,8 @@ public final class Role implements ToXContentObject {
     public static final ParseField TRANSIENT_METADATA = new ParseField("transient_metadata");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Role, Void> PARSER = new ConstructingObjectParser<>("role_descriptor", false,
-            constructorObjects -> {
+    public static final ConstructingObjectParser<Role, String> PARSER = new ConstructingObjectParser<>("role_descriptor", false,
+        (constructorObjects, roleName) -> {
                 // Don't ignore unknown fields. It is dangerous if the object we parse is also
                 // part of a request that we build later on, and the fields that we now ignore
                 // will end up being implicitly set to null in that request.
@@ -70,20 +64,23 @@ public final class Role implements ToXContentObject {
                 final Collection<String> runAsPrivilege = (Collection<String>) constructorObjects[i++];
                 final Map<String, Object> metadata = (Map<String, Object>) constructorObjects[i++];
                 final Map<String, Object> transientMetadata = (Map<String, Object>) constructorObjects[i];
-                return new Role(clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
+            return new Role(roleName, clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
                     runAsPrivilege, metadata, transientMetadata);
             });
 
     static {
         PARSER.declareStringArray(optionalConstructorArg(), CLUSTER);
-        PARSER.declareObject(optionalConstructorArg(), GlobalPrivileges.PARSER, GLOBAL);
-        PARSER.declareFieldArray(optionalConstructorArg(), IndicesPrivileges.PARSER, INDICES, ValueType.OBJECT_ARRAY);
-        PARSER.declareFieldArray(optionalConstructorArg(), ApplicationResourcePrivileges.PARSER, APPLICATIONS, ValueType.OBJECT_ARRAY);
+        PARSER.declareObject(optionalConstructorArg(), (parser,c)-> GlobalPrivileges.PARSER.parse(parser,null), GLOBAL);
+        PARSER.declareFieldArray(optionalConstructorArg(), (parser,c)->IndicesPrivileges.PARSER.parse(parser,null), INDICES,
+            ValueType.OBJECT_ARRAY);
+        PARSER.declareFieldArray(optionalConstructorArg(), (parser,c)->ApplicationResourcePrivileges.PARSER.parse(parser,null),
+            APPLICATIONS, ValueType.OBJECT_ARRAY);
         PARSER.declareStringArray(optionalConstructorArg(), RUN_AS);
         PARSER.declareObject(constructorArg(), (parser, c) -> parser.map(), METADATA);
-        PARSER.declareObject(optionalConstructorArg(), (parser, c) -> parser.map(), TRANSIENT_METADATA);
+        PARSER.declareObject(constructorArg(), (parser, c) -> parser.map(), TRANSIENT_METADATA);
     }
 
+    private final String name;
     private final Set<String> clusterPrivileges;
     private final @Nullable GlobalPrivileges globalApplicationPrivileges;
     private final Set<IndicesPrivileges> indicesPrivileges;
@@ -92,11 +89,13 @@ public final class Role implements ToXContentObject {
     private final Map<String, Object> metadata;
     private final Map<String, Object> transientMetadata;
 
-    private Role(@Nullable Collection<String> clusterPrivileges, @Nullable GlobalPrivileges globalApplicationPrivileges,
+    private Role(@Nullable String name, @Nullable Collection<String> clusterPrivileges,
+                 @Nullable GlobalPrivileges globalApplicationPrivileges,
                  @Nullable Collection<IndicesPrivileges> indicesPrivileges,
                  @Nullable Collection<ApplicationResourcePrivileges> applicationResourcePrivileges,
                  @Nullable Collection<String> runAsPrivilege, @Nullable Map<String, Object> metadata,
                  @Nullable Map<String, Object> transientMetadata) {
+        this.name = name;
         // no cluster privileges are granted unless otherwise specified
         this.clusterPrivileges = Collections
                 .unmodifiableSet(clusterPrivileges != null ? new HashSet<>(clusterPrivileges) : Collections.emptySet());
@@ -111,6 +110,10 @@ public final class Role implements ToXContentObject {
         this.runAsPrivilege = Collections.unmodifiableSet(runAsPrivilege != null ? new HashSet<>(runAsPrivilege) : Collections.emptySet());
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
         this.transientMetadata = transientMetadata != null ? Collections.unmodifiableMap(transientMetadata) : Collections.emptyMap();
+    }
+
+    public String getName() {
+        return name;
     }
 
     public Set<String> getClusterPrivileges() {
@@ -142,7 +145,8 @@ public final class Role implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Role that = (Role) o;
-        return clusterPrivileges.equals(that.clusterPrivileges)
+        return name.equals(that.name)
+            && clusterPrivileges.equals(that.clusterPrivileges)
             && Objects.equals(globalApplicationPrivileges, that.globalApplicationPrivileges)
             && indicesPrivileges.equals(that.indicesPrivileges)
             && applicationResourcePrivileges.equals(that.applicationResourcePrivileges)
@@ -153,48 +157,55 @@ public final class Role implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
+        return Objects.hash(name, clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
             runAsPrivilege, metadata, transientMetadata);
     }
 
     @Override
     public String toString() {
-        try {
-            return XContentHelper.toXContent(this, XContentType.JSON, true).utf8ToString();
-        } catch (IOException e) {
-            throw new RuntimeException("Unexpected", e);
-        }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+        StringBuilder sb = new StringBuilder("{");
+        sb.append("Name=").append(name).append(",");
         if (false == clusterPrivileges.isEmpty()) {
-            builder.field(CLUSTER.getPreferredName(), clusterPrivileges);
+            sb.append("ClusterPrivileges=");
+            sb.append(clusterPrivileges.toString());
+            sb.append(", ");
         }
-        if (null != globalApplicationPrivileges) {
-            builder.field(GLOBAL.getPreferredName(), globalApplicationPrivileges);
+        if (globalApplicationPrivileges != null) {
+            sb.append("GlobalApplcationPrivileges=");
+            sb.append(globalApplicationPrivileges.toString());
+            sb.append(", ");
         }
         if (false == indicesPrivileges.isEmpty()) {
-            builder.field(INDICES.getPreferredName(), indicesPrivileges);
+            sb.append("IndicesPrivileges=");
+            sb.append(indicesPrivileges.toString());
+            sb.append(", ");
         }
         if (false == applicationResourcePrivileges.isEmpty()) {
-            builder.field(APPLICATIONS.getPreferredName(), applicationResourcePrivileges);
+            sb.append("ApplicationPrivileges=");
+            sb.append(applicationResourcePrivileges.toString());
+            sb.append(", ");
         }
         if (false == runAsPrivilege.isEmpty()) {
-            builder.field(RUN_AS.getPreferredName(), runAsPrivilege);
+            sb.append("RunAsPrivilege=");
+            sb.append(runAsPrivilege.toString());
+            sb.append(", ");
         }
         if (false == metadata.isEmpty()) {
-            builder.field(METADATA.getPreferredName(), metadata);
+            sb.append("Metadata=[");
+            sb.append(metadata.toString());
+            sb.append("], ");
         }
         if (false == transientMetadata.isEmpty()) {
-            builder.field(TRANSIENT_METADATA.getPreferredName(), transientMetadata);
+            sb.append("TransientMetadata=[");
+            sb.append(transientMetadata.toString());
+            sb.append("] ");
         }
-        return builder.endObject();
+        sb.append("}");
+        return sb.toString();
     }
 
-    public static Role fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static Role fromXContent(XContentParser parser, String name) {
+        return PARSER.apply(parser, name);
     }
 
     public static Builder builder() {
@@ -203,6 +214,8 @@ public final class Role implements ToXContentObject {
 
     public static final class Builder {
 
+        private @Nullable
+        String name = null;
         private @Nullable Collection<String> clusterPrivileges = null;
         private @Nullable GlobalPrivileges globalApplicationPrivileges = null;
         private @Nullable Collection<IndicesPrivileges> indicesPrivileges = null;
@@ -212,6 +225,11 @@ public final class Role implements ToXContentObject {
         private @Nullable Map<String, Object> transientMetadata = null;
 
         private Builder() {
+        }
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
         }
 
         public Builder clusterPrivileges(String... clusterPrivileges) {
@@ -275,7 +293,7 @@ public final class Role implements ToXContentObject {
         }
 
         public Role build() {
-            return new Role(clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
+            return new Role(name, clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
                 runAsPrivilege, metadata, transientMetadata);
         }
     }

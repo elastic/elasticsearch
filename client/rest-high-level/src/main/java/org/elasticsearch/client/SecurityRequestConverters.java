@@ -178,7 +178,6 @@ final class SecurityRequestConverters {
             builder.addPathPart(Strings.collectionToCommaDelimitedString(getRolesRequest.getRoleNames()));
         }
         return new Request(HttpGet.METHOD_NAME, builder.build());
-
     }
 
     static Request createToken(CreateTokenRequest createTokenRequest) throws IOException {

@@ -114,11 +114,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 );
         return Arrays.asList(substitution, resolution);
     }
-    
+
     public LogicalPlan analyze(LogicalPlan plan) {
         return analyze(plan, true);
     }
-    
+
     public LogicalPlan analyze(LogicalPlan plan, boolean verify) {
         if (plan.analyzed()) {
             return plan;

@@ -145,7 +145,7 @@ public class SqlSession {
             }
         }
     }
-    
+
     public void optimizedPlan(LogicalPlan verified, ActionListener<LogicalPlan> listener) {
         analyzedPlan(verified, true, wrap(v -> listener.onResponse(optimizer.optimize(v)), listener::onFailure));
     }
@@ -157,7 +157,7 @@ public class SqlSession {
     public void sql(String sql, List<SqlTypedParamValue> params, ActionListener<SchemaRowSet> listener) {
         sqlExecutable(sql, params, wrap(e -> e.execute(this, listener), listener::onFailure));
     }
-    
+
     public void sqlExecutable(String sql, List<SqlTypedParamValue> params, ActionListener<PhysicalPlan> listener) {
         try {
             physicalPlan(doParse(sql, params), true, listener);

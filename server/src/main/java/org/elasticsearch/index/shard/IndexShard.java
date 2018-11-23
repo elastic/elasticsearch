@@ -2302,7 +2302,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexShardOperationPermits.acquire(onPermitAcquired, executorOnDelay, false, debugInfo);
     }
 
-    private <E extends Exception> void bumpPrimaryTerm(long newPrimaryTerm, final CheckedRunnable<E> onBlocked) {
+    /**
+     * Acquire all primary operation permits. Once all permits are acquired, the provided ActionListener is called.
+     * It is the responsibility of the caller to close the {@link Releasable}.
+     */
+    public void acquireAllPrimaryOperationsPermits(final ActionListener<Releasable> onPermitAcquired, final TimeValue timeout) {
+        verifyNotClosed();
+        assert shardRouting.primary() : "acquireAllPrimaryOperationsPermits should only be called on primary shard: " + shardRouting;
+
+        indexShardOperationPermits.asyncBlockOperations(onPermitAcquired, timeout.duration(), timeout.timeUnit());
+    }
+
+    private <E extends Exception> void bumpPrimaryTerm(final long newPrimaryTerm, final CheckedRunnable<E> onBlocked) {
         assert Thread.holdsLock(mutex);
         assert newPrimaryTerm > pendingPrimaryTerm;
         assert operationPrimaryTerm <= pendingPrimaryTerm;
@@ -2357,11 +2368,42 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void acquireReplicaOperationPermit(final long opPrimaryTerm, final long globalCheckpoint, final long maxSeqNoOfUpdatesOrDeletes,
                                               final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay,
                                               final Object debugInfo) {
+        innerAcquireReplicaOperationPermit(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onPermitAcquired,
+            (listener) -> indexShardOperationPermits.acquire(listener, executorOnDelay, true, debugInfo));
+    }
+
+    /**
+     * Acquire all replica operation permits whenever the shard is ready for indexing (see
+     * {@link #acquireAllPrimaryOperationsPermits(ActionListener, TimeValue)}. If the given primary term is lower than then one in
+     * {@link #shardRouting}, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with an
+     * {@link IllegalStateException}.
+     *
+     * @param opPrimaryTerm              the operation primary term
+     * @param globalCheckpoint           the global checkpoint associated with the request
+     * @param maxSeqNoOfUpdatesOrDeletes the max seq_no of updates (index operations overwrite Lucene) or deletes captured on the primary
+     *                                   after this replication request was executed on it (see {@link #getMaxSeqNoOfUpdatesOrDeletes()}
+     * @param onPermitAcquired           the listener for permit acquisition
+     * @param timeout                    the maximum time to wait for the in-flight operations block
+     */
+    public void acquireAllReplicaOperationsPermits(final long opPrimaryTerm,
+                                                   final long globalCheckpoint,
+                                                   final long maxSeqNoOfUpdatesOrDeletes,
+                                                   final ActionListener<Releasable> onPermitAcquired,
+                                                   final TimeValue timeout) {
+        innerAcquireReplicaOperationPermit(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onPermitAcquired,
+            (listener) -> indexShardOperationPermits.asyncBlockOperations(listener, timeout.duration(), timeout.timeUnit()));
+    }
+
+    private void innerAcquireReplicaOperationPermit(final long opPrimaryTerm,
+                                                    final long globalCheckpoint,
+                                                    final long maxSeqNoOfUpdatesOrDeletes,
+                                                    final ActionListener<Releasable> onPermitAcquired,
+                                                    final Consumer<ActionListener<Releasable>> consumer) {
         verifyNotClosed();
         if (opPrimaryTerm > pendingPrimaryTerm) {
             synchronized (mutex) {
                 if (opPrimaryTerm > pendingPrimaryTerm) {
-                    IndexShardState shardState = state();
+                    final IndexShardState shardState = state();
                     // only roll translog and update primary term if shard has made it past recovery
                     // Having a new primary term here means that the old primary failed and that there is a new primary, which again
                     // means that the master will fail this shard as all initializing shards are failed when a primary is selected
@@ -2373,58 +2415,54 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     if (opPrimaryTerm > pendingPrimaryTerm) {
                         bumpPrimaryTerm(opPrimaryTerm, () -> {
-                                updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
-                                final long currentGlobalCheckpoint = getGlobalCheckpoint();
-                                final long maxSeqNo = seqNoStats().getMaxSeqNo();
-                                logger.info("detected new primary with primary term [{}], global checkpoint [{}], max_seq_no [{}]",
-                                             opPrimaryTerm, currentGlobalCheckpoint, maxSeqNo);
-                                if (currentGlobalCheckpoint < maxSeqNo) {
-                                    resetEngineToGlobalCheckpoint();
-                                } else {
-                                    getEngine().rollTranslogGeneration();
-                                }
+                            updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
+                            final long currentGlobalCheckpoint = getGlobalCheckpoint();
+                            final long maxSeqNo = seqNoStats().getMaxSeqNo();
+                            logger.info("detected new primary with primary term [{}], global checkpoint [{}], max_seq_no [{}]",
+                                opPrimaryTerm, currentGlobalCheckpoint, maxSeqNo);
+                            if (currentGlobalCheckpoint < maxSeqNo) {
+                                resetEngineToGlobalCheckpoint();
+                            } else {
+                                getEngine().rollTranslogGeneration();
+                            }
                         });
                     }
                 }
             }
         }
-
         assert opPrimaryTerm <= pendingPrimaryTerm
-                : "operation primary term [" + opPrimaryTerm + "] should be at most [" + pendingPrimaryTerm + "]";
-        indexShardOperationPermits.acquire(
-                new ActionListener<Releasable>() {
-                    @Override
-                    public void onResponse(final Releasable releasable) {
-                        if (opPrimaryTerm < operationPrimaryTerm) {
-                            releasable.close();
-                            final String message = String.format(
-                                    Locale.ROOT,
-                                    "%s operation primary term [%d] is too old (current [%d])",
-                                    shardId,
-                                    opPrimaryTerm,
-                                    operationPrimaryTerm);
-                            onPermitAcquired.onFailure(new IllegalStateException(message));
-                        } else {
-                            assert assertReplicationTarget();
-                            try {
-                                updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
-                                advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes);
-                            } catch (Exception e) {
-                                releasable.close();
-                                onPermitAcquired.onFailure(e);
-                                return;
-                            }
-                            onPermitAcquired.onResponse(releasable);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(final Exception e) {
+            : "operation primary term [" + opPrimaryTerm + "] should be at most [" + pendingPrimaryTerm + "]";
+        consumer.accept(new ActionListener<Releasable>() {
+            @Override
+            public void onResponse(final Releasable releasable) {
+                if (opPrimaryTerm < operationPrimaryTerm) {
+                    releasable.close();
+                    final String message = String.format(
+                        Locale.ROOT,
+                        "%s operation primary term [%d] is too old (current [%d])",
+                        shardId,
+                        opPrimaryTerm,
+                        operationPrimaryTerm);
+                    onPermitAcquired.onFailure(new IllegalStateException(message));
+                } else {
+                    assert assertReplicationTarget();
+                    try {
+                        updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
+                        advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes);
+                    } catch (Exception e) {
+                        releasable.close();
                         onPermitAcquired.onFailure(e);
+                        return;
                     }
-                },
-                executorOnDelay,
-                true, debugInfo);
+                    onPermitAcquired.onResponse(releasable);
+                }
+            }
+
+            @Override
+            public void onFailure(final Exception e) {
+                onPermitAcquired.onFailure(e);
+            }
+        });
     }
 
     public int getActiveOperationsCount() {

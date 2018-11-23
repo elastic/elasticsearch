@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -129,7 +130,9 @@ public class Zen2GatewayMetaStateTests extends ESTestCase {
         builder.lastCommittedConfiguration(
                 new CoordinationMetaData.VotingConfiguration(
                         Sets.newHashSet(generateRandomStringArray(10, 10, false))));
-        //TODO add voting tombstones once xcontent is properly implemented for CoordinationMetaData
+        for (int i = 0; i < randomIntBetween(0, 5); i++) {
+            builder.addVotingTombstone(new VotingTombstone(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+        }
 
         return builder.build();
     }

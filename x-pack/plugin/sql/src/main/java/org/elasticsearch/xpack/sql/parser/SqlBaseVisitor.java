@@ -551,12 +551,6 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitInterval(SqlBaseParser.IntervalContext ctx);
   /**
-   * Visit a parse tree produced by {@link SqlBaseParser#intervalValue}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitIntervalValue(SqlBaseParser.IntervalValueContext ctx);
-  /**
    * Visit a parse tree produced by {@link SqlBaseParser#intervalField}.
    * @param ctx the parse tree
    * @return the visitor result

@@ -168,19 +168,6 @@ public class LagDetectorTests extends ESTestCase {
         assertThat(failedNodes, contains(node1));
     }
 
-    public void testDetectorIgnoresApplicationsFromUnknownNodes() {
-        lagDetector.setTrackedNodes(Collections.singletonList(node1));
-        lagDetector.startLagDetector(1);
-        lagDetector.setAppliedVersion(node2, 1);
-        deterministicTaskQueue.runAllTasks();
-        assertThat(failedNodes, contains(node1));
-
-        failedNodes.clear();
-        lagDetector.startLagDetector(2);
-        deterministicTaskQueue.runAllTasks();
-        assertThat(failedNodes, contains(node1));
-    }
-
     public void testLagDetection() {
         lagDetector.setTrackedNodes(Collections.singletonList(node1));
         lagDetector.setAppliedVersion(node1, 1);

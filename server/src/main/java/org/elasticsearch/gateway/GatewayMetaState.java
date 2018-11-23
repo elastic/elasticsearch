@@ -247,18 +247,18 @@ public abstract class GatewayMetaState {
      *
      * @param newState new {@link ClusterState}
      * @param previousState previous {@link ClusterState}
-     * @param writeWithoutComparingVersion if set to true even if previous {@link MetaData} and {@link IndexMetaData} have the same versions
-     *                                     as new {@link MetaData} and {@link IndexMetaData}, metadata will be written to disk.
-     *                                     We can only trust versions, as long as master does not change in the cluster.
+     * @param incrementalWrite if set to false always write {@link MetaData} and {@link IndexMetaData}, without comparing with
+     *                         previous values. We can only trust versions, as long as master does not change in the cluster.
+     *
      * @throws WriteStateException if exception occurs. See also {@link WriteStateException#isDirty()}.
      */
-    protected void updateClusterState(ClusterState newState, ClusterState previousState, boolean writeWithoutComparingVersion)
+    protected void updateClusterState(ClusterState newState, ClusterState previousState, boolean incrementalWrite)
             throws WriteStateException {
         MetaData newMetaData = newState.metaData();
 
         final AtomicClusterStateWriter writer = new AtomicClusterStateWriter(metaStateService, previousManifest);
-        long globalStateGeneration = writeGlobalState(writer, writeWithoutComparingVersion, newMetaData);
-        Map<Index, Long> indexGenerations = writeIndicesMetadata(writer, writeWithoutComparingVersion, newState, previousState);
+        long globalStateGeneration = writeGlobalState(writer, incrementalWrite, newMetaData);
+        Map<Index, Long> indexGenerations = writeIndicesMetadata(writer, incrementalWrite, newState, previousState);
         Manifest manifest = new Manifest(previousManifest.getCurrentTerm(), newState.version(), globalStateGeneration, indexGenerations);
         writeManifest(writer, manifest);
 
@@ -273,14 +273,14 @@ public abstract class GatewayMetaState {
     }
 
     private Map<Index, Long> writeIndicesMetadata(AtomicClusterStateWriter writer,
-                                                  boolean writeWithoutComparingVersion, ClusterState newState, ClusterState previousState)
+                                                  boolean incrementalWrite, ClusterState newState, ClusterState previousState)
             throws WriteStateException {
         Map<Index, Long> previouslyWrittenIndices = previousManifest.getIndexGenerations();
         Set<Index> relevantIndices = getRelevantIndices(newState, previousState, previouslyWrittenIndices.keySet());
 
         Map<Index, Long> newIndices = new HashMap<>();
 
-        MetaData previousMetaData = writeWithoutComparingVersion ? null : previousState.metaData();
+        MetaData previousMetaData = incrementalWrite ? previousState.metaData() : null;
         Iterable<IndexMetaDataAction> actions = resolveIndexMetaDataActions(previouslyWrittenIndices, relevantIndices, previousMetaData,
                 newState.metaData());
 
@@ -292,9 +292,9 @@ public abstract class GatewayMetaState {
         return newIndices;
     }
 
-    private long writeGlobalState(AtomicClusterStateWriter writer, boolean writeWithoutComparingVersion, MetaData newMetaData)
+    private long writeGlobalState(AtomicClusterStateWriter writer, boolean incrementalWrite, MetaData newMetaData)
             throws WriteStateException {
-        if (writeWithoutComparingVersion || MetaData.isGlobalStateEquals(previousClusterState.metaData(), newMetaData) == false) {
+        if (incrementalWrite == false || MetaData.isGlobalStateEquals(previousClusterState.metaData(), newMetaData) == false) {
             return writer.writeGlobalState("changed", newMetaData);
         }
         return previousManifest.getGlobalGeneration();

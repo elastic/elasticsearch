@@ -66,8 +66,8 @@ public class Zen2GatewayMetaState extends GatewayMetaState implements Coordinati
         assert clusterState.blocks().disableStatePersistence() == false;
 
         try {
-            boolean writeWithoutComparingVersions = previousClusterState.term() != clusterState.term();
-            updateClusterState(clusterState, previousClusterState, writeWithoutComparingVersions);
+            boolean incrementalWrite = previousClusterState.term() == clusterState.term();
+            updateClusterState(clusterState, previousClusterState, incrementalWrite);
             previousClusterState = clusterState;
         } catch (WriteStateException e) {
             logger.warn("Exception occurred when setting last accepted state", e);

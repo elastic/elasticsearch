@@ -31,13 +31,13 @@ import java.io.IOException;
 
 public class Zen1GatewayMetaState extends GatewayMetaState implements ClusterStateApplier {
 
-    private boolean writeWithoutComparingVersions;
+    private boolean incrementalWrite;
 
     public Zen1GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
                                 MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader,
                                 TransportService transportService) throws IOException {
         super(settings, nodeEnv, metaStateService, metaDataIndexUpgradeService, metaDataUpgrader, transportService);
-        writeWithoutComparingVersions = true;
+        incrementalWrite = false;
     }
 
     @Override
@@ -47,13 +47,13 @@ public class Zen1GatewayMetaState extends GatewayMetaState implements ClusterSta
         }
 
         if (event.state().blocks().disableStatePersistence()) {
-            writeWithoutComparingVersions = true;
+            incrementalWrite = false;
             return;
         }
 
         try {
-            updateClusterState(event.state(), event.previousState(), writeWithoutComparingVersions);
-            writeWithoutComparingVersions = false;
+            updateClusterState(event.state(), event.previousState(), incrementalWrite);
+            incrementalWrite = true;
         } catch (WriteStateException e) {
             logger.warn("Exception occurred when storing new meta data", e);
         }

@@ -117,6 +117,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyString;
@@ -374,7 +375,7 @@ public class ClusterStateChanges {
         CompletableFuture<ClusterState> clusterStateResult = new CompletableFuture<>();
         doAnswer(invocationOnMock -> {
             ClusterStateUpdateTask task = (ClusterStateUpdateTask)invocationOnMock.getArguments()[1];
-            clusterStateResult.complete(task.execute(state));
+            assertTrue(clusterStateResult.complete(task.execute(state)));
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
         runnable.run();

@@ -21,6 +21,7 @@ package org.elasticsearch.indices.cluster;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -125,12 +126,23 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         SnapshotsInProgress.Entry secondEntry = ((SnapshotsInProgress) state.custom(SnapshotsInProgress.TYPE)).entries().get(0);
         assertEquals(Strings.toString(state, true, true), SnapshotsInProgress.State.STARTED, secondEntry.state());
         final ClusterState finalState = state;
-        expectThrows(RuntimeException.class, () -> cluster.deleteIndices(finalState, new DeleteIndexRequest("test-index")));
+        RuntimeException ex =
+            expectThrows(RuntimeException.class, () -> cluster.deleteIndices(finalState, new DeleteIndexRequest("test-index")));
+        assertEquals(
+            "Cannot delete indices that are being snapshotted: [[test-index]]. " +
+                "Try again after snapshot finishes or cancel the currently running snapshot.",
+            ex.getCause().getMessage()
+        );
         state = cluster.deleteSnapshot(state, new DeleteSnapshotRequest("test-repo", "test-snap"));
         assertNotNull(state.custom(SnapshotsInProgress.TYPE));
-        // TODO: This currently leaves one entry that is marked aborted behind
-        // assertEquals(0, ((SnapshotsInProgress) state.custom(SnapshotsInProgress.TYPE)).entries().size());
-        // cluster.deleteRepository(state, new DeleteRepositoryRequest("test-repo"));
+        // TODO: This should be 1, but we're currently leaving one aborted entry behind
+        assertEquals(1, ((SnapshotsInProgress) state.custom(SnapshotsInProgress.TYPE)).entries().size());
+        // TODO: This should not throw, but currently does because the deleted snapshot is not properly cleared from the state
+        final ClusterState beforeDeleteState = state;
+        expectThrows(
+            RuntimeException.class,
+            () -> cluster.deleteRepository(beforeDeleteState, new DeleteRepositoryRequest("test-repo"))
+        );
     }
 
     public void testRandomClusterStateUpdates() {

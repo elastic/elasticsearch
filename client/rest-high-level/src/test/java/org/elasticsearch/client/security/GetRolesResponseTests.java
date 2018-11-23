@@ -193,7 +193,7 @@ public class GetRolesResponseTests extends ESTestCase {
             List<Role> newRoles = original.getRoles().stream().collect(Collectors.toList());
             newRoles.remove(0);
             newRoles.add(role);
-            return new GetRolesResponse(original.getRoles());
+            return new GetRolesResponse(newRoles);
         }
     }
 }

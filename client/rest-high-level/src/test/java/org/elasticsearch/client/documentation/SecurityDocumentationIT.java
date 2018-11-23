@@ -422,6 +422,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(response);
             assertThat(roles.size(), equalTo(1));
+            assertThat(roles.get(0).getName(), equalTo("my_role"));
             assertThat(roles.get(0).getClusterPrivileges().contains("all"), equalTo(true));
         }
 
@@ -481,6 +482,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final GetRolesResponse response = future.get(30, TimeUnit.SECONDS);
             assertNotNull(response);
             assertThat(response.getRoles().size(), equalTo(1));
+            assertThat(response.getRoles().get(0).getName(), equalTo("my_role"));
             assertThat(response.getRoles().get(0).getClusterPrivileges().contains("all"), equalTo(true));
         }
     }

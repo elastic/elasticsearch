@@ -842,7 +842,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         SearchResponse searchResponse = searchTemplateResponse.getResponse();
         assertNotNull(searchResponse);
 
-        assertEquals(1, searchResponse.getHits().getTotalHits());
+        assertEquals(1, searchResponse.getHits().getTotalHits().value);
         assertEquals(1, searchResponse.getHits().getHits().length);
         assertThat(searchResponse.getHits().getMaxScore(), greaterThan(0f));
 
@@ -955,7 +955,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         SearchResponse goodResponse =responses[0].getResponse().getResponse();
         assertNotNull(goodResponse);
         assertThat(responses[0].isFailure(), Matchers.is(false));
-        assertEquals(1, goodResponse.getHits().getTotalHits());
+        assertEquals(1, goodResponse.getHits().getTotalHits().value);
         assertEquals(1, goodResponse.getHits().getHits().length);
         assertThat(goodResponse.getHits().getMaxScore(), greaterThan(0f));
         SearchHit hit = goodResponse.getHits().getHits()[0];

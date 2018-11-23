@@ -1023,7 +1023,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(replicaShard, primaryShard);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35850")
     public void testRestoreLocalHistoryFromTranslogOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
@@ -1039,7 +1038,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final Set<String> docsBeforeRollback = getShardDocUIDs(indexShard);
         final CountDownLatch latch = new CountDownLatch(1);
         final boolean shouldRollback = Math.max(globalCheckpointOnReplica, globalCheckpoint) < maxSeqNo;
-        randomReplicaOperationPermitAcquisition(indexShard,
+        indexShard.acquireReplicaOperationPermit(
                 indexShard.getPendingPrimaryTerm() + 1,
                 globalCheckpoint,
                 maxSeqNoOfUpdatesOrDeletes,
@@ -1054,7 +1053,8 @@ public class IndexShardTests extends IndexShardTestCase {
                     public void onFailure(Exception e) {
 
                     }
-                }, "");
+                },
+                ThreadPool.Names.SAME, "");
 
         latch.await();
         if (shouldRollback) {
@@ -1088,7 +1088,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShard(indexShard, false);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35850")
     public void testRollbackReplicaEngineOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
 
@@ -1106,7 +1105,7 @@ public class IndexShardTests extends IndexShardTestCase {
             && indexShard.seqNoStats().getMaxSeqNo() != SequenceNumbers.NO_OPS_PERFORMED;
         final Engine beforeRollbackEngine = indexShard.getEngine();
         final long newMaxSeqNoOfUpdates = randomLongBetween(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), Long.MAX_VALUE);
-        randomReplicaOperationPermitAcquisition(indexShard,
+        indexShard.acquireReplicaOperationPermit(
                 indexShard.pendingPrimaryTerm + 1,
                 globalCheckpoint,
                 newMaxSeqNoOfUpdates,
@@ -1121,7 +1120,8 @@ public class IndexShardTests extends IndexShardTestCase {
                     public void onFailure(final Exception e) {
 
                     }
-                }, "");
+                },
+                ThreadPool.Names.SAME, "");
 
         latch.await();
         if (globalCheckpointOnReplica == SequenceNumbers.UNASSIGNED_SEQ_NO && globalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {

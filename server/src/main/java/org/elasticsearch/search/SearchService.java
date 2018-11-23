@@ -36,8 +36,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -1040,21 +1040,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Returns true iff the given search source builder can be early terminated by rewriting to a match none query. Or in other words
-     * if the execution of a the search request can be early terminated without executing it. This is for instance not possible if
+     * if the execution of the search request can be early terminated without executing it. This is for instance not possible if
      * a global aggregation is part of this request or if there is a suggest builder present.
      */
     public static boolean canRewriteToMatchNone(SearchSourceBuilder source) {
         if (source == null || source.query() == null || source.query() instanceof MatchAllQueryBuilder || source.suggest() != null) {
             return false;
-        } else {
-            AggregatorFactories.Builder aggregations = source.aggregations();
-            if (aggregations != null) {
-                if (aggregations.mustVisitAllDocs()) {
-                    return false;
-                }
-            }
         }
-        return true;
+        AggregatorFactories.Builder aggregations = source.aggregations();
+        return aggregations == null || aggregations.mustVisitAllDocs() == false;
     }
 
     /*
@@ -1102,9 +1096,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final class CanMatchResponse extends SearchPhaseResult {
         private boolean canMatch;
-
-        public CanMatchResponse() {
-        }
 
         public CanMatchResponse(StreamInput in) throws IOException {
             this.canMatch = in.readBoolean();

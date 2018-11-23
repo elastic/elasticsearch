@@ -79,6 +79,18 @@ public class CloseJobAction extends Action<CloseJobAction.Response> {
             openJobIds = new String[] {};
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            timeout = in.readTimeValue();
+            force = in.readBoolean();
+            openJobIds = in.readStringArray();
+            local = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoJobs = in.readBoolean();
+            }
+        }
+
         public Request(String jobId) {
             this();
             this.jobId = jobId;
@@ -126,19 +138,6 @@ public class CloseJobAction extends Action<CloseJobAction.Response> {
 
         public void setOpenJobIds(String [] openJobIds) {
             this.openJobIds = openJobIds;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            timeout = in.readTimeValue();
-            force = in.readBoolean();
-            openJobIds = in.readStringArray();
-            local = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoJobs = in.readBoolean();
-            }
         }
 
         @Override

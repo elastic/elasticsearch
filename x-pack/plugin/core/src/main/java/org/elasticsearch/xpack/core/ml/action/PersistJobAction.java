@@ -35,6 +35,12 @@ public class PersistJobAction extends Action<PersistJobAction.Response> {
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            // isBackground for fwc
+            in.readBoolean();
+        }
+
         public Request(String jobId) {
             super(jobId);
         }
@@ -45,13 +51,6 @@ public class PersistJobAction extends Action<PersistJobAction.Response> {
 
         public boolean isForeground() {
             return !isBackGround();
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            // isBackground for fwc
-            in.readBoolean();
         }
 
         @Override

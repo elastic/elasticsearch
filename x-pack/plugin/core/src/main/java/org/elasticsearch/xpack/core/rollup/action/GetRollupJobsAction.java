@@ -66,6 +66,14 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
         public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            id = in.readString();
+            if (Strings.isNullOrEmpty(id) || id.equals("*")) {
+                this.id = MetaData.ALL;
+            }
+        }
+
         @Override
         public boolean match(Task task) {
             // If we are retrieving all the jobs, the task description just needs to start
@@ -79,15 +87,6 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
         public String getId() {
             return id;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            id = in.readString();
-            if (Strings.isNullOrEmpty(id) || id.equals("*")) {
-                this.id = MetaData.ALL;
-            }
         }
 
         @Override

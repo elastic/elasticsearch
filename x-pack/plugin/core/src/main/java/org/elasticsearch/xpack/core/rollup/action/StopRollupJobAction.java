@@ -63,6 +63,15 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
 
         public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            id = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+                waitForCompletion = in.readBoolean();
+                timeout = in.readTimeValue();
+            }
+        }
+
         public String getId() {
             return id;
         }
@@ -73,16 +82,6 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
 
         public boolean waitForCompletion() {
             return waitForCompletion;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            id = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-                waitForCompletion = in.readBoolean();
-                timeout = in.readTimeValue();
-            }
         }
 
         @Override

@@ -76,6 +76,15 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
 
         public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            expandedJobsIds = in.readList(StreamInput::readString);
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoJobs = in.readBoolean();
+            }
+        }
+
         public List<String> getExpandedJobsIds() { return expandedJobsIds; }
 
         public void setExpandedJobsIds(List<String> expandedJobsIds) { this.expandedJobsIds = expandedJobsIds; }
@@ -100,16 +109,6 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            expandedJobsIds = in.readList(StreamInput::readString);
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoJobs = in.readBoolean();
-            }
         }
 
         @Override

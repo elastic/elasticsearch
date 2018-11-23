@@ -32,6 +32,6 @@ public class PostDataFlushRequestTests extends AbstractStreamableTestCase<Reques
     }
 
     public void testNullJobIdThrows() {
-        expectThrows(IllegalArgumentException.class, () -> new Request(null));
+        expectThrows(IllegalArgumentException.class, () -> new Request((String) null));
     }
 }

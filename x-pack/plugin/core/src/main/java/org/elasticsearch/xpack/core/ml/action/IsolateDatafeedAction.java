@@ -78,6 +78,11 @@ public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            datafeedId = in.readString();
+        }
+
         public String getDatafeedId() {
             return datafeedId;
         }
@@ -91,12 +96,6 @@ public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeedId = in.readString();
         }
 
         @Override

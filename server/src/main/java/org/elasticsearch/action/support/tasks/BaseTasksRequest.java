@@ -52,7 +52,18 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
 
     private TaskId taskId = TaskId.EMPTY_TASK_ID;
 
+    // NOTE: This constructor is only needed, because the setters in this class,
+    // otherwise it can be removed and above fields can be made final.
     public BaseTasksRequest() {
+    }
+
+    protected BaseTasksRequest(StreamInput in) throws IOException {
+        super(in);
+        taskId = TaskId.readFromStream(in);
+        parentTaskId = TaskId.readFromStream(in);
+        nodes = in.readStringArray();
+        actions = in.readStringArray();
+        timeout = in.readOptionalTimeValue();
     }
 
     @Override
@@ -135,16 +146,6 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     public final Request setTimeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         return (Request) this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        taskId = TaskId.readFromStream(in);
-        parentTaskId = TaskId.readFromStream(in);
-        nodes = in.readStringArray();
-        actions = in.readStringArray();
-        timeout = in.readOptionalTimeValue();
     }
 
     @Override

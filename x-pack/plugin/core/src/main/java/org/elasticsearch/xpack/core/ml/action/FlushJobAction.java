@@ -75,6 +75,15 @@ public class FlushJobAction extends Action<FlushJobAction.Response> {
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            calcInterim = in.readBoolean();
+            start = in.readOptionalString();
+            end = in.readOptionalString();
+            advanceTime = in.readOptionalString();
+            skipTime = in.readOptionalString();
+        }
+
         public Request(String jobId) {
             super(jobId);
         }
@@ -117,16 +126,6 @@ public class FlushJobAction extends Action<FlushJobAction.Response> {
 
         public void setSkipTime(String skipTime) {
             this.skipTime = skipTime;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            calcInterim = in.readBoolean();
-            start = in.readOptionalString();
-            end = in.readOptionalString();
-            advanceTime = in.readOptionalString();
-            skipTime = in.readOptionalString();
         }
 
         @Override

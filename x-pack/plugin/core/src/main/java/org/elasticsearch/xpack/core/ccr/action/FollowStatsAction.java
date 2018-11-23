@@ -129,6 +129,13 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
 
         private String[] indices;
 
+        public StatsRequest() {}
+
+        public StatsRequest(StreamInput in) throws IOException {
+            super(in);
+            indices = in.readOptionalStringArray();
+        }
+
         @Override
         public String[] indices() {
             return indices;
@@ -159,12 +166,6 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            indices = in.readOptionalStringArray();
         }
 
         @Override

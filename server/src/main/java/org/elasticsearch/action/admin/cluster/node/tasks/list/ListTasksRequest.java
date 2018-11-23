@@ -33,6 +33,15 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
     private boolean detailed = false;
     private boolean waitForCompletion = false;
 
+    public ListTasksRequest() {
+    }
+
+    public ListTasksRequest(StreamInput in) throws IOException {
+        super(in);
+        detailed = in.readBoolean();
+        waitForCompletion = in.readBoolean();
+    }
+
     /**
      * Should the detailed task information be returned.
      */
@@ -61,13 +70,6 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
     public ListTasksRequest setWaitForCompletion(boolean waitForCompletion) {
         this.waitForCompletion = waitForCompletion;
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        detailed = in.readBoolean();
-        waitForCompletion = in.readBoolean();
     }
 
     @Override

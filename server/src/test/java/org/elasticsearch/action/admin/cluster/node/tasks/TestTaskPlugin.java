@@ -373,6 +373,13 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
 
     public static class UnblockTestTasksRequest extends BaseTasksRequest<UnblockTestTasksRequest> {
+
+        UnblockTestTasksRequest() {}
+
+        UnblockTestTasksRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+
         @Override
         public boolean match(Task task) {
             return task instanceof TestTask && super.match(task);

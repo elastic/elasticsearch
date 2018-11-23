@@ -150,7 +150,7 @@ public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Respon
             readFrom(in);
         }
 
-        public List<FeatureIndexBuilderJobConfig> getJobResponses() {
+        public List<FeatureIndexBuilderJobConfig> getJobConfigurations() {
             return jobConfigurations;
         }
 

@@ -175,7 +175,10 @@ Will return:
 {
     ...,
     "hits": {
-        "total": 4,
+        "total" : {
+            "value": 4,
+            "relation": "eq"
+        },
         "max_score": null,
         "hits": [
             {

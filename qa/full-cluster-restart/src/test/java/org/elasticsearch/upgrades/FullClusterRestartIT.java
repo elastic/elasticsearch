@@ -753,7 +753,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request countRequest = new Request("GET", "/" + index + "/_search");
         countRequest.addParameter("size", "0");
         String countResponse = toStr(client().performRequest(countRequest));
-        assertThat(countResponse, containsString("\"total\":" + count));
+        assertThat(countResponse, containsString("\"value\":" + count));
 
         if (false == isRunningAgainstOldCluster()) {
             boolean restoredFromTranslog = false;
@@ -839,7 +839,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request countRequest = new Request("GET", "/" + index + "/_search");
         countRequest.addParameter("size", "0");
         String countResponse = toStr(client().performRequest(countRequest));
-        assertThat(countResponse, containsString("\"total\":" + count));
+        assertThat(countResponse, containsString("\"value\":" + count));
 
         // Stick a routing attribute into to cluster settings so we can see it after the restore
         Request addRoutingSettings = new Request("PUT", "/_cluster/settings");
@@ -989,7 +989,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request countRequest = new Request("GET", "/restored_" + index + "/_search");
         countRequest.addParameter("size", "0");
         String countResponse = toStr(client().performRequest(countRequest));
-        assertThat(countResponse, containsString("\"total\":" + count));
+        assertThat(countResponse, containsString("\"value\":" + count));
 
         // Add some extra documents to the index to be sure we can still write to it after restoring it
         int extras = between(1, 100);
@@ -1008,7 +1008,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request countAfterWriteRequest = new Request("GET", "/restored_" + index + "/_search");
         countAfterWriteRequest.addParameter("size", "0");
         String countAfterWriteResponse = toStr(client().performRequest(countAfterWriteRequest));
-        assertThat(countAfterWriteResponse, containsString("\"total\":" + (count + extras)));
+        assertThat(countAfterWriteResponse, containsString("\"value\":" + (count + extras)));
 
         // Clean up the index for the next iteration
         client().performRequest(new Request("DELETE", "/restored_*"));

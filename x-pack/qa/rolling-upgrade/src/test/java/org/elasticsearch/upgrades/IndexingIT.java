@@ -144,7 +144,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
         searchTestIndexRequest.addParameter("filter_path", "hits.total.value");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals("{\"hits\":{\"total\":" + count + "}}",
+        assertEquals("{\"hits\":{\"total\":{\"value\":" + count + "}}}",
                 EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
     }
 }

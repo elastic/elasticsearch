@@ -151,6 +151,14 @@ See https://issues.apache.org/jira/browse/LUCENE-7347[`LUCENE-7347`] for more
 information.
 
 [float]
+===== Negative scores are deprecated in Function Score Query
+
+Negative scores in the Function Score Query are deprecated. If a negative 
+score is produced as a result of computation (e.g. in `script_score` or
+`field_value_factor` functions), a deprecation warning will be issued in
+this major version, and an error will be thrown in the next major version. 
+
+[float]
 ==== Fielddata on `_uid`
 
 Fielddata on `_uid` is deprecated. It is possible to switch to `_id` instead

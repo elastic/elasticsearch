@@ -69,6 +69,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
 
     @Override
     protected void doExecute(Task task, GetJobsStatsAction.Request request, ActionListener<GetJobsStatsAction.Response> finalListener) {
+        logger.debug("Get stats for job [{}]", request.getJobId());
 
         jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoJobs(), true, ActionListener.wrap(
                 expandedIds -> {
@@ -105,7 +106,6 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     protected void taskOperation(GetJobsStatsAction.Request request, TransportOpenJobAction.JobTask task,
                                  ActionListener<QueryPage<GetJobsStatsAction.Response.JobStats>> listener) {
         String jobId = task.getJobId();
-        logger.debug("Get stats for job [{}]", jobId);
         ClusterState state = clusterService.state();
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(task);

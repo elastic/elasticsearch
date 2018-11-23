@@ -45,6 +45,9 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
         // This action is no longer required but needs to be preserved
         // in case it is called by an old node in a mixed cluster
         listener.onResponse(new AcknowledgedResponse(true));
+
+
+        // TODO restore functionality for index jobs
     }
 
     @Override

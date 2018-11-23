@@ -205,11 +205,12 @@ public final class FrozenEngine extends ReadOnlyEngine {
                     assert false : "this is a read-only engine";
                 case "doc_stats":
                     assert false : "doc_stats are overwritten";
+                case "refresh_needed":
+                    assert false : "refresh_needed is always false";
                 case "segments":
                 case "segments_stats":
                 case "completion_stats":
-                case "refresh_needed":
-                    assert false : "refresh_needed is always false";
+
                 case "can_match": // special case for can_match phase - we use the cached point values reader
                     maybeOpenReader = false;
                     break;

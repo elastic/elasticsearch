@@ -29,12 +29,14 @@ import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.stats.FeatureMetric;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -239,27 +241,29 @@ public final class Verifier {
         
         // gather metrics
         if (failures.isEmpty() && metrics != null) {
-            if (plan.anyMatch(p -> p instanceof Aggregate)) {
-                metrics.inc(GROUPBY);
-            };
-            if (plan.anyMatch(p -> p instanceof OrderBy)) {
-                metrics.inc(ORDERBY);
-            };
-            if (plan.anyMatch(p -> p instanceof Filter && ((Filter) p).child() instanceof Aggregate)) {
-                metrics.inc(HAVING);
-            };
-            if (plan.anyMatch(p -> p instanceof Filter && false == ((Filter) p).child() instanceof Aggregate)) {
-                metrics.inc(WHERE);
-            };
-            if (plan.anyMatch(p -> p instanceof Limit)) {
-                metrics.inc(LIMIT);
-            };
-            if (plan.anyMatch(p -> p instanceof LocalRelation)) {
-                metrics.inc(LOCAL);
-            };
-            if (plan.anyMatch(p -> p instanceof Command)) {
-                metrics.inc(COMMAND);
-            };
+            BitSet b = new BitSet(FeatureMetric.values().length);
+            plan.forEachDown(p -> {
+                if (p instanceof Aggregate) {
+                    b.set(GROUPBY.ordinal());
+                } else if (p instanceof OrderBy) {
+                    b.set(ORDERBY.ordinal());
+                } else if (p instanceof Filter) {
+                    if (((Filter) p).child() instanceof Aggregate) {
+                        b.set(HAVING.ordinal());
+                    } else {
+                        b.set(WHERE.ordinal());
+                    }
+                } else if (p instanceof Limit) {
+                    b.set(LIMIT.ordinal());
+                } else if (p instanceof LocalRelation) {
+                    b.set(LOCAL.ordinal());
+                } else if (p instanceof Command) {
+                    b.set(COMMAND.ordinal());
+                }
+            });
+            for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
+                metrics.inc(FeatureMetric.values()[i]);
+            }
         }
 
         return failures;

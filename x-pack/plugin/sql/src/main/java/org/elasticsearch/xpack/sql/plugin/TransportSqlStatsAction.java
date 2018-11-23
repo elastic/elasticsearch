@@ -12,9 +12,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -23,17 +22,15 @@ import java.util.List;
 public class TransportSqlStatsAction extends TransportNodesAction<SqlStatsRequest, SqlStatsResponse,
         SqlStatsRequest.Node, SqlStatsResponse.Node> {
     
-    private final TransportSqlTranslateAction translateAction;
-    private final TransportSqlQueryAction queryAction;
+    // the plan executor holds the metrics
+    private final PlanExecutor planExecutor;
 
     @Inject
     public TransportSqlStatsAction(TransportService transportService, ClusterService clusterService,
-            TransportSqlTranslateAction translateAction, TransportSqlQueryAction queryAction,
-            ThreadPool threadPool, ActionFilters actionFilters) {
+                                   ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor) {
         super(SqlStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 SqlStatsRequest::new, SqlStatsRequest.Node::new, ThreadPool.Names.MANAGEMENT, SqlStatsResponse.Node.class);
-        this.translateAction = translateAction;
-        this.queryAction = queryAction;
+        this.planExecutor = planExecutor;
     }
 
     @Override
@@ -55,8 +52,7 @@ public class TransportSqlStatsAction extends TransportNodesAction<SqlStatsReques
     @Override
     protected SqlStatsResponse.Node nodeOperation(SqlStatsRequest.Node request) {
         SqlStatsResponse.Node statsResponse = new SqlStatsResponse.Node(clusterService.localNode());
-        Counters stats = Counters.merge(Arrays.asList(translateAction.stats(), queryAction.stats()));
-        statsResponse.setStats(stats);
+        statsResponse.setStats(planExecutor.metrics().stats());
         
         return statsResponse;
     }

@@ -44,8 +44,8 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         super();
     }
 
-    public AbstractSqlQueryRequest(RequestInfo requestInfo, String query, List<SqlTypedParamValue> params, QueryBuilder filter,
-                                   TimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
+    public AbstractSqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
+                                   int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
         super(requestInfo);
         this.query = query;
         this.params = params;

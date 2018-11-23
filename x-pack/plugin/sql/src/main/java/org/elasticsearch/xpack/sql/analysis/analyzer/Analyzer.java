@@ -66,7 +66,6 @@ import java.util.TimeZone;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.sql.stats.FeatureMetric.SUBSELECT;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
@@ -100,9 +99,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        // before doing any transformations, look for subselects and count them, because they
-        // will be folded in the next rules
-        // Batch metricsCheck = new Batch("MetricsCheck", new CheckSubselects());
         Batch substitution = new Batch("Substitution",
                 new CTESubstitution());
         Batch resolution = new Batch("Resolution",
@@ -116,7 +112,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveAggsInHaving()
                 //new ImplicitCasting()
                 );
-        return Arrays.asList(/*metricsCheck, */substitution, resolution);
+        return Arrays.asList(substitution, resolution);
     }
     
     public LogicalPlan analyze(LogicalPlan plan) {
@@ -1068,33 +1064,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return e;
         }
     }
-    
-    private class CheckSubselects<T extends LogicalPlan> extends Rule<T, LogicalPlan> {
 
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            if (metrics() != null) {
-                plan.forEachDown(p -> {
-                    if (p instanceof SubQueryAlias) {
-                        metrics().inc(SUBSELECT);
-                    }
-                });
-                plan.forEachExpressionsDown(expr -> {
-                    if (expr instanceof SubQueryExpression) {
-                        metrics().inc(SUBSELECT);
-                    }
-                });
-            }
-            return plan;
-        }
-
-        @Override
-        protected LogicalPlan rule(T e) {
-            return e;
-        }
-
-    }
-    
     abstract static class AnalyzeRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 
         // transformUp (post-order) - that is first children and then the node

@@ -31,8 +31,8 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action, String query, List<SqlTypedParamValue> params,
                                   QueryBuilder filter, TimeZone timeZone, int fetchSize, TimeValue requestTimeout,
                                   TimeValue pageTimeout, String nextPageInfo, RequestInfo requestInfo) {
-        super(client, action, new SqlQueryRequest(requestInfo, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout,
-                nextPageInfo));
+        super(client, action, new SqlQueryRequest(query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout, nextPageInfo,
+                requestInfo));
     }
 
     public SqlQueryRequestBuilder query(String query) {

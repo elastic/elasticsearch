@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.sql.stats;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 
-import java.util.BitSet;
-import java.util.HashMap;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -29,28 +29,34 @@ public class Metrics {
     }
     
     // map that holds total/paging/failed counters for each client type (rest, cli, jdbc, odbc...)
-    private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics = new HashMap<>();
+    private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
     // map that holds one counter per sql query "feature" (having, limit, order by, group by...) 
-    private final Map<FeatureMetric, CounterMetric> featuresMetrics = new HashMap<>();
-    // Because the hook in the Verifier/Analyzer is being called several times during the query analysis flow
-    // (both times from SqlSession: analyzer.analyze() which calls verify() and then explicitly calling verify())
-    // we use a set of flags so that we don't count a certain "feature" metric more than once.
-    private final BitSet b = new BitSet(FeatureMetric.values().length);
-    private String QPREFIX = "queries.";
-    private String FPREFIX = "features.";
+    private final Map<FeatureMetric, CounterMetric> featuresMetrics;
+    // counter for "translate" requests
+    private final CounterMetric translateMetric;
+    protected static String QPREFIX = "queries.";
+    protected static String FPREFIX = "features.";
+    protected static String TRANSLATE_METRIC = "queries.translate.count";
     
     public Metrics() {
+        Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
         for (QueryMetric metric : QueryMetric.values()) {
-            Map<OperationType, CounterMetric> metricsMap = new HashMap<>(OperationType.values().length);
+            Map<OperationType, CounterMetric> metricsMap = new LinkedHashMap<>(OperationType.values().length);
             for (OperationType type : OperationType.values()) {
                 metricsMap.put(type,  new CounterMetric());
             }
             
-            opsByTypeMetrics.put(metric, metricsMap);
+            qMap.put(metric, Collections.unmodifiableMap(metricsMap));
         }
+        opsByTypeMetrics = Collections.unmodifiableMap(qMap);
+        
+        Map<FeatureMetric, CounterMetric> fMap = new LinkedHashMap<>(FeatureMetric.values().length);
         for (FeatureMetric featureMetric : FeatureMetric.values()) {
-            featuresMetrics.put(featureMetric,  new CounterMetric());
+            fMap.put(featureMetric,  new CounterMetric());
         }
+        featuresMetrics = Collections.unmodifiableMap(fMap);
+        
+        translateMetric = new CounterMetric();
     }
 
     /**
@@ -59,7 +65,6 @@ public class Metrics {
      */
     public void total(QueryMetric metric) {
         inc(metric, OperationType.TOTAL);
-        b.clear();
     }
     
     /**
@@ -75,21 +80,26 @@ public class Metrics {
     public void paging(QueryMetric metric) {
         inc(metric, OperationType.PAGING);
     }
+    
+    /**
+     * Increments the "translate" metric
+     */
+    public void translate() {
+        translateMetric.inc();
+    }
 
     private void inc(QueryMetric metric, OperationType op) {
         this.opsByTypeMetrics.get(metric).get(op).inc();
     }
     
     public void inc(FeatureMetric metric) {
-        // count each "feature" metric only once by checking its flag
-        if (!b.get(metric.ordinal())) {
-            b.set(metric.ordinal());
-            this.featuresMetrics.get(metric).inc();
-        }
+        this.featuresMetrics.get(metric).inc();
     }
 
     public Counters stats() {
         Counters counters = new Counters();
+        
+        // queries metrics
         for (Entry<QueryMetric, Map<OperationType, CounterMetric>> entry : opsByTypeMetrics.entrySet()) {
             for (OperationType type : OperationType.values()) {
                 counters.inc(QPREFIX + entry.getKey().toString() + "." + type.toString(), entry.getValue().get(type).count());
@@ -97,9 +107,13 @@ public class Metrics {
             }
         }
         
+        // features metrics
         for (Entry<FeatureMetric, CounterMetric> entry : featuresMetrics.entrySet()) {
             counters.inc(FPREFIX + entry.getKey().toString(), entry.getValue().count());
         }
+        
+        // translate operation metric
+        counters.inc(TRANSLATE_METRIC, translateMetric.count());
         
         return counters;
     }

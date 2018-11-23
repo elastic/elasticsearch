@@ -17,7 +17,7 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
 
     private final String cursor;
 
-    public SqlClearCursorRequest(RequestInfo requestInfo, String cursor) {
+    public SqlClearCursorRequest(String cursor, RequestInfo requestInfo) {
         super(requestInfo);
         this.cursor = cursor;
     }

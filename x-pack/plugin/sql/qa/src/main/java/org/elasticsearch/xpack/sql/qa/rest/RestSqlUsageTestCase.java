@@ -46,7 +46,9 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
 
     private Map<String,Integer> baseMetrics = new HashMap<String,Integer>();
     private Integer baseClientTypeTotalQueries = 0;
+    private Integer baseClientTypeFailedQueries = 0;
     private Integer baseAllTotalQueries = 0;
+    private Integer baseAllFailedQueries = 0;
     private Integer baseTranslateRequests = 0;
     private String clientType;
     private boolean ignoreClientType;
@@ -61,6 +63,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     private void getBaseMetrics() throws UnsupportedOperationException, IOException {
         Map<String, Object> baseStats = getStats();
         List<Map<String, Map<String, Map>>> nodesListStats = (List) baseStats.get("stats");
+        
         // used for "client.id" request parameter value, but also for getting the stats from ES
         clientType = randomFrom(ClientType.values()).toString();
         ignoreClientType = randomBoolean();
@@ -80,7 +83,9 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             
             // initialize the "base" metric values with whatever values are already recorder on ES
             baseClientTypeTotalQueries = ((Map<String,Integer>) queriesMetrics.get(clientType)).get("total");
+            baseClientTypeFailedQueries = ((Map<String,Integer>) queriesMetrics.get(clientType)).get("failed");
             baseAllTotalQueries = ((Map<String,Integer>) queriesMetrics.get("_all")).get("total");
+            baseAllFailedQueries = ((Map<String,Integer>) queriesMetrics.get("_all")).get("failed");
             baseTranslateRequests = ((Map<String,Integer>) queriesMetrics.get("translate")).get("count");
         }
     }
@@ -88,7 +93,9 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     public void testSqlRestUsage() throws IOException {
         index(testData);
         
+        //
         // random WHERE and ORDER BY queries
+        //
         int randomWhereExecutions = randomIntBetween(1, 15);
         int clientTypeTotalQueries = baseClientTypeTotalQueries + randomWhereExecutions;
         int allTotalQueries = baseAllTotalQueries + randomWhereExecutions;
@@ -102,7 +109,9 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         assertFeatureMetric(baseMetrics.get("orderby") + randomWhereExecutions, responseAsMap, "orderby");
         assertClientTypeAndAllQueryMetrics(clientTypeTotalQueries, allTotalQueries, responseAsMap);
         
+        //
         // random HAVING and GROUP BY queries
+        //
         int randomHavingExecutions = randomIntBetween(1, 15);
         clientTypeTotalQueries += randomHavingExecutions;
         allTotalQueries += randomHavingExecutions;
@@ -114,7 +123,9 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         assertFeatureMetric(baseMetrics.get("groupby") + randomHavingExecutions, responseAsMap, "groupby");
         assertClientTypeAndAllQueryMetrics(clientTypeTotalQueries, allTotalQueries, responseAsMap);
         
+        //
         // random LIMIT queries
+        //
         int randomLimitExecutions = randomIntBetween(1, 15);
         clientTypeTotalQueries += randomLimitExecutions;
         allTotalQueries += randomLimitExecutions;
@@ -125,7 +136,9 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         assertFeatureMetric(baseMetrics.get("limit") + randomLimitExecutions, responseAsMap, "limit");
         assertClientTypeAndAllQueryMetrics(clientTypeTotalQueries, allTotalQueries, responseAsMap);
         
+        //
         // random LOCALly executed queries
+        //
         int randomLocalExecutions = randomIntBetween(1, 15);
         clientTypeTotalQueries += randomLocalExecutions;
         allTotalQueries += randomLocalExecutions;
@@ -136,7 +149,9 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         assertFeatureMetric(baseMetrics.get("local") + randomLocalExecutions, responseAsMap, "local");
         assertClientTypeAndAllQueryMetrics(clientTypeTotalQueries, allTotalQueries, responseAsMap);
         
+        //
         // random COMMANDs
+        //
         int randomCommandExecutions = randomIntBetween(1, 15);
         clientTypeTotalQueries += randomCommandExecutions;
         allTotalQueries += randomCommandExecutions;
@@ -149,19 +164,50 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         assertFeatureMetric(baseMetrics.get("command") + randomCommandExecutions, responseAsMap, "command");
         assertClientTypeAndAllQueryMetrics(clientTypeTotalQueries, allTotalQueries, responseAsMap);
         
+        //
         // random TRANSLATE requests
+        //
         int randomTranslateExecutions = randomIntBetween(1, 15);
         for (int i = 0; i < randomTranslateExecutions; i++) {
             runTranslate("SELECT name FROM library WHERE page_count > 100 ORDER BY page_count");
         }
         responseAsMap = getStats();
         assertTranslateQueryMetric(baseTranslateRequests + randomTranslateExecutions, responseAsMap);
+        
+        //
+        // random failed queries
+        //
+        int randomFailedExecutions = randomIntBetween(1, 15);
+        int clientTypeFailedQueries = baseClientTypeFailedQueries + randomFailedExecutions;
+        int allFailedQueries = baseAllFailedQueries + randomFailedExecutions;
+        allTotalQueries += randomFailedExecutions;
+        clientTypeTotalQueries += randomFailedExecutions;
+        for (int i = 0; i < randomFailedExecutions; i++) {
+            // not interested in the exception type, but in the fact that the metrics are incremented
+            // when an exception is thrown
+            expectThrows(Exception.class, () -> {
+                runSql(randomFrom("SELECT missing_field FROM library",
+                                  "SELECT * FROM missing_index",
+                                  "SELECTT wrong_command",
+                                  "SELECT name + page_count AS not_allowed FROM library",
+                                  "SELECT incomplete_query FROM"));
+            });
+        }
+        responseAsMap = getStats();
+        assertClientTypeAndAllFailedQueryMetrics(clientTypeFailedQueries, allFailedQueries, responseAsMap);
+        assertClientTypeAndAllQueryMetrics(clientTypeTotalQueries, allTotalQueries, responseAsMap);
     }
 
     private void assertClientTypeAndAllQueryMetrics(int clientTypeTotalQueries, int allTotalQueries, Map<String, Object> responseAsMap)
             throws IOException {
         assertClientTypeQueryMetric(clientTypeTotalQueries, responseAsMap, "total");
         assertAllQueryMetric(allTotalQueries, responseAsMap, "total");
+    }
+    
+    private void assertClientTypeAndAllFailedQueryMetrics(int clientTypeFailedQueries, int allFailedQueries, Map<String, Object> responseAsMap)
+            throws IOException {
+        assertClientTypeQueryMetric(clientTypeFailedQueries, responseAsMap, "failed");
+        assertAllQueryMetric(allFailedQueries, responseAsMap, "failed");
     }
     
     private void index(List<IndexDocument> docs) throws IOException {

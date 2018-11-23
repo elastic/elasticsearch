@@ -14,7 +14,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
@@ -109,9 +108,5 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                 Cursors.encodeToString(Version.CURRENT, rowSet.nextPageCursor()),
                 columns,
                 rows);
-    }
-    
-    public Counters stats() {
-        return planExecutor.metrics().stats();
     }
 }

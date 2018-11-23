@@ -52,9 +52,10 @@ public class JdbcHttpClient {
 
     public Cursor query(String sql, List<SqlTypedParamValue> params, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
-                SqlQueryRequest sqlRequest = new SqlQueryRequest(new RequestInfo(Mode.JDBC), sql, params, null,
-                Protocol.TIME_ZONE,
-                fetch, TimeValue.timeValueMillis(meta.timeoutInMs()), TimeValue.timeValueMillis(meta.queryTimeoutInMs()));
+                SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, null, Protocol.TIME_ZONE,
+                fetch,
+                TimeValue.timeValueMillis(meta.timeoutInMs()), TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+                new RequestInfo(Mode.JDBC));
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }
@@ -64,8 +65,8 @@ public class JdbcHttpClient {
      * the scroll id to use to fetch the next page.
      */
     public Tuple<String, List<List<Object>>> nextPage(String cursor, RequestMeta meta) throws SQLException {
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(new RequestInfo(Mode.JDBC), cursor,
-                TimeValue.timeValueMillis(meta.timeoutInMs()), TimeValue.timeValueMillis(meta.queryTimeoutInMs()));
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, TimeValue.timeValueMillis(meta.timeoutInMs()),
+                TimeValue.timeValueMillis(meta.queryTimeoutInMs()), new RequestInfo(Mode.JDBC));
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new Tuple<>(response.cursor(), response.rows());
     }

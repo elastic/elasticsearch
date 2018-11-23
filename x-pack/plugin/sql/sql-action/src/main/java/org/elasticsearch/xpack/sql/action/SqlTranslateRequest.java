@@ -33,9 +33,9 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
     public SqlTranslateRequest() {
     }
 
-    public SqlTranslateRequest(RequestInfo requestInfo, String query, List<SqlTypedParamValue> params, QueryBuilder filter,
-                               TimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-        super(requestInfo, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
+    public SqlTranslateRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
+                               int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
+        super(query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout, requestInfo);
     }
 
     public SqlTranslateRequest(StreamInput in) throws IOException {
@@ -65,8 +65,8 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test parsing of SqlTranslateRequest, so we can reuse SqlQuerySerialization
-        return new SqlQueryRequest(requestInfo(), query(), params(), timeZone(), fetchSize(),
-            requestTimeout(), pageTimeout(), filter(), null).toXContent(builder, params);
+        return new SqlQueryRequest(query(), params(), timeZone(), fetchSize(), requestTimeout(),
+            pageTimeout(), filter(), null, requestInfo()).toXContent(builder, params);
 
     }
 }

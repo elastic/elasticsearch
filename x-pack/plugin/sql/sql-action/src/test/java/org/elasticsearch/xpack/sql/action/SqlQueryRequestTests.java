@@ -55,9 +55,9 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
 
     @Override
     protected SqlQueryRequest createTestInstance() {
-        return new SqlQueryRequest(requestInfo, randomAlphaOfLength(10), randomParameters(),
-                SqlTestUtils.randomFilterOrNull(random()), randomTimeZone(),
-                between(1, Integer.MAX_VALUE), randomTV(), randomTV(), randomAlphaOfLength(10)
+        return new SqlQueryRequest(randomAlphaOfLength(10), randomParameters(), SqlTestUtils.randomFilterOrNull(random()),
+                randomTimeZone(), between(1, Integer.MAX_VALUE),
+                randomTV(), randomTV(), randomAlphaOfLength(10), requestInfo
         );
     }
     
@@ -113,9 +113,9 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
                         () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random()))),
                 request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor))
         );
-        SqlQueryRequest newRequest = new SqlQueryRequest(instance.requestInfo(), instance.query(), instance.params(),
-                instance.filter(), instance.timeZone(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(),
-                instance.cursor());
+        SqlQueryRequest newRequest = new SqlQueryRequest(instance.query(), instance.params(), instance.filter(),
+                instance.timeZone(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.cursor(),
+                instance.requestInfo());
         mutator.accept(newRequest);
         return newRequest;
     }

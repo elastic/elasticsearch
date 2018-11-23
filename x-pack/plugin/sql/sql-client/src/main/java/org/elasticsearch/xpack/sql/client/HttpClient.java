@@ -67,9 +67,9 @@ public class HttpClient {
     public SqlQueryResponse queryInit(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         // method called only from CLI. "client.id" is set to "cli"
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(new RequestInfo(Mode.PLAIN, CLI), query, Collections.emptyList(), null,
-            TimeZone.getTimeZone("UTC"), fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()),
-            TimeValue.timeValueMillis(cfg.pageTimeout()));
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), null, TimeZone.getTimeZone("UTC"),
+            fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()),
+            new RequestInfo(Mode.PLAIN, CLI));
         return query(sqlRequest);
     }
 
@@ -79,14 +79,14 @@ public class HttpClient {
 
     public SqlQueryResponse nextPage(String cursor) throws SQLException {
         // method called only from CLI. "client.id" is set to "cli"
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(new RequestInfo(Mode.PLAIN, CLI), cursor,
-                TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()));
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, TimeValue.timeValueMillis(cfg.queryTimeout()),
+                TimeValue.timeValueMillis(cfg.pageTimeout()), new RequestInfo(Mode.PLAIN, CLI));
         return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
     public boolean queryClose(String cursor) throws SQLException {
         SqlClearCursorResponse response = post(Protocol.CLEAR_CURSOR_REST_ENDPOINT,
-            new SqlClearCursorRequest(new RequestInfo(Mode.PLAIN), cursor),
+            new SqlClearCursorRequest(cursor, new RequestInfo(Mode.PLAIN)),
             SqlClearCursorResponse::fromXContent);
         return response.isSucceeded();
     }

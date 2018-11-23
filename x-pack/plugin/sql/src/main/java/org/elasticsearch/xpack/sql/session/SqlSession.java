@@ -103,8 +103,7 @@ public class SqlSession {
 
         preAnalyze(parsed, c -> {
             Analyzer analyzer = new Analyzer(functionRegistry, c, settings.timeZone(), verifier);
-            LogicalPlan p = analyzer.analyze(parsed);
-            return verify ? analyzer.verify(p) : p;
+            return analyzer.analyze(parsed, verify);
         }, listener);
     }
 

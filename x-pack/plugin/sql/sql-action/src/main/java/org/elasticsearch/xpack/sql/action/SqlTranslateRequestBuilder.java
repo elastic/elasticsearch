@@ -23,15 +23,15 @@ import java.util.TimeZone;
  */
 public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslateRequest, SqlTranslateResponse> {
     public SqlTranslateRequestBuilder(ElasticsearchClient client, SqlTranslateAction action) {
-        this(client, action, new RequestInfo(Mode.PLAIN), null, null, Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE,
-            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT);
+        this(client, action, null, null, Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+            Protocol.PAGE_TIMEOUT, new RequestInfo(Mode.PLAIN));
     }
 
-    public SqlTranslateRequestBuilder(ElasticsearchClient client, SqlTranslateAction action, RequestInfo requestInfo, String query,
-                                      QueryBuilder filter, List<SqlTypedParamValue> params, TimeZone timeZone, int fetchSize,
-                                      TimeValue requestTimeout, TimeValue pageTimeout) {
+    public SqlTranslateRequestBuilder(ElasticsearchClient client, SqlTranslateAction action, String query, QueryBuilder filter,
+                                      List<SqlTypedParamValue> params, TimeZone timeZone, int fetchSize, TimeValue requestTimeout,
+                                      TimeValue pageTimeout, RequestInfo requestInfo) {
         super(client, action,
-                new SqlTranslateRequest(requestInfo, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout));
+                new SqlTranslateRequest(query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout, requestInfo));
     }
 
     public SqlTranslateRequestBuilder query(String query) {

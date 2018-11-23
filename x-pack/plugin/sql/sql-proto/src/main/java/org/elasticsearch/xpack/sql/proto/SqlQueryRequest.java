@@ -33,8 +33,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final List<SqlTypedParamValue> params;
 
 
-    public SqlQueryRequest(RequestInfo requestInfo, String query, List<SqlTypedParamValue> params, TimeZone timeZone,
-                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, String cursor) {
+    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, TimeZone timeZone, int fetchSize,
+                           TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, String cursor, RequestInfo requestInfo) {
         super(requestInfo);
         this.query = query;
         this.params = params;
@@ -46,14 +46,14 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.cursor = cursor;
     }
 
-    public SqlQueryRequest(RequestInfo requestInfo, String query, List<SqlTypedParamValue> params, ToXContent filter,
-                           TimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-        this(requestInfo, query, params, timeZone, fetchSize, requestTimeout, pageTimeout, filter, null);
+    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ToXContent filter, TimeZone timeZone,
+                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
+        this(query, params, timeZone, fetchSize, requestTimeout, pageTimeout, filter, null, requestInfo);
     }
 
-    public SqlQueryRequest(RequestInfo requestInfo, String cursor, TimeValue requestTimeout, TimeValue pageTimeout) {
-        this(requestInfo, "", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout,
-             pageTimeout, null, cursor);
+    public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
+        this("", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout,
+             null, cursor, requestInfo);
     }
 
     /**

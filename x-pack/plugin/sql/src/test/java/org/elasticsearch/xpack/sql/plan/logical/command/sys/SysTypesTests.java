@@ -102,9 +102,9 @@ public class SysTypesTests extends ESTestCase {
         cmd.execute(null, wrap(r -> {
             assertEquals(3, r.size());
             assertEquals("KEYWORD", r.column(0));
-            r.advanceRow();
+            assertTrue(r.advanceRow());
             assertEquals("TEXT", r.column(0));
-            r.advanceRow();
+            assertTrue(r.advanceRow());
             assertEquals("IP", r.column(0));
         }, ex -> fail(ex.getMessage())));
     }

@@ -70,7 +70,7 @@ public class AddVotingTombstonesRequest extends MasterNodeRequest<AddVotingTombs
         timeout = in.readTimeValue();
     }
 
-    Set<VotingTombstone> resolveNodes(ClusterState currentState) {
+    Set<VotingTombstone> resolveVotingTombstones(ClusterState currentState) {
         final DiscoveryNodes allNodes = currentState.nodes();
         final Set<VotingTombstone> resolvedNodes = Arrays.stream(allNodes.resolveNodes(nodeDescriptions))
                 .map(allNodes::get).filter(DiscoveryNode::isMasterNode).map(VotingTombstone::new).collect(Collectors.toSet());
@@ -84,8 +84,8 @@ public class AddVotingTombstonesRequest extends MasterNodeRequest<AddVotingTombs
         return resolvedNodes;
     }
 
-    Set<VotingTombstone> resolveNodesAndCheckMaximum(ClusterState currentState, int maxTombstoneCount, String maximumSettingKey) {
-        final Set<VotingTombstone> resolvedNodes = resolveNodes(currentState);
+    Set<VotingTombstone> resolveVotingTombstones(ClusterState currentState, int maxTombstoneCount, String maximumSettingKey) {
+        final Set<VotingTombstone> resolvedNodes = resolveVotingTombstones(currentState);
 
         final int oldTombstoneCount = currentState.getVotingTombstones().size();
         final int newTombstoneCount = resolvedNodes.size();

@@ -69,16 +69,16 @@ public class AddVotingTombstonesRequestTests extends ESTestCase {
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder()
             .add(localNode).add(otherNode1).add(otherNode2).add(otherDataNode).localNodeId(localNode.getId())).build();
 
-        assertThat(makeRequest().resolveNodes(clusterState),
+        assertThat(makeRequest().resolveVotingTombstones(clusterState),
                 containsInAnyOrder(localNodeTombstone, otherNode1Tombstone, otherNode2Tombstone));
-        assertThat(makeRequest("_all").resolveNodes(clusterState),
+        assertThat(makeRequest("_all").resolveVotingTombstones(clusterState),
                 containsInAnyOrder(localNodeTombstone, otherNode1Tombstone, otherNode2Tombstone));
-        assertThat(makeRequest("_local").resolveNodes(clusterState),
+        assertThat(makeRequest("_local").resolveVotingTombstones(clusterState),
                 contains(localNodeTombstone));
-        assertThat(makeRequest("other*").resolveNodes(clusterState),
+        assertThat(makeRequest("other*").resolveVotingTombstones(clusterState),
                 containsInAnyOrder(otherNode1Tombstone, otherNode2Tombstone));
 
-        assertThat(expectThrows(IllegalArgumentException.class, () -> makeRequest("not-a-node").resolveNodes(clusterState)).getMessage(),
+        assertThat(expectThrows(IllegalArgumentException.class, () -> makeRequest("not-a-node").resolveVotingTombstones(clusterState)).getMessage(),
             equalTo("add voting tombstones request for [not-a-node] matched no master-eligible nodes"));
     }
 
@@ -99,17 +99,17 @@ public class AddVotingTombstonesRequestTests extends ESTestCase {
                 .coordinationMetaData(CoordinationMetaData.builder().addVotingTombstone(otherNode1Tombstone).build()));
         final ClusterState clusterState = builder.build();
 
-        assertThat(makeRequest().resolveNodesAndCheckMaximum(clusterState, 3, "setting.name"),
+        assertThat(makeRequest().resolveVotingTombstones(clusterState, 3, "setting.name"),
                 containsInAnyOrder(localNodeTombstone, otherNode2Tombstone));
-        assertThat(makeRequest("_local").resolveNodesAndCheckMaximum(clusterState, 2, "setting.name"),
+        assertThat(makeRequest("_local").resolveVotingTombstones(clusterState, 2, "setting.name"),
                 contains(localNodeTombstone));
 
         assertThat(expectThrows(IllegalArgumentException.class,
-            () -> makeRequest().resolveNodesAndCheckMaximum(clusterState, 2, "setting.name")).getMessage(),
+            () -> makeRequest().resolveVotingTombstones(clusterState, 2, "setting.name")).getMessage(),
             equalTo("add voting tombstones request for [] would add [2] voting tombstones to the existing [1] which would exceed the " +
                 "maximum of [2] set by [setting.name]"));
         assertThat(expectThrows(IllegalArgumentException.class,
-            () -> makeRequest("_local").resolveNodesAndCheckMaximum(clusterState, 1, "setting.name")).getMessage(),
+            () -> makeRequest("_local").resolveVotingTombstones(clusterState, 1, "setting.name")).getMessage(),
             equalTo("add voting tombstones request for [_local] would add [1] voting tombstones to the existing [1] which would exceed " +
                 "the maximum of [1] set by [setting.name]"));
     }

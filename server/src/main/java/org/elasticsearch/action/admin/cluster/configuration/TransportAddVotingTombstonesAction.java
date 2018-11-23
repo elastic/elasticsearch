@@ -80,7 +80,7 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
     protected void masterOperation(AddVotingTombstonesRequest request, ClusterState state,
                                    ActionListener<AddVotingTombstonesResponse> listener) throws Exception {
 
-        resolveNodesAndCheckMaximum(request, state); // throws IllegalArgumentException if no nodes matched or maximum exceeded
+        resolveVotingTombstonesAndCheckMaximum(request, state); // throws IllegalArgumentException if no nodes matched or maximum exceeded
 
         clusterService.submitStateUpdateTask("add-voting-tombstones", new ClusterStateUpdateTask(Priority.URGENT) {
 
@@ -89,7 +89,7 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
             @Override
             public ClusterState execute(ClusterState currentState) {
                 assert resolvedNodes == null : resolvedNodes;
-                resolvedNodes = resolveNodesAndCheckMaximum(request, currentState);
+                resolvedNodes = resolveVotingTombstonesAndCheckMaximum(request, currentState);
 
                 final CoordinationMetaData.Builder builder = CoordinationMetaData.builder(currentState.coordinationMetaData());
                 resolvedNodes.forEach(builder::addVotingTombstone);
@@ -145,8 +145,8 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
         });
     }
 
-    private static Set<VotingTombstone> resolveNodesAndCheckMaximum(AddVotingTombstonesRequest request, ClusterState state) {
-        return request.resolveNodesAndCheckMaximum(state,
+    private static Set<VotingTombstone> resolveVotingTombstonesAndCheckMaximum(AddVotingTombstonesRequest request, ClusterState state) {
+        return request.resolveVotingTombstones(state,
             MAXIMUM_VOTING_TOMBSTONES_SETTING.get(state.metaData().settings()), MAXIMUM_VOTING_TOMBSTONES_SETTING.getKey());
     }
 

@@ -21,6 +21,8 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +30,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.common.logging.DeprecationLogger;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -39,6 +42,9 @@ import java.util.Objects;
  * and applying a modification (log, ln, sqrt, square, etc) afterwards.
  */
 public class FieldValueFactorFunction extends ScoreFunction {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(FieldValueFactorFunction.class));
+
     private final String field;
     private final float boostFactor;
     private final Modifier modifier;
@@ -83,6 +89,13 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 }
                 double val = value * boostFactor;
                 double result = modifier.apply(val);
+                if (result < 0f) {
+                    deprecationLogger.deprecatedAndMaybeLog(
+                        "negative score in function score query",
+                        "Negative scores for field value function are deprecated," + 
+                            " and will throw an error in the next major version. Got: [" + result + "] for field value: [" + value + "]"
+                    );
+                }
                 return result;
             }
 

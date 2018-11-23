@@ -36,7 +36,7 @@ public class TestUtils {
     public static final String PUBLIC_KEY_RESOURCE = "/public.key";
     public static final String PRIVATE_KEY_RESOURCE = "/private.key";
 
-    private static final DateFormatter dateFormatter = DateFormatters.forPattern("yyyy-MM-dd");
+    private static final DateFormatter dateFormatter = DateFormatters.forPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
     private static final DateMathParser dateMathParser = dateFormatter.toDateMathParser();
 
     public static String dumpLicense(License license) throws Exception {

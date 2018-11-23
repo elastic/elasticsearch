@@ -27,10 +27,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.function.Predicate;
 
 public class WatchStatusTests extends ESTestCase {
@@ -50,32 +51,32 @@ public class WatchStatusTests extends ESTestCase {
         assertEquals(expectedVersion, watchStatus.version());
         assertEquals(expectedExecutionState, watchStatus.getExecutionState());
 
-        assertEquals(new DateTime(1432663467763L, DateTimeZone.UTC), watchStatus.lastChecked());
-        assertEquals(DateTime.parse("2015-05-26T18:04:27.763Z"), watchStatus.lastMetCondition());
+        assertEquals(Instant.ofEpochMilli(1432663467763L).atZone(ZoneOffset.UTC), watchStatus.lastChecked());
+        assertEquals(ZonedDateTime.parse("2015-05-26T18:04:27.763Z"), watchStatus.lastMetCondition());
 
         WatchStatus.State watchState = watchStatus.state();
         assertEquals(expectedActive, watchState.isActive());
-        assertEquals(DateTime.parse("2015-05-26T18:04:27.723Z"), watchState.getTimestamp());
+        assertEquals(ZonedDateTime.parse("2015-05-26T18:04:27.723Z"), watchState.getTimestamp());
 
         ActionStatus actionStatus = watchStatus.actionStatus("test_index");
         assertNotNull(actionStatus);
 
         ActionStatus.AckStatus ackStatus = actionStatus.ackStatus();
-        assertEquals(DateTime.parse("2015-05-26T18:04:27.763Z"), ackStatus.timestamp());
+        assertEquals(ZonedDateTime.parse("2015-05-26T18:04:27.763Z"), ackStatus.timestamp());
         assertEquals(expectedAckState, ackStatus.state());
 
         ActionStatus.Execution lastExecution = actionStatus.lastExecution();
-        assertEquals(DateTime.parse("2015-05-25T18:04:27.733Z"), lastExecution.timestamp());
+        assertEquals(ZonedDateTime.parse("2015-05-25T18:04:27.733Z"), lastExecution.timestamp());
         assertFalse(lastExecution.successful());
         assertEquals("failed to send email", lastExecution.reason());
 
         ActionStatus.Execution lastSuccessfulExecution = actionStatus.lastSuccessfulExecution();
-        assertEquals(DateTime.parse("2015-05-25T18:04:27.773Z"), lastSuccessfulExecution.timestamp());
+        assertEquals(ZonedDateTime.parse("2015-05-25T18:04:27.773Z"), lastSuccessfulExecution.timestamp());
         assertTrue(lastSuccessfulExecution.successful());
         assertNull(lastSuccessfulExecution.reason());
 
         ActionStatus.Throttle lastThrottle = actionStatus.lastThrottle();
-        assertEquals(DateTime.parse("2015-04-25T18:05:23.445Z"), lastThrottle.timestamp());
+        assertEquals(ZonedDateTime.parse("2015-04-25T18:05:23.445Z"), lastThrottle.timestamp());
         assertEquals("throttling interval is set to [5 seconds] ...", lastThrottle.reason());
     }
 

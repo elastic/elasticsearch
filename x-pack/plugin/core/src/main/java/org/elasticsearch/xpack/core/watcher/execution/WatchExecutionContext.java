@@ -18,9 +18,9 @@ import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 public abstract class WatchExecutionContext {
 
     private final Wid id;
-    private final DateTime executionTime;
+    private final ZonedDateTime executionTime;
     private final TriggerEvent triggerEvent;
     private final TimeValue defaultThrottlePeriod;
 
@@ -48,7 +48,7 @@ public abstract class WatchExecutionContext {
     private String nodeId;
     private String user;
 
-    public WatchExecutionContext(String watchId, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
+    public WatchExecutionContext(String watchId, ZonedDateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
         this.id = new Wid(watchId, executionTime);
         this.executionTime = executionTime;
         this.triggerEvent = triggerEvent;
@@ -97,7 +97,7 @@ public abstract class WatchExecutionContext {
         return id;
     }
 
-    public DateTime executionTime() {
+    public ZonedDateTime executionTime() {
         return executionTime;
     }
 

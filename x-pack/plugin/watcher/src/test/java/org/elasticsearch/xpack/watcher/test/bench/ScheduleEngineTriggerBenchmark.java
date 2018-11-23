@@ -77,8 +77,8 @@ public class ScheduleEngineTriggerBenchmark {
                 if (running.get()) {
                     for (TriggerEvent event : events) {
                         ScheduleTriggerEvent scheduleTriggerEvent = (ScheduleTriggerEvent) event;
-                        measure(total, triggerMetric, tooEarlyMetric, event.triggeredTime().getMillis(),
-                                scheduleTriggerEvent.scheduledTime().getMillis());
+                        measure(total, triggerMetric, tooEarlyMetric, event.triggeredTime().toInstant().toEpochMilli(),
+                                scheduleTriggerEvent.scheduledTime().toInstant().toEpochMilli());
                     }
                 }
             }

@@ -5,21 +5,22 @@
  */
 package org.elasticsearch.xpack.core.watcher.history;
 
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
-import org.joda.time.DateTime;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
+
+import java.time.ZonedDateTime;
 
 public final class HistoryStoreField {
 
     public static final String INDEX_PREFIX = ".watcher-history-";
     public static final String INDEX_PREFIX_WITH_TEMPLATE = INDEX_PREFIX + WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION + "-";
-    static final DateTimeFormatter indexTimeFormat = DateTimeFormat.forPattern("YYYY.MM.dd");
+    private static final DateFormatter indexTimeFormat = DateFormatters.forPattern("YYYY.MM.dd");
 
     /**
      * Calculates the correct history index name for a given time
      */
-    public static String getHistoryIndexNameForTime(DateTime time) {
-        return INDEX_PREFIX_WITH_TEMPLATE + indexTimeFormat.print(time);
+    public static String getHistoryIndexNameForTime(ZonedDateTime time) {
+        return INDEX_PREFIX_WITH_TEMPLATE + indexTimeFormat.format(time);
     }
 }

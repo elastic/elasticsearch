@@ -140,7 +140,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
             searchWatchesRequest.addParameter("size", "1000");
             Response response = adminClient().performRequest(searchWatchesRequest);
             ObjectPath objectPathResponse = ObjectPath.createFromResponse(response);
-            int totalHits = objectPathResponse.evaluate("hits.total");
+            int totalHits = objectPathResponse.evaluate("hits.total.value");
             if (totalHits > 0) {
                 List<Map<String, Object>> hits = objectPathResponse.evaluate("hits.hits");
                 for (Map<String, Object> hit : hits) {
@@ -180,7 +180,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                     },
                     () -> "Exception when enabling monitoring");
             awaitCallApi("search", singletonMap("index", ".monitoring-*"), emptyList(),
-                    response -> ((Number) response.evaluate("hits.total")).intValue() > 0,
+                    response -> ((Number) response.evaluate("hits.total.value")).intValue() > 0,
                     () -> "Exception when waiting for monitoring documents to be indexed");
         }
     }

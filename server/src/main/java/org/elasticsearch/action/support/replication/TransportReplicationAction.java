@@ -313,7 +313,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    class AsyncPrimaryAction extends AbstractRunnable implements ActionListener<PrimaryShardReference> {
+    class AsyncPrimaryAction extends AbstractRunnable {
 
         private final Request request;
         // targetAllocationID of the shard this request is meant for
@@ -334,11 +334,33 @@ public abstract class TransportReplicationAction<
 
         @Override
         protected void doRun() throws Exception {
-            acquirePrimaryShardReference(request.shardId(), targetAllocationID, primaryTerm, this, request);
+            final ShardId shardId = request.shardId();
+            final IndexShard indexShard = getIndexShard(shardId);
+            final ShardRouting shardRouting = indexShard.routingEntry();
+            // we may end up here if the cluster state used to route the primary is so stale that the underlying
+            // index shard was replaced with a replica. For example - in a two node cluster, if the primary fails
+            // the replica will take over and a replica will be assigned to the first node.
+            if (shardRouting.primary() == false) {
+                throw new ReplicationOperation.RetryOnPrimaryException(shardId, "actual shard is not a primary " + shardRouting);
+            }
+            final String actualAllocationId = shardRouting.allocationId().getId();
+            if (actualAllocationId.equals(targetAllocationID) == false) {
+                throw new ShardNotFoundException(shardId, "expected allocation id [{}] but found [{}]", targetAllocationID,
+                    actualAllocationId);
+            }
+            final long actualTerm = indexShard.getPendingPrimaryTerm();
+            if (actualTerm != primaryTerm) {
+                throw new ShardNotFoundException(shardId, "expected allocation id [{}] with term [{}] but found [{}]", targetAllocationID,
+                    primaryTerm, actualTerm);
+            }
+
+            acquirePrimaryOperationPermit(indexShard, request, ActionListener.wrap(
+                releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)),
+                this::onFailure
+            ));
         }
 
-        @Override
-        public void onResponse(PrimaryShardReference primaryShardReference) {
+        void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
             try {
                 final ClusterState clusterState = clusterService.state();
                 final IndexMetaData indexMetaData = clusterState.metaData().getIndexSafe(primaryShardReference.routingEntry().index());
@@ -660,10 +682,10 @@ public abstract class TransportReplicationAction<
             setPhase(task, "replica");
             final String actualAllocationId = this.replica.routingEntry().allocationId().getId();
             if (actualAllocationId.equals(targetAllocationID) == false) {
-                throw new ShardNotFoundException(this.replica.shardId(), "expected aID [{}] but found [{}]", targetAllocationID,
+                throw new ShardNotFoundException(this.replica.shardId(), "expected allocation id [{}] but found [{}]", targetAllocationID,
                     actualAllocationId);
             }
-            replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, this, executor, request);
+            acquireReplicaOperationPermit(replica, request, this, primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes);
         }
 
         /**
@@ -697,7 +719,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected IndexShard getIndexShard(ShardId shardId) {
+    protected IndexShard getIndexShard(final ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         return indexService.getShard(shardId.id());
     }
@@ -938,42 +960,26 @@ public abstract class TransportReplicationAction<
     }
 
     /**
-     * Tries to acquire reference to {@link IndexShard} to perform a primary operation. Released after performing primary operation locally
-     * and replication of the operation to all replica shards is completed / failed (see {@link ReplicationOperation}).
+     * Executes the logic for acquiring one or more operation permit on a primary shard. The default is to acquire a single permit but this
+     * method can be overridden to acquire more.
      */
-    private void acquirePrimaryShardReference(ShardId shardId, String allocationId, long primaryTerm,
-                                              ActionListener<PrimaryShardReference> onReferenceAcquired, Object debugInfo) {
-        IndexShard indexShard = getIndexShard(shardId);
-        // we may end up here if the cluster state used to route the primary is so stale that the underlying
-        // index shard was replaced with a replica. For example - in a two node cluster, if the primary fails
-        // the replica will take over and a replica will be assigned to the first node.
-        if (indexShard.routingEntry().primary() == false) {
-            throw new ReplicationOperation.RetryOnPrimaryException(indexShard.shardId(),
-                "actual shard is not a primary " + indexShard.routingEntry());
-        }
-        final String actualAllocationId = indexShard.routingEntry().allocationId().getId();
-        if (actualAllocationId.equals(allocationId) == false) {
-            throw new ShardNotFoundException(shardId, "expected aID [{}] but found [{}]", allocationId, actualAllocationId);
-        }
-        final long actualTerm = indexShard.getPendingPrimaryTerm();
-        if (actualTerm != primaryTerm) {
-            throw new ShardNotFoundException(shardId, "expected aID [{}] with term [{}] but found [{}]", allocationId,
-                primaryTerm, actualTerm);
-        }
+    protected void acquirePrimaryOperationPermit(final IndexShard primary,
+                                                 final Request request,
+                                                 final ActionListener<Releasable> onAcquired) {
+        primary.acquirePrimaryOperationPermit(onAcquired, executor, request);
+    }
 
-        ActionListener<Releasable> onAcquired = new ActionListener<Releasable>() {
-            @Override
-            public void onResponse(Releasable releasable) {
-                onReferenceAcquired.onResponse(new PrimaryShardReference(indexShard, releasable));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                onReferenceAcquired.onFailure(e);
-            }
-        };
-
-        indexShard.acquirePrimaryOperationPermit(onAcquired, executor, debugInfo);
+    /**
+     * Executes the logic for acquiring one or more operation permit on a replica shard. The default is to acquire a single permit but this
+     * method can be overridden to acquire more.
+     */
+    protected void acquireReplicaOperationPermit(final IndexShard replica,
+                                                 final ReplicaRequest request,
+                                                 final ActionListener<Releasable> onAcquired,
+                                                 final long primaryTerm,
+                                                 final long globalCheckpoint,
+                                                 final long maxSeqNoOfUpdatesOrDeletes) {
+        replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onAcquired, executor, request);
     }
 
     class ShardReference implements Releasable {

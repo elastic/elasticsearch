@@ -148,6 +148,14 @@ public class Zen2GatewayMetaStateTests extends ESTestCase {
         ).version(version).build();
     }
 
+    private void assertClusterStateEqual(ClusterState expected, ClusterState actual) {
+        assertThat(actual.version(), equalTo(expected.version()));
+        assertTrue(MetaData.isGlobalStateEquals(actual.metaData(), expected.metaData()));
+        for (IndexMetaData indexMetaData : expected.metaData()) {
+            assertThat(actual.metaData().index(indexMetaData.getIndex()), equalTo(indexMetaData));
+        }
+    }
+
     public void testSetLastAcceptedState() throws IOException {
         Zen2GatewayMetaStateUT gateway = newGateway();
         final long term = randomNonNegativeLong();
@@ -165,9 +173,9 @@ public class Zen2GatewayMetaStateTests extends ESTestCase {
 
             gateway.setLastAcceptedState(state);
             gateway = maybeNew(gateway);
-            assertThat(gateway.getLastAcceptedState().version(), equalTo(version));
-            assertTrue(MetaData.isGlobalStateEquals(gateway.getLastAcceptedState().metaData(), metaData));
-            assertThat(gateway.getLastAcceptedState().metaData().index(indexName), equalTo(indexMetaData));
+
+            ClusterState lastAcceptedState = gateway.getLastAcceptedState();
+            assertClusterStateEqual(state, lastAcceptedState);
         }
     }
 
@@ -223,13 +231,16 @@ public class Zen2GatewayMetaStateTests extends ESTestCase {
                 not(equalTo(gateway.getLastAcceptedState().getLastCommittedConfiguration())));
         gateway.markLastAcceptedConfigAsCommitted();
 
+        CoordinationMetaData expectedCoordinationMetaData = CoordinationMetaData.builder(coordinationMetaData)
+                .lastCommittedConfiguration(coordinationMetaData.getLastAcceptedConfiguration()).build();
+        ClusterState expectedClusterState =
+                ClusterState.builder(state).metaData(MetaData.builder().coordinationMetaData(expectedCoordinationMetaData).build()).build();
+
         gateway = maybeNew(gateway);
-        assertThat(gateway.getLastAcceptedState().getLastAcceptedConfiguration(),
-                equalTo(gateway.getLastAcceptedState().getLastCommittedConfiguration()));
+        assertClusterStateEqual(expectedClusterState, gateway.getLastAcceptedState());
         gateway.markLastAcceptedConfigAsCommitted();
 
         gateway = maybeNew(gateway);
-        assertThat(gateway.getLastAcceptedState().getLastAcceptedConfiguration(),
-                equalTo(gateway.getLastAcceptedState().getLastCommittedConfiguration()));
+        assertClusterStateEqual(expectedClusterState, gateway.getLastAcceptedState());
     }
 }

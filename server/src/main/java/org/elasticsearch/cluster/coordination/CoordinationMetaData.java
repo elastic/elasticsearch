@@ -310,10 +310,10 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            sb.append('{').append(nodeId).append('}');
             if (nodeName.length() > 0) {
                 sb.append('{').append(nodeName).append('}');
             }
+            sb.append('{').append(nodeId).append('}');
             return sb.toString();
         }
 

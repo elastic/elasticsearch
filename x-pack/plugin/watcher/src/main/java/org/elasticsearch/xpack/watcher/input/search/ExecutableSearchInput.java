@@ -78,7 +78,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
                 client, () -> client.search(searchRequest).actionGet(timeout));
 
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits());
+            logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits().value);
             for (SearchHit hit : response.getHits()) {
                 logger.debug("[{}] hit [{}]", ctx.id(), hit.getSourceAsMap());
             }

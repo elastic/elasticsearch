@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.text.Text;
@@ -78,9 +79,10 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         hit.shard(new SearchShardTarget("a", new Index("a", "indexUUID"), 0, null));
 
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
-                new SearchHits(new SearchHit[]{hit}, 1L, 1f), null, null, null, false, false, 1);
-        SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY);
+                new SearchHits(new SearchHit[]{hit}, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1f),
+            null, null, null, false, false, 1);
+        SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 0,
+            500L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
 
         WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response));
         assertThat(condition.execute(ctx).met(), is(true));

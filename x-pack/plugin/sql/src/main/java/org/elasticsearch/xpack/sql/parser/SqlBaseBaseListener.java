@@ -1000,18 +1000,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterIntervalValue(SqlBaseParser.IntervalValueContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitIntervalValue(SqlBaseParser.IntervalValueContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterIntervalField(SqlBaseParser.IntervalFieldContext ctx) { }
   /**
    * {@inheritDoc}

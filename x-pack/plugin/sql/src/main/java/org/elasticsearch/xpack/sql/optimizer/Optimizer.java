@@ -132,7 +132,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new FoldNull(),
                 new ConstantFolding(),
                 new SimplifyCoalesce(),
-                new SimplifyNullIf(),
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
@@ -1234,34 +1233,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class SimplifyNullIf extends OptimizerExpressionRule {
-
-        SimplifyNullIf() {
-            super(TransformDirection.DOWN);
-        }
-
-        @Override
-        protected Expression rule(Expression e) {
-            if (e instanceof NullIf) {
-                NullIf c = (NullIf) e;
-
-                List<Expression> newChildren = new ArrayList<>();
-                for (Expression child : c.children()) {
-                    if (Expressions.isNull(child) == false) {
-                        newChildren.add(child);
-                    }
-                }
-
-                if (newChildren.isEmpty()) {
-                    return Literal.NULL;
-                }
-                if (newChildren.size() == 1) {
-                    return newChildren.get(0);
-                }
-            }
-            return e;
-        }
-    }
 
     static class BooleanSimplification extends OptimizerExpressionRule {
 

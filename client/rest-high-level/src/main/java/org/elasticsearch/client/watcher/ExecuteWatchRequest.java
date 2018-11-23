@@ -7,6 +7,7 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,16 +47,25 @@ public class ExecuteWatchRequest implements Validatable, ToXContentObject {
     private Map<String, ActionExecutionMode> actionModes = new HashMap<>();
 
     /**
+     * Execute an existing watch on the cluster
+     *
      * @param id the id of the watch to execute
      */
-    public ExecuteWatchRequest(String id) {
-        this.id = Objects.requireNonNull(id, "Watch id cannot be null");
-        this.watchContent = null;
+    public static ExecuteWatchRequest byId(String id) {
+        return new ExecuteWatchRequest(Objects.requireNonNull(id, "Watch id cannot be null"), null);
     }
 
-    public ExecuteWatchRequest(BytesReference watchContent) {
-        this.id = null;
-        this.watchContent = Objects.requireNonNull(watchContent, "Watch content cannot be null");
+    /**
+     * Execute an inline watch
+     * @param watchContent the JSON definition of the watch
+     */
+    public static ExecuteWatchRequest inline(String watchContent) {
+        return new ExecuteWatchRequest(null, Objects.requireNonNull(watchContent, "Watch content cannot be null"));
+    }
+
+    private ExecuteWatchRequest(String id, String watchContent) {
+        this.id = id;
+        this.watchContent = watchContent == null ? null : new BytesArray(watchContent);
     }
 
     public String getId() {
@@ -85,17 +95,17 @@ public class ExecuteWatchRequest implements Validatable, ToXContentObject {
     }
 
     /**
-     * @param alternativeInput Set's the alternative input
+     * @param alternativeInput Sets the alternative input
      */
-    public void setAlternativeInput(BytesReference alternativeInput) {
-        this.alternativeInput = alternativeInput;
+    public void setAlternativeInput(String alternativeInput) {
+        this.alternativeInput = new BytesArray(alternativeInput);
     }
 
     /**
-     * @param data The data that should be associated with the trigger event.
+     * @param data A JSON string representing the data that should be associated with the trigger event.
      */
-    public void setTriggerData(BytesReference data) {
-        this.triggerData = data;
+    public void setTriggerData(String data) {
+        this.triggerData = new BytesArray(data);
     }
 
     /**
@@ -140,9 +150,7 @@ public class ExecuteWatchRequest implements Validatable, ToXContentObject {
             builder.rawField("alternative_input", alternativeInput.streamInput(), XContentType.JSON);
         }
         if (actionModes.size() > 0) {
-            builder.startObject("action_modes");
-            builder.map(actionModes);
-            builder.endObject();
+            builder.field("action_modes", actionModes);
         }
         if (watchContent != null) {
             builder.rawField("watch", watchContent.streamInput(), XContentType.JSON);

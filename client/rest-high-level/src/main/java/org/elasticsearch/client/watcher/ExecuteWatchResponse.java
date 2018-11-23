@@ -1,13 +1,20 @@
 package org.elasticsearch.client.watcher;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.common.XContentSource;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.Map;
 
 public class ExecuteWatchResponse {
 
@@ -16,6 +23,8 @@ public class ExecuteWatchResponse {
 
     private String recordId;
     private BytesReference contentSource;
+
+    private Map<String, Object> data;
 
     public ExecuteWatchResponse() {
     }
@@ -37,6 +46,25 @@ public class ExecuteWatchResponse {
      */
     public BytesReference getRecord() {
         return contentSource;
+    }
+
+    /**
+     * Returns the watch record as a map
+     *
+     * Use {@link org.elasticsearch.common.xcontent.ObjectPath} to navigate through the data
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getRecordAsMap() {
+        if (data == null) {
+            // EMPTY is safe here because we never use namedObject
+            try (InputStream stream = contentSource.streamInput();
+                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, null, stream)) {
+                data = (Map<String, Object>) XContentUtils.readValue(parser, parser.nextToken());
+            } catch (IOException ex) {
+                throw new ElasticsearchException("failed to read value", ex);
+            }
+        }
+        return data;
     }
 
     private static final ConstructingObjectParser<ExecuteWatchResponse, Void> PARSER

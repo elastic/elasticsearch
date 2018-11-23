@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -27,6 +28,7 @@ import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.client.watcher.DeleteWatchRequest;
+import org.elasticsearch.client.watcher.ExecuteWatchRequest;
 import org.elasticsearch.client.watcher.PutWatchRequest;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
@@ -37,12 +39,15 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -51,6 +56,12 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class WatcherRequestConvertersTests extends ESTestCase {
+
+    private static String toString(HttpEntity entity) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        entity.writeTo(baos);
+        return baos.toString(StandardCharsets.UTF_8.name());
+    }
 
     public void testStartWatchService() {
         Request request = WatcherRequestConverters.startWatchService(new StartWatchServiceRequest());
@@ -165,5 +176,96 @@ public class WatcherRequestConvertersTests extends ESTestCase {
             assertThat(request.getParameters(), not(hasKey("metric")));
         }
         assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testExecuteWatchByIdRequest() throws IOException {
+
+        boolean ignoreCondition = randomBoolean();
+        boolean recordExecution = randomBoolean();
+        boolean debug = randomBoolean();
+
+        ExecuteWatchRequest request = ExecuteWatchRequest.byId("my_id");
+        request.setIgnoreCondition(ignoreCondition);
+        request.setRecordExecution(recordExecution);
+        request.setDebug(debug);
+
+        request.setActionMode("action1", ExecuteWatchRequest.ActionExecutionMode.SIMULATE);
+
+        String triggerData = "{ \"entry1\" : \"blah\", \"entry2\" : \"blah\" }";
+        request.setTriggerData(triggerData);
+
+        String alternativeInput = "{ \"foo\" : \"bar\" }";
+        request.setAlternativeInput(alternativeInput);
+
+        Request req = WatcherRequestConverters.executeWatch(request);
+        assertThat(req.getEndpoint(), equalTo("/_xpack/watcher/watch/my_id/_execute"));
+        assertThat(req.getMethod(), equalTo(HttpPost.METHOD_NAME));
+
+        if (ignoreCondition) {
+            assertThat(req.getParameters(), hasKey("ignore_condition"));
+            assertThat(req.getParameters().get("ignore_condition"), is("true"));
+        }
+
+        if (recordExecution) {
+            assertThat(req.getParameters(), hasKey("record_execution"));
+            assertThat(req.getParameters().get("record_execution"), is("true"));
+        }
+
+        if (debug) {
+            assertThat(req.getParameters(), hasKey("debug"));
+            assertThat(req.getParameters().get("debug"), is("true"));
+        }
+
+        String body = toString(req.getEntity());
+        assertThat(body, containsString("\"action_modes\":{\"action1\":\"SIMULATE\"}"));
+        assertThat(body, containsString("\"trigger_data\":" + triggerData));
+        assertThat(body, containsString("\"alternative_input\":" + alternativeInput));
+        assertThat(body, not(containsString("\"watch\":")));
+
+    }
+
+    private static final String WATCH_JSON = "{ \n" +
+        "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
+        "  \"input\": { \"none\": {} },\n" +
+        "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
+        "}";
+
+    public void testExecuteInlineWatchRequest() throws IOException {
+        boolean ignoreCondition = randomBoolean();
+        boolean recordExecution = randomBoolean();
+
+        ExecuteWatchRequest request = ExecuteWatchRequest.inline(WATCH_JSON);
+        request.setIgnoreCondition(ignoreCondition);
+        request.setRecordExecution(recordExecution);
+
+        request.setActionMode("action1", ExecuteWatchRequest.ActionExecutionMode.SIMULATE);
+
+        String triggerData = "{ \"entry1\" : \"blah\", \"entry2\" : \"blah\" }";
+        request.setTriggerData(triggerData);
+
+        String alternativeInput = "{ \"foo\" : \"bar\" }";
+        request.setAlternativeInput(alternativeInput);
+
+        Request req = WatcherRequestConverters.executeWatch(request);
+        assertThat(req.getEndpoint(), equalTo("/_xpack/watcher/watch/_execute"));
+        assertThat(req.getMethod(), equalTo(HttpPost.METHOD_NAME));
+
+        if (ignoreCondition) {
+            assertThat(req.getParameters(), hasKey("ignore_condition"));
+            assertThat(req.getParameters().get("ignore_condition"), is("true"));
+        }
+
+        if (recordExecution) {
+            assertThat(req.getParameters(), hasKey("record_execution"));
+            assertThat(req.getParameters().get("record_execution"), is("true"));
+        }
+
+        String body = toString(req.getEntity());
+        assertThat(body, containsString("\"action_modes\":{\"action1\":\"SIMULATE\"}"));
+        assertThat(body, containsString("\"trigger_data\":" + triggerData));
+        assertThat(body, containsString("\"alternative_input\":" + alternativeInput));
+        assertThat(body, containsString("\"watch\":" + WATCH_JSON));
+
+
     }
 }

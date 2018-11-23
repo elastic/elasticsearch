@@ -123,10 +123,7 @@ final class WatcherRequestConverters {
             params.putParam("record_execution", "true");
         }
 
-        ContentType contentType = RequestConverters.createContentType(XContentType.JSON);
-        XContentBuilder xcontentBuilder = XContentFactory.jsonBuilder();
-        BytesReference source = BytesReference.bytes(executeWatchRequest.toXContent(xcontentBuilder, null));
-        request.setEntity(new ByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
+        request.setEntity(RequestConverters.createEntity(executeWatchRequest, XContentType.JSON));
         return request;
     }
 

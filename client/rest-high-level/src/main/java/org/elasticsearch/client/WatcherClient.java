@@ -241,12 +241,28 @@ public final class WatcherClient {
             ActivateWatchResponse::fromXContent, listener, singleton(404));
     }
 
-
+    /**
+     * Execute a watch on the cluster
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-execute-watch.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException if there is a problem sending the request or parsing the response
+     */
     public ExecuteWatchResponse executeWatch(ExecuteWatchRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, WatcherRequestConverters::executeWatch, options,
             ExecuteWatchResponse::fromXContent, singleton(404));
     }
 
+    /**
+     * Asynchronously execute a watch on the cluster
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-execute-watch.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notifed upon request completion
+     */
     public void executeWatchAsync(ExecuteWatchRequest request, RequestOptions options, ActionListener<ExecuteWatchResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::executeWatch, options,
             ExecuteWatchResponse::fromXContent, listener, singleton(404));

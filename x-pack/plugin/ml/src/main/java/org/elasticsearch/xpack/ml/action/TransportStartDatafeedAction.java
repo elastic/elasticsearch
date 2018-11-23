@@ -49,7 +49,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.JobManager;
 
 import java.util.List;
 import java.util.Locale;
@@ -71,7 +71,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final Client client;
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
-    private final JobConfigProvider jobConfigProvider;
+    private final JobManager jobManager;
     private final DatafeedConfigReader datafeedConfigReader;
 
     @Inject
@@ -79,13 +79,13 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                         ClusterService clusterService, XPackLicenseState licenseState,
                                         PersistentTasksService persistentTasksService,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        Client client, JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider) {
+                                        Client client, JobManager jobManager, DatafeedConfigProvider datafeedConfigProvider) {
         super(settings, StartDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 StartDatafeedAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
-        this.jobConfigProvider = jobConfigProvider;
+        this.jobManager = jobManager;
         this.datafeedConfigReader = new DatafeedConfigReader(datafeedConfigProvider);
     }
 
@@ -167,10 +167,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 }
             };
 
-        ActionListener<Job.Builder> jobListener = ActionListener.wrap(
-                jobBuilder -> {
+        ActionListener<Job> jobListener = ActionListener.wrap(
+                job -> {
                     try {
-                        Job job = jobBuilder.build();
                         validate(job, datafeedConfigHolder.get(), tasks);
                         createDataExtrator.accept(job);
                     } catch (Exception e) {
@@ -186,7 +185,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                         params.setDatafeedIndices(datafeedConfig.getIndices());
                         params.setJobId(datafeedConfig.getJobId());
                         datafeedConfigHolder.set(datafeedConfig);
-                        jobConfigProvider.getJob(datafeedConfig.getJobId(), jobListener);
+                        jobManager.getJob(datafeedConfig.getJobId(), jobListener);
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.mock.orig.Mockito;
@@ -19,7 +21,6 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
@@ -47,7 +48,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
     private Consumer<Exception> taskHandler;
     private JobResultsProvider jobResultsProvider;
     private JobConfigProvider jobConfigProvider;
-    private DatafeedConfigProvider datafeedConfigProvider;
+    private DatafeedConfigReader datafeedConfigReader;
 
     private DatafeedJobBuilder datafeedJobBuilder;
 
@@ -79,7 +80,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         }).when(jobResultsProvider).bucketsViaInternalClient(any(), any(), any(), any());
 
         jobConfigProvider = mock(JobConfigProvider.class);
-        datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        datafeedConfigReader = mock(DatafeedConfigReader.class);
     }
 
     public void testBuild_GivenScrollDatafeedAndNewJob() throws Exception {
@@ -103,7 +104,10 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigProvider, datafeedJobHandler);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("datafeedjobbuildertest-cluster")).build();
+
+        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigReader,
+                clusterState, datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -125,13 +129,16 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                     assertThat(datafeedJob.isIsolated(), is(false));
                     assertThat(datafeedJob.lastEndTimeMs(), equalTo(7_200_000L));
                     wasHandlerCalled.compareAndSet(false, true);
-                }, e -> fail()
+                }, e -> fail(e.getMessage())
         );
 
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigProvider, datafeedJobHandler);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("datafeedjobbuildertest-cluster")).build();
+
+        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigReader,
+                clusterState, datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -153,13 +160,16 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                     assertThat(datafeedJob.isIsolated(), is(false));
                     assertThat(datafeedJob.lastEndTimeMs(), equalTo(7_199_999L));
                     wasHandlerCalled.compareAndSet(false, true);
-                }, e -> fail()
+                }, e -> fail(e.getMessage())
         );
 
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigProvider, datafeedJobHandler);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("datafeedjobbuildertest-cluster")).build();
+
+        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigReader,
+                clusterState, datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -184,7 +194,9 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigProvider,
+        ClusterState clusterState = ClusterState.builder(new ClusterName("datafeedjobbuildertest-cluster")).build();
+
+        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigReader, clusterState,
                 ActionListener.wrap(datafeedJob -> fail(), taskHandler));
 
         verify(taskHandler).accept(error);
@@ -202,10 +214,10 @@ public class DatafeedJobBuilderTests extends ESTestCase {
     private void givenDatafeed(DatafeedConfig.Builder datafeed) {
         Mockito.doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<DatafeedConfig.Builder> handler = (ActionListener<DatafeedConfig.Builder>) invocationOnMock.getArguments()[1];
-            handler.onResponse(datafeed);
+            ActionListener<DatafeedConfig> handler = (ActionListener<DatafeedConfig>) invocationOnMock.getArguments()[2];
+            handler.onResponse(datafeed.build());
             return null;
-        }).when(datafeedConfigProvider).getDatafeedConfig(eq(datafeed.getId()), any());
+        }).when(datafeedConfigReader).datafeedConfig(eq(datafeed.getId()), any(), any());
     }
 
     private void givenLatestTimes(long latestRecordTimestamp, long latestBucketTimestamp) {

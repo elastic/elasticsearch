@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -73,7 +74,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
 
     @Override
     protected void doExecute(Task task, GetJobsStatsAction.Request request, ActionListener<GetJobsStatsAction.Response> finalListener) {
-
+        logger.debug("Get stats for job [{}]", request.getJobId());
         jobManager.expandJobIds(request.getJobId(), request.allowNoJobs(), ActionListener.wrap(
                 expandedIds -> {
                     request.setExpandedJobsIds(new ArrayList<>(expandedIds));
@@ -96,6 +97,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
         for (QueryPage<GetJobsStatsAction.Response.JobStats> task : tasks) {
             stats.addAll(task.results());
         }
+        Collections.sort(stats, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
         return new GetJobsStatsAction.Response(taskOperationFailures, failedNodeExceptions, new QueryPage<>(stats, stats.size(),
                 Job.RESULTS_FIELD));
     }
@@ -109,7 +111,6 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     protected void taskOperation(GetJobsStatsAction.Request request, TransportOpenJobAction.JobTask task,
                                  ActionListener<QueryPage<GetJobsStatsAction.Response.JobStats>> listener) {
         String jobId = task.getJobId();
-        logger.debug("Get stats for job [{}]", jobId);
         ClusterState state = clusterService.state();
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(task);
@@ -159,6 +160,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
                     if (counter.decrementAndGet() == 0) {
                         List<GetJobsStatsAction.Response.JobStats> results = response.getResponse().results();
                         results.addAll(jobStats.asList());
+                        Collections.sort(results, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
                         listener.onResponse(new GetJobsStatsAction.Response(response.getTaskFailures(), response.getNodeFailures(),
                                 new QueryPage<>(results, results.size(), Job.RESULTS_FIELD)));
                     }

@@ -59,7 +59,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     @Before
     public void waitForMlTemplates() throws Exception {
-        XPackRestTestHelper.waitForMlTemplates(client());
+        XPackRestTestHelper.waitForTemplates(client(), XPackRestTestHelper.ML_PRE_V660_TEMPLATES);
     }
 
     @Override

@@ -100,7 +100,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     @After
-    public void deleteJob() throws Exception {
+    public void deleteJob() {
         DeleteJobAction.Request request = new DeleteJobAction.Request(JOB_ID);
         AcknowledgedResponse response = client().execute(DeleteJobAction.INSTANCE, request).actionGet();
         assertTrue(response.isAcknowledged());

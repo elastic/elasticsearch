@@ -37,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -93,7 +94,7 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
                 nodesSet.add(localNode);
                 nodes.forEach(nodesSet::add);
                 logger.trace("discovered {}", nodesSet);
-                if (nodesSet.size() >= request.getWaitForNodes() && listenerNotified.compareAndSet(false, true)) {
+                if (checkWaitRequirements(request, nodesSet) && listenerNotified.compareAndSet(false, true)) {
                     listenableFuture.onResponse(new GetDiscoveredNodesResponse(nodesSet));
                 }
             }
@@ -123,5 +124,17 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
                 }
             });
         }
+    }
+
+    private static boolean checkWaitRequirements(GetDiscoveredNodesRequest request, Set<DiscoveryNode> nodes) {
+        Set<String> requiredNodes = new HashSet<>(request.getRequiredNodes());
+        for (final DiscoveryNode node : nodes) {
+            requiredNodes.remove(node.getAddress().toString());
+            requiredNodes.remove(node.getName());
+            if (requiredNodes.isEmpty()) {
+                break;
+            }
+        }
+        return requiredNodes.isEmpty() && nodes.size() >= request.getWaitForNodes();
     }
 }

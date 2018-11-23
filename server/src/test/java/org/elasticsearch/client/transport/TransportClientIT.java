@@ -40,6 +40,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -67,7 +68,9 @@ public class TransportClientIT extends ESIntegTestCase {
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put("cluster.name", "foobar")
                 .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
-                .put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1)
+                .putList(
+                    ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), Collections.singletonList("testNodeVersionIsUpdated")
+                ).put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1)
                 .build(), Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class,
                                         MockHttpTransport.TestPlugin.class)).start()) {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();

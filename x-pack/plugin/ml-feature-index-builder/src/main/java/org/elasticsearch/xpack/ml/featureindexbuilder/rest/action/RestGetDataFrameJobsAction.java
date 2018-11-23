@@ -21,7 +21,7 @@ public class RestGetDataFrameJobsAction extends BaseRestHandler {
 
     public RestGetDataFrameJobsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, FeatureIndexBuilder.BASE_PATH + "job/{id}/", this);
+        controller.registerHandler(RestRequest.Method.GET, FeatureIndexBuilder.BASE_PATH_JOBS_BY_ID, this);
     }
 
     @Override

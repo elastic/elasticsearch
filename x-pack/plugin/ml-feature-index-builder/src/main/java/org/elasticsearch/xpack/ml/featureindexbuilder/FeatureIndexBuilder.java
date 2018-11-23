@@ -72,6 +72,7 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
     public static final String NAME = "feature_index_builder";
     public static final String TASK_NAME = "xpack/feature_index_builder/job";
     public static final String BASE_PATH = "/_xpack/feature_index_builder/";
+    public static final String BASE_PATH_JOBS_BY_ID = BASE_PATH + "jobs/{id}/";
     public static final String TASK_THREAD_POOL_NAME = "ml_feature_index_builder_indexing";
 
     // list of headers that will be stored when a job is created
@@ -166,7 +167,7 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
             return emptyList();
         }
         return  Arrays.asList(
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField("xpack/feature_index_builder/job"),
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(TASK_NAME),
                         FeatureIndexBuilderJob::fromXContent),
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(FeatureIndexBuilderJobState.NAME),
                         FeatureIndexBuilderJobState::fromXContent),

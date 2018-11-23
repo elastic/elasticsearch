@@ -24,7 +24,7 @@ public class RestPutFeatureIndexBuilderJobAction extends BaseRestHandler {
     
     public RestPutFeatureIndexBuilderJobAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, FeatureIndexBuilder.BASE_PATH + "job/{id}/", this);
+        controller.registerHandler(RestRequest.Method.PUT, FeatureIndexBuilder.BASE_PATH_JOBS_BY_ID, this);
     }
 
     @Override

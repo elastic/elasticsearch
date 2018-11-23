@@ -35,7 +35,7 @@ import java.util.Objects;
 public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Response>{
 
     public static final GetDataFrameJobsAction INSTANCE = new GetDataFrameJobsAction();
-    public static final String NAME = "cluster:monitor/xpack/feature_index_builder/get";
+    public static final String NAME = "cluster:monitor/data_frame/get";
     public static final ParseField JOBS = new ParseField("jobs");
     public static final ParseField COUNT = new ParseField("count");
 
@@ -79,9 +79,6 @@ public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Respon
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             id = in.readString();
-            if (Strings.isNullOrEmpty(id) || id.equals("*")) {
-                this.id = MetaData.ALL;
-            }
         }
 
         @Override

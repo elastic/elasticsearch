@@ -22,7 +22,7 @@ public class RestStartFeatureIndexBuilderJobAction extends BaseRestHandler {
     
     public RestStartFeatureIndexBuilderJobAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, FeatureIndexBuilder.BASE_PATH + "job/{id}/_start", this);
+        controller.registerHandler(RestRequest.Method.POST, FeatureIndexBuilder.BASE_PATH_JOBS_BY_ID + "_start", this);
     }
     
     @Override

@@ -22,11 +22,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -35,10 +37,12 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.analytics.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.analytics.DataFrameDataExtractorFactory;
+import org.elasticsearch.xpack.ml.analytics.DataFrameFields;
 import org.elasticsearch.xpack.ml.analytics.process.AnalyticsProcessManager;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -108,7 +112,6 @@ public class TransportRunAnalyticsAction extends HandledTransportAction<RunAnaly
     }
 
     private void reindexDataframeAndStartAnalysis(String index, ActionListener<AcknowledgedResponse> listener) {
-
         final String destinationIndex = index + "_copy";
 
         ActionListener<CreateIndexResponse> copyIndexCreatedListener = ActionListener.wrap(
@@ -116,6 +119,7 @@ public class TransportRunAnalyticsAction extends HandledTransportAction<RunAnaly
                 ReindexRequest reindexRequest = new ReindexRequest();
                 reindexRequest.setSourceIndices(index);
                 reindexRequest.setDestIndex(destinationIndex);
+                reindexRequest.setScript(new Script("ctx._source." + DataFrameFields.ID + " = ctx._id"));
                 client.execute(ReindexAction.INSTANCE, reindexRequest, ActionListener.wrap(
                     bulkResponse -> {
                         runPipelineAnalytics(destinationIndex, listener);
@@ -142,10 +146,23 @@ public class TransportRunAnalyticsAction extends HandledTransportAction<RunAnaly
 
         Settings.Builder settingsBuilder = Settings.builder().put(indexMetaData.getSettings());
         INTERNAL_SETTINGS.stream().forEach(settingsBuilder::remove);
-        ImmutableOpenMap<String, MappingMetaData> mappings = indexMetaData.getMappings();
+        settingsBuilder.put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataFrameFields.ID);
+        settingsBuilder.put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), SortOrder.ASC);
+
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(destinationIndex, settingsBuilder.build());
-        createIndexRequest.mapping(mappings.keysIt().next(), mappings.valuesIt().next().source().string(), XContentType.JSON);
+        addDestinationIndexMappings(indexMetaData, createIndexRequest);
         client.execute(CreateIndexAction.INSTANCE, createIndexRequest, listener);
+    }
+
+    private static void addDestinationIndexMappings(IndexMetaData indexMetaData, CreateIndexRequest createIndexRequest) {
+        ImmutableOpenMap<String, MappingMetaData> mappings = indexMetaData.getMappings();
+        Map<String, Object> mappingsAsMap = mappings.valuesIt().next().sourceAsMap();
+        Map<String, Object> properties = (Map<String, Object>) mappingsAsMap.get("properties");
+        Map<String, Object> idCopyMapping = new HashMap<>();
+        idCopyMapping.put("type", "keyword");
+        properties.put(DataFrameFields.ID, idCopyMapping);
+
+        createIndexRequest.mapping(mappings.keysIt().next(), mappingsAsMap);
     }
 
     private void runPipelineAnalytics(String index, ActionListener<AcknowledgedResponse> listener) {

@@ -65,11 +65,12 @@ public class AuditUtil {
             }
         }
         final String requestId = UUIDs.randomBase64UUID();
-        threadContext.putTransient(AUDIT_REQUEST_ID, requestId);
+        // Store as a header (not transient) so that it is passed over the network if this request requires execution on other nodes
+        threadContext.putHeader(AUDIT_REQUEST_ID, requestId);
         return requestId;
     }
 
     public static String extractRequestId(ThreadContext threadContext) {
-        return threadContext.getTransient(AUDIT_REQUEST_ID);
+        return threadContext.getHeader(AUDIT_REQUEST_ID);
     }
 }

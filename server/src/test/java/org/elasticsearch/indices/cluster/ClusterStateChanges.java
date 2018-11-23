@@ -26,8 +26,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.admin.indices.close.TransportShardCloseAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -50,15 +52,18 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
@@ -82,6 +87,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -96,6 +103,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -180,8 +188,11 @@ public class ClusterStateChanges {
                 return indexMetaData;
             }
         };
+
+        TransportShardCloseAction transportShardCloseAction = new TransportShardCloseAction(SETTINGS, transportService, clusterService,
+            indicesService, threadPool, null, actionFilters, indexNameExpressionResolver);
         MetaDataIndexStateService indexStateService = new MetaDataIndexStateService(clusterService, allocationService,
-            metaDataIndexUpgradeService, indicesService, threadPool);
+            metaDataIndexUpgradeService, indicesService, threadPool, transportShardCloseAction);
         MetaDataDeleteIndexService deleteIndexService = new MetaDataDeleteIndexService(SETTINGS, clusterService, allocationService);
         MetaDataUpdateSettingsService metaDataUpdateSettingsService = new MetaDataUpdateSettingsService(clusterService,
             allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, threadPool);
@@ -213,7 +224,34 @@ public class ClusterStateChanges {
     }
 
     public ClusterState closeIndices(ClusterState state, CloseIndexRequest request) {
-        return execute(transportCloseIndexAction, request, state);
+        final ClusterState[] result = new ClusterState[1];
+        doAnswer(invocation -> {
+            ClusterStateUpdateTask task = (ClusterStateUpdateTask) invocation.getArguments()[1];
+            result[0] = task.execute(state);
+
+            final MetaData.Builder metadata = MetaData.builder(result[0].metaData());
+            final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(result[0].blocks());
+            final RoutingTable.Builder routingTable = RoutingTable.builder(result[0].routingTable());
+
+            for (String index : request.indices()) {
+                final IndexMetaData indexMetaData = metadata.get(index);
+                if (indexMetaData != null && result[0].blocks().hasIndexBlock(index, TransportShardCloseAction.EXPECTED_BLOCK)) {
+                    metadata.put(IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE));
+                    routingTable.remove(index);
+                }
+            }
+            result[0] = ClusterState.builder(result[0]).blocks(blocks).metaData(metadata).routingTable(routingTable.build()).build();
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+
+        try {
+            Task task = new Task(0L, "transport", CloseIndexAction.NAME, "", TaskId.EMPTY_TASK_ID, emptyMap());
+            TransportMasterNodeActionUtils.runMasterOperation(task, transportCloseIndexAction, request, state, new PlainActionFuture<>());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        assertThat(result[0], notNullValue());
+        return result[0];
     }
 
     public ClusterState openIndices(ClusterState state, OpenIndexRequest request) {

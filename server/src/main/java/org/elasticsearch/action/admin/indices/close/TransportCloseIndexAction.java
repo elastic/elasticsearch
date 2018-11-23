@@ -23,10 +23,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -45,7 +43,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Close index action
  */
-public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, AcknowledgedResponse> {
+public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> {
 
     private final MetaDataIndexStateService indexStateService;
     private final DestructiveOperations destructiveOperations;
@@ -77,12 +75,12 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected CloseIndexResponse newResponse() {
+        return new CloseIndexResponse();
     }
 
     @Override
-    protected void doExecute(Task task, CloseIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
+    protected void doExecute(Task task, CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         if (closeIndexEnabled == false) {
             throw new IllegalStateException("closing indices is disabled - set [" + CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey() +
@@ -99,25 +97,33 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
 
     @Override
     protected void masterOperation(final CloseIndexRequest request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+                                   final ActionListener<CloseIndexResponse> listener) {
+        throw new UnsupportedOperationException("the task parameter is required");
+    }
+
+    @Override
+    protected void masterOperation(final Task task, final CloseIndexRequest request, final ClusterState state,
+                                   final ActionListener<CloseIndexResponse> listener) throws Exception {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
-            listener.onResponse(new AcknowledgedResponse(true));
+            listener.onResponse(new CloseIndexResponse());
             return;
         }
-        CloseIndexClusterStateUpdateRequest updateRequest = new CloseIndexClusterStateUpdateRequest()
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .indices(concreteIndices);
+        final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest()
+            .ackTimeout(request.timeout())
+            .masterNodeTimeout(request.masterNodeTimeout())
+            .taskId(task.getId())
+            .indices(concreteIndices);
 
-        indexStateService.closeIndices(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
+        indexStateService.closeIndices(closeRequest, new ActionListener<CloseIndexResponse>() {
 
             @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
+            public void onResponse(final CloseIndexResponse response) {
+                listener.onResponse(response);
             }
 
             @Override
-            public void onFailure(Exception t) {
+            public void onFailure(final Exception t) {
                 logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
                 listener.onFailure(t);
             }

@@ -23,7 +23,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -67,7 +66,6 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.cluster.ClusterStateChanges;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -458,11 +456,14 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     }
 
-    public void testClosedIndexOnReroute() throws InterruptedException {
+    public void testClosedIndexOnReroute() {
         final String index = "test";
         // no replicas in oder to skip the replication part
-        setState(clusterService, new ClusterStateChanges(xContentRegistry(), threadPool).closeIndices(state(index, true,
-            ShardRoutingState.UNASSIGNED), new CloseIndexRequest(index)));
+        ClusterState clusterState = state(index, true, ShardRoutingState.UNASSIGNED);
+        setState(clusterService, ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())
+            .put(IndexMetaData.builder(clusterState.metaData().index(index)).state(IndexMetaData.State.CLOSE).build(), true)
+            .build()));
+
         logger.debug("--> using initial state:\n{}", clusterService.state());
         Request request = new Request(new ShardId("test", "_na_", 0)).timeout("1ms");
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();

@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.master;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.tasks.Task;
 
 public class TransportMasterNodeActionUtils {
 
@@ -34,5 +35,17 @@ public class TransportMasterNodeActionUtils {
         ActionListener<Response> actionListener) throws Exception {
         assert masterNodeAction.checkBlock(request, clusterState) == null;
         masterNodeAction.masterOperation(request, clusterState, actionListener);
+    }
+
+    /**
+     * Allows to directly call {@link TransportMasterNodeAction#masterOperation(Task, MasterNodeRequest, ClusterState, ActionListener)}
+     * which is a protected method.
+     */
+    public static <Request extends MasterNodeRequest<Request>, Response extends ActionResponse> void runMasterOperation(Task task,
+        TransportMasterNodeAction<Request, Response> masterNodeAction, Request request, ClusterState clusterState,
+        ActionListener<Response> actionListener) throws Exception {
+        assert task != null;
+        assert masterNodeAction.checkBlock(request, clusterState) == null;
+        masterNodeAction.masterOperation(task, request, clusterState, actionListener);
     }
 }

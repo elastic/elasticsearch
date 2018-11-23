@@ -18,26 +18,20 @@
  */
 package org.elasticsearch.action.admin.indices.close;
 
-import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.index.shard.ShardId;
 
-/**
- * Cluster state update request that allows to close one or more indices
- */
-public class CloseIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<CloseIndexClusterStateUpdateRequest> {
+public class ShardCloseRequest extends ReplicationRequest<ShardCloseRequest> {
 
-    @Nullable
-    private Long taskId;
-
-    public CloseIndexClusterStateUpdateRequest() {
+    public ShardCloseRequest(){
     }
 
-    public Long taskId() {
-        return taskId;
+    public ShardCloseRequest(final ShardId shardId) {
+        super(shardId);
     }
 
-    public CloseIndexClusterStateUpdateRequest taskId(final Long taskId) {
-        this.taskId = taskId;
-        return this;
+    @Override
+    public String toString() {
+        return "close shard {" + shardId + "}";
     }
 }

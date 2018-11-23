@@ -5,11 +5,15 @@
  */
 package org.elasticsearch.xpack.core.action;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -46,6 +50,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -54,17 +59,20 @@ public final class TransportFreezeIndexAction extends
 
     private final DestructiveOperations destructiveOperations;
     private final MetaDataIndexStateService indexStateService;
+    private final TransportCloseIndexAction transportCloseIndexAction;
 
     @Inject
     public TransportFreezeIndexAction(MetaDataIndexStateService indexStateService, TransportService transportService,
                                       ClusterService clusterService,
                                       ThreadPool threadPool, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver,
-                                      DestructiveOperations destructiveOperations) {
+                                      DestructiveOperations destructiveOperations,
+                                      TransportCloseIndexAction transportCloseIndexAction) {
         super(FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
             FreezeRequest::new);
         this.destructiveOperations = destructiveOperations;
         this.indexStateService = indexStateService;
+        this.transportCloseIndexAction = transportCloseIndexAction;
     }
     @Override
     protected String executor() {
@@ -103,11 +111,45 @@ public final class TransportFreezeIndexAction extends
 
     @Override
     protected void masterOperation(FreezeRequest request, ClusterState state, ActionListener<FreezeResponse> listener) {
+        logger.warn("attempt to execute a freeze index operation without a task");
+        throw new UnsupportedOperationException("task parameter is required for this operation");
+    }
+
+    @Override
+    protected void masterOperation(Task task, FreezeRequest request, ClusterState state,
+                                   ActionListener<FreezeResponse> listener) throws Exception {
         final Index[] concreteIndices = resolveIndices(request, state);
         if (concreteIndices.length == 0) {
             listener.onResponse(new FreezeResponse(true, true));
             return;
         }
+
+        final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest()
+            .ackTimeout(request.timeout())
+            .masterNodeTimeout(request.masterNodeTimeout())
+            .taskId(task.getId())
+            .indices(concreteIndices);
+
+        indexStateService.closeIndices(closeRequest, new ActionListener<CloseIndexResponse>() {
+            @Override
+            public void onResponse(final CloseIndexResponse response) {
+                final Index[] indices = response.getIndices().stream().filter(index -> index.hasFailures() == false)
+                    .map(CloseIndexResponse.IndexResult::getIndex)
+                    .collect(Collectors.toList())
+                    .toArray(Index.EMPTY_ARRAY);
+                toggleFrozenSettings(indices, request, listener);
+            }
+
+            @Override
+            public void onFailure(final Exception t) {
+                logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
+                listener.onFailure(t);
+            }
+        });
+    }
+
+    private void toggleFrozenSettings(final Index[] concreteIndices, final FreezeRequest request,
+                                      final ActionListener<FreezeResponse> listener) {
         clusterService.submitStateUpdateTask("toggle-frozen-settings",
             new AckedClusterStateUpdateTask<AcknowledgedResponse>(Priority.URGENT, request, new ActionListener<AcknowledgedResponse>() {
                 @Override
@@ -136,14 +178,6 @@ public final class TransportFreezeIndexAction extends
             }) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                List<Index> toClose = new ArrayList<>();
-                for (Index index : concreteIndices) {
-                    IndexMetaData metaData = currentState.metaData().index(index);
-                    if (metaData.getState() != IndexMetaData.State.CLOSE) {
-                        toClose.add(index);
-                    }
-                }
-                currentState = indexStateService.closeIndices(currentState, toClose.toArray(new Index[0]), toClose.toString());
                 final MetaData.Builder builder = MetaData.builder(currentState.metaData());
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                 for (Index index : concreteIndices) {

@@ -23,7 +23,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 <2> The JobIds to remove from the calendar
 
 [id="{upid}-{api}-response"]
-====  Delete Calendar Response
+====  Delete Calendar Job Response
 
 The returned +{response}+ contains the updated Calendar:
 

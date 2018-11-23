@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
@@ -31,9 +32,12 @@ import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.FindFileStructureRequest;
+import org.elasticsearch.client.ml.FindFileStructureRequestTests;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
+import org.elasticsearch.client.ml.GetCalendarEventsRequest;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
@@ -54,6 +58,7 @@ import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequestTests;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -66,6 +71,7 @@ import org.elasticsearch.client.ml.calendars.ScheduledEvent;
 import org.elasticsearch.client.ml.calendars.ScheduledEventTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
+import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
@@ -84,6 +90,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -445,6 +452,24 @@ public class MLRequestConvertersTests extends ESTestCase {
         }
     }
 
+    public void testRevertModelSnapshot() throws IOException {
+        String jobId = randomAlphaOfLength(10);
+        String snapshotId = randomAlphaOfLength(10);
+        RevertModelSnapshotRequest revertModelSnapshotRequest = new RevertModelSnapshotRequest(jobId, snapshotId);
+        if (randomBoolean()) {
+            revertModelSnapshotRequest.setDeleteInterveningResults(randomBoolean());
+        }
+
+        Request request = MLRequestConverters.revertModelSnapshot(revertModelSnapshotRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId + "/_revert",
+            request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            RevertModelSnapshotRequest parsedRequest = RevertModelSnapshotRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(revertModelSnapshotRequest));
+        }
+    }
+
     public void testGetOverallBuckets() throws IOException {
         String jobId = randomAlphaOfLength(10);
         GetOverallBucketsRequest getOverallBucketsRequest = new GetOverallBucketsRequest(jobId);
@@ -591,6 +616,23 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/ml/calendars/" + deleteCalendarRequest.getCalendarId(), request.getEndpoint());
     }
 
+    public void testGetCalendarEvents() throws IOException {
+        String calendarId = randomAlphaOfLength(10);
+        GetCalendarEventsRequest getCalendarEventsRequest = new GetCalendarEventsRequest(calendarId);
+        getCalendarEventsRequest.setStart("2018-08-08T00:00:00Z");
+        getCalendarEventsRequest.setEnd("2018-09-08T00:00:00Z");
+        getCalendarEventsRequest.setPageParams(new PageParams(100, 300));
+        getCalendarEventsRequest.setJobId(randomAlphaOfLength(10));
+
+        Request request = MLRequestConverters.getCalendarEvents(getCalendarEventsRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/calendars/" + calendarId + "/events", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            GetCalendarEventsRequest parsedRequest = GetCalendarEventsRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(getCalendarEventsRequest));
+        }
+    }
+
     public void testPostCalendarEvent() throws Exception {
         String calendarId = randomAlphaOfLength(10);
         List<ScheduledEvent> events = Arrays.asList(ScheduledEventTests.testInstance(),
@@ -605,6 +647,15 @@ public class MLRequestConvertersTests extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder = postCalendarEventRequest.toXContent(builder, PostCalendarEventRequest.EXCLUDE_CALENDAR_ID_PARAMS);
         assertEquals(Strings.toString(builder), requestEntityToString(request));
+    }
+
+    public void testDeleteCalendarEvent() {
+        String calendarId = randomAlphaOfLength(10);
+        String eventId = randomAlphaOfLength(5);
+        DeleteCalendarEventRequest deleteCalendarEventRequest = new DeleteCalendarEventRequest(calendarId, eventId);
+        Request request = MLRequestConverters.deleteCalendarEvent(deleteCalendarEventRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/calendars/" + calendarId + "/events/" + eventId, request.getEndpoint());
     }
 
     public void testPutFilter() throws IOException {
@@ -666,6 +717,85 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_xpack/ml/filters/foo"));
         assertNull(request.getEntity());
+    }
+
+    public void testFindFileStructure() throws Exception {
+
+        String sample = randomAlphaOfLength(randomIntBetween(1000, 2000));
+        FindFileStructureRequest findFileStructureRequest = FindFileStructureRequestTests.createTestRequestWithoutSample();
+        findFileStructureRequest.setSample(sample.getBytes(StandardCharsets.UTF_8));
+        Request request = MLRequestConverters.findFileStructure(findFileStructureRequest);
+
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/find_file_structure", request.getEndpoint());
+        if (findFileStructureRequest.getLinesToSample() != null) {
+            assertEquals(findFileStructureRequest.getLinesToSample(), Integer.valueOf(request.getParameters().get("lines_to_sample")));
+        } else {
+            assertNull(request.getParameters().get("lines_to_sample"));
+        }
+        if (findFileStructureRequest.getTimeout() != null) {
+            assertEquals(findFileStructureRequest.getTimeout().toString(), request.getParameters().get("timeout"));
+        } else {
+            assertNull(request.getParameters().get("timeout"));
+        }
+        if (findFileStructureRequest.getCharset() != null) {
+            assertEquals(findFileStructureRequest.getCharset(), request.getParameters().get("charset"));
+        } else {
+            assertNull(request.getParameters().get("charset"));
+        }
+        if (findFileStructureRequest.getFormat() != null) {
+            assertEquals(findFileStructureRequest.getFormat(), FileStructure.Format.fromString(request.getParameters().get("format")));
+        } else {
+            assertNull(request.getParameters().get("format"));
+        }
+        if (findFileStructureRequest.getColumnNames() != null) {
+            assertEquals(findFileStructureRequest.getColumnNames(),
+                Arrays.asList(Strings.splitStringByCommaToArray(request.getParameters().get("column_names"))));
+        } else {
+            assertNull(request.getParameters().get("column_names"));
+        }
+        if (findFileStructureRequest.getHasHeaderRow() != null) {
+            assertEquals(findFileStructureRequest.getHasHeaderRow(), Boolean.valueOf(request.getParameters().get("has_header_row")));
+        } else {
+            assertNull(request.getParameters().get("has_header_row"));
+        }
+        if (findFileStructureRequest.getDelimiter() != null) {
+            assertEquals(findFileStructureRequest.getDelimiter().toString(), request.getParameters().get("delimiter"));
+        } else {
+            assertNull(request.getParameters().get("delimiter"));
+        }
+        if (findFileStructureRequest.getQuote() != null) {
+            assertEquals(findFileStructureRequest.getQuote().toString(), request.getParameters().get("quote"));
+        } else {
+            assertNull(request.getParameters().get("quote"));
+        }
+        if (findFileStructureRequest.getShouldTrimFields() != null) {
+            assertEquals(findFileStructureRequest.getShouldTrimFields(),
+                Boolean.valueOf(request.getParameters().get("should_trim_fields")));
+        } else {
+            assertNull(request.getParameters().get("should_trim_fields"));
+        }
+        if (findFileStructureRequest.getGrokPattern() != null) {
+            assertEquals(findFileStructureRequest.getGrokPattern(), request.getParameters().get("grok_pattern"));
+        } else {
+            assertNull(request.getParameters().get("grok_pattern"));
+        }
+        if (findFileStructureRequest.getTimestampFormat() != null) {
+            assertEquals(findFileStructureRequest.getTimestampFormat(), request.getParameters().get("timestamp_format"));
+        } else {
+            assertNull(request.getParameters().get("timestamp_format"));
+        }
+        if (findFileStructureRequest.getTimestampField() != null) {
+            assertEquals(findFileStructureRequest.getTimestampField(), request.getParameters().get("timestamp_field"));
+        } else {
+            assertNull(request.getParameters().get("timestamp_field"));
+        }
+        if (findFileStructureRequest.getExplain() != null) {
+            assertEquals(findFileStructureRequest.getExplain(), Boolean.valueOf(request.getParameters().get("explain")));
+        } else {
+            assertNull(request.getParameters().get("explain"));
+        }
+        assertEquals(sample, requestEntityToString(request));
     }
 
     private static Job createValidJob(String jobId) {

@@ -285,8 +285,12 @@ public class SearchResponseTests extends ESTestCase {
                 StreamInput.wrap(bytesStreamOutput.bytes().toBytesRef().bytes), namedWriteableRegistry)) {
             SearchResponse serialized = new SearchResponse();
             serialized.readFrom(in);
-            assertEquals(searchResponse.getHits().getTotalHits().value, serialized.getHits().getTotalHits().value);
-            assertEquals(searchResponse.getHits().getTotalHits().relation, serialized.getHits().getTotalHits().relation);
+            if (searchResponse.getHits().getTotalHits() == null) {
+                assertNull(serialized.getHits().getTotalHits());
+            } else {
+                assertEquals(searchResponse.getHits().getTotalHits().value, serialized.getHits().getTotalHits().value);
+                assertEquals(searchResponse.getHits().getTotalHits().relation, serialized.getHits().getTotalHits().relation);
+            }
             assertEquals(searchResponse.getHits().getHits().length, serialized.getHits().getHits().length);
             assertEquals(searchResponse.getNumReducePhases(), serialized.getNumReducePhases());
             assertEquals(searchResponse.getFailedShards(), serialized.getFailedShards());

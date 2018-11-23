@@ -151,7 +151,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            User user = new User("example", Collections.singletonList("superuser"));
+            User user = new User("example", Arrays.asList("superuser", "another-role"));
             //tag::put-user-update-request
             PutUserRequest request = PutUserRequest.updateUser(user, true, RefreshPolicy.NONE);
             //end::put-user-update-request

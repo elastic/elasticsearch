@@ -48,7 +48,7 @@ public class LagDetector {
 
     private static final Logger logger = LogManager.getLogger(LagDetector.class);
 
-    // the timeout for each node to apply a value after the end of publication, before being removed from the cluster
+    // the timeout for each node to apply a cluster state update after the leader has applied it, before being removed from the cluster
     public static final Setting<TimeValue> CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING =
         Setting.timeSetting("cluster.follower_lag.timeout",
             TimeValue.timeValueMillis(90000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);

@@ -1174,7 +1174,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
             } else if (e instanceof NullIf) {
-                return e; // Special rule SimplifyNullIf is applied instead
+                return e;
 
             } else if (e.nullable() && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);

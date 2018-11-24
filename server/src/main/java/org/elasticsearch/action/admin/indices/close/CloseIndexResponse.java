@@ -260,18 +260,20 @@ public class CloseIndexResponse extends AcknowledgedResponse {
             @Override
             public void readFrom(final StreamInput in) throws IOException {
                 super.readFrom(in);
-                nodeId = in.readString();
+                nodeId = in.readOptionalString();
             }
 
             @Override
             public void writeTo(final StreamOutput out) throws IOException {
                 super.writeTo(out);
-                out.writeString(nodeId);
+                out.writeOptionalString(nodeId);
             }
 
             @Override
             public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-                builder.field("node", nodeId);
+                if (nodeId != null) {
+                    builder.field("node", nodeId);
+                }
                 return super.toXContent(builder, params);
             }
 

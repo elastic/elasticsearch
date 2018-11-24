@@ -532,8 +532,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 long afterQueryTime = System.nanoTime();
                 operationListener.onQueryPhase(context, afterQueryTime - time);
                 QueryFetchSearchResult fetchSearchResult = executeFetchPhase(context, operationListener, afterQueryTime);
-                return new ScrollQueryFetchSearchResult(fetchSearchResult,
-                    context.shardTarget());
+                return new ScrollQueryFetchSearchResult(fetchSearchResult, context.shardTarget());
             } catch (Exception e) {
                 logger.trace("Fetch phase failed", e);
                 processFailure(context, e);

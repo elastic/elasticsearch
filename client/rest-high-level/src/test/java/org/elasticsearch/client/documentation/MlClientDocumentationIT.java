@@ -44,6 +44,8 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.FindFileStructureRequest;
+import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -110,6 +112,7 @@ import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.client.ml.datafeed.DelayedDataCheckConfig;
+import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -140,6 +143,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.junit.After;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -1725,6 +1731,68 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::post-data-execute-async
             client.machineLearning().postDataAsync(postDataRequest, RequestOptions.DEFAULT, listener); // <1>
             // end::post-data-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testFindFileStructure() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Path anInterestingFile = createTempFile();
+        String contents = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\"," +
+                "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\"," +
+                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n" +
+            "{\"logger\":\"controller\",\"timestamp\":1478261151445," +
+                "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\"," +
+                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
+        Files.write(anInterestingFile, Collections.singleton(contents), StandardCharsets.UTF_8);
+
+        {
+            // tag::find-file-structure-request
+            FindFileStructureRequest findFileStructureRequest = new FindFileStructureRequest(); // <1>
+            findFileStructureRequest.setSample(Files.readAllBytes(anInterestingFile)); // <2>
+            // end::find-file-structure-request
+
+            // tag::find-file-structure-request-options
+            findFileStructureRequest.setLinesToSample(500); // <1>
+            findFileStructureRequest.setExplain(true); // <2>
+            // end::find-file-structure-request-options
+
+            // tag::find-file-structure-execute
+            FindFileStructureResponse findFileStructureResponse =
+                client.machineLearning().findFileStructure(findFileStructureRequest, RequestOptions.DEFAULT);
+            // end::find-file-structure-execute
+
+            // tag::find-file-structure-response
+            FileStructure structure = findFileStructureResponse.getFileStructure(); // <1>
+            // end::find-file-structure-response
+            assertEquals(2, structure.getNumLinesAnalyzed());
+        }
+        {
+            // tag::find-file-structure-execute-listener
+            ActionListener<FindFileStructureResponse> listener = new ActionListener<FindFileStructureResponse>() {
+                @Override
+                public void onResponse(FindFileStructureResponse findFileStructureResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::find-file-structure-execute-listener
+            FindFileStructureRequest findFileStructureRequest = new FindFileStructureRequest();
+            findFileStructureRequest.setSample(Files.readAllBytes(anInterestingFile));
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::find-file-structure-execute-async
+            client.machineLearning().findFileStructureAsync(findFileStructureRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::find-file-structure-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

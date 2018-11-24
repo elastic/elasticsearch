@@ -1383,6 +1383,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 if (l.semanticEquals(r)) {
                     return TRUE;
                 }
+                if (Expressions.isNull(r)) {
+                    return new IsNull(bc.location(), l);
+                }
             }
 
             // false for equality

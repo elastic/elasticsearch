@@ -441,7 +441,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     private List<Expression> randomListOfNulls() {
-        return asList(randomArray(1, 10, i -> new Literal[i], () -> Literal.NULL));
+        return asList(randomArray(1, 10, Literal[]::new, () -> Literal.NULL));
     }
 
     public void testSimplifyCoalesceFirstLiteral() {
@@ -494,6 +494,25 @@ public class OptimizerTests extends ESTestCase {
 
         assertEquals(Literal.FALSE, new BinaryComparisonSimplification().rule(new GreaterThan(EMPTY, FIVE, FIVE)));
         assertEquals(Literal.FALSE, new BinaryComparisonSimplification().rule(new LessThan(EMPTY, FIVE, FIVE)));
+    }
+
+    public void testNullEqualsWithNullLiteralBecomesIsNull() {
+        BooleanLiteralsOnTheRight swapLiteralsToRight = new BooleanLiteralsOnTheRight();
+        BinaryComparisonSimplification bcSimpl = new BinaryComparisonSimplification();
+        FieldAttribute fa = getFieldAttribute();
+        Location loc = new Location(1, 10);
+
+        Expression e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(loc, fa, NULL)));
+        assertEquals(IsNull.class, e.getClass());
+        IsNull isNull = (IsNull) e;
+        assertEquals(loc, isNull.location());
+        assertEquals("IS_NULL(a)", isNull.name());
+
+        e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(loc, NULL, fa)));
+        assertEquals(IsNull.class, e.getClass());
+        isNull = (IsNull) e;
+        assertEquals(loc, isNull.location());
+        assertEquals("IS_NULL(a)", isNull.name());
     }
 
     public void testLiteralsOnTheRight() {

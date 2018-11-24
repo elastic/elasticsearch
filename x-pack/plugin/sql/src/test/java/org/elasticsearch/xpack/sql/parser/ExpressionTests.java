@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.literal.Interval;
-import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
@@ -236,18 +235,6 @@ public class ExpressionTests extends ESTestCase {
         NullEquals nullEquals = (NullEquals) expr;
         assertEquals("(a) <=> 10", nullEquals.name());
         assertEquals(2, nullEquals.children().size());
-    }
-
-    public void testNullEqualsBecomesIsNull() {
-        Expression expr = parser.createExpression("a <=> null");
-        assertEquals(IsNull.class, expr.getClass());
-        IsNull isNull = (IsNull) expr;
-        assertEquals("IS_NULL(?a)", isNull.name());
-
-        expr = parser.createExpression("null <=> a");
-        assertEquals(IsNull.class, expr.getClass());
-        isNull = (IsNull) expr;
-        assertEquals("IS_NULL(?a)", isNull.name());
     }
 
     public void testNotEquals() {

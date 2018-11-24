@@ -26,9 +26,9 @@ import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.literal.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.literal.Intervals;
 import org.elasticsearch.xpack.sql.expression.literal.Intervals.TimeUnit;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -121,7 +121,6 @@ import java.util.Map;
 import java.util.StringJoiner;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
@@ -183,13 +182,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case SqlBaseParser.EQ:
                 return new Equals(loc, left, right);
             case SqlBaseParser.NULLEQ:
-                // Simplify to IS NULL to avoid special handling in QueryTranslator later on
-                if (right.equals(NULL)) {
-                    return new IsNull(loc, left);
-                }
-                if (left.equals(NULL)) {
-                    return new IsNull(loc, right);
-                }
                 return new NullEquals(loc, left, right);
             case SqlBaseParser.NEQ:
                 return new NotEquals(loc, left, right);

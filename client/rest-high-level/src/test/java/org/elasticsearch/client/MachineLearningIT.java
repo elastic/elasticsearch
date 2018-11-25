@@ -38,6 +38,8 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.FindFileStructureRequest;
+import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -94,6 +96,7 @@ import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedState;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
@@ -110,11 +113,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.junit.After;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -1305,5 +1310,44 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
             assertEquals(snapshotId, model.getSnapshotId());
         }
+    }
+
+    public void testFindFileStructure() throws IOException {
+
+        String sample = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\"," +
+                "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\"," +
+                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n" +
+            "{\"logger\":\"controller\",\"timestamp\":1478261151445," +
+                "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\"," +
+                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        FindFileStructureRequest request = new FindFileStructureRequest();
+        request.setSample(sample.getBytes(StandardCharsets.UTF_8));
+
+        FindFileStructureResponse response =
+            execute(request, machineLearningClient::findFileStructure, machineLearningClient::findFileStructureAsync);
+
+        FileStructure structure = response.getFileStructure();
+
+        assertEquals(2, structure.getNumLinesAnalyzed());
+        assertEquals(2, structure.getNumMessagesAnalyzed());
+        assertEquals(sample, structure.getSampleStart());
+        assertEquals(FileStructure.Format.NDJSON, structure.getFormat());
+        assertEquals(StandardCharsets.UTF_8.displayName(Locale.ROOT), structure.getCharset());
+        assertFalse(structure.getHasByteOrderMarker());
+        assertNull(structure.getMultilineStartPattern());
+        assertNull(structure.getExcludeLinesPattern());
+        assertNull(structure.getColumnNames());
+        assertNull(structure.getHasHeaderRow());
+        assertNull(structure.getDelimiter());
+        assertNull(structure.getQuote());
+        assertNull(structure.getShouldTrimFields());
+        assertNull(structure.getGrokPattern());
+        assertEquals(Collections.singletonList("UNIX_MS"), structure.getJavaTimestampFormats());
+        assertEquals(Collections.singletonList("UNIX_MS"), structure.getJodaTimestampFormats());
+        assertEquals("timestamp", structure.getTimestampField());
+        assertFalse(structure.needClientTimezone());
     }
 }

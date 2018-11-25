@@ -93,7 +93,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -105,10 +104,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -126,7 +123,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ClusterStateChanges {
-    private static final Settings SETTINGS = Settings.builder()
+    public static final Settings SETTINGS = Settings.builder()
             .put(PATH_HOME_SETTING.getKey(), "dummy")
             .put(Environment.PATH_REPO_SETTING.getKey(), LuceneTestCase.createTempDir("repos"))
             .build();
@@ -232,16 +229,16 @@ public class ClusterStateChanges {
         nodeRemovalExecutor = new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService,
             s -> { throw new AssertionError("rejoin not implemented"); }, logger);
         joinTaskExecutor = new NodeJoinController.JoinTaskExecutor(allocationService, electMasterService, logger);
-
-        Map<String, Repository.Factory> factories = new HashMap<>();
-        factories.put(FsRepository.TYPE, (metadata) -> new FsRepository(metadata, environment, xContentRegistry) {
-            @Override
-            protected void assertSnapshotOrGenericThread() {
-                // we don't execute on the correct thread here
-            }
-        });
-        RepositoriesService repositoriesService = new RepositoriesService(SETTINGS, clusterService, transportService, factories,
-            threadPool);
+        RepositoriesService repositoriesService = new RepositoriesService(
+            SETTINGS, clusterService, transportService,
+            Collections.singletonMap(FsRepository.TYPE, metadata -> new FsRepository(metadata, environment, xContentRegistry) {
+                @Override
+                protected void assertSnapshotOrGenericThread() {
+                    // we don't execute on the correct thread here
+                }
+            }),
+            threadPool
+        );
         transportPutRepositoryAction = new TransportPutRepositoryAction(transportService, clusterService, repositoriesService,
             threadPool, actionFilters, indexNameExpressionResolver);
         transportDeleteRepositoryAction = new TransportDeleteRepositoryAction(transportService, clusterService,
@@ -253,10 +250,6 @@ public class ClusterStateChanges {
         transportDeleteSnapshotAction = new TransportDeleteSnapshotAction(
             transportService, clusterService, threadPool, snapshotsService, actionFilters, indexNameExpressionResolver
         );
-    }
-
-    public Settings getSettings() {
-        return SETTINGS;
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {

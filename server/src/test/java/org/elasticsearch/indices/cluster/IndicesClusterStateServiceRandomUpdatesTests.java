@@ -113,7 +113,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             state,
             new PutRepositoryRequest("test-repo").type("fs").verify(false)
                 .settings(
-                    "{\"location\": \"" + Environment.PATH_REPO_SETTING.get(cluster.getSettings()).get(0) + "\"}",
+                    "{\"location\": \"" + Environment.PATH_REPO_SETTING.get(ClusterStateChanges.SETTINGS).get(0) + "\"}",
                     XContentType.JSON
                 )
         );

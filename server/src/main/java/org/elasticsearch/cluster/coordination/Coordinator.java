@@ -996,10 +996,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             }
                         } else {
                             ackListener.onNodeAck(node, e);
+                            if (e == null) {
+                                lagDetector.setAppliedVersion(node, publishRequest.getAcceptedState().version());
+                            }
                         }
                     }
                 },
-                transportService.getThreadPool()::relativeTimeInMillis, lagDetector::setAppliedVersion);
+                transportService.getThreadPool()::relativeTimeInMillis);
             this.publishRequest = publishRequest;
             this.publicationContext = publicationContext;
             this.localNodeAckEvent = localNodeAckEvent;

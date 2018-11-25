@@ -103,8 +103,7 @@ public class PublicationTests extends ESTestCase {
         Set<DiscoveryNode> missingJoins = new HashSet<>();
 
         MockPublication(PublishRequest publishRequest, Discovery.AckListener ackListener, LongSupplier currentTimeSupplier) {
-            super(publishRequest, ackListener, currentTimeSupplier, (n, l) -> {
-            });
+            super(publishRequest, ackListener, currentTimeSupplier);
             this.publishRequest = publishRequest;
         }
 

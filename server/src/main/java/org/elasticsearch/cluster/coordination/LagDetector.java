@@ -80,13 +80,13 @@ public class LagDetector {
     }
 
     public void setAppliedVersion(final DiscoveryNode discoveryNode, final long appliedVersion) {
-        if (discoveryNode.equals(localNodeSupplier.get())) {
-            return;
-        }
-
         final NodeAppliedStateTracker nodeAppliedStateTracker = appliedStateTrackersByNode.get(discoveryNode);
-        assert nodeAppliedStateTracker != null : "untracked node " + discoveryNode + " applied version " + appliedVersion;
-        nodeAppliedStateTracker.increaseAppliedVersion(appliedVersion);
+        if (nodeAppliedStateTracker == null) {
+            // Received an ack from a node that a later publication has removed (or we are no longer master). No big deal.
+            logger.trace("node {} applied version {} but this node's version is not being tracked", discoveryNode, appliedVersion);
+        } else {
+            nodeAppliedStateTracker.increaseAppliedVersion(appliedVersion);
+        }
     }
 
     public void startLagDetector(final long version) {

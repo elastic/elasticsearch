@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.HitExtractorProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.CoalesceProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor;
@@ -61,6 +62,7 @@ public final class Processors {
         // null
         entries.add(new Entry(Processor.class, CheckNullProcessor.NAME, CheckNullProcessor::new));
         entries.add(new Entry(Processor.class, CoalesceProcessor.NAME, CoalesceProcessor::new));
+        entries.add(new Entry(Processor.class, NullIfProcessor.NAME, NullIfProcessor::new));
 
         // arithmetic
         entries.add(new Entry(Processor.class, BinaryArithmeticProcessor.NAME, BinaryArithmeticProcessor::new));

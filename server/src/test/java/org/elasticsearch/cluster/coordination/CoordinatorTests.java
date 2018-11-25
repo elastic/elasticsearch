@@ -27,6 +27,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -35,6 +36,8 @@ import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigu
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.ClusterNode;
+import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
+import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
@@ -942,7 +945,7 @@ public class CoordinatorTests extends ESTestCase {
             final Builder settingsBuilder = Settings.builder().put(cs.metaData().persistentSettings());
             settingsBuilder.put(NO_MASTER_BLOCK_SETTING.getKey(), noMasterBlockSetting);
             return ClusterState.builder(cs).metaData(MetaData.builder(cs.metaData()).persistentSettings(settingsBuilder.build())).build();
-        });
+        }, (source, e) -> {});
         cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing setting update");
 
         leader.disconnect();
@@ -1014,6 +1017,8 @@ public class CoordinatorTests extends ESTestCase {
         private final Set<String> disconnectedNodes = new HashSet<>();
         private final Set<String> blackholedNodes = new HashSet<>();
         private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
+        private final LinearizabilityChecker linearizabilityChecker = new LinearizabilityChecker();
+        private final History history = new History();
 
         Cluster(int initialNodeCount) {
             this(initialNodeCount, true);
@@ -1100,6 +1105,13 @@ public class CoordinatorTests extends ESTestCase {
                             logger.debug("----> [runRandomly {}] proposing new value [{}] to [{}]",
                                 thisStep, newValue, clusterNode.getId());
                             clusterNode.submitValue(newValue);
+                        }).run();
+                    } else if (rarely()) {
+                        final ClusterNode clusterNode = getAnyNodePreferringLeaders();
+                        onNode(clusterNode.getLocalNode(), () -> {
+                            logger.debug("----> [runRandomly {}] reading value from [{}]",
+                                thisStep, clusterNode.getId());
+                            clusterNode.readValue();
                         }).run();
                     } else if (rarely()) {
                         final ClusterNode clusterNode = getAnyNodePreferringLeaders();
@@ -1271,6 +1283,10 @@ public class CoordinatorTests extends ESTestCase {
                 lastAcceptedState.getLastCommittedConfiguration(), equalTo(lastAcceptedState.getLastAcceptedConfiguration()));
             assertThat("current configuration is already optimal",
                 leader.improveConfiguration(lastAcceptedState), sameInstance(lastAcceptedState));
+
+            logger.info("checking linearizability of history with size {}: {}", history.size(), history);
+            assertTrue("history not linearizable: " + history, linearizabilityChecker.isLinearizable(spec, history, i -> null));
+            logger.info("linearizability check completed");
         }
 
         void runFor(long runDurationMillis, String description) {
@@ -1526,14 +1542,51 @@ public class CoordinatorTests extends ESTestCase {
                                 .put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), autoShrinkVotingConfiguration)
                                 .build())
                             .build())
-                        .build());
+                        .build(), (source, e) -> {});
             }
 
             AckCollector submitValue(final long value) {
-                return submitUpdateTask("new value [" + value + "]", cs -> setValue(cs, value));
+                final int eventId = history.invoke(value);
+                return submitUpdateTask("new value [" + value + "]", cs -> setValue(cs, value), new ClusterStateTaskListener() {
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        history.respond(eventId, value(oldState));
+                    }
+
+                    @Override
+                    public void onNoLongerMaster(String source) {
+                        // in this case, we know for sure that event was not processed by the system and will not change history
+                        // remove event to help avoid bloated history and state space explosion in linearizability checker
+                        history.remove(eventId);
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        // do not remove event from history, the write might still take place
+                        // instead, complete history when checking for linearizability
+                    }
+                });
             }
 
-            AckCollector submitUpdateTask(String source, UnaryOperator<ClusterState> clusterStateUpdate) {
+            void readValue() {
+                final int eventId = history.invoke(null);
+                submitUpdateTask("read value", cs -> ClusterState.builder(cs).build(), new ClusterStateTaskListener() {
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        history.respond(eventId, value(newState));
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        // reads do not change state
+                        // remove event to help avoid bloated history and state space explosion in linearizability checker
+                        history.remove(eventId);
+                    }
+                });
+            }
+
+            AckCollector submitUpdateTask(String source, UnaryOperator<ClusterState> clusterStateUpdate,
+                                          ClusterStateTaskListener taskListener) {
                 final AckCollector ackCollector = new AckCollector();
                 onNode(localNode, () -> {
                     logger.trace("[{}] submitUpdateTask: enqueueing [{}]", localNode.getId(), source);
@@ -1550,6 +1603,13 @@ public class CoordinatorTests extends ESTestCase {
                             @Override
                             public void onFailure(String source, Exception e) {
                                 logger.debug(() -> new ParameterizedMessage("failed to publish: [{}]", source), e);
+                                taskListener.onFailure(source, e);
+                            }
+
+                            @Override
+                            public void onNoLongerMaster(String source) {
+                                logger.trace("no longer master: [{}]", source);
+                                taskListener.onNoLongerMaster(source);
                             }
 
                             @Override
@@ -1559,6 +1619,7 @@ public class CoordinatorTests extends ESTestCase {
                                 assertNotNull("State not committed : " + newState.toString(), state);
                                 assertEquals(value(state), value(newState));
                                 logger.trace("successfully published: [{}]", newState);
+                                taskListener.clusterStateProcessed(source, oldState, newState);
                             }
                         });
                 }).run();
@@ -1800,6 +1861,44 @@ public class CoordinatorTests extends ESTestCase {
          * Never respond either way.
          */
         HANG,
+    }
+
+    /**
+     * Simple register model. Writes are modeled by providing an integer input. Reads are modeled by providing null as input.
+     * Responses that time out are modeled by returning null. Successful writes return the previous value of the register.
+     */
+    private final SequentialSpec spec = new SequentialSpec() {
+        @Override
+        public Object initialState() {
+            return 0L;
+        }
+
+        @Override
+        public Optional<Object> nextState(Object currentState, Object input, Object output) {
+            // null input is read, non-null is write
+            if (input == null) {
+                // history is completed with null, simulating timeout, which assumes that read went through
+                if (output == null || currentState.equals(output)) {
+                    return Optional.of(currentState);
+                }
+                return Optional.empty();
+            } else {
+                if (output == null || currentState.equals(output)) {
+                    // history is completed with null, simulating timeout, which assumes that write went through
+                    return Optional.of(input);
+                }
+                return Optional.empty();
+            }
+        }
+    };
+
+    public void testRegisterSpecConsistency() {
+        assertThat(spec.initialState(), equalTo(0L));
+        assertThat(spec.nextState(7, 42, 7), equalTo(Optional.of(42))); // successful write 42 returns previous value 7
+        assertThat(spec.nextState(7, 42, null), equalTo(Optional.of(42))); // write 42 times out
+        assertThat(spec.nextState(7, null, 7), equalTo(Optional.of(7))); // successful read
+        assertThat(spec.nextState(7, null, null), equalTo(Optional.of(7))); // read times out
+        assertThat(spec.nextState(7, null, 42), equalTo(Optional.empty()));
     }
 
 }

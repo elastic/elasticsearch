@@ -23,7 +23,7 @@ public class RestDeleteFeatureIndexBuilderJobAction extends BaseRestHandler {
 
     public RestDeleteFeatureIndexBuilderJobAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE,  FeatureIndexBuilder.BASE_PATH +  "job/{id}/", this);
+        controller.registerHandler(RestRequest.Method.DELETE,  FeatureIndexBuilder.BASE_PATH_JOBS_BY_ID, this);
     }
 
     @Override

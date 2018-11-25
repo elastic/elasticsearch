@@ -21,7 +21,7 @@ public class RestStopFeatureIndexBuilderJobAction extends BaseRestHandler {
 
     public RestStopFeatureIndexBuilderJobAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, FeatureIndexBuilder.BASE_PATH +  "job/{id}/_stop", this);
+        controller.registerHandler(RestRequest.Method.POST, FeatureIndexBuilder.BASE_PATH_JOBS_BY_ID + "_stop", this);
     }
 
     @Override

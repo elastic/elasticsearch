@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.security.authc.saml;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Base64;
@@ -19,6 +21,7 @@ import java.util.zip.InflaterInputStream;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.Streams;
@@ -94,7 +97,7 @@ public class SamlLogoutRequestHandler extends SamlRequestHandler {
         return new ParsedQueryString(samlRequest, true, relayState);
     }
 
-    private Result parseLogout(LogoutRequest logoutRequest, boolean requireSignature, String relayState) {
+    private Result parseLogout(LogoutRequest logoutRequest, boolean requireSignature, @Nullable String relayState) {
         final Signature signature = logoutRequest.getSignature();
         if (signature == null) {
             if (requireSignature) {
@@ -108,7 +111,15 @@ public class SamlLogoutRequestHandler extends SamlRequestHandler {
         checkDestination(logoutRequest);
         validateNotOnOrAfter(logoutRequest.getNotOnOrAfter());
 
-        return new Result(logoutRequest.getID(), SamlNameId.fromXml(getNameID(logoutRequest)), getSessionIndex(logoutRequest), relayState);
+        try {
+            return new Result(
+                logoutRequest.getID(), SamlNameId.fromXml(getNameID(logoutRequest)),
+                getSessionIndex(logoutRequest),
+                relayState == null ? null : URLDecoder.decode(relayState, StandardCharsets.US_ASCII.name())
+            );
+        } catch (UnsupportedEncodingException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 
     private void validateSignature(String inputString, String signatureAlgorithm, String signature) {

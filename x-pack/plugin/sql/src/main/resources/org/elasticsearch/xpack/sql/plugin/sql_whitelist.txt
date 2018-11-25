@@ -46,6 +46,8 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 # Null
 #
   Object coalesce(java.util.List)
+  Object greatest(java.util.List)
+  Object least(java.util.List)
   Object nullif(Object, Object)
 
 #

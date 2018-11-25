@@ -42,6 +42,9 @@ import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
@@ -131,7 +134,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceFoldableAttributes(),
                 new FoldNull(),
                 new ConstantFolding(),
-                new SimplifyCoalesce(),
+                new SimplifyConditional(),
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
@@ -1201,9 +1204,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
     
-    static class SimplifyCoalesce extends OptimizerExpressionRule {
+    static class SimplifyConditional extends OptimizerExpressionRule {
 
-        SimplifyCoalesce() {
+        SimplifyConditional() {
             super(TransformDirection.DOWN);
         }
 
@@ -1229,6 +1232,27 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return new Coalesce(c.location(), newChildren);
                 }
             }
+
+            if (e instanceof Greatest || e instanceof Least) {
+                ConditionalFunction c = (ConditionalFunction) e;
+
+                // exclude any nulls found
+                List<Expression> newChildren = new ArrayList<>();
+                for (Expression child : c.children()) {
+                    if (Expressions.isNull(child) == false) {
+                        newChildren.add(child);
+                    }
+                }
+
+                if (newChildren.size() < c.children().size()) {
+                    if (e instanceof Greatest) {
+                        return new Greatest(c.location(), newChildren);
+                    } else if (e instanceof Least) {
+                        return new Least(c.location(), newChildren);
+                    }
+                }
+            }
+
             return e;
         }
     }

@@ -69,6 +69,11 @@ public class NullIf extends ConditionalFunction {
     }
 
     @Override
+    protected String scriptMethodName() {
+        return null;
+    }
+
+    @Override
     public ScriptTemplate asScript() {
         ScriptTemplate left = asScript(children().get(0));
         ScriptTemplate right = asScript(children().get(1));

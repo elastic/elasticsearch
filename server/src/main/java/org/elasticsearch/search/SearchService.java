@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
@@ -119,6 +121,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
+    private static final Logger logger = LogManager.getLogger(SearchService.class);
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING =
@@ -528,8 +531,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 long afterQueryTime = System.nanoTime();
                 operationListener.onQueryPhase(context, afterQueryTime - time);
                 QueryFetchSearchResult fetchSearchResult = executeFetchPhase(context, operationListener, afterQueryTime);
-                return new ScrollQueryFetchSearchResult(fetchSearchResult,
-                    context.shardTarget());
+                return new ScrollQueryFetchSearchResult(fetchSearchResult, context.shardTarget());
             } catch (Exception e) {
                 logger.trace("Fetch phase failed", e);
                 processFailure(context, e);

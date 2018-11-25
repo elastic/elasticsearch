@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.path.PathTrie;
 
@@ -29,6 +30,12 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 public class RestUtils {
+
+    /**
+     * Sets whether we decode a '+' in an url as a space or not.
+     */
+    private static final boolean DECODE_PLUS_AS_SPACE =
+        Booleans.parseBoolean(System.getProperty("es.rest.url_plus_as_space", "true"));
 
     public static final PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
         @Override
@@ -163,6 +170,9 @@ public class RestUtils {
         for (int i = 0; i < size; i++) {
             char c = s.charAt(i);
             switch (c) {
+                case '+':
+                    buf[pos++] = (byte) (DECODE_PLUS_AS_SPACE ? ' ' : 'x');  // "+" -> " "
+                    break;
                 case '%':
                     if (i == size - 1) {
                         throw new IllegalArgumentException("unterminated escape sequence at end of string: " + s);

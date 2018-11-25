@@ -85,6 +85,7 @@ integTestRunner {
 
 integTestCluster {
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
+  systemProperty 'es.rest.url_plus_as_space', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'

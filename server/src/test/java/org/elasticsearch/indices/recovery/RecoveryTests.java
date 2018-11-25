@@ -127,6 +127,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             final String indexName = orgReplica.shardId().getIndexName();
 
             // delete #1
+            orgReplica.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
             orgReplica.applyDeleteOperationOnReplica(1, 2, "type", "id");
             getTranslog(orgReplica).rollGeneration(); // isolate the delete in it's own generation
             // index #0
@@ -190,6 +191,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             final String indexName = orgReplica.shardId().getIndexName();
 
             // delete #1
+            orgReplica.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
             orgReplica.applyDeleteOperationOnReplica(1, 2, "type", "id");
             orgReplica.flush(new FlushRequest().force(true)); // isolate delete#1 in its own translog generation and lucene segment
             // index #0

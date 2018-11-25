@@ -66,6 +66,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
+    @SuppressWarnings("unused")
     public void testListTasks() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -149,6 +150,8 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35514")
+    @SuppressWarnings("unused")
     public void testCancelTasks() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {

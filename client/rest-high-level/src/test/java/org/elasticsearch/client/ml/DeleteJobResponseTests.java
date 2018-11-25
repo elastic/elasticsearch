@@ -19,6 +19,7 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
@@ -27,16 +28,19 @@ public class DeleteJobResponseTests extends AbstractXContentTestCase<DeleteJobRe
 
     @Override
     protected DeleteJobResponse createTestInstance() {
-        return new DeleteJobResponse();
+        if (randomBoolean()) {
+            return new DeleteJobResponse(randomBoolean(), null);
+        }
+        return new DeleteJobResponse(null, new TaskId(randomAlphaOfLength(20) + ":" + randomIntBetween(1, 100)));
     }
 
     @Override
     protected DeleteJobResponse doParseInstance(XContentParser parser) throws IOException {
-        return DeleteJobResponse.fromXContent(parser);
+        return DeleteJobResponse.PARSER.apply(parser, null);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

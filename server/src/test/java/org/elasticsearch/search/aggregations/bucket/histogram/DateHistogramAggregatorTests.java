@@ -33,14 +33,13 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
-
-import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 
 public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
@@ -346,19 +345,19 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             "2017-01-01T00:00:00.000Z"
         );
 
-        TooManyBucketsException exc = expectThrows(TooManyBucketsException.class, () -> testSearchCase(query, timestamps,
+        expectThrows(TooManyBucketsException.class, () -> testSearchCase(query, timestamps,
             aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD),
             histogram -> {}, 2));
 
-        exc = expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
+        expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
             aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD),
             histogram -> {}, 2));
 
-        exc = expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
+        expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
             aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD).minDocCount(0L),
             histogram -> {}, 100));
 
-        exc = expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
+        expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
             aggregation ->
                 aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5))
                     .field(DATE_FIELD)

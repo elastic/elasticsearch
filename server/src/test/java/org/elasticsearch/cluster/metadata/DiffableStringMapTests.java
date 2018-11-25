@@ -70,7 +70,7 @@ public class DiffableStringMapTests extends ESTestCase {
         m.put("2", "2");
         m.put("3", "3");
         DiffableStringMap dsm = new DiffableStringMap(m);
-        DiffableStringMap expected = new DiffableStringMap(m);
+        Map<String, String> expected = new HashMap<>(m);
 
         for (int i = 0; i < randomIntBetween(5, 50); i++) {
             if (randomBoolean() && expected.size() > 1) {
@@ -80,7 +80,7 @@ public class DiffableStringMapTests extends ESTestCase {
             } else {
                 expected.put(randomAlphaOfLength(2), randomAlphaOfLength(4));
             }
-            dsm = expected.diff(dsm).apply(dsm);
+            dsm = new DiffableStringMap(expected).diff(dsm).apply(dsm);
         }
         assertThat(expected, equalTo(dsm));
     }

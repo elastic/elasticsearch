@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.ElasticsearchException;
@@ -12,10 +13,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Platforms;
@@ -30,8 +31,8 @@ import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.job.process.NativeController;
-import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
+import org.elasticsearch.xpack.ml.process.NativeController;
+import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
@@ -81,7 +82,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                     }
                 }
             } catch (IOException | TimeoutException e) {
-                Loggers.getLogger(MachineLearningFeatureSet.class).error("Cannot get native code info for Machine Learning", e);
+                LogManager.getLogger(MachineLearningFeatureSet.class).error("Cannot get native code info for Machine Learning", e);
                 throw new ElasticsearchException("Cannot communicate with Machine Learning native code");
             }
         }
@@ -132,7 +133,22 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         ClusterState state = clusterService.state();
-        new Retriever(client, MlMetadata.getMlMetadata(state), available(), enabled()).execute(listener);
+        new Retriever(client, MlMetadata.getMlMetadata(state), available(), enabled(), mlNodeCount(state)).execute(listener);
+    }
+
+    private int mlNodeCount(final ClusterState clusterState) {
+        if (enabled == false) {
+            return 0;
+        }
+
+        int mlNodeCount = 0;
+        for (DiscoveryNode node : clusterState.getNodes()) {
+            String enabled = node.getAttributes().get(MachineLearning.ML_ENABLED_NODE_ATTR);
+            if (Boolean.parseBoolean(enabled)) {
+                ++mlNodeCount;
+            }
+        }
+        return mlNodeCount;
     }
 
     public static class Retriever {
@@ -143,19 +159,22 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         private final boolean enabled;
         private Map<String, Object> jobsUsage;
         private Map<String, Object> datafeedsUsage;
+        private int nodeCount;
 
-        public Retriever(Client client, MlMetadata mlMetadata, boolean available, boolean enabled) {
+        public Retriever(Client client, MlMetadata mlMetadata, boolean available, boolean enabled, int nodeCount) {
             this.client = Objects.requireNonNull(client);
             this.mlMetadata = mlMetadata;
             this.available = available;
             this.enabled = enabled;
             this.jobsUsage = new LinkedHashMap<>();
             this.datafeedsUsage = new LinkedHashMap<>();
+            this.nodeCount = nodeCount;
         }
 
         public void execute(ActionListener<Usage> listener) {
             if (enabled == false) {
-                listener.onResponse(new MachineLearningFeatureSetUsage(available, enabled, Collections.emptyMap(), Collections.emptyMap()));
+                listener.onResponse(
+                    new MachineLearningFeatureSetUsage(available, enabled, Collections.emptyMap(), Collections.emptyMap(), 0));
                 return;
             }
 
@@ -164,11 +183,9 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                     ActionListener.wrap(response -> {
                                 addDatafeedsUsage(response);
                                 listener.onResponse(new MachineLearningFeatureSetUsage(
-                                        available, enabled, jobsUsage, datafeedsUsage));
+                                        available, enabled, jobsUsage, datafeedsUsage, nodeCount));
                             },
-                            error -> {
-                                listener.onFailure(error);
-                            }
+                            listener::onFailure
                     );
 
             // Step 1. Extract usage from jobs stats and then request stats for all datafeeds
@@ -181,9 +198,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                         client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest,
                                 datafeedStatsListener);
                     },
-                    error -> {
-                        listener.onFailure(error);
-                    }
+                    listener::onFailure
             );
 
             // Step 0. Kick off the chain of callbacks by requesting jobs stats

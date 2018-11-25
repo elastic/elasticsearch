@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -28,10 +27,8 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportAuthenticateAction(Settings settings, TransportService transportService,
-                                       ActionFilters actionFilters, SecurityContext securityContext) {
-        super(settings, AuthenticateAction.NAME, transportService, actionFilters,
-            (Supplier<AuthenticateRequest>) AuthenticateRequest::new);
+    public TransportAuthenticateAction(TransportService transportService, ActionFilters actionFilters, SecurityContext securityContext) {
+        super(AuthenticateAction.NAME, transportService, actionFilters, (Supplier<AuthenticateRequest>) AuthenticateRequest::new);
         this.securityContext = securityContext;
     }
 

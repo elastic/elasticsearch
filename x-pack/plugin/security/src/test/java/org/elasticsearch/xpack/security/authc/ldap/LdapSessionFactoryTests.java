@@ -9,7 +9,6 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
-
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -18,6 +17,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -58,12 +58,14 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         String userTemplates = "cn={0},ou=people,o=sevenSeas";
 
         Settings settings = Settings.builder()
+                .put(globalSettings)
                 .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
+                .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "1ms")
                 .put("path.home", createTempDir())
                 .build();
 
-        RealmConfig config = new RealmConfig("ldap_realm", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
         String user = "Horatio Hornblower";
         SecureString userPass = new SecureString("pass");
@@ -82,13 +84,17 @@ public class LdapSessionFactoryTests extends LdapTestCase {
 
     public void testBindWithTemplates() throws Exception {
         String groupSearchBase = "o=sevenSeas";
-        String[] userTemplates = new String[] {
+        String[] userTemplates = new String[]{
                 "cn={0},ou=something,ou=obviously,ou=incorrect,o=sevenSeas",
                 "wrongname={0},ou=people,o=sevenSeas",
                 "cn={0},ou=people,o=sevenSeas", //this last one should work
         };
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrls(), userTemplates, groupSearchBase,
-                        LdapSearchScope.SUB_TREE), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .build();
+        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -105,13 +111,17 @@ public class LdapSessionFactoryTests extends LdapTestCase {
 
     public void testBindWithBogusTemplates() throws Exception {
         String groupSearchBase = "o=sevenSeas";
-        String[] userTemplates = new String[] {
+        String[] userTemplates = new String[]{
                 "cn={0},ou=something,ou=obviously,ou=incorrect,o=sevenSeas",
                 "wrongname={0},ou=people,o=sevenSeas",
                 "asdf={0},ou=people,o=sevenSeas", //none of these should work
         };
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrls(), userTemplates, groupSearchBase,
-                        LdapSearchScope.SUB_TREE), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .build();
+        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -128,8 +138,12 @@ public class LdapSessionFactoryTests extends LdapTestCase {
     public void testGroupLookupSubtree() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase,
-                        LdapSearchScope.SUB_TREE), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
+            .build();
+        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -147,8 +161,12 @@ public class LdapSessionFactoryTests extends LdapTestCase {
     public void testGroupLookupOneLevel() throws Exception {
         String groupSearchBase = "ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase,
-                        LdapSearchScope.ONE_LEVEL), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+            .build();
+        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -165,8 +183,12 @@ public class LdapSessionFactoryTests extends LdapTestCase {
     public void testGroupLookupBase() throws Exception {
         String groupSearchBase = "cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
-        RealmConfig config = new RealmConfig("ldap_realm", buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase,
-                        LdapSearchScope.BASE), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.BASE))
+            .build();
+        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, sslService, threadPool);
 

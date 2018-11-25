@@ -23,16 +23,17 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.EarlyTerminatingSortingCollector;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -53,7 +54,7 @@ public class SearchAfterSortedDocQuery extends Query {
             throw new IllegalArgumentException("after doc  has " + after.fields.length + " value(s) but sort has "
                     + sort.getSort().length + ".");
         }
-        this.sort = sort;
+        this.sort = Objects.requireNonNull(sort);
         this.after = after;
         int numFields = sort.getSort().length;
         this.fieldComparators = new FieldComparator[numFields];
@@ -70,12 +71,12 @@ public class SearchAfterSortedDocQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         return new ConstantScoreWeight(this, 1.0f) {
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 Sort segmentSort = context.reader().getMetaData().getSort();
-                if (EarlyTerminatingSortingCollector.canEarlyTerminate(sort, segmentSort) == false) {
+                if (segmentSort == null || Lucene.canEarlyTerminate(sort, segmentSort) == false) {
                     throw new IOException("search sort :[" + sort.getSort() + "] does not match the index sort:[" + segmentSort + "]");
                 }
                 final int afterDoc = after.doc - context.docBase;
@@ -86,7 +87,7 @@ public class SearchAfterSortedDocQuery extends Query {
                     return null;
                 }
                 final DocIdSetIterator disi = new MinDocQuery.MinDocIterator(firstDoc, maxDoc);
-                return new ConstantScoreScorer(this, score(), disi);
+                return new ConstantScoreScorer(this, score(), scoreMode, disi);
             }
 
             @Override

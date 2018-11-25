@@ -1,5 +1,7 @@
 ---
 "Verify native store security actions":
+  - skip:
+      features: headers
   # create native user and role
   - do:
      xpack.security.put_user:
@@ -9,7 +11,7 @@
              "password" : "x-pack-test-password",
              "roles" : [ "native_role" ]
            }
-  - match: { user: { created: true } }
+  - match: { created: true }
 
   - do:
       xpack.security.put_role:

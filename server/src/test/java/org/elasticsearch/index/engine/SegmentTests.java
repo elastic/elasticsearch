@@ -77,7 +77,7 @@ public class SegmentTests extends ESTestCase {
         segment.sizeInBytes = randomNonNegativeLong();
         segment.docCount = randomIntBetween(1, Integer.MAX_VALUE);
         segment.delDocCount = randomIntBetween(0, segment.docCount);
-        segment.version = Version.LUCENE_6_5_0;
+        segment.version = Version.LUCENE_7_0_0;
         segment.compound = randomBoolean();
         segment.mergeId = randomAlphaOfLengthBetween(1, 10);
         segment.memoryInBytes = randomNonNegativeLong();

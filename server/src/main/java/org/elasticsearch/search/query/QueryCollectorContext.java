@@ -23,6 +23,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
@@ -114,7 +115,7 @@ abstract class QueryCollectorContext {
         return new QueryCollectorContext(REASON_SEARCH_POST_FILTER) {
             @Override
             Collector create(Collector in ) throws IOException {
-                final Weight filterWeight = searcher.createNormalizedWeight(query, false);
+                final Weight filterWeight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 return new FilteredCollector(in, filterWeight);
             }
         };

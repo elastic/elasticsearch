@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.actions.index;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -21,7 +21,7 @@ public class IndexActionFactory extends ActionFactory {
     private final TimeValue bulkDefaultTimeout;
 
     public IndexActionFactory(Settings settings, Client client) {
-        super(Loggers.getLogger(IndexActionFactory.class, settings));
+        super(LogManager.getLogger(IndexActionFactory.class));
         this.client = client;
         this.indexDefaultTimeout = settings.getAsTime("xpack.watcher.actions.index.default_timeout", TimeValue.timeValueSeconds(30));
         this.bulkDefaultTimeout = settings.getAsTime("xpack.watcher.actions.bulk.default_timeout", TimeValue.timeValueMinutes(1));

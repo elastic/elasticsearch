@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
@@ -81,8 +81,8 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
      * configured)
      */
     @Override
-    public final void validate(AggregatorFactory<?> parent, List<AggregationBuilder> factories,
-            List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
+    public final void validate(AggregatorFactory<?> parent, Collection<AggregationBuilder> factories,
+            Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         doValidate(parent, factories, pipelineAggregatorFactories);
     }
 
@@ -99,8 +99,8 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
         return aggregator;
     }
 
-    public void doValidate(AggregatorFactory<?> parent, List<AggregationBuilder> factories,
-            List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
+    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> factories,
+            Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
     }
 
     @SuppressWarnings("unchecked")

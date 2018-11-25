@@ -101,6 +101,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      */
     protected abstract QB doCreateTestQueryBuilder();
 
+    public void testNegativeBoosts() {
+        QB testQuery = createTestQueryBuilder();
+        IllegalArgumentException exc =
+            expectThrows(IllegalArgumentException.class, () -> testQuery.boost(-0.5f));
+        assertThat(exc.getMessage(), containsString("negative [boost]"));
+    }
+
     /**
      * Generic test that creates new query from the test query and checks both for equality
      * and asserts equality on the two queries.

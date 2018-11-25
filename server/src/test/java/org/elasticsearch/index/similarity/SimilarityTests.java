@@ -23,7 +23,6 @@ import org.apache.lucene.search.similarities.AfterEffectL;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.BasicModelG;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
-import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.DFISimilarity;
 import org.apache.lucene.search.similarities.DFRSimilarity;
 import org.apache.lucene.search.similarities.DistributionSPL;
@@ -33,8 +32,6 @@ import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.search.similarities.LambdaTTF;
 import org.apache.lucene.search.similarities.NormalizationH2;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -70,39 +67,6 @@ public class SimilarityTests extends ESSingleNodeTestCase {
                 () -> similarityService.getSimilarity("classic"));
         assertEquals("The [classic] similarity may not be used anymore. Please use the [BM25] similarity or build a custom [scripted] "
                 + "similarity instead.", e.getMessage());
-    }
-
-    public void testResolveDefaultSimilaritiesOn6xIndex() {
-        Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0) // otherwise classic is forbidden
-                .build();
-        SimilarityService similarityService = createIndex("foo", indexSettings).similarityService();
-        assertThat(similarityService.getSimilarity("classic").get(), instanceOf(ClassicSimilarity.class));
-        assertWarnings("The [classic] similarity is now deprecated in favour of BM25, which is generally "
-                + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
-                + "instead.");
-        assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(BM25Similarity.class));
-        assertThat(similarityService.getSimilarity("boolean").get(), instanceOf(BooleanSimilarity.class));
-        assertThat(similarityService.getSimilarity("default"), equalTo(null));
-    }
-
-    public void testResolveSimilaritiesFromMapping_classic() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties")
-            .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
-            .endObject()
-            .endObject().endObject();
-
-        Settings indexSettings = Settings.builder()
-            .put("index.similarity.my_similarity.type", "classic")
-            .put("index.similarity.my_similarity.discount_overlaps", false)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0) // otherwise classic is forbidden
-            .build();
-        MapperService mapperService = createIndex("foo", indexSettings, "type", mapping).mapperService();
-        assertThat(mapperService.fullName("field1").similarity().get(), instanceOf(ClassicSimilarity.class));
-
-        ClassicSimilarity similarity = (ClassicSimilarity) mapperService.fullName("field1").similarity().get();
-        assertThat(similarity.getDiscountOverlaps(), equalTo(false));
     }
 
     public void testResolveSimilaritiesFromMapping_classicIsForbidden() throws IOException {

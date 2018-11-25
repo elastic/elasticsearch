@@ -158,26 +158,8 @@ public final class AnalysisRegistry implements Closeable {
 
     public Map<String, TokenFilterFactory> buildTokenFilterFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> tokenFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_FILTER);
-        Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> tokenFilters = new HashMap<>(this.tokenFilters);
-        /*
-         * synonym and synonym_graph are different than everything else since they need access to the tokenizer factories for the index.
-         * instead of building the infrastructure for plugins we rather make it a real exception to not pollute the general interface and
-         * hide internal data-structures as much as possible.
-         */
-        tokenFilters.put("synonym", requiresAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings)));
-        tokenFilters.put("synonym_graph", requiresAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings)));
-
-        Map<String, TokenFilterFactory> mappings
-            = buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.preConfiguredTokenFilters);
-
-        // ReferringTokenFilters require references to other tokenfilters, so we pass these in
-        // after all factories have been registered
-        for (TokenFilterFactory tff : mappings.values()) {
-            if (tff instanceof ReferringFilterFactory) {
-                ((ReferringFilterFactory)tff).setReferences(mappings);
-            }
-        }
-        return mappings;
+        return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings,
+            Collections.unmodifiableMap(this.tokenFilters), prebuiltAnalysis.preConfiguredTokenFilters);
     }
 
     public Map<String, TokenizerFactory> buildTokenizerFactories(IndexSettings indexSettings) throws IOException {
@@ -187,7 +169,8 @@ public final class AnalysisRegistry implements Closeable {
 
     public Map<String, CharFilterFactory> buildCharFilterFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> charFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_CHAR_FILTER);
-        return buildMapping(Component.CHAR_FILTER, indexSettings, charFiltersSettings, charFilters, prebuiltAnalysis.preConfiguredCharFilterFactories);
+        return buildMapping(Component.CHAR_FILTER, indexSettings, charFiltersSettings, charFilters,
+            prebuiltAnalysis.preConfiguredCharFilterFactories);
     }
 
     public Map<String, AnalyzerProvider<?>> buildAnalyzerFactories(IndexSettings indexSettings) throws IOException {
@@ -232,18 +215,7 @@ public final class AnalysisRegistry implements Closeable {
         if (tokenFilterSettings.containsKey(tokenFilter)) {
             Settings currentSettings = tokenFilterSettings.get(tokenFilter);
             String typeName = currentSettings.get("type");
-            /*
-             * synonym and synonym_graph are different than everything else since they need access to the tokenizer factories for the index.
-             * instead of building the infrastructure for plugins we rather make it a real exception to not pollute the general interface and
-             * hide internal data-structures as much as possible.
-             */
-            if ("synonym".equals(typeName)) {
-                return requiresAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings));
-            } else if ("synonym_graph".equals(typeName)) {
-                return requiresAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings));
-            } else {
-                return getAnalysisProvider(Component.FILTER, tokenFilters, tokenFilter, typeName);
-            }
+            return getAnalysisProvider(Component.FILTER, tokenFilters, tokenFilter, typeName);
         } else {
             return getTokenFilterProvider(tokenFilter);
         }
@@ -265,19 +237,6 @@ public final class AnalysisRegistry implements Closeable {
         } else {
             return getCharFilterProvider(charFilter);
         }
-    }
-
-    private static <T> AnalysisModule.AnalysisProvider<T> requiresAnalysisSettings(AnalysisModule.AnalysisProvider<T> provider) {
-        return new AnalysisModule.AnalysisProvider<T>() {
-            @Override
-            public T get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
-                return provider.get(indexSettings, environment, name, settings);
-            }
-            @Override
-            public boolean requiresAnalysisSettings() {
-                return true;
-            }
-        };
     }
 
     enum Component {
@@ -329,7 +288,8 @@ public final class AnalysisRegistry implements Closeable {
                     if (currentSettings.get("tokenizer") != null) {
                         factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings, environment);
                     } else {
-                        throw new IllegalArgumentException(component + " [" + name + "] must specify either an analyzer type, or a tokenizer");
+                        throw new IllegalArgumentException(component + " [" + name + "] " +
+                            "must specify either an analyzer type, or a tokenizer");
                     }
                 } else if (typeName.equals("custom")) {
                     factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings, environment);
@@ -467,14 +427,15 @@ public final class AnalysisRegistry implements Closeable {
                 tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
-            processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers,
-                    "keyword", tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
+            processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers, "keyword",
+                tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
             processNormalizerFactory(entry.getKey(), entry.getValue(), whitespaceNormalizers,
                     "whitespace", () -> new WhitespaceTokenizer(), tokenFilterFactoryFactories, charFilterFactoryFactories);
         }
 
         if (!analyzers.containsKey("default")) {
-            processAnalyzerFactory(indexSettings, "default", new StandardAnalyzerProvider(indexSettings, null, "default", Settings.Builder.EMPTY_SETTINGS),
+            processAnalyzerFactory(indexSettings, "default", new StandardAnalyzerProvider(indexSettings, null,
+                    "default", Settings.Builder.EMPTY_SETTINGS),
                 analyzers, tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
         }
         if (!analyzers.containsKey("default_search")) {
@@ -489,7 +450,8 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalArgumentException("no default analyzer configured");
         }
         if (analyzers.containsKey("default_index")) {
-            throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
+            throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use " +
+                "[index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
         }
         NamedAnalyzer defaultSearchAnalyzer = analyzers.getOrDefault("default_search", defaultAnalyzer);
         NamedAnalyzer defaultSearchQuoteAnalyzer = analyzers.getOrDefault("default_search_quote", defaultSearchAnalyzer);

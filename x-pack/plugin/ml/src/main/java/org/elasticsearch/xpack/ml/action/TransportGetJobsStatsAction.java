@@ -16,9 +16,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
@@ -55,12 +54,10 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     private final JobResultsProvider jobResultsProvider;
 
     @Inject
-    public TransportGetJobsStatsAction(Settings settings, TransportService transportService,
-                                       ActionFilters actionFilters, ClusterService clusterService,
+    public TransportGetJobsStatsAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService,
                                        AutodetectProcessManager processManager, JobResultsProvider jobResultsProvider) {
-        super(settings, GetJobsStatsAction.NAME, clusterService, transportService, actionFilters,
-            GetJobsStatsAction.Request::new, GetJobsStatsAction.Response::new,
-                ThreadPool.Names.MANAGEMENT);
+        super(GetJobsStatsAction.NAME, clusterService, transportService, actionFilters, GetJobsStatsAction.Request::new,
+            GetJobsStatsAction.Response::new, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.processManager = processManager;
         this.jobResultsProvider = jobResultsProvider;
@@ -113,7 +110,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
                         stats.get().v2(), forecastStats, jobState, node, assignmentExplanation, openTime);
                 listener.onResponse(new QueryPage<>(Collections.singletonList(jobStats), 1, Job.RESULTS_FIELD));
             }, listener::onFailure);
-            
+
         } else {
             listener.onResponse(new QueryPage<>(Collections.emptyList(), 0, Job.RESULTS_FIELD));
         }
@@ -160,7 +157,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     void gatherForecastStats(String jobId, Consumer<ForecastStats> handler, Consumer<Exception> errorHandler) {
         jobResultsProvider.getForecastStats(jobId, handler, errorHandler);
     }
-    
+
     void gatherDataCountsAndModelSizeStats(String jobId, BiConsumer<DataCounts, ModelSizeStats> handler,
                                                    Consumer<Exception> errorHandler) {
         jobResultsProvider.dataCounts(jobId, dataCounts -> {
@@ -183,6 +180,6 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
                                                                   List<GetJobsStatsAction.Response.JobStats> stats) {
         Set<String> excludeJobIds = stats.stream().map(GetJobsStatsAction.Response.JobStats::getJobId).collect(Collectors.toSet());
         return requestedJobIds.stream().filter(jobId -> !excludeJobIds.contains(jobId) &&
-                !mlMetadata.isJobDeleted(jobId)).collect(Collectors.toList());
+                !mlMetadata.isJobDeleting(jobId)).collect(Collectors.toList());
     }
 }

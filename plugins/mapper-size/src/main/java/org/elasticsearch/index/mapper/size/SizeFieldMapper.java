@@ -145,9 +145,8 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // nothing to do here, we call the parent in postParse
-        return null;
     }
 
     @Override

@@ -18,10 +18,14 @@
  */
 package org.elasticsearch.gradle.precommit
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
+import org.elasticsearch.gradle.VersionProperties
+import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
 /**
@@ -33,7 +37,7 @@ class PrecommitTasks {
     public static Task create(Project project, boolean includeDependencyLicenses) {
         project.configurations.create("forbiddenApisCliJar")
         project.dependencies {
-            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5')
+            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.6')
         }
 
         List<Task> precommitTasks = [
@@ -70,19 +74,29 @@ class PrecommitTasks {
             precommitTasks.add(configureLoggerUsage(project))
         }
 
+        // We want to get any compilation error before running the pre-commit checks.
+        project.sourceSets.all { sourceSet ->
+            precommitTasks.each { task ->
+                task.shouldRunAfter(sourceSet.getClassesTaskName())
+            }
+        }
 
-        Map<String, Object> precommitOptions = [
+        return project.tasks.create([
             name: 'precommit',
             group: JavaBasePlugin.VERIFICATION_GROUP,
             description: 'Runs all non-test checks.',
             dependsOn: precommitTasks
-        ]
-        return project.tasks.create(precommitOptions)
+        ])
     }
 
     private static Task configureJarHell(Project project) {
         Task task = project.tasks.create('jarHell', JarHellTask.class)
         task.classpath = project.sourceSets.test.runtimeClasspath
+        if (project.plugins.hasPlugin(ShadowPlugin)) {
+            task.classpath += project.configurations.bundle
+        }
+        task.dependsOn(project.sourceSets.test.classesTaskName)
+        task.javaHome = project.runtimeJavaHome
         return task
     }
 
@@ -99,47 +113,43 @@ class PrecommitTasks {
     }
 
     private static Task configureForbiddenApisCli(Project project) {
-        Task forbiddenApisCli = project.tasks.create('forbiddenApis')
-        project.sourceSets.all { sourceSet ->
-            forbiddenApisCli.dependsOn(
-                project.tasks.create(sourceSet.getTaskName('forbiddenApis', null), ForbiddenApisCliTask) {
-                    ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
-                    dependsOn(buildResources)
-                    it.sourceSet = sourceSet
-                    javaHome = project.runtimeJavaHome
-                    targetCompatibility = project.compilerJavaVersion
-                    bundledSignatures = [
-                       "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
-                    ]
-                    signaturesFiles = project.files(
-                            buildResources.copy("forbidden/jdk-signatures.txt"),
-                            buildResources.copy("forbidden/es-all-signatures.txt")
-                    )
-                    suppressAnnotations = ['**.SuppressForbidden']
-                    if (sourceSet.name == 'test') {
-                        signaturesFiles += project.files(
-                                buildResources.copy("forbidden/es-test-signatures.txt"),
-                                buildResources.copy("forbidden/http-signatures.txt")
-                        )
-                    } else {
-                        signaturesFiles += project.files(buildResources.copy("forbidden/es-server-signatures.txt"))
-                    }
-                    dependsOn sourceSet.classesTaskName
-                    classesDirs = sourceSet.output.classesDirs
-                    ext.replaceSignatureFiles = { String... names ->
-                        signaturesFiles = project.files(
-                                names.collect { buildResources.copy("forbidden/${it}.txt") }
-                        )
-                    }
-                    ext.addSignatureFiles = { String... names ->
-                        signaturesFiles += project.files(
-                                names.collect { buildResources.copy("forbidden/${it}.txt") }
-                        )
-                    }
-                }
+        project.pluginManager.apply(ForbiddenApisPlugin)
+        ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
+        project.tasks.withType(CheckForbiddenApis) {
+            dependsOn(buildResources)
+            targetCompatibility = project.runtimeJavaVersion >= JavaVersion.VERSION_1_9 ?
+                    project.runtimeJavaVersion.getMajorVersion() :
+                    project.runtimeJavaVersion
+            bundledSignatures = [
+                    "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
+            ]
+            signaturesFiles = project.files(
+                    buildResources.copy("forbidden/jdk-signatures.txt"),
+                    buildResources.copy("forbidden/es-all-signatures.txt")
             )
+            suppressAnnotations = ['**.SuppressForbidden']
+            if (name.endsWith('Test')) {
+                signaturesFiles += project.files(
+                        buildResources.copy("forbidden/es-test-signatures.txt"),
+                        buildResources.copy("forbidden/http-signatures.txt")
+                )
+            } else {
+                signaturesFiles += project.files(buildResources.copy("forbidden/es-server-signatures.txt"))
+            }
+            ext.replaceSignatureFiles = { String... names ->
+                signaturesFiles = project.files(
+                        names.collect { buildResources.copy("forbidden/${it}.txt") }
+                )
+            }
+            ext.addSignatureFiles = { String... names ->
+                signaturesFiles += project.files(
+                        names.collect { buildResources.copy("forbidden/${it}.txt") }
+                )
+            }
         }
-        return forbiddenApisCli
+        Task forbiddenApis =  project.tasks.getByName("forbiddenApis")
+        forbiddenApis.group = ""
+        return forbiddenApis
     }
 
     private static Task configureCheckstyle(Project project) {
@@ -201,22 +211,20 @@ class PrecommitTasks {
 
     private static Task configureNamingConventions(Project project) {
         if (project.sourceSets.findByName("test")) {
-            return project.tasks.create('namingConventions', NamingConventionsTask)
+            Task namingConventionsTask = project.tasks.create('namingConventions', NamingConventionsTask)
+            namingConventionsTask.javaHome = project.runtimeJavaHome
+            return namingConventionsTask
         }
         return null
     }
 
     private static Task configureLoggerUsage(Project project) {
-        Task loggerUsageTask = project.tasks.create('loggerUsageCheck', LoggerUsageTask.class)
-
         project.configurations.create('loggerUsagePlugin')
         project.dependencies.add('loggerUsagePlugin',
-                "org.elasticsearch.test:logger-usage:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")
-
-        loggerUsageTask.configure {
+                "org.elasticsearch.test:logger-usage:${VersionProperties.elasticsearch}")
+        return project.tasks.create('loggerUsageCheck', LoggerUsageTask.class) {
             classpath = project.configurations.loggerUsagePlugin
+            javaHome = project.runtimeJavaHome
         }
-
-        return loggerUsageTask
     }
 }

@@ -54,6 +54,7 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
     private final CharArraySet keepWords;
     private static final String KEEP_WORDS_KEY = "keep_words";
     private static final String KEEP_WORDS_PATH_KEY = KEEP_WORDS_KEY + "_path";
+    @SuppressWarnings("unused")
     private static final String KEEP_WORDS_CASE_KEY = KEEP_WORDS_KEY + "_case"; // for javadoc
 
     // unsupported ancient option

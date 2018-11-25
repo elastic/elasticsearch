@@ -25,6 +25,8 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.StoredScriptSource;
@@ -34,7 +36,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptRequest> {
+public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptRequest> implements ToXContent {
 
     private String id;
     private String context;
@@ -159,5 +161,13 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         return "put stored script {id [" + id + "]" +
             (context != null ? ", context [" + context + "]" : "") +
             ", content [" + source + "]}";
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("script");
+        source.toXContent(builder, params);
+
+        return builder;
     }
 }

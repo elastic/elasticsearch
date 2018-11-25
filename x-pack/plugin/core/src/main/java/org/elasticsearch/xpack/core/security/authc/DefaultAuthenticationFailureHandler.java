@@ -12,9 +12,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackField;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 
@@ -27,16 +30,6 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     private final Map<String, List<String>> defaultFailureResponseHeaders;
 
     /**
-     * Constructs default authentication failure handler
-     *
-     * @deprecated replaced by {@link #DefaultAuthenticationFailureHandler(Map)}
-     */
-    @Deprecated
-    public DefaultAuthenticationFailureHandler() {
-        this(null);
-    }
-
-    /**
      * Constructs default authentication failure handler with provided default
      * response headers.
      *
@@ -44,12 +37,42 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
      *            be sent as failure response.
      * @see Realm#getAuthenticationFailureHeaders()
      */
-    public DefaultAuthenticationFailureHandler(Map<String, List<String>> failureResponseHeaders) {
+    public DefaultAuthenticationFailureHandler(final Map<String, List<String>> failureResponseHeaders) {
         if (failureResponseHeaders == null || failureResponseHeaders.isEmpty()) {
-            failureResponseHeaders = Collections.singletonMap("WWW-Authenticate",
+            this.defaultFailureResponseHeaders = Collections.singletonMap("WWW-Authenticate",
                     Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
+        } else {
+            this.defaultFailureResponseHeaders = Collections.unmodifiableMap(failureResponseHeaders.entrySet().stream().collect(Collectors
+                    .toMap(entry -> entry.getKey(), entry -> {
+                        if (entry.getKey().equalsIgnoreCase("WWW-Authenticate")) {
+                            List<String> values = new ArrayList<>(entry.getValue());
+                            values.sort(Comparator.comparing(DefaultAuthenticationFailureHandler::authSchemePriority));
+                            return Collections.unmodifiableList(values);
+                        } else {
+                            return Collections.unmodifiableList(entry.getValue());
+                        }
+                    })));
         }
-        this.defaultFailureResponseHeaders = Collections.unmodifiableMap(failureResponseHeaders);
+    }
+
+    /**
+     * For given 'WWW-Authenticate' header value returns the priority based on
+     * the auth-scheme. Lower number denotes more secure and preferred
+     * auth-scheme than the higher number.
+     *
+     * @param headerValue string starting with auth-scheme name
+     * @return integer value denoting priority for given auth scheme.
+     */
+    private static Integer authSchemePriority(final String headerValue) {
+        if (headerValue.regionMatches(true, 0, "negotiate", 0, "negotiate".length())) {
+            return 0;
+        } else if (headerValue.regionMatches(true, 0, "bearer", 0, "bearer".length())) {
+            return 1;
+        } else if (headerValue.regionMatches(true, 0, "basic", 0, "basic".length())) {
+            return 2;
+        } else {
+            return 3;
+        }
     }
 
     @Override

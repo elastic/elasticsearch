@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
@@ -29,10 +28,9 @@ public class IndexUpgradeService extends AbstractComponent {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    public IndexUpgradeService(Settings settings, List<IndexUpgradeCheck> upgradeChecks) {
-        super(settings);
+    public IndexUpgradeService(List<IndexUpgradeCheck> upgradeChecks) {
         this.upgradeChecks = upgradeChecks;
-        this.indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver();
     }
 
     /**

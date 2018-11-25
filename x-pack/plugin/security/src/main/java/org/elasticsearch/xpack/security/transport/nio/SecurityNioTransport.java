@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.CloseableChannel;
@@ -58,17 +61,18 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
  * implementation of the SSL/TLS layer is in the {@link SSLChannelContext} and {@link SSLDriver} classes.
  */
 public class SecurityNioTransport extends NioTransport {
+    private static final Logger logger = LogManager.getLogger(SecurityNioTransport.class);
 
     private final IPFilter authenticator;
     private final SSLService sslService;
     private final Map<String, SSLConfiguration> profileConfiguration;
     private final boolean sslEnabled;
 
-    public SecurityNioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                                PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
+    public SecurityNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
+                                BigArrays bigArrays, PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                                 CircuitBreakerService circuitBreakerService, @Nullable final IPFilter authenticator,
                                 SSLService sslService) {
-        super(settings, threadPool, networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
+        super(settings, version, threadPool, networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
         this.authenticator = authenticator;
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);

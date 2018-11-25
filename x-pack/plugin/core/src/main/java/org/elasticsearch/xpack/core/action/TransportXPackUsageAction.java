@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -34,10 +33,10 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
     private final List<XPackFeatureSet> featureSets;
 
     @Inject
-    public TransportXPackUsageAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportXPackUsageAction(ThreadPool threadPool, TransportService transportService,
                                      ClusterService clusterService, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver, Set<XPackFeatureSet> featureSets) {
-        super(settings, XPackUsageAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+        super(XPackUsageAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 XPackUsageRequest::new);
         this.featureSets = Collections.unmodifiableList(new ArrayList<>(featureSets));
     }
@@ -53,8 +52,7 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
     }
 
     @Override
-    protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageResponse> listener)
-            throws Exception {
+    protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageResponse> listener) {
         final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener = new ActionListener<List<Usage>>() {
             @Override
             public void onResponse(List<Usage> usages) {
@@ -73,7 +71,8 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
                 @Override
                 public void onResponse(Usage usage) {
                     featureSetUsages.set(position.getAndIncrement(), usage);
-                    iteratingListener.onResponse(null); // just send null back and keep iterating
+                    // the value sent back doesn't matter since our predicate keeps iterating
+                    iteratingListener.onResponse(Collections.emptyList());
                 }
 
                 @Override
@@ -84,13 +83,13 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
         };
         IteratingActionListener<List<XPackFeatureSet.Usage>, XPackFeatureSet> iteratingActionListener =
                 new IteratingActionListener<>(usageActionListener, consumer, featureSets,
-                        threadPool.getThreadContext(), () -> {
+                        threadPool.getThreadContext(), (ignore) -> {
                     final List<Usage> usageList = new ArrayList<>(featureSetUsages.length());
                     for (int i = 0; i < featureSetUsages.length(); i++) {
                         usageList.add(featureSetUsages.get(i));
                     }
                     return usageList;
-                });
+                }, (ignore) -> true);
         iteratingActionListener.run();
     }
 

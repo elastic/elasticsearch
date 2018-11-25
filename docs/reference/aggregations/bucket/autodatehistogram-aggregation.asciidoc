@@ -81,7 +81,8 @@ Response:
                     "key": 1425168000000,
                     "doc_count": 2
                 }
-            ]
+            ],
+            "interval": "1M"
         }
     }
 }
@@ -174,7 +175,8 @@ starting at midnight UTC on 1 October 2015:
           "key": 1443664800000,
           "doc_count": 1
         }
-      ]
+      ],
+      "interval": "1h"
     }
   }
 }
@@ -229,7 +231,8 @@ the specified time zone.
           "key": 1443664800000,
           "doc_count": 1
         }
-      ]
+      ],
+      "interval": "1h"
     }
   }
 }

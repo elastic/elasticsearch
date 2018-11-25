@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.util.Collections;
 import java.util.List;
@@ -22,7 +22,7 @@ import java.util.List;
  */
 public class MultiHttpResource extends HttpResource {
 
-    private static final Logger logger = Loggers.getLogger(MultiHttpResource.class);
+    private static final Logger logger = LogManager.getLogger(MultiHttpResource.class);
 
     /**
      * Sub-resources that are grouped to simplify notification.

@@ -19,7 +19,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Attribute;
@@ -52,12 +51,11 @@ class SamlAuthenticator extends SamlRequestHandler {
 
     private static final String RESPONSE_TAG_NAME = "Response";
 
-    SamlAuthenticator(RealmConfig realmConfig,
-                      Clock clock,
+    SamlAuthenticator(Clock clock,
                       IdpConfiguration idp,
                       SpConfiguration sp,
                       TimeValue maxSkew) {
-        super(realmConfig, clock, idp, sp, maxSkew);
+        super(clock, idp, sp, maxSkew);
     }
 
     /**

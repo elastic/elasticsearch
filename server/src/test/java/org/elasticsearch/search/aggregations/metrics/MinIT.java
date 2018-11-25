@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.min.Min;
 import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.Collection;
@@ -41,6 +40,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.count;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
@@ -404,5 +404,23 @@ public class MinIT extends AbstractNumericTestCase {
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
+    }
+
+    public void testEarlyTermination() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx")
+            .setTrackTotalHits(false)
+            .setQuery(matchAllQuery())
+            .addAggregation(min("min").field("values"))
+            .addAggregation(count("count").field("values"))
+            .execute().actionGet();
+
+        Min min = searchResponse.getAggregations().get("min");
+        assertThat(min, notNullValue());
+        assertThat(min.getName(), equalTo("min"));
+        assertThat(min.getValue(), equalTo(2.0));
+
+        ValueCount count = searchResponse.getAggregations().get("count");
+        assertThat(count.getName(), equalTo("count"));
+        assertThat(count.getValue(), equalTo(20L));
     }
 }

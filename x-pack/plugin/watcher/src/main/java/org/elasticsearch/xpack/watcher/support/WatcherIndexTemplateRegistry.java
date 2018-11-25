@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
@@ -51,8 +50,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
     private final TemplateConfig[] indexTemplates;
     private final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
 
-    public WatcherIndexTemplateRegistry(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
-        super(settings);
+    public WatcherIndexTemplateRegistry(ClusterService clusterService, ThreadPool threadPool, Client client) {
         this.client = client;
         this.threadPool = threadPool;
         this.indexTemplates = TEMPLATE_CONFIGS;

@@ -63,7 +63,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         // Date can be specified as a string or long:
         Object obj = ingestDocument.getFieldValue(field, Object.class);
         String date = null;
@@ -101,6 +101,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
                 .append('>');
         String dynamicIndexName  = builder.toString();
         ingestDocument.setFieldValue(IngestDocument.MetaData.INDEX.getFieldName(), dynamicIndexName);
+        return ingestDocument;
     }
 
     @Override

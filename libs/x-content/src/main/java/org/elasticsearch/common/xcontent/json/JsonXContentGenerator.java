@@ -42,6 +42,8 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Objects;
 import java.util.Set;
 
@@ -227,6 +229,19 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
+    public void writeNumberField(String name, BigInteger value) throws IOException {
+        // as jackson's JsonGenerator doesn't have this method for BigInteger
+        // we have to implement it ourselves
+        generator.writeFieldName(name);
+        generator.writeNumber(value);
+    }
+
+    @Override
+    public void writeNumberField(String name, BigDecimal value) throws IOException {
+        generator.writeNumberField(name, value);
+    }
+
+    @Override
     public void writeNumber(int value) throws IOException {
         generator.writeNumber(value);
     }
@@ -243,6 +258,16 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public void writeNumber(short value) throws IOException {
+        generator.writeNumber(value);
+    }
+
+    @Override
+    public void writeNumber(BigInteger value) throws IOException {
+        generator.writeNumber(value);
+    }
+
+    @Override
+    public void writeNumber(BigDecimal value) throws IOException {
         generator.writeNumber(value);
     }
 

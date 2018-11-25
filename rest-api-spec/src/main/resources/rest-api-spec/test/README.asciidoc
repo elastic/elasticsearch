@@ -19,9 +19,10 @@ Test file structure
 --------------------
 
 A YAML test file consists of:
-* an optional `setup` section, followed by
-* an optional `teardown` section, followed by
-* one or more test sections
+
+- an optional `setup` section, followed by
+- an optional `teardown` section, followed by
+- one or more test sections
 
 For instance:
 
@@ -216,11 +217,13 @@ sent to nodes that match the `node_selector`. It looks like this:
 
 If you list multiple selectors then the request will only go to nodes that
 match all of those selectors. The following selectors are supported:
-* `version`: Only nodes who's version is within the range will receive the
+
+- `version`: Only nodes who's version is within the range will receive the
 request. The syntax for the pattern is the same as when `version` is within
 `skip`.
-* `attribute`: Only nodes that have an attribute matching the name and value
-of the provided attribute match. Looks like:
+- `attribute`: Only nodes that have an attribute matching the name and value
+of the provided attribute match.
+Looks like:
 ....
       node_selector:
           attribute:

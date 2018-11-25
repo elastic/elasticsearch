@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
@@ -53,7 +53,7 @@ public class KerberosTicketValidator {
         return oid;
     }
 
-    private static final Logger LOGGER = ESLoggerFactory.getLogger(KerberosTicketValidator.class);
+    private static final Logger LOGGER = LogManager.getLogger(KerberosTicketValidator.class);
 
     private static final String KEY_TAB_CONF_NAME = "KeytabConf";
     private static final String SUN_KRB5_LOGIN_MODULE = "com.sun.security.auth.module.Krb5LoginModule";

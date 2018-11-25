@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.input.http;
 
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
@@ -20,7 +19,6 @@ public final class HttpInputFactory extends InputFactory<HttpInput, HttpInput.Re
     private final TextTemplateEngine templateEngine;
 
     public HttpInputFactory(Settings settings, HttpClient httpClient, TextTemplateEngine templateEngine) {
-        super(Loggers.getLogger(ExecutableHttpInput.class, settings));
         this.templateEngine = templateEngine;
         this.httpClient = httpClient;
     }
@@ -37,6 +35,6 @@ public final class HttpInputFactory extends InputFactory<HttpInput, HttpInput.Re
 
     @Override
     public ExecutableHttpInput createExecutable(HttpInput input) {
-        return new ExecutableHttpInput(input, inputLogger, httpClient, templateEngine);
+        return new ExecutableHttpInput(input, httpClient, templateEngine);
     }
 }

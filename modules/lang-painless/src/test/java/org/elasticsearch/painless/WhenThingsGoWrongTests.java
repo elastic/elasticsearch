@@ -24,7 +24,6 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.script.ScriptException;
 
 import java.lang.invoke.WrongMethodTypeException;
-import java.util.Arrays;
 import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
@@ -130,7 +129,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testBogusParameter() {
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
-            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"), null, true);
+            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"), true);
         });
         assertTrue(expected.getMessage().contains("Unrecognized compile-time parameter"));
     }
@@ -200,21 +199,6 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
                    "The maximum number of statements that can be executed in a loop has been reached."));
     }
 
-    public void testSourceLimits() {
-        final char[] tooManyChars = new char[Compiler.MAXIMUM_SOURCE_LENGTH + 1];
-        Arrays.fill(tooManyChars, '0');
-
-        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, false, () -> {
-            exec(new String(tooManyChars));
-        });
-        assertTrue(expected.getMessage().contains("Scripts may be no longer than"));
-
-        final char[] exactlyAtLimit = new char[Compiler.MAXIMUM_SOURCE_LENGTH];
-        Arrays.fill(exactlyAtLimit, '0');
-        // ok
-        assertEquals(0, exec(new String(exactlyAtLimit)));
-    }
-
     public void testIllegalDynamicMethod() {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("def x = 'test'; return x.getClass().toString()");
@@ -253,7 +237,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testRCurlyNotDelim() {
         IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
             // We don't want PICKY here so we get the normal error message
-            exec("def i = 1} return 1", emptyMap(), emptyMap(), null, false);
+            exec("def i = 1} return 1", emptyMap(), emptyMap(), false);
         });
         assertEquals("unexpected token ['}'] was expecting one of [{<EOF>, ';'}].", e.getMessage());
     }
@@ -285,7 +269,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testCanNotOverrideRegexEnabled() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> exec("", null, singletonMap(CompilerSettings.REGEX_ENABLED.getKey(), "true"), null, false));
+                () -> exec("", null, singletonMap(CompilerSettings.REGEX_ENABLED.getKey(), "true"), false));
         assertEquals("[painless.regex.enabled] can only be set on node startup.", e.getMessage());
     }
 

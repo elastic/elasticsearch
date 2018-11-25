@@ -6,28 +6,50 @@
 package org.elasticsearch.xpack.sql.expression.predicate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.Params;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicPipe;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonPipe;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
-// BETWEEN or range - is a mix of gt(e) AND lt(e)
-public class Range extends Expression {
+import static java.lang.String.format;
+import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
+// BETWEEN or range - is a mix of gt(e) AND lt(e)
+public class Range extends ScalarFunction {
+
+    private final String name;
     private final Expression value, lower, upper;
     private final boolean includeLower, includeUpper;
 
     public Range(Location location, Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
-        super(location, Arrays.asList(value, lower, upper));
+        super(location, asList(value, lower, upper));
 
         this.value = value;
         this.lower = lower;
         this.upper = upper;
         this.includeLower = includeLower;
         this.includeUpper = includeUpper;
+        this.name = name(value, lower, upper, includeLower, includeUpper);
+    }
+
+    @Override
+    public String name() {
+        return name;
     }
 
     @Override
@@ -107,6 +129,42 @@ public class Range extends Expression {
     }
 
     @Override
+    public ScriptTemplate asScript() {
+        ScriptTemplate valueScript = asScript(value);
+        ScriptTemplate lowerScript = asScript(lower);
+        ScriptTemplate upperScript = asScript(upper);
+        
+
+        String template = formatTemplate(format(Locale.ROOT, "{sql}.and({sql}.%s(%s, %s), {sql}.%s(%s, %s))",
+                        includeLower() ? "gte" : "gt",
+                        valueScript.template(),
+                        lowerScript.template(),
+                        includeUpper() ? "lte" : "lt",
+                        valueScript.template(),
+                        upperScript.template()
+                        ));
+
+        Params params = paramsBuilder()
+                .script(valueScript.params())
+                .script(lowerScript.params())
+                .script(valueScript.params())
+                .script(upperScript.params())
+                .build();
+
+        return new ScriptTemplate(template, params, DataType.BOOLEAN);
+    }
+
+    @Override
+    protected Pipe makePipe() {
+        BinaryComparisonPipe lowerPipe = new BinaryComparisonPipe(location(), this, Expressions.pipe(value()), Expressions.pipe(lower()),
+                includeLower() ? BinaryComparisonOperation.GTE : BinaryComparisonOperation.GT);
+        BinaryComparisonPipe upperPipe = new BinaryComparisonPipe(location(), this, Expressions.pipe(value()), Expressions.pipe(upper()),
+                includeUpper() ? BinaryComparisonOperation.LTE : BinaryComparisonOperation.LT);
+        BinaryLogicPipe and = new BinaryLogicPipe(location(), this, lowerPipe, upperPipe, BinaryLogicOperation.AND);
+        return and;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(includeLower, includeUpper, value, lower, upper);
     }
@@ -129,14 +187,33 @@ public class Range extends Expression {
                 && Objects.equals(upper, other.upper);
     }
 
+    private static String name(Expression value, Expression lower, Expression upper, boolean includeLower, boolean includeUpper) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(Expressions.name(lower));
+        if (!(lower instanceof Literal)) {
+            sb.insert(0, "(");
+            sb.append(")");
+        }
+        sb.append(includeLower ? " <= " : " < ");
+        int pos = sb.length();
+        sb.append(Expressions.name(value));
+        if (!(value instanceof Literal)) {
+            sb.insert(pos, "(");
+            sb.append(")");
+        }
+        sb.append(includeUpper ? " <= " : " < ");
+        pos = sb.length();
+        sb.append(Expressions.name(upper));
+        if (!(upper instanceof Literal)) {
+            sb.insert(pos, "(");
+            sb.append(")");
+        }
+
+        return sb.toString();
+    }
+
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(lower);
-        sb.append(includeLower ? " <= " : " < ");
-        sb.append(value);
-        sb.append(includeUpper ? " <= " : " < ");
-        sb.append(upper);
-        return sb.toString();
+        return name();
     }
 }

@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.RAMDirectory;
@@ -463,10 +464,10 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         private final IndicesService indicesServices;
 
         @Inject
-        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+        public TransportAction(ThreadPool threadPool, TransportService transportService,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                ScriptService scriptService, ClusterService clusterService, IndicesService indicesServices) {
-            super(settings, NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+            super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 // Forking a thread here, because only light weight operations should happen on network thread and
                 // Creating a in-memory index is not light weight
                 // TODO: is MANAGEMENT TP the right TP? Right now this is an admin api (see action name).
@@ -550,7 +551,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
                         Query luceneQuery = request.contextSetup.query.rewrite(context).toQuery(context);
                         IndexSearcher indexSearcher = new IndexSearcher(leafReaderContext.reader());
                         luceneQuery = indexSearcher.rewrite(luceneQuery);
-                        Weight weight = indexSearcher.createWeight(luceneQuery, true, 1f);
+                        Weight weight = indexSearcher.createWeight(luceneQuery, ScoreMode.COMPLETE, 1f);
                         Scorer scorer = weight.scorer(indexSearcher.getIndexReader().leaves().get(0));
                         // Consume the first (and only) match.
                         int docID = scorer.iterator().nextDoc();

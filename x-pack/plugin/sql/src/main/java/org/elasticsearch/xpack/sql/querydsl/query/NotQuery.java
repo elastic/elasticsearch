@@ -9,9 +9,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.sql.tree.Location;
 
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-
 import java.util.Objects;
+
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 
 public class NotQuery extends Query {
     private final Query child;
@@ -22,6 +22,10 @@ public class NotQuery extends Query {
             throw new IllegalArgumentException("child is required");
         }
         this.child = child;
+    }
+
+    public Query child() {
+        return child;
     }
 
     @Override

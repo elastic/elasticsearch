@@ -19,8 +19,11 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.transport.TransportRequest;
@@ -34,15 +37,20 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
     private ShardId shardId;
     private List<Translog.Operation> operations;
     private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
+    private long maxSeenAutoIdTimestampOnPrimary;
+    private long maxSeqNoOfUpdatesOrDeletesOnPrimary;
 
     public RecoveryTranslogOperationsRequest() {
     }
 
-    RecoveryTranslogOperationsRequest(long recoveryId, ShardId shardId, List<Translog.Operation> operations, int totalTranslogOps) {
+    RecoveryTranslogOperationsRequest(long recoveryId, ShardId shardId, List<Translog.Operation> operations, int totalTranslogOps,
+                                      long maxSeenAutoIdTimestampOnPrimary, long maxSeqNoOfUpdatesOrDeletesOnPrimary) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.operations = operations;
         this.totalTranslogOps = totalTranslogOps;
+        this.maxSeenAutoIdTimestampOnPrimary = maxSeenAutoIdTimestampOnPrimary;
+        this.maxSeqNoOfUpdatesOrDeletesOnPrimary = maxSeqNoOfUpdatesOrDeletesOnPrimary;
     }
 
     public long recoveryId() {
@@ -61,6 +69,14 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         return totalTranslogOps;
     }
 
+    public long maxSeenAutoIdTimestampOnPrimary() {
+        return maxSeenAutoIdTimestampOnPrimary;
+    }
+
+    public long maxSeqNoOfUpdatesOrDeletesOnPrimary() {
+        return maxSeqNoOfUpdatesOrDeletesOnPrimary;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -68,6 +84,17 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         shardId = ShardId.readShardId(in);
         operations = Translog.readOperations(in, "recovery");
         totalTranslogOps = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+            maxSeenAutoIdTimestampOnPrimary = in.readZLong();
+        } else {
+            maxSeenAutoIdTimestampOnPrimary = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+            maxSeqNoOfUpdatesOrDeletesOnPrimary = in.readZLong();
+        } else {
+            // UNASSIGNED_SEQ_NO means uninitialized and replica won't enable optimization using seq_no
+            maxSeqNoOfUpdatesOrDeletesOnPrimary = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        }
     }
 
     @Override
@@ -77,5 +104,11 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         shardId.writeTo(out);
         Translog.writeOperations(out, operations);
         out.writeVInt(totalTranslogOps);
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+            out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+            out.writeZLong(maxSeqNoOfUpdatesOrDeletesOnPrimary);
+        }
     }
 }

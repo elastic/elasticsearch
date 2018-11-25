@@ -59,6 +59,7 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -70,10 +71,12 @@ import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.getOkStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
 import static org.elasticsearch.client.SyncResponseListenerTests.assertExceptionStackContainsCallingMethod;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -96,6 +99,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     private Node node;
     private CloseableHttpAsyncClient httpClient;
     private HostsTrackingFailureListener failureListener;
+    private boolean strictDeprecationMode;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -147,8 +151,9 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         defaultHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header-default");
         node = new Node(new HttpHost("localhost", 9200));
         failureListener = new HostsTrackingFailureListener();
+        strictDeprecationMode = randomBoolean();
         restClient = new RestClient(httpClient, 10000, defaultHeaders,
-                singletonList(node), null, failureListener, NodeSelector.ANY);
+                singletonList(node), null, failureListener, NodeSelector.ANY, strictDeprecationMode);
     }
 
     /**
@@ -331,7 +336,52 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             }
             assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
             assertHeaders(defaultHeaders, requestHeaders, esResponse.getHeaders(), Collections.<String>emptySet());
+            assertFalse(esResponse.hasWarnings());
         }
+    }
+
+    public void testDeprecationWarnings() throws IOException {
+        String chars = randomAsciiAlphanumOfLength(5);
+        assertDeprecationWarnings(singletonList("poorly formatted " + chars), singletonList("poorly formatted " + chars));
+        assertDeprecationWarnings(singletonList(formatWarning(chars)), singletonList(chars));
+        assertDeprecationWarnings(
+                Arrays.asList(formatWarning(chars), "another one", "and another"),
+                Arrays.asList(chars,                "another one", "and another"));
+
+    }
+
+    private void assertDeprecationWarnings(List<String> warningHeaderTexts, List<String> warningBodyTexts) throws IOException {
+        String method = randomFrom(getHttpMethods());
+        Request request = new Request(method, "/200");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        for (String warningHeaderText : warningHeaderTexts) {
+            options.addHeader("Warning", warningHeaderText);
+        }
+        request.setOptions(options);
+
+        Response response;
+        if (strictDeprecationMode) {
+            try {
+                restClient.performRequest(request);
+                fail("expected ResponseException because strict deprecation mode is enabled");
+                return;
+            } catch (ResponseException e) {
+                assertThat(e.getMessage(), containsString("\nWarnings: " + warningBodyTexts));
+                response = e.getResponse();
+            }
+        } else {
+            response = restClient.performRequest(request);
+        }
+        assertTrue(response.hasWarnings());
+        assertEquals(warningBodyTexts, response.getWarnings());
+    }
+
+    /**
+     * Emulates Elasticsearch's DeprecationLogger.formatWarning in simple
+     * cases. We don't have that available because we're testing against 1.7.
+     */
+    private static String formatWarning(String warningBody) {
+        return "299 Elasticsearch-1.2.2-SNAPSHOT-eeeeeee \"" + warningBody + "\" \"Mon, 01 Jan 2001 00:00:00 GMT\"";
     }
 
     private HttpUriRequest performRandomRequest(String method) throws Exception {

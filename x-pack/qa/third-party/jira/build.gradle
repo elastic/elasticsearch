@@ -59,7 +59,7 @@ def jiraIssues(projectKey) {
   return response.issues.findAll {it.key.startsWith(projectKey)}.collect {it.key}
 }
 
-/** Execute a HTTP request against the Jira server instance **/
+/** Execute an HTTP request against the Jira server instance **/
 def jiraHttpRequest(String endpoint, String method, int successCode) {
   HttpsURLConnection connection = null;
   try {

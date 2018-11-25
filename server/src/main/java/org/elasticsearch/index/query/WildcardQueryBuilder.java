@@ -19,18 +19,14 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -100,6 +96,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         out.writeOptionalString(rewrite);
     }
 
+    @Override
     public String fieldName() {
         return fieldName;
     }
@@ -185,21 +182,14 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
-        Term term;
+
         if (fieldType == null) {
-            term = new Term(fieldName, BytesRefs.toBytesRef(value));
-        } else {
-            Query termQuery = fieldType.termQuery(value, context);
-            if (termQuery instanceof MatchNoDocsQuery || termQuery instanceof MatchAllDocsQuery) {
-                return termQuery;
-            }
-            term = MappedFieldType.extractTerm(termQuery);
+            return new MatchNoDocsQuery("unknown field [" + fieldName + "]");
         }
 
-        WildcardQuery query = new WildcardQuery(term);
-        MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
-        QueryParsers.setRewriteMethod(query, rewriteMethod);
-        return query;
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(
+            rewrite, null, LoggingDeprecationHandler.INSTANCE);
+        return fieldType.wildcardQuery(value, method, context);
     }
 
     @Override

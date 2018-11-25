@@ -63,20 +63,19 @@ public class FileUserPasswdStoreTests extends ESTestCase {
     }
 
     @After
-    public void shutdown() throws InterruptedException {
+    public void shutdown() {
         terminate(threadPool);
     }
 
     public void testStore_ConfiguredWithUnreadableFile() throws Exception {
-        Path xpackConf = env.configFile();
-        Files.createDirectories(xpackConf);
-        Path file = xpackConf.resolve("users");
+        Path configDir = env.configFile();
+        Files.createDirectories(configDir);
+        Path file = configDir.resolve("users");
 
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
-        Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("files.users", file.toAbsolutePath()).build();
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, threadPool.getThreadContext());
+        RealmConfig config = getRealmConfig();
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService);
         assertThat(store.usersCount(), is(0));
@@ -84,13 +83,12 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testStore_AutoReload() throws Exception {
         Path users = getDataPath("users");
-        Path xpackConf = env.configFile();
-        Files.createDirectories(xpackConf);
-        Path file = xpackConf.resolve("users");
+        Path configDir = env.configFile();
+        Files.createDirectories(configDir);
+        Path file = configDir.resolve("users");
         Files.copy(users, file, StandardCopyOption.REPLACE_EXISTING);
         final Hasher hasher = Hasher.resolve(settings.get("xpack.security.authc.password_hashing.algorithm"));
-        Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("files.users", file.toAbsolutePath()).build();
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, threadPool.getThreadContext());
+        RealmConfig config = getRealmConfig();
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 
@@ -120,18 +118,19 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         assertThat(result.getUser(), is(user));
     }
 
+    private RealmConfig getRealmConfig() {
+        final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("file", "file-test");
+        return new RealmConfig(identifier, settings, env, threadPool.getThreadContext());
+    }
+
     public void testStore_AutoReload_WithParseFailures() throws Exception {
         Path users = getDataPath("users");
-        Path xpackConf = env.configFile();
-        Files.createDirectories(xpackConf);
-        Path testUsers = xpackConf.resolve("users");
+        Path confDir = env.configFile();
+        Files.createDirectories(confDir);
+        Path testUsers = confDir.resolve("users");
         Files.copy(users, testUsers, StandardCopyOption.REPLACE_EXISTING);
 
-        Settings fileSettings = Settings.builder()
-                .put("files.users", testUsers.toAbsolutePath())
-                .build();
-
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, threadPool.getThreadContext());
+        RealmConfig config = getRealmConfig();
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 
@@ -185,8 +184,9 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testParseFile_Empty() throws Exception {
         Path empty = createTempFile();
-        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG, null);
         Map<String, char[]> users = FileUserPasswdStore.parseFile(empty, logger, Settings.EMPTY);
+        assertThat(users, notNullValue());
         assertThat(users.isEmpty(), is(true));
         List<String> events = CapturingLogger.output(logger.getName(), Level.DEBUG);
         assertThat(events.size(), is(1));
@@ -195,7 +195,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
         Path file = createTempDir().resolve(randomAlphaOfLength(10));
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         Map<String, char[]> users = FileUserPasswdStore.parseFile(file, logger, Settings.EMPTY);
         assertThat(users, nullValue());
         users = FileUserPasswdStore.parseFileLenient(file, logger, Settings.EMPTY);
@@ -207,7 +207,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         try {
             FileUserPasswdStore.parseFile(file, logger, Settings.EMPTY);
             fail("expected a parse failure");
@@ -228,7 +228,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         Map<String, char[]> users = FileUserPasswdStore.parseFileLenient(file, logger, Settings.EMPTY);
         assertThat(users, notNullValue());
         assertThat(users.isEmpty(), is(true));

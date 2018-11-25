@@ -51,7 +51,7 @@ teardown:
                 "key2" : "val2"
               }
             }
-  - match: { user: { created: false } }
+  - match: { created: false }
 
   - do:
       xpack.security.get_user:

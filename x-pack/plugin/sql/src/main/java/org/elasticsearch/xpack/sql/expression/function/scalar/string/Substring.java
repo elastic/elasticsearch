@@ -6,11 +6,12 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -20,12 +21,11 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
- * Returns a character string that is derived from the source string, beginning at the character position specified by start 
+ * Returns a character string that is derived from the source string, beginning at the character position specified by start
  * for length characters.
  */
 public class Substring extends ScalarFunction {
@@ -39,37 +39,36 @@ public class Substring extends ScalarFunction {
         this.length = length;
     }
 
+    @Override
     protected TypeResolution resolveType() {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = StringFunctionUtils.resolveStringInputType(source.dataType(), functionName());
-        if (sourceResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution sourceResolution = Expressions.typeMustBeString(source, functionName(), ParamOrdinal.FIRST);
+        if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        TypeResolution startResolution = StringFunctionUtils.resolveNumericInputType(start.dataType(), functionName());
-        if (startResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution startResolution = Expressions.typeMustBeNumeric(start, functionName(), ParamOrdinal.SECOND);
+        if (startResolution.unresolved()) {
             return startResolution;
         }
 
-        return StringFunctionUtils.resolveNumericInputType(length.dataType(), functionName());
+        return Expressions.typeMustBeNumeric(length, functionName(), ParamOrdinal.THIRD);
     }
 
     @Override
-    protected ProcessorDefinition makeProcessorDefinition() {
-        return new SubstringFunctionProcessorDefinition(location(), this,
-                ProcessorDefinitions.toProcessorDefinition(source),
-                ProcessorDefinitions.toProcessorDefinition(start),
-                ProcessorDefinitions.toProcessorDefinition(length));
+    protected Pipe makePipe() {
+        return new SubstringFunctionPipe(location(), this,
+                Expressions.pipe(source),
+                Expressions.pipe(start),
+                Expressions.pipe(length));
     }
     
     @Override
     public boolean foldable() {
-        return source.foldable() 
-                && start.foldable()
-                && length.foldable();
+        return source.foldable() && start.foldable() && length.foldable();
     }
 
     @Override
@@ -92,12 +91,11 @@ public class Substring extends ScalarFunction {
     }
 
     protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate startScript,
-            ScriptTemplate lengthScript)
-    {
+            ScriptTemplate lengthScript) {
         // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2,...)
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s)"), 
-                "substring", 
-                sourceScript.template(), 
+        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s)"),
+                "substring",
+                sourceScript.template(),
                 startScript.template(),
                 lengthScript.template()),
                 paramsBuilder()
@@ -107,8 +105,8 @@ public class Substring extends ScalarFunction {
     }
     
     @Override
-    protected ScriptTemplate asScriptFrom(FieldAttribute field) {
-        return new ScriptTemplate(formatScript("doc[{}].value"),
+    public ScriptTemplate scriptWithField(FieldAttribute field) {
+        return new ScriptTemplate(processScript("doc[{}].value"),
                 paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
                 dataType());
     }

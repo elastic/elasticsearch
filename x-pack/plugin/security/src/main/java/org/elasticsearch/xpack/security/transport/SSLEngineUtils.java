@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.transport;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelException;
 import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -59,7 +60,13 @@ public class SSLEngineUtils {
         if (tcpChannel instanceof Netty4TcpChannel) {
             Channel nettyChannel = ((Netty4TcpChannel) tcpChannel).getNettyChannel();
             SslHandler handler = nettyChannel.pipeline().get(SslHandler.class);
-            assert handler != null : "Must have SslHandler";
+            if (handler == null) {
+                if (nettyChannel.isOpen()) {
+                    assert false : "Must have SslHandler";
+                } else {
+                    throw new ChannelException("Channel is closed.");
+                }
+            }
             return handler.engine();
         } else if (tcpChannel instanceof NioTcpChannel) {
             SocketChannelContext context = ((NioTcpChannel) tcpChannel).getContext();

@@ -9,7 +9,7 @@ government computer security standard used to approve cryptographic modules.
 enabled JVM. In order to set {es} in fips mode, you must set the
 `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`
 
-For {es}, FIPS 140-2 compliance is ensured by
+For {es}, adherence to FIPS 140-2 is ensured by
 
 - Using FIPS approved / NIST recommended cryptographic algorithms.
 - Delegating the implementation of these cryptographic algorithms to a NIST

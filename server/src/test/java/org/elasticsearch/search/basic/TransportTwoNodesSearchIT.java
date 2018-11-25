@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
@@ -146,16 +147,16 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 SearchHit hit = hits[i];
                 assertThat(hit.getExplanation(), notNullValue());
                 assertThat(hit.getExplanation().getDetails().length, equalTo(1));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails().length, equalTo(2));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails().length, equalTo(2));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[0].getDescription(),
-                    equalTo("docFreq"));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[0].getValue(),
-                    equalTo(100.0f));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[1].getDescription(),
-                    equalTo("docCount"));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(),
-                    equalTo(100.0f));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails().length, equalTo(3));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails().length, equalTo(2));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[0].getDescription(),
+                    startsWith("n,"));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[0].getValue(),
+                    equalTo(100L));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[1].getDescription(),
+                    startsWith("N,"));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[1].getValue(),
+                    equalTo(100L));
                 assertThat("id[" + hit.getId() + "] -> " + hit.getExplanation().toString(), hit.getId(), equalTo(Integer.toString(100 - total - i - 1)));
             }
             total += hits.length;
@@ -181,16 +182,16 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 SearchHit hit = hits[i];
                 assertThat(hit.getExplanation(), notNullValue());
                 assertThat(hit.getExplanation().getDetails().length, equalTo(1));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails().length, equalTo(2));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails().length, equalTo(2));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[0].getDescription(),
-                    equalTo("docFreq"));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[0].getValue(),
-                    equalTo(100.0f));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[1].getDescription(),
-                    equalTo("docCount"));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(),
-                    equalTo(100.0f));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails().length, equalTo(3));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails().length, equalTo(2));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[0].getDescription(),
+                    startsWith("n,"));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[0].getValue(),
+                    equalTo(100L));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[1].getDescription(),
+                    startsWith("N,"));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[1].getValue(),
+                    equalTo(100L));
                 assertThat("id[" + hit.getId() + "]", hit.getId(), equalTo(Integer.toString(total + i)));
             }
             total += hits.length;

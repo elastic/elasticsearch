@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.persistence.JobStorageDeletionTask;
+import org.elasticsearch.xpack.core.ml.job.persistence.JobDeletionTask;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -42,6 +42,11 @@ public class DeleteJobAction extends Action<AcknowledgedResponse> {
         private String jobId;
         private boolean force;
 
+        /**
+         * Should this task store its result?
+         */
+        private boolean shouldStoreResult;
+
         public Request(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
@@ -64,6 +69,18 @@ public class DeleteJobAction extends Action<AcknowledgedResponse> {
             this.force = force;
         }
 
+        /**
+         * Should this task store its result after it has finished?
+         */
+        public void setShouldStoreResult(boolean shouldStoreResult) {
+            this.shouldStoreResult = shouldStoreResult;
+        }
+
+        @Override
+        public boolean getShouldStoreResult() {
+            return shouldStoreResult;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -71,7 +88,7 @@ public class DeleteJobAction extends Action<AcknowledgedResponse> {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new JobStorageDeletionTask(id, type, action, "delete-job-" + jobId, parentTaskId, headers);
+            return new JobDeletionTask(id, type, action, "delete-job-" + jobId, parentTaskId, headers);
         }
 
         @Override

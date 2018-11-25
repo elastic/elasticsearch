@@ -262,8 +262,6 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testBooleanCaptures() {
-        Map<String, String> bank = new HashMap<>();
-
         String pattern = "%{WORD:name}=%{WORD:status:boolean}";
         Grok g = new Grok(basePatterns, pattern);
 

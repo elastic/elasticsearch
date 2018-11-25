@@ -67,10 +67,10 @@ public class SysTypes extends Command {
     @Override
     public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         List<List<?>> rows = Stream.of(DataType.values())
-                // sort by SQL int type (that's what the JDBC/ODBC specs want)
-                .sorted(Comparator.comparing(t -> t.jdbcType.getVendorTypeNumber()))
+                // sort by SQL int type (that's what the JDBC/ODBC specs want) followed by name
+                .sorted(Comparator.comparing((DataType t) -> t.sqlType.getVendorTypeNumber()).thenComparing(DataType::sqlName))
                 .map(t -> asList(t.esType.toUpperCase(Locale.ROOT),
-                        t.jdbcType.getVendorTypeNumber(),
+                        t.sqlType.getVendorTypeNumber(),
                         //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size?view=sql-server-2017
                         t.defaultPrecision,
                         "'",

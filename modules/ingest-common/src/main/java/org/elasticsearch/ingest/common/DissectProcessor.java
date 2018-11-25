@@ -47,14 +47,15 @@ public final class DissectProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) {
+    public IngestDocument execute(IngestDocument ingestDocument) {
         String input = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
         if (input == null && ignoreMissing) {
-            return;
+            return ingestDocument;
         } else if (input == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
         dissectParser.parse(input).forEach(ingestDocument::setFieldValue);
+        return ingestDocument;
     }
 
     @Override

@@ -1,0 +1,91 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.security.rest.action.user;
+
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
+
+import java.io.IOException;
+import java.util.Collections;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
+/**
+ * REST handler that list the privileges held by a user.
+ */
+public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
+
+    private final SecurityContext securityContext;
+
+    public RestGetUserPrivilegesAction(Settings settings, RestController controller, SecurityContext securityContext,
+                                       XPackLicenseState licenseState) {
+        super(settings, licenseState);
+        this.securityContext = securityContext;
+        controller.registerHandler(GET, "/_xpack/security/user/_privileges", this);
+    }
+
+    @Override
+    public String getName() {
+        return "xpack_security_user_privileges_action";
+    }
+
+    @Override
+    public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
+        final User user = securityContext.getUser();
+        if (user == null) {
+            return restChannel -> { throw new ElasticsearchSecurityException("there is no authenticated user"); };
+        }
+        final String username = user.principal();
+        final GetUserPrivilegesRequestBuilder requestBuilder = new SecurityClient(client).prepareGetUserPrivileges(username);
+        return channel -> requestBuilder.execute(new RestListener(channel));
+    }
+
+    // Package protected for testing
+    static class RestListener extends RestBuilderListener<GetUserPrivilegesResponse> {
+        RestListener(RestChannel channel) {
+            super(channel);
+        }
+
+        @Override
+        public RestResponse buildResponse(GetUserPrivilegesResponse response, XContentBuilder builder) throws Exception {
+            builder.startObject();
+
+            builder.field(RoleDescriptor.Fields.CLUSTER.getPreferredName(), response.getClusterPrivileges());
+            builder.startArray(RoleDescriptor.Fields.GLOBAL.getPreferredName());
+            for (ConditionalClusterPrivilege ccp : response.getConditionalClusterPrivileges()) {
+                ConditionalClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS, Collections.singleton(ccp));
+            }
+            builder.endArray();
+
+            builder.field(RoleDescriptor.Fields.INDICES.getPreferredName(), response.getIndexPrivileges());
+            builder.field(RoleDescriptor.Fields.APPLICATIONS.getPreferredName(), response.getApplicationPrivileges());
+            builder.field(RoleDescriptor.Fields.RUN_AS.getPreferredName(), response.getRunAs());
+
+            builder.endObject();
+            return new BytesRestResponse(RestStatus.OK, builder);
+        }
+    }
+}

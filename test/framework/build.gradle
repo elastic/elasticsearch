@@ -64,10 +64,12 @@ thirdPartyAudit.excludes = [
 
 task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
   checkForTestsInMain = true
+  javaHome = project.runtimeJavaHome
 }
 precommit.dependsOn namingConventionsMain
 
 test.configure {
   systemProperty 'tests.gradle_index_compat_versions', bwcVersions.indexCompatible.join(',')
   systemProperty 'tests.gradle_wire_compat_versions', bwcVersions.wireCompatible.join(',')
+  systemProperty 'tests.gradle_unreleased_versions', bwcVersions.unreleased.join(',')
 }

@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.security.authc.support;
 import com.unboundid.ldap.sdk.DN;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.util.LDAPSDKUsageException;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
@@ -151,7 +151,7 @@ public interface UserRoleMapper {
      * {@link ExpressionModel} class can take a custom {@code Predicate} that tests whether the data in the model
      * matches the {@link FieldExpression.FieldValue value} in the expression.
      *
-     * The string constructor parameter may or may not actaully parse as a DN - the "dn" field <em>should</em>
+     * The string constructor parameter may or may not actually parse as a DN - the "dn" field <em>should</em>
      * always be a DN, however groups will be a DN if they're from an LDAP/AD realm, but often won't be for a SAML realm.
      *
      * Because the {@link FieldExpression.FieldValue} might be a pattern ({@link CharacterRunAutomaton automaton}),
@@ -159,7 +159,7 @@ public interface UserRoleMapper {
      *
      */
     class DistinguishedNamePredicate implements Predicate<FieldExpression.FieldValue> {
-        private static final Logger LOGGER = Loggers.getLogger(DistinguishedNamePredicate.class);
+        private static final Logger LOGGER = LogManager.getLogger(DistinguishedNamePredicate.class);
 
         private final String string;
         private final DN dn;

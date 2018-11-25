@@ -6,8 +6,9 @@
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.JdbcColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Nullable;
+import org.elasticsearch.xpack.sql.jdbc.type.DataType;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -17,7 +18,6 @@ import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
-import java.sql.JDBCType;
 import java.sql.NClob;
 import java.sql.Ref;
 import java.sql.ResultSet;
@@ -62,7 +62,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         // TODO: should we consider the locale as well?
         this.defaultCalendar = Calendar.getInstance(cfg.timeZone(), Locale.ROOT);
 
-        List<ColumnInfo> columns = cursor.columns();
+        List<JdbcColumnInfo> columns = cursor.columns();
         for (int i = 0; i < columns.size(); i++) {
             nameToIndex.put(columns.get(i).name, Integer.valueOf(i + 1));
         }
@@ -133,7 +133,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
-        return column(columnIndex) != null ? getObject(columnIndex, Boolean.class) : false; 
+        return column(columnIndex) != null ? getObject(columnIndex, Boolean.class) : false;
     }
 
     @Override
@@ -245,12 +245,12 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     private Long dateTime(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
-        JDBCType type = cursor.columns().get(columnIndex - 1).type;
+        DataType type = cursor.columns().get(columnIndex - 1).type;
         try {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
             // TIMESTAMP. Should we consider the VARCHAR conversion as a later enhancement?
-            if (JDBCType.TIMESTAMP.equals(type)) {
+            if (DataType.DATE == type) {
                 // the cursor can return an Integer if the date-since-epoch is small enough, XContentParser (Jackson) will
                 // return the "smallest" data type for numbers when parsing
                 // TODO: this should probably be handled server side
@@ -327,20 +327,16 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     }
 
     private <T> T convert(int columnIndex, Class<T> type) throws SQLException {
-        checkOpen();
-        if (columnIndex < 1 || columnIndex > cursor.columnSize()) {
-            throw new SQLException("Invalid column index [" + columnIndex + "]");
-        }
-
         Object val = column(columnIndex);
 
         if (val == null) {
             return null;
         }
 
-        JDBCType columnType = cursor.columns().get(columnIndex - 1).type;
-        
-        return TypeConverter.convert(val, columnType, type);
+        DataType columnType = cursor.columns().get(columnIndex - 1).type;
+        String typeString = type != null ? type.getSimpleName() : columnType.getName();
+
+        return TypeConverter.convert(val, columnType, type, typeString);
     }
 
     @Override

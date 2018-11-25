@@ -201,7 +201,7 @@ public final class Role {
         static Tuple<ApplicationPrivilege, Set<String>> convertApplicationPrivilege(String role, int index,
                                                                                     RoleDescriptor.ApplicationResourcePrivileges arp) {
             return new Tuple<>(new ApplicationPrivilege(arp.getApplication(),
-                "role." + role.replaceAll("[^a-zA-Z0-9]", "") + "." + index,
+                Sets.newHashSet(arp.getPrivileges()),
                 arp.getPrivileges()
             ), Sets.newHashSet(arp.getResources()));
         }

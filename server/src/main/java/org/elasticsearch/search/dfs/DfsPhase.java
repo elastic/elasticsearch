@@ -25,8 +25,9 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.search.SearchPhase;
@@ -53,7 +54,8 @@ public class DfsPhase implements SearchPhase {
     public void execute(SearchContext context) {
         final ObjectHashSet<Term> termsSet = new ObjectHashSet<>();
         try {
-            context.searcher().createNormalizedWeight(context.query(), true).extractTerms(new DelegateSet(termsSet));
+            context.searcher().createWeight(context.searcher().rewrite(context.query()), ScoreMode.COMPLETE, 1f)
+                .extractTerms(new DelegateSet(termsSet));
             for (RescoreContext rescoreContext : context.rescore()) {
                 try {
                     rescoreContext.rescorer().extractTerms(context.searcher(), rescoreContext, new DelegateSet(termsSet));
@@ -69,17 +71,19 @@ public class DfsPhase implements SearchPhase {
                 if(context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                // LUCENE 4 UPGRADE: cache TermContext?
-                TermContext termContext = TermContext.build(indexReaderContext, terms[i]);
+                // LUCENE 4 UPGRADE: cache TermStates?
+                TermStates termContext = TermStates.build(indexReaderContext, terms[i], true);
                 termStatistics[i] = context.searcher().termStatistics(terms[i], termContext);
             }
 
             ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
             for (Term term : terms) {
                 assert term.field() != null : "field is null";
-                if (!fieldStatistics.containsKey(term.field())) {
+                if (fieldStatistics.containsKey(term.field()) == false) {
                     final CollectionStatistics collectionStatistics = context.searcher().collectionStatistics(term.field());
-                    fieldStatistics.put(term.field(), collectionStatistics);
+                    if (collectionStatistics != null) {
+                        fieldStatistics.put(term.field(), collectionStatistics);
+                    }
                     if(context.isCancelled()) {
                         throw new TaskCancelledException("cancelled");
                     }

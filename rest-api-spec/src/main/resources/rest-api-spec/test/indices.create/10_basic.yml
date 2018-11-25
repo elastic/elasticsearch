@@ -1,24 +1,33 @@
 ---
 "Create index with mappings":
 
+  - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
   - do:
       indices.create:
+        include_type_name: false
         index: test_index
         body:
           mappings:
-            type_1: {}
+            {}
 
   - do:
       indices.get_mapping:
+        include_type_name: false
         index: test_index
 
-  - is_true: test_index.mappings.type_1
+  - is_true: test_index.mappings
 
 ---
 "Create index with settings":
 
+  - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
   - do:
       indices.create:
+        include_type_name: false
         index: test_index
         body:
           settings:
@@ -33,8 +42,12 @@
 ---
 "Create index":
 
+  - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
   - do:
       indices.create:
+        include_type_name: false
         index: test_index
 
   - match: { acknowledged: true }
@@ -43,8 +56,12 @@
 ---
 "Create index with wait_for_active_shards set to all":
 
+  - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
   - do:
       indices.create:
+        include_type_name: false
         index: test_index
         wait_for_active_shards: all
         body:
@@ -57,15 +74,18 @@
 ---
 "Create index with aliases":
 
+  - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
   - do:
       indices.create:
+        include_type_name: false
         index: test_index
         body:
           mappings:
-            type_1:
-              properties:
-                field:
-                  type: text
+            properties:
+              field:
+                type: text
           aliases:
             test_alias: {}
             test_blias:
@@ -93,6 +113,7 @@
       reason: is_write_index is not implemented in ES <= 6.x
   - do:
       indices.create:
+        include_type_name: false
         index: test_index
         body:
           aliases:
@@ -111,24 +132,14 @@
   - is_true: test_index.aliases.test_clias.is_write_index
 
 ---
-"Create index with no type mappings":
-  - do:
-      catch: /illegal_argument_exception/
-      indices.create:
-        index: test_index
-        body:
-          mappings:
-           "" : {}
-
----
 "Create index with invalid mappings":
   - do:
       catch: /illegal_argument_exception/
       indices.create:
+        include_type_name: false
         index: test_index
         body:
           mappings:
-            test_type:
-              properties:
-                "":
-                  type:     keyword
+            properties:
+              "":
+                type:     keyword

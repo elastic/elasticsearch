@@ -19,11 +19,11 @@ import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -108,7 +108,25 @@ public class RollupRequestTranslationTests extends ESTestCase {
                 fail("Unexpected query builder in filter conditions");
             }
         }
+    }
 
+    public void testFormattedDateHisto() {
+        DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
+        histo.dateHistogramInterval(new DateHistogramInterval("1d"))
+            .field("foo")
+            .extendedBounds(new ExtendedBounds(0L, 1000L))
+            .format("yyyy-MM-dd")
+            .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"));
+        List<QueryBuilder> filterConditions = new ArrayList<>();
+
+        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry);
+        assertThat(translated.size(), equalTo(1));
+        assertThat(translated.get(0), Matchers.instanceOf(DateHistogramAggregationBuilder.class));
+        DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
+
+        assertThat(translatedHisto.dateHistogramInterval(), equalTo(new DateHistogramInterval("1d")));
+        assertThat(translatedHisto.format(), equalTo("yyyy-MM-dd"));
+        assertThat(translatedHisto.field(), equalTo("foo.date_histogram.timestamp"));
     }
 
     public void testSimpleMetric() {

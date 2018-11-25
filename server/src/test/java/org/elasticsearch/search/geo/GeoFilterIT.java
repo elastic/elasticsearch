@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.geo;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
@@ -42,17 +43,14 @@ import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.BeforeClass;
 import org.locationtech.spatial4j.context.SpatialContext;
@@ -65,8 +63,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
@@ -87,8 +83,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class GeoFilterIT extends ESIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     private static boolean intersectSupport;
@@ -127,7 +123,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                     .coordinate(-10, 10)
                     .coordinate(10, -10)
                     .close())
-                    .build();
+                    .buildS4J();
             fail("Self intersection not detected");
         } catch (InvalidShapeException e) {
         }
@@ -136,14 +132,14 @@ public class GeoFilterIT extends ESIntegTestCase {
         new PolygonBuilder(new CoordinatesBuilder()
                 .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
                 .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close()))
-                .build();
+                .buildS4J();
         try {
             // polygon with overlapping hole
             new PolygonBuilder(new CoordinatesBuilder()
                     .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
                     .hole(new LineStringBuilder(new CoordinatesBuilder()
                     .coordinate(-5, -5).coordinate(-5, 11).coordinate(5, 11).coordinate(5, -5).close()))
-                    .build();
+                    .buildS4J();
 
             fail("Self intersection not detected");
         } catch (InvalidShapeException e) {
@@ -155,7 +151,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                     .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
                     .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close()))
                     .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -6).coordinate(5, -6).coordinate(5, -4).coordinate(-5, -4).close()))
-                    .build();
+                    .buildS4J();
             fail("Intersection of holes not detected");
         } catch (InvalidShapeException e) {
         }
@@ -171,7 +167,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                     .coordinate(10, 20)
                     .coordinate(10, -10)
                     .close())
-                    .build();
+                    .buildS4J();
             fail("Self intersection not detected");
         } catch (InvalidShapeException e) {
         }
@@ -194,7 +190,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                             .coordinate(-4, 4)
                             .coordinate(4, 4)
                             .coordinate(4, -4).close()))
-                .build();
+                .buildS4J();
     }
 
     public void testShapeRelations() throws Exception {
@@ -475,8 +471,7 @@ public class GeoFilterIT extends ESIntegTestCase {
             return true;
         } catch (UnsupportedSpatialOperation e) {
             final SpatialOperation finalRelation = relation;
-            ESLoggerFactory
-                .getLogger(GeoFilterIT.class.getName())
+            LogManager.getLogger(GeoFilterIT.class)
                 .info(() -> new ParameterizedMessage("Unsupported spatial operation {}", finalRelation), e);
             return false;
         }

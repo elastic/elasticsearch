@@ -5,40 +5,24 @@
  */
 package org.elasticsearch.xpack.ccr;
 
-import org.apache.http.HttpHost;
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
-import java.io.IOException;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FollowIndexIT extends ESRestTestCase {
-
-    private final boolean runningAgainstLeaderCluster = Booleans.parseBoolean(System.getProperty("tests.is_leader_cluster"));
-
-    @Override
-    protected boolean preserveClusterUponCompletion() {
-        return true;
-    }
+public class FollowIndexIT extends ESCCRRestTestCase {
 
     public void testFollowIndex() throws Exception {
         final int numDocs = 128;
         final String leaderIndexName = "test_index1";
-        if (runningAgainstLeaderCluster) {
+        if ("leader".equals(targetCluster)) {
             logger.info("Running against leader cluster");
             String mapping = "";
             if (randomBoolean()) { // randomly do source filtering on indexing
@@ -59,89 +43,78 @@ public class FollowIndexIT extends ESRestTestCase {
                 index(client(), leaderIndexName, Integer.toString(i), "field", i, "filtered_field", "true");
             }
             refresh(leaderIndexName);
-            verifyDocuments(leaderIndexName, numDocs);
+            verifyDocuments(leaderIndexName, numDocs, "filtered_field:true");
         } else {
             logger.info("Running against follow cluster");
             final String followIndexName = "test_index2";
-            createAndFollowIndex("leader_cluster:" + leaderIndexName, followIndexName);
-            assertBusy(() -> verifyDocuments(followIndexName, numDocs));
+            followIndex(leaderIndexName, followIndexName);
+            assertBusy(() -> verifyDocuments(followIndexName, numDocs, "filtered_field:true"));
             // unfollow and then follow and then index a few docs in leader index:
-            unfollowIndex(followIndexName);
-            followIndex("leader_cluster:" + leaderIndexName, followIndexName);
+            pauseFollow(followIndexName);
+            resumeFollow(followIndexName);
             try (RestClient leaderClient = buildLeaderClient()) {
                 int id = numDocs;
                 index(leaderClient, leaderIndexName, Integer.toString(id), "field", id, "filtered_field", "true");
                 index(leaderClient, leaderIndexName, Integer.toString(id + 1), "field", id + 1, "filtered_field", "true");
                 index(leaderClient, leaderIndexName, Integer.toString(id + 2), "field", id + 2, "filtered_field", "true");
             }
-            assertBusy(() -> verifyDocuments(followIndexName, numDocs + 3));
+            assertBusy(() -> verifyDocuments(followIndexName, numDocs + 3, "filtered_field:true"));
+            assertBusy(() -> verifyCcrMonitoring(leaderIndexName, followIndexName), 30, TimeUnit.SECONDS);
+
+            pauseFollow(followIndexName);
+            assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_close")));
+            assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_ccr/unfollow")));
+            Exception e = expectThrows(ResponseException.class, () -> resumeFollow(followIndexName));
+            assertThat(e.getMessage(), containsString("follow index [" + followIndexName + "] does not have ccr metadata"));
         }
     }
 
-    private static void index(RestClient client, String index, String id, Object... fields) throws IOException {
-        XContentBuilder document = jsonBuilder().startObject();
-        for (int i = 0; i < fields.length; i += 2) {
-            document.field((String) fields[i], fields[i + 1]);
-        }
-        document.endObject();
-        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
-        request.setJsonEntity(Strings.toString(document));
-        assertOK(client.performRequest(request));
+    public void testFollowNonExistingLeaderIndex() throws Exception {
+        assumeFalse("Test should only run when both clusters are running", "leader".equals(targetCluster));
+        ResponseException e = expectThrows(ResponseException.class, () -> resumeFollow("non-existing-index"));
+        assertThat(e.getMessage(), containsString("no such index [non-existing-index]"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
+        e = expectThrows(ResponseException.class, () -> followIndex("non-existing-index", "non-existing-index"));
+        assertThat(e.getMessage(), containsString("no such index [non-existing-index]"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
-    private static void refresh(String index) throws IOException {
-        assertOK(client().performRequest(new Request("POST", "/" + index + "/_refresh")));
-    }
+    public void testAutoFollowPatterns() throws Exception {
+        assumeFalse("Test should only run when both clusters are running", "leader".equals(targetCluster));
 
-    private static void followIndex(String leaderIndex, String followIndex) throws IOException {
-        final Request request = new Request("POST", "/" + followIndex + "/_ccr/follow");
-        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"idle_shard_retry_delay\": \"10ms\"}");
+        Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"], \"remote_cluster\": \"leader_cluster\"}");
         assertOK(client().performRequest(request));
-    }
 
-    private static void createAndFollowIndex(String leaderIndex, String followIndex) throws IOException {
-        final Request request = new Request("POST", "/" + followIndex + "/_ccr/create_and_follow");
-        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"idle_shard_retry_delay\": \"10ms\"}");
-        assertOK(client().performRequest(request));
-    }
+        try (RestClient leaderClient = buildLeaderClient()) {
+            Settings settings = Settings.builder()
+                .put("index.soft_deletes.enabled", true)
+                .build();
+            request = new Request("PUT", "/logs-20190101");
+            request.setJsonEntity("{\"settings\": " + Strings.toString(settings) +
+                ", \"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}} }");
+            assertOK(leaderClient.performRequest(request));
 
-    private static void unfollowIndex(String followIndex) throws IOException {
-        assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/unfollow")));
-    }
-
-    private static void verifyDocuments(String index, int expectedNumDocs) throws IOException {
-        final Request request = new Request("GET", "/" + index + "/_search");
-        request.addParameter("size", Integer.toString(expectedNumDocs));
-        request.addParameter("sort", "field:asc");
-        request.addParameter("q", "filtered_field:true");
-        Map<String, ?> response = toMap(client().performRequest(request));
-
-        int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
-        assertThat(numDocs, equalTo(expectedNumDocs));
-
-        List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
-        assertThat(hits.size(), equalTo(expectedNumDocs));
-        for (int i = 0; i < expectedNumDocs; i++) {
-            int value = (int) XContentMapValues.extractValue("_source.field", (Map<?, ?>) hits.get(i));
-            assertThat(i, equalTo(value));
+            for (int i = 0; i < 5; i++) {
+                String id = Integer.toString(i);
+                index(leaderClient, "logs-20190101", id, "field", i, "filtered_field", "true");
+            }
         }
-    }
 
-    private static Map<String, Object> toMap(Response response) throws IOException {
-        return toMap(EntityUtils.toString(response.getEntity()));
-    }
+        assertBusy(() -> {
+            Request statsRequest = new Request("GET", "/_ccr/stats");
+            Map<?, ?> response = toMap(client().performRequest(statsRequest));
+            response = (Map<?, ?>) response.get("auto_follow_stats");
+            assertThat(response.get("number_of_successful_follow_indices"), equalTo(1));
 
-    private static Map<String, Object> toMap(String response) {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
-    }
-
-    private RestClient buildLeaderClient() throws IOException {
-        assert runningAgainstLeaderCluster == false;
-        String leaderUrl = System.getProperty("tests.leader_host");
-        int portSeparator = leaderUrl.lastIndexOf(':');
-        HttpHost httpHost = new HttpHost(leaderUrl.substring(0, portSeparator),
-                Integer.parseInt(leaderUrl.substring(portSeparator + 1)), getProtocol());
-        return buildClient(Settings.EMPTY, new HttpHost[]{httpHost});
+            ensureYellow("logs-20190101");
+            verifyDocuments("logs-20190101", 5, "filtered_field:true");
+        });
+        assertBusy(() -> {
+            verifyCcrMonitoring("logs-20190101", "logs-20190101");
+            verifyAutoFollowMonitoring();
+        }, 30, TimeUnit.SECONDS);
     }
 
 }

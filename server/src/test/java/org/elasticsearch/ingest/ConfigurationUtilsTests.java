@@ -92,12 +92,6 @@ public class ConfigurationUtilsTests extends ESTestCase {
         }
     }
 
-    // TODO(talevy): Issue with generics. This test should fail, "int" is of type List<Integer>
-    public void testOptional_InvalidType() {
-        List<String> val = ConfigurationUtils.readList(null, null, config, "int");
-        assertThat(val, equalTo(Collections.singletonList(2)));
-    }
-
     public void testReadStringOrIntProperty() {
         String val1 = ConfigurationUtils.readStringOrIntProperty(null, null, config, "foo", null);
         String val2 = ConfigurationUtils.readStringOrIntProperty(null, null, config, "num", null);

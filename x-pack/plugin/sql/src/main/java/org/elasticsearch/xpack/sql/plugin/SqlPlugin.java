@@ -64,6 +64,11 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                                 throw LicenseUtils.newComplianceException("jdbc");
                             }
                             break;
+                        case ODBC:
+                            if (licenseState.isOdbcAllowed() == false) {
+                                throw LicenseUtils.newComplianceException("odbc");
+                            }
+                            break;
                         case PLAIN:
                             if (licenseState.isSqlAllowed() == false) {
                                 throw LicenseUtils.newComplianceException(XPackField.SQL);

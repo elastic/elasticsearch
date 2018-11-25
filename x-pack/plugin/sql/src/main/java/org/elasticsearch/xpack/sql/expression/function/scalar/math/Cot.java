@@ -10,10 +10,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
-import java.util.Locale;
-
-import static java.lang.String.format;
-
 /**
  * <a href="https://en.wikipedia.org/wiki/Trigonometric_functions#Cosecant,_secant,_and_cotangent">Cotangent</a>
  * function.
@@ -31,11 +27,6 @@ public class Cot extends MathFunction {
     @Override
     protected Cot replaceChild(Expression newChild) {
         return new Cot(location(), newChild);
-    }
-
-    @Override
-    protected String formatScript(String template) {
-        return super.formatScript(format(Locale.ROOT, "1.0 / Math.tan(%s)", template));
     }
 
     @Override

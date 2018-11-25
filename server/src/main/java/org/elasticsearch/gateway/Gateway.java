@@ -21,14 +21,14 @@ package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -38,7 +38,9 @@ import org.elasticsearch.indices.IndicesService;
 import java.util.Arrays;
 import java.util.Map;
 
-public class Gateway extends AbstractComponent {
+public class Gateway {
+
+    private static final Logger logger = LogManager.getLogger(Gateway.class);
 
     private final ClusterService clusterService;
 
@@ -50,7 +52,6 @@ public class Gateway extends AbstractComponent {
     public Gateway(Settings settings, ClusterService clusterService,
                    TransportNodesListGatewayMetaState listGatewayMetaState,
                    IndicesService indicesService) {
-        super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.listGatewayMetaState = listGatewayMetaState;
@@ -137,20 +138,25 @@ public class Gateway extends AbstractComponent {
                 }
             }
         }
+        final ClusterState.Builder builder = upgradeAndArchiveUnknownOrInvalidSettings(metaDataBuilder);
+        listener.onSuccess(builder.build());
+    }
+
+    ClusterState.Builder upgradeAndArchiveUnknownOrInvalidSettings(MetaData.Builder metaDataBuilder) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         metaDataBuilder.persistentSettings(
             clusterSettings.archiveUnknownOrInvalidSettings(
-                metaDataBuilder.persistentSettings(),
+                clusterSettings.upgradeSettings(metaDataBuilder.persistentSettings()),
                 e -> logUnknownSetting("persistent", e),
                 (e, ex) -> logInvalidSetting("persistent", e, ex)));
         metaDataBuilder.transientSettings(
             clusterSettings.archiveUnknownOrInvalidSettings(
-                metaDataBuilder.transientSettings(),
+                clusterSettings.upgradeSettings(metaDataBuilder.transientSettings()),
                 e -> logUnknownSetting("transient", e),
                 (e, ex) -> logInvalidSetting("transient", e, ex)));
-        ClusterState.Builder builder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
+        ClusterState.Builder builder = ClusterState.builder(clusterService.getClusterName());
         builder.metaData(metaDataBuilder);
-        listener.onSuccess(builder.build());
+        return builder;
     }
 
     private void logUnknownSetting(String settingType, Map.Entry<String, String> e) {

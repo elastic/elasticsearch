@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
@@ -23,10 +22,9 @@ import java.io.IOException;
 public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobAction.Request, FlushJobAction.Response> {
 
     @Inject
-    public TransportFlushJobAction(Settings settings, TransportService transportService,
-                                   ClusterService clusterService, ActionFilters actionFilters,
+    public TransportFlushJobAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters,
                                    AutodetectProcessManager processManager) {
-        super(settings, FlushJobAction.NAME, clusterService, transportService, actionFilters,
+        super(FlushJobAction.NAME, clusterService, transportService, actionFilters,
             FlushJobAction.Request::new, FlushJobAction.Response::new, ThreadPool.Names.SAME, processManager);
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
     }

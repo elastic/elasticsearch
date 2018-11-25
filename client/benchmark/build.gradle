@@ -23,8 +23,7 @@ apply plugin: 'application'
 group = 'org.elasticsearch.client'
 
 // Not published so no need to assemble
-tasks.remove(assemble)
-build.dependsOn.remove('assemble')
+assemble.enabled = true
 
 archivesBaseName = 'client-benchmarks'
 mainClassName = 'org.elasticsearch.client.benchmark.BenchmarkMain'

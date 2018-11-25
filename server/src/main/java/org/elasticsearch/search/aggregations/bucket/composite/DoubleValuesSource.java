@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -48,7 +49,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
                        DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
         super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
-        this.bits = missingBucket ? new BitArray(bigArrays, 100) : null;
+        this.bits = missingBucket ? new BitArray(100, bigArrays) : null;
         this.values = bigArrays.newDoubleArray(Math.min(size, 100), false);
     }
 

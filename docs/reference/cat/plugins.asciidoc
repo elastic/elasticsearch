@@ -14,24 +14,24 @@ Might look like:
 ["source","txt",subs="attributes,callouts"]
 ------------------------------------------------------------------------------
 name    component               version   description
-U7321H6 analysis-icu            {version} The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.
-U7321H6 analysis-kuromoji       {version} The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.
-U7321H6 analysis-nori           {version} The Korean (nori) Analysis plugin integrates Lucene nori analysis module into elasticsearch.
-U7321H6 analysis-phonetic       {version} The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.
-U7321H6 analysis-smartcn        {version} Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.
-U7321H6 analysis-stempel        {version} The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.
-U7321H6 analysis-ukrainian      {version} The Ukrainian Analysis plugin integrates the Lucene UkrainianMorfologikAnalyzer into elasticsearch.
-U7321H6 discovery-azure-classic {version} The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism
-U7321H6 discovery-ec2           {version} The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.
-U7321H6 discovery-file          {version} Discovery file plugin enables unicast discovery from hosts stored in a file.
-U7321H6 discovery-gce           {version} The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.
-U7321H6 ingest-attachment       {version} Ingest processor that uses Apache Tika to extract contents
-U7321H6 ingest-geoip            {version} Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database
-U7321H6 ingest-user-agent       {version} Ingest processor that extracts information from a user agent
-U7321H6 mapper-murmur3          {version} The Mapper Murmur3 plugin allows to compute hashes of a field's values at index-time and to store them in the index.
-U7321H6 mapper-size             {version} The Mapper Size plugin allows document to record their uncompressed size at index time.
-U7321H6 store-smb               {version} The Store SMB plugin adds support for SMB stores.
-U7321H6 transport-nio           {version} The nio transport.
+U7321H6 analysis-icu            {version_qualified} The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.
+U7321H6 analysis-kuromoji       {version_qualified} The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.
+U7321H6 analysis-nori           {version_qualified} The Korean (nori) Analysis plugin integrates Lucene nori analysis module into elasticsearch.
+U7321H6 analysis-phonetic       {version_qualified} The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.
+U7321H6 analysis-smartcn        {version_qualified} Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.
+U7321H6 analysis-stempel        {version_qualified} The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.
+U7321H6 analysis-ukrainian      {version_qualified} The Ukrainian Analysis plugin integrates the Lucene UkrainianMorfologikAnalyzer into elasticsearch.
+U7321H6 discovery-azure-classic {version_qualified} The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism
+U7321H6 discovery-ec2           {version_qualified} The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.
+U7321H6 discovery-gce           {version_qualified} The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.
+U7321H6 ingest-attachment       {version_qualified} Ingest processor that uses Apache Tika to extract contents
+U7321H6 ingest-geoip            {version_qualified} Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database
+U7321H6 ingest-user-agent       {version_qualified} Ingest processor that extracts information from a user agent
+U7321H6 mapper-annotated-text   {version_qualified} The Mapper Annotated_text plugin adds support for text fields with markup used to inject annotation tokens into the index.
+U7321H6 mapper-murmur3          {version_qualified} The Mapper Murmur3 plugin allows to compute hashes of a field's values at index-time and to store them in the index.
+U7321H6 mapper-size             {version_qualified} The Mapper Size plugin allows document to record their uncompressed size at index time.
+U7321H6 store-smb               {version_qualified} The Store SMB plugin adds support for SMB stores.
+U7321H6 transport-nio           {version_qualified} The nio transport.
 ------------------------------------------------------------------------------
 // TESTRESPONSE[s/([.()])/\\$1/ s/U7321H6/.+/ _cat]
 

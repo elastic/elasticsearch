@@ -35,6 +35,7 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
                     `completion` to provide auto-complete suggestions
 <<token-count>>::   `token_count` to count the number of tokens in a string
 {plugins}/mapper-murmur3.html[`mapper-murmur3`]:: `murmur3` to compute hashes of values at index-time and store them in the index
+{plugins}/mapper-annotated-text.html[`mapper-annotated-text`]:: `annotated-text` to index text containing special markup (typically used for identifying named entities)
 
 <<percolator>>::    Accepts queries from the query-dsl
 

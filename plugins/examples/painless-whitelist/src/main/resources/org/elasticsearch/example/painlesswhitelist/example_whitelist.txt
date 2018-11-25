@@ -40,3 +40,7 @@ class java.lang.String {
   # to operate on as the first argument to a static method
   int org.elasticsearch.example.painlesswhitelist.ExampleWhitelistedClass toInt()
 }
+
+static_import {
+  int exampleAddInts(int, int) from_class org.elasticsearch.example.painlesswhitelist.ExampleStaticMethodClass
+}

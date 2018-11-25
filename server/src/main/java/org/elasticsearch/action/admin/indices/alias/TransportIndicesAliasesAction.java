@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -58,10 +57,11 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     private final MetaDataIndexAliasesService indexAliasesService;
 
     @Inject
-    public TransportIndicesAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportIndicesAliasesAction(TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, MetaDataIndexAliasesService indexAliasesService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, IndicesAliasesRequest::new);
+        super(IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+            IndicesAliasesRequest::new);
         this.indexAliasesService = indexAliasesService;
     }
 
@@ -86,7 +86,8 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     }
 
     @Override
-    protected void masterOperation(final IndicesAliasesRequest request, final ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(final IndicesAliasesRequest request, final ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) {
 
         //Expand the indices names
         List<AliasActions> actions = request.aliasActions();

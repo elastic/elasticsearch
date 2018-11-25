@@ -19,10 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -32,6 +28,10 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.core.Is.is;
@@ -52,7 +52,8 @@ public class ScriptProcessorTests extends ESTestCase {
                             ctx.put("bytes_total", randomBytesTotal);
                             return null;
                         }
-                    )
+                    ),
+                    Collections.emptyMap()
                 )
             ),
             new HashMap<>(ScriptModule.CORE_CONTEXTS)

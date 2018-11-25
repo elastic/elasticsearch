@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.time.temporal.ChronoField;
 import java.util.TimeZone;
 
 /**
@@ -18,11 +17,11 @@ import java.util.TimeZone;
  */
 public class MinuteOfHour extends DateTimeFunction {
     public MinuteOfHour(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+        super(location, field, timeZone, DateTimeExtractor.MINUTE_OF_HOUR);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, DateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
         return MinuteOfHour::new;
     }
 
@@ -34,15 +33,5 @@ public class MinuteOfHour extends DateTimeFunction {
     @Override
     public String dateTimeFormat() {
         return "m";
-    }
-
-    @Override
-    protected ChronoField chronoField() {
-        return ChronoField.MINUTE_OF_HOUR;
-    }
-
-    @Override
-    protected DateTimeExtractor extractor() {
-        return DateTimeExtractor.MINUTE_OF_HOUR;
     }
 }

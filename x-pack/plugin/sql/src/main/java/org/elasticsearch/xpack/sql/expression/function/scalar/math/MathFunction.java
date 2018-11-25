@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -40,8 +40,8 @@ public abstract class MathFunction extends UnaryScalarFunction {
     }
 
     @Override
-    protected String formatScript(String template) {
-        return super.formatScript(format(Locale.ROOT, "Math.%s(%s)", mathFunction(), template));
+    public String processScript(String template) {
+        return super.processScript(format(Locale.ROOT, "{sql}.%s(%s)", mathFunction(), template));
     }
 
     protected String mathFunction() {
@@ -59,14 +59,12 @@ public abstract class MathFunction extends UnaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return field().dataType().isNumeric() ? TypeResolution.TYPE_RESOLVED
-                : new TypeResolution("'%s' requires a numeric type, received %s", operation(), field().dataType().esType);
+        return Expressions.typeMustBeNumeric(field(), operation().toString(), ParamOrdinal.DEFAULT);
     }
 
     @Override
-    protected final ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(location(), this,
-            ProcessorDefinitions.toProcessorDefinition(field()), new MathProcessor(operation()));
+    protected Processor makeProcessor() {
+        return new MathProcessor(operation());
     }
 
     protected abstract MathOperation operation();

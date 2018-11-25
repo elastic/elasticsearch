@@ -7,5 +7,5 @@
 * {ref}/security-api.html[Security API]
 * {ref}/xpack-commands.html[Security Commands]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/reference/files.asciidoc
-include::reference/files.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/reference/files.asciidoc
+include::{es-repo-dir}/security/reference/files.asciidoc[]

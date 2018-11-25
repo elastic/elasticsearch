@@ -215,7 +215,12 @@ public class RecoverySourceHandler {
             }
             final long targetLocalCheckpoint;
             try (Translog.Snapshot snapshot = shard.getHistoryOperations("peer-recovery", startingSeqNo)) {
-                targetLocalCheckpoint = phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot);
+                // we have to capture the max_seen_auto_id_timestamp and the max_seq_no_of_updates to make sure that these values
+                // are at least as high as the corresponding values on the primary when any of these operations were executed on it.
+                final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
+                final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
+                targetLocalCheckpoint = phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot,
+                    maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
             } catch (Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e);
             }
@@ -442,14 +447,17 @@ public class RecoverySourceHandler {
      * point-in-time view of the translog). It then sends each translog operation to the target node so it can be replayed into the new
      * shard.
      *
-     * @param startingSeqNo           the sequence number to start recovery from, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if all
-     *                                ops should be sent
-     * @param requiredSeqNoRangeStart the lower sequence number of the required range (ending with endingSeqNo)
-     * @param endingSeqNo             the highest sequence number that should be sent
-     * @param snapshot                a snapshot of the translog
+     * @param startingSeqNo              the sequence number to start recovery from, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if all
+     *                                   ops should be sent
+     * @param requiredSeqNoRangeStart    the lower sequence number of the required range (ending with endingSeqNo)
+     * @param endingSeqNo                the highest sequence number that should be sent
+     * @param snapshot                   a snapshot of the translog
+     * @param maxSeenAutoIdTimestamp     the max auto_id_timestamp of append-only requests on the primary
+     * @param maxSeqNoOfUpdatesOrDeletes the max seq_no of updates or deletes on the primary after these operations were executed on it.
      * @return the local checkpoint on the target
      */
-    long phase2(final long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, final Translog.Snapshot snapshot)
+    long phase2(final long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, final Translog.Snapshot snapshot,
+                final long maxSeenAutoIdTimestamp, final long maxSeqNoOfUpdatesOrDeletes)
         throws IOException {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
@@ -462,7 +470,8 @@ public class RecoverySourceHandler {
             "required [" + requiredSeqNoRangeStart + ":" + endingSeqNo + "]");
 
         // send all the snapshot's translog operations to the target
-        final SendSnapshotResult result = sendSnapshot(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot);
+        final SendSnapshotResult result = sendSnapshot(
+            startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
 
         stopWatch.stop();
         logger.trace("recovery [phase2]: took [{}]", stopWatch.totalTime());
@@ -525,15 +534,18 @@ public class RecoverySourceHandler {
      * <p>
      * Operations are bulked into a single request depending on an operation count limit or size-in-bytes limit.
      *
-     * @param startingSeqNo           the sequence number for which only operations with a sequence number greater than this will be sent
-     * @param requiredSeqNoRangeStart the lower sequence number of the required range
-     * @param endingSeqNo             the upper bound of the sequence number range to be sent (inclusive)
-     * @param snapshot                the translog snapshot to replay operations from  @return the local checkpoint on the target and the
-     *                                total number of operations sent
+     * @param startingSeqNo              the sequence number for which only operations with a sequence number greater than this will be sent
+     * @param requiredSeqNoRangeStart    the lower sequence number of the required range
+     * @param endingSeqNo                the upper bound of the sequence number range to be sent (inclusive)
+     * @param snapshot                   the translog snapshot to replay operations from  @return the local checkpoint on the target and the
+     *                                   total number of operations sent
+     * @param maxSeenAutoIdTimestamp     the max auto_id_timestamp of append-only requests on the primary
+     * @param maxSeqNoOfUpdatesOrDeletes the max seq_no of updates or deletes on the primary after these operations were executed on it.
      * @throws IOException if an I/O exception occurred reading the translog snapshot
      */
     protected SendSnapshotResult sendSnapshot(final long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo,
-                                              final Translog.Snapshot snapshot) throws IOException {
+                                              final Translog.Snapshot snapshot, final long maxSeenAutoIdTimestamp,
+                                              final long maxSeqNoOfUpdatesOrDeletes) throws IOException {
         assert requiredSeqNoRangeStart <= endingSeqNo + 1:
             "requiredSeqNoRangeStart " + requiredSeqNoRangeStart + " is larger than endingSeqNo " + endingSeqNo;
         assert startingSeqNo <= requiredSeqNoRangeStart :
@@ -551,8 +563,11 @@ public class RecoverySourceHandler {
             logger.trace("no translog operations to send");
         }
 
-        final CancellableThreads.IOInterruptable sendBatch =
-                () -> targetLocalCheckpoint.set(recoveryTarget.indexTranslogOperations(operations, expectedTotalOps));
+        final CancellableThreads.IOInterruptable sendBatch = () -> {
+            final long targetCheckpoint = recoveryTarget.indexTranslogOperations(
+                operations, expectedTotalOps, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
+            targetLocalCheckpoint.set(targetCheckpoint);
+        };
 
         // send operations in batches
         Translog.Operation operation;

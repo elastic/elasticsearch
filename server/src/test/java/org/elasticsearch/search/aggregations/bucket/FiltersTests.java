@@ -171,9 +171,9 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         assertNotEquals(original, rewritten);
         assertThat(rewritten, instanceOf(TermsAggregationBuilder.class));
         assertThat(rewritten.getSubAggregations().size(), equalTo(1));
-        AggregationBuilder subAgg = rewritten.getSubAggregations().get(0);
+        AggregationBuilder subAgg = rewritten.getSubAggregations().iterator().next();
         assertThat(subAgg, instanceOf(FiltersAggregationBuilder.class));
-        assertNotSame(original.getSubAggregations().get(0), subAgg);
+        assertNotSame(original.getSubAggregations().iterator().next(), subAgg);
         assertEquals("my-agg", subAgg.getName());
         assertSame(rewritten,
             rewritten.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L)));

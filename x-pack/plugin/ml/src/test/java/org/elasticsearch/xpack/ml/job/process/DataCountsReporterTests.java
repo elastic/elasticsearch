@@ -6,9 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -31,25 +29,18 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 public class DataCountsReporterTests extends ESTestCase {
-    private static final int MAX_PERCENT_DATE_PARSE_ERRORS = 40;
-    private static final int MAX_PERCENT_OUT_OF_ORDER_ERRORS = 30;
 
     private Job job;
     private JobDataCountsPersister jobDataCountsPersister;
-    private Settings settings;
     private TimeValue bucketSpan = TimeValue.timeValueSeconds(300);
 
     @Before
     public void setUpMocks() {
-        settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING.getKey(), MAX_PERCENT_DATE_PARSE_ERRORS)
-                .put(DataCountsReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING.getKey(), MAX_PERCENT_OUT_OF_ORDER_ERRORS)
-                .build();
-
         AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
         acBuilder.setBucketSpan(bucketSpan);
         acBuilder.setLatency(TimeValue.ZERO);
         acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
+
 
         Job.Builder builder = new Job.Builder("sr");
         builder.setAnalysisConfig(acBuilder);
@@ -59,16 +50,8 @@ public class DataCountsReporterTests extends ESTestCase {
         jobDataCountsPersister = Mockito.mock(JobDataCountsPersister.class);
     }
 
-    public void testSettingAcceptablePercentages() throws IOException {
-        DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, new DataCounts(job.getId()),
-                jobDataCountsPersister);
-        assertEquals(dataCountsReporter.getAcceptablePercentDateParseErrors(), MAX_PERCENT_DATE_PARSE_ERRORS);
-        assertEquals(dataCountsReporter.getAcceptablePercentOutOfOrderErrors(), MAX_PERCENT_OUT_OF_ORDER_ERRORS);
-    }
-
     public void testSimpleConstructor() throws Exception {
-        DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, new DataCounts(job.getId()),
-                jobDataCountsPersister);
+        DataCountsReporter dataCountsReporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
         DataCounts stats = dataCountsReporter.incrementalStats();
         assertNotNull(stats);
         assertAllCountFieldsEqualZero(stats);
@@ -78,8 +61,7 @@ public class DataCountsReporterTests extends ESTestCase {
         DataCounts counts = new DataCounts("foo", 1L, 1L, 2L, 0L, 3L, 4L, 5L, 6L, 7L, 8L,
                 new Date(), new Date(), new Date(), new Date(), new Date());
 
-        DataCountsReporter dataCountsReporter =
-                new DataCountsReporter(settings, job, counts, jobDataCountsPersister);
+        DataCountsReporter dataCountsReporter = new DataCountsReporter(job, counts, jobDataCountsPersister);
         DataCounts stats = dataCountsReporter.incrementalStats();
         assertNotNull(stats);
         assertAllCountFieldsEqualZero(stats);
@@ -96,8 +78,7 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testResetIncrementalCounts() throws Exception {
-        DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, new DataCounts(job.getId()),
-                jobDataCountsPersister);
+        DataCountsReporter dataCountsReporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
         DataCounts stats = dataCountsReporter.incrementalStats();
         assertNotNull(stats);
         assertAllCountFieldsEqualZero(stats);
@@ -149,16 +130,14 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testReportLatestTimeIncrementalStats() throws IOException {
-        DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, new DataCounts(job.getId()),
-                jobDataCountsPersister);
+        DataCountsReporter dataCountsReporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
         dataCountsReporter.startNewIncrementalCount();
         dataCountsReporter.reportLatestTimeIncrementalStats(5001L);
         assertEquals(5001L, dataCountsReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
     }
 
     public void testReportRecordsWritten() {
-        DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, new DataCounts(job.getId()),
-                jobDataCountsPersister);
+        DataCountsReporter dataCountsReporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
         dataCountsReporter.reportRecordWritten(5, 2000);
@@ -268,8 +247,7 @@ public class DataCountsReporterTests extends ESTestCase {
 
 
     public void testFinishReporting() {
-        DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, new DataCounts(job.getId()),
-                jobDataCountsPersister);
+        DataCountsReporter dataCountsReporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
 
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
         Date now = new Date();

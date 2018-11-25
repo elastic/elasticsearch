@@ -3,7 +3,7 @@
 
 The get API allows to get a typed JSON document from the index based on
 its id. The following example gets a JSON document from an index called
-twitter, under a type called _doc, with id valued 0:
+twitter, under a type called `_doc`, with id valued 0:
 
 [source,js]
 --------------------------------------------------
@@ -73,14 +73,14 @@ GET twitter/_doc/0?_source=false
 // CONSOLE
 // TEST[setup:twitter]
 
-If you only need one or two fields from the complete `_source`, you can use the `_source_include`
-& `_source_exclude` parameters to include or filter out that parts you need. This can be especially helpful
+If you only need one or two fields from the complete `_source`, you can use the `_source_includes`
+& `_source_excludes` parameters to include or filter out that parts you need. This can be especially helpful
 with large documents where partial retrieval can save on network overhead. Both parameters take a comma separated list
 of fields or wildcard expressions. Example:
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/0?_source_include=*.id&_source_exclude=entities
+GET twitter/_doc/0?_source_includes=*.id&_source_excludes=entities
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -232,7 +232,7 @@ You can also use the same source filtering parameters to control which parts of 
 
 [source,js]
 --------------------------------------------------
-GET twitter/_doc/1/_source?_source_include=*.id&_source_exclude=entities'
+GET twitter/_doc/1/_source?_source_includes=*.id&_source_excludes=entities'
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

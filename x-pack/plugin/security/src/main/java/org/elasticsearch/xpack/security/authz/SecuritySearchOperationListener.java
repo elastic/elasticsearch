@@ -45,7 +45,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      */
     @Override
     public void onNewScrollContext(SearchContext searchContext) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed()) {
+        if (licenseState.isAuthAllowed()) {
             searchContext.scrollContext().putInContext(AuthenticationField.AUTHENTICATION_KEY,
                     Authentication.getAuthentication(threadContext));
         }
@@ -57,7 +57,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      */
     @Override
     public void validateSearchContext(SearchContext searchContext, TransportRequest request) {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed()) {
+        if (licenseState.isAuthAllowed()) {
             if (searchContext.scrollContext() != null) {
                 final Authentication originalAuth = searchContext.scrollContext().getFromContext(AuthenticationField.AUTHENTICATION_KEY);
                 final Authentication current = Authentication.getAuthentication(threadContext);

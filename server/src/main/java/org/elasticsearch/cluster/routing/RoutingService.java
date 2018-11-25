@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,6 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * </p>
  */
 public class RoutingService extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(RoutingService.class);
 
     private static final String CLUSTER_UPDATE_TASK_SOURCE = "cluster_reroute";
 
@@ -90,30 +93,33 @@ public class RoutingService extends AbstractLifecycleComponent {
                 return;
             }
             logger.trace("rerouting {}", reason);
-            clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE + "(" + reason + ")", new ClusterStateUpdateTask(Priority.HIGH) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    rerouting.set(false);
-                    return allocationService.reroute(currentState, reason);
-                }
-
-                @Override
-                public void onNoLongerMaster(String source) {
-                    rerouting.set(false);
-                    // no biggie
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    rerouting.set(false);
-                    ClusterState state = clusterService.state();
-                    if (logger.isTraceEnabled()) {
-                        logger.error(() -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state), e);
-                    } else {
-                        logger.error(() -> new ParameterizedMessage("unexpected failure during [{}], current state version [{}]", source, state.version()), e);
+            clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE + "(" + reason + ")",
+                new ClusterStateUpdateTask(Priority.HIGH) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        rerouting.set(false);
+                        return allocationService.reroute(currentState, reason);
                     }
-                }
-            });
+
+                    @Override
+                    public void onNoLongerMaster(String source) {
+                        rerouting.set(false);
+                        // no biggie
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        rerouting.set(false);
+                        ClusterState state = clusterService.state();
+                        if (logger.isTraceEnabled()) {
+                            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}",
+                                source, state), e);
+                        } else {
+                            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}], current state version [{}]",
+                                source, state.version()), e);
+                        }
+                    }
+                });
         } catch (Exception e) {
             rerouting.set(false);
             ClusterState state = clusterService.state();

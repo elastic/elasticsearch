@@ -35,7 +35,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
         final DefaultAuthenticationFailureHandler failuerHandler;
         if (testDefault) {
-            failuerHandler = new DefaultAuthenticationFailureHandler();
+            failuerHandler = new DefaultAuthenticationFailureHandler(Collections.emptyMap());
         } else {
             final Map<String, List<String>> failureResponeHeaders = new HashMap<>();
             failureResponeHeaders.put("WWW-Authenticate", Arrays.asList(basicAuthScheme, bearerAuthScheme));
@@ -50,7 +50,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         if (testDefault) {
             assertWWWAuthenticateWithSchemes(ese, basicAuthScheme);
         } else {
-            assertWWWAuthenticateWithSchemes(ese, basicAuthScheme, bearerAuthScheme);
+            assertWWWAuthenticateWithSchemes(ese, bearerAuthScheme, basicAuthScheme);
         }
     }
 
@@ -83,12 +83,12 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
                 assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
                 assertThat(ese, is(sameInstance(cause)));
                 if (withAuthenticateHeader == false) {
-                    assertWWWAuthenticateWithSchemes(ese, basicAuthScheme, bearerAuthScheme, negotiateAuthScheme);
+                    assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, basicAuthScheme);
                 } else {
                     if (selectedScheme.contains("Negotiate ")) {
                         assertWWWAuthenticateWithSchemes(ese, selectedScheme);
                     } else {
-                        assertWWWAuthenticateWithSchemes(ese, basicAuthScheme, bearerAuthScheme, negotiateAuthScheme);
+                        assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, basicAuthScheme);
                     }
                 }
                 assertThat(ese.getMessage(), equalTo("unauthorized"));
@@ -102,9 +102,28 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
             assertThat(ese, is(notNullValue()));
             assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
             assertThat(ese.getMessage(), equalTo("error attempting to authenticate request"));
-            assertWWWAuthenticateWithSchemes(ese, basicAuthScheme, bearerAuthScheme, negotiateAuthScheme);
+            assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, basicAuthScheme);
         }
 
+    }
+
+    public void testSortsWWWAuthenticateHeaderValues() {
+        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
+        final String negotiateAuthScheme = randomFrom("Negotiate", "Negotiate Ijoijksdk");
+        final Map<String, List<String>> failureResponeHeaders = new HashMap<>();
+        final List<String> supportedSchemes = Arrays.asList(basicAuthScheme, bearerAuthScheme, negotiateAuthScheme);
+        Collections.shuffle(supportedSchemes, random());
+        failureResponeHeaders.put("WWW-Authenticate", supportedSchemes);
+        final DefaultAuthenticationFailureHandler failuerHandler = new DefaultAuthenticationFailureHandler(failureResponeHeaders);
+
+        final ElasticsearchSecurityException ese = failuerHandler.exceptionProcessingRequest(Mockito.mock(RestRequest.class), null,
+                new ThreadContext(Settings.builder().build()));
+
+        assertThat(ese, is(notNullValue()));
+        assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
+        assertThat(ese.getMessage(), equalTo("error attempting to authenticate request"));
+        assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, basicAuthScheme);
     }
 
     private void assertWWWAuthenticateWithSchemes(final ElasticsearchSecurityException ese, final String... schemes) {

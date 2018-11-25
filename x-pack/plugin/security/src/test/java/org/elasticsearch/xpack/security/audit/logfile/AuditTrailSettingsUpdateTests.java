@@ -21,11 +21,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.regex.Pattern;
-
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -106,28 +106,45 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
     public void testDynamicHostSettings() {
         final boolean persistent = randomBoolean();
         final Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), true);
-        settingsBuilder.put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), true);
-        settingsBuilder.put(LoggingAuditTrail.NODE_NAME_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), true);
         updateSettings(settingsBuilder.build(), persistent);
-        final LoggingAuditTrail loggingAuditTrail = ((LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
+        final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
                 .iterator()
                 .next()
                 .getAuditTrails()
                 .iterator()
-                .next());
-        assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[127\\.0\\.0\\.1\\] \\[node_.*\\] ", loggingAuditTrail.localNodeInfo.prefix));
-        settingsBuilder.put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), false);
+                .next();
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(true));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is("127.0.0.1"));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is("127.0.0.1"));
+        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), false);
         updateSettings(settingsBuilder.build(), persistent);
-        assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[node_.*\\] ", loggingAuditTrail.localNodeInfo.prefix));
-        settingsBuilder.put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), true);
-        settingsBuilder.put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), false);
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(true));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is("127.0.0.1"));
+        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), false);
         updateSettings(settingsBuilder.build(), persistent);
-        assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[node_.*\\] ", loggingAuditTrail.localNodeInfo.prefix));
-        settingsBuilder.put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), true);
-        settingsBuilder.put(LoggingAuditTrail.NODE_NAME_SETTING.getKey(), false);
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(true));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(false));
+        settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), false);
         updateSettings(settingsBuilder.build(), persistent);
-        assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[127\\.0\\.0\\.1\\] ", loggingAuditTrail.localNodeInfo.prefix));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_NAME_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(true));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(false));
+        settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), false);
+        updateSettings(settingsBuilder.build(), persistent);
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_NAME_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(false));
     }
 
     public void testDynamicRequestBodySettings() {
@@ -136,12 +153,12 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         final Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), enableRequestBody);
         updateSettings(settingsBuilder.build(), persistent);
-        final LoggingAuditTrail loggingAuditTrail = ((LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
+        final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
                 .iterator()
                 .next()
                 .getAuditTrails()
                 .iterator()
-                .next());
+                .next();
         assertEquals(enableRequestBody, loggingAuditTrail.includeRequestBody);
         settingsBuilder.put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), !enableRequestBody);
         updateSettings(settingsBuilder.build(), persistent);
@@ -158,12 +175,12 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         settingsBuilder.putList(LoggingAuditTrail.INCLUDE_EVENT_SETTINGS.getKey(), includedEvents);
         settingsBuilder.putList(LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS.getKey(), excludedEvents);
         updateSettings(settingsBuilder.build(), randomBoolean());
-        final LoggingAuditTrail loggingAuditTrail = ((LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
+        final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
                 .iterator()
                 .next()
                 .getAuditTrails()
                 .iterator()
-                .next());
+                .next();
         assertEquals(AuditLevel.parse(includedEvents, excludedEvents), loggingAuditTrail.events);
     }
 

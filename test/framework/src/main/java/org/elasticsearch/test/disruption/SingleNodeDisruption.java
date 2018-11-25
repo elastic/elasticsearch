@@ -34,12 +34,6 @@ public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
     protected volatile InternalTestCluster cluster;
     protected final Random random;
 
-
-    public SingleNodeDisruption(String disruptedNode, Random random) {
-        this(random);
-        this.disruptedNode = disruptedNode;
-    }
-
     public SingleNodeDisruption(Random random) {
         this.random = new Random(random.nextLong());
     }

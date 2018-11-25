@@ -24,6 +24,11 @@ import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
+import org.elasticsearch.xpack.sql.expression.literal.Interval;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.Intervals;
+import org.elasticsearch.xpack.sql.expression.literal.Intervals.TimeUnit;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -66,6 +71,9 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FunctionExpressionContex
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FunctionTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.GuidEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.IntegerLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.IntervalContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.IntervalFieldContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.IntervalLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LikePatternContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalNotContext;
@@ -73,6 +81,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MatchQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MatchQueryOptionsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MultiMatchQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NullLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NumberContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.OrderByContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ParamLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ParenthesizedExpressionContext;
@@ -95,12 +104,16 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.DateTimeFormatterBuilder;
 import org.joda.time.format.ISODateTimeFormat;
 
-import java.math.BigInteger;
+import java.time.Duration;
+import java.time.Period;
+import java.time.temporal.TemporalAmount;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -413,11 +426,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             ConvertTemplateContext convertTc = ctx.convertTemplate();
             String convertDataType = convertTc.dataType().getText().toUpperCase(Locale.ROOT);
             DataType dataType;
-            if (convertDataType.startsWith(DataType.ODBC_DATATYPE_PREFIX)) {
-                dataType = DataType.fromODBCType(convertDataType);
+            if (convertDataType.startsWith("SQL_")) {
+                dataType = DataType.fromOdbcType(convertDataType);
                 if (dataType == null) {
                     throw new ParsingException(source(convertTc.dataType()), "Invalid data type [{}] provided", convertDataType);
-                }
+    }
             } else {
                 try {
                     dataType = DataType.valueOf(convertDataType);
@@ -495,13 +508,118 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public Literal visitIntervalLiteral(IntervalLiteralContext ctx) {
+
+        IntervalContext interval = ctx.interval();
+
+        TimeUnit leading = visitIntervalField(interval.leading);
+        TimeUnit trailing = visitIntervalField(interval.trailing);
+        
+        // only YEAR TO MONTH or DAY TO HOUR/MINUTE/SECOND are valid declaration
+        if (trailing != null) {
+            if (leading == TimeUnit.YEAR && trailing != TimeUnit.MONTH) {
+                throw new ParsingException(source(interval.trailing),
+                        "Invalid interval declaration; YEAR trailing unit required to be MONTH, received {}", trailing);
+            } else {
+                if (trailing.ordinal() <= leading.ordinal()) {
+                    EnumSet<TimeUnit> range = EnumSet.range(leading, TimeUnit.SECOND);
+                    range.remove(leading);
+                    throw new ParsingException(source(interval.trailing),
+                            "Invalid interval declaration; trailing unit [{}] needs to be smaller than leading unit[{}], "
+                            + "expected one of {}", trailing, leading, range);
+                }
+            }
+        }
+
+        DataType intervalType = Intervals.intervalType(source(interval), leading, trailing);
+
+        boolean negative = interval.sign != null && interval.sign.getType() == SqlBaseParser.MINUS;
+
+        TemporalAmount value = null;
+        String valueAsText = null;
+
+        if (interval.valueNumeric != null) {
+            if (trailing != null) {
+                throw new ParsingException(source(interval.trailing),
+                        "Invalid interval declaration; trailing unit [{}] specified but the value is with numeric (single unit), "
+                        + "use the string notation instead", trailing);
+            }
+            value = of(interval.valueNumeric, leading);
+            valueAsText = interval.valueNumeric.getText();
+        } else {
+            value = of(interval.valuePattern, negative, intervalType);
+            valueAsText = interval.valuePattern.getText();
+        }
+
+        String name = "INTERVAL " + valueAsText + " " + leading.name() + (trailing != null ? " TO " + trailing.name() : "");
+
+        Interval<?> timeInterval = value instanceof Period ? new IntervalYearMonth((Period) value,
+                intervalType) : new IntervalDayTime((Duration) value, intervalType);
+
+        return new Literal(source(ctx), name, timeInterval, intervalType);
+    }
+
+    private TemporalAmount of(NumberContext valueNumeric, TimeUnit unit) {
+        // expect numbers for now
+        // as the number parsing handles the -, there's no need to look at that
+        Literal value = (Literal) visit(valueNumeric);
+        Number numeric = (Number) value.fold();
+
+        if (Math.rint(numeric.doubleValue()) != numeric.longValue()) {
+            throw new ParsingException(source(valueNumeric), "Fractional values are not supported for intervals");
+        }
+
+        return Intervals.of(source(valueNumeric), numeric.longValue(), unit);
+    }
+
+    private TemporalAmount of(StringContext valuePattern, boolean negative, DataType intervalType) {
+        String valueString = string(valuePattern);
+        Location loc = source(valuePattern);
+        TemporalAmount interval = Intervals.parseInterval(loc, valueString, intervalType);
+        if (negative) {
+            interval = Intervals.negate(interval);
+        }
+        return interval;
+    }
+
+    @Override
+    public Intervals.TimeUnit visitIntervalField(IntervalFieldContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+
+        switch (ctx.getChild(TerminalNode.class, 0).getSymbol().getType()) {
+            case SqlBaseParser.YEAR:
+            case SqlBaseParser.YEARS:
+                return Intervals.TimeUnit.YEAR;
+            case SqlBaseParser.MONTH:
+            case SqlBaseParser.MONTHS:
+                return Intervals.TimeUnit.MONTH;
+            case SqlBaseParser.DAY:
+            case SqlBaseParser.DAYS:
+                return Intervals.TimeUnit.DAY;
+            case SqlBaseParser.HOUR:
+            case SqlBaseParser.HOURS:
+                return Intervals.TimeUnit.HOUR;
+            case SqlBaseParser.MINUTE:
+            case SqlBaseParser.MINUTES:
+                return Intervals.TimeUnit.MINUTE;
+            case SqlBaseParser.SECOND:
+            case SqlBaseParser.SECONDS:
+                return Intervals.TimeUnit.SECOND;
+        }
+
+        throw new IllegalArgumentException("Unsupported interval field: " + ctx.getText());
+    }
+
+    @Override
     public Expression visitBooleanLiteral(BooleanLiteralContext ctx) {
         boolean value;
         try {
             value = Booleans.parseBoolean(ctx.getText().toLowerCase(Locale.ROOT), false);
         } catch(IllegalArgumentException iae) {
             throw new ParsingException(source(ctx), iae.getMessage());
-        }
+    }
         return new Literal(source(ctx), Boolean.valueOf(value), DataType.BOOLEAN);
     }
 
@@ -516,40 +634,23 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitDecimalLiteral(DecimalLiteralContext ctx) {
-        String ctxText = (hasMinusFromParent(ctx) ? "-" : "") + ctx.getText();
-        double value;
+        String string = (hasMinusFromParent(ctx) ? "-" : "") + ctx.getText();
         try {
-            value = Double.parseDouble(ctxText);
-        } catch (NumberFormatException nfe) {
-            throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctxText);
+            return new Literal(source(ctx), Double.valueOf(StringUtils.parseDouble(string)), DataType.DOUBLE);
+        } catch (SqlIllegalArgumentException siae) {
+            throw new ParsingException(source(ctx), siae.getMessage());
         }
-        if (Double.isInfinite(value)) {
-            throw new ParsingException(source(ctx), "Number [{}] is too large", ctxText);
-        }
-        if (Double.isNaN(value)) {
-            throw new ParsingException(source(ctx), "[{}] cannot be parsed as a number (NaN)", ctxText);
-        }
-        return new Literal(source(ctx), Double.valueOf(value), DataType.DOUBLE);
     }
 
     @Override
     public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
-        String ctxText = (hasMinusFromParent(ctx) ? "-" : "") + ctx.getText();
+        String string = (hasMinusFromParent(ctx) ? "-" : "") + ctx.getText();
+
         long value;
         try {
-            value = Long.parseLong(ctxText);
-        } catch (NumberFormatException nfe) {
-            try {
-                BigInteger bi = new BigInteger(ctxText);
-                try {
-                    bi.longValueExact();
-                } catch (ArithmeticException ae) {
-                    throw new ParsingException(source(ctx), "Number [{}] is too large", ctxText);
-                }
-            } catch (NumberFormatException ex) {
-                // parsing fails, go through
-            }
-            throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctxText);
+            value = Long.valueOf(StringUtils.parseLong(string));
+        } catch (SqlIllegalArgumentException siae) {
+            throw new ParsingException(source(ctx), siae.getMessage());
         }
 
         DataType type = DataType.LONG;
@@ -563,27 +664,28 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitParamLiteral(ParamLiteralContext ctx) {
         SqlTypedParamValue param = param(ctx.PARAM());
+        DataType dataType = DataType.fromTypeName(param.type);
         Location loc = source(ctx);
         if (param.value == null) {
             // no conversion is required for null values
-            return new Literal(loc, null, param.dataType);
+            return new Literal(loc, null, dataType);
         }
         final DataType sourceType;
         try {
             sourceType = DataTypes.fromJava(param.value);
         } catch (SqlIllegalArgumentException ex) {
             throw new ParsingException(ex, loc, "Unexpected actual parameter type [{}] for type [{}]", param.value.getClass().getName(),
-                    param.dataType);
+                    param.type);
         }
-        if (sourceType == param.dataType) {
+        if (sourceType == dataType) {
             // no conversion is required if the value is already have correct type
-            return new Literal(loc, param.value, param.dataType);
+            return new Literal(loc, param.value, dataType);
         }
         // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
         try {
-            return new Literal(loc, conversionFor(sourceType, param.dataType).convert(param.value), param.dataType);
+            return new Literal(loc, conversionFor(sourceType, dataType).convert(param.value), dataType);
         } catch (SqlIllegalArgumentException ex) {
-            throw new ParsingException(ex, loc, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.dataType);
+            throw new ParsingException(ex, loc, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);
         }
     }
 
@@ -719,16 +821,21 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private boolean hasMinusFromParent(SqlBaseParser.NumberContext ctx) {
         ParserRuleContext parentCtx = ctx.getParent();
-        if (parentCtx != null && parentCtx instanceof SqlBaseParser.NumericLiteralContext) {
-            parentCtx = parentCtx.getParent();
-            if (parentCtx != null && parentCtx instanceof SqlBaseParser.ConstantDefaultContext) {
+        if (parentCtx != null) {
+            if (parentCtx instanceof SqlBaseParser.NumericLiteralContext) {
                 parentCtx = parentCtx.getParent();
-                if (parentCtx != null && parentCtx instanceof SqlBaseParser.ValueExpressionDefaultContext) {
+                if (parentCtx != null && parentCtx instanceof SqlBaseParser.ConstantDefaultContext) {
                     parentCtx = parentCtx.getParent();
-                    if (parentCtx != null && parentCtx instanceof SqlBaseParser.ArithmeticUnaryContext) {
-                        return ((ArithmeticUnaryContext) parentCtx).MINUS() != null;
+                    if (parentCtx != null && parentCtx instanceof SqlBaseParser.ValueExpressionDefaultContext) {
+                        parentCtx = parentCtx.getParent();
+                        if (parentCtx != null && parentCtx instanceof SqlBaseParser.ArithmeticUnaryContext) {
+                            return ((ArithmeticUnaryContext) parentCtx).MINUS() != null;
+                        }
                     }
                 }
+            } else if (parentCtx instanceof SqlBaseParser.IntervalContext) {
+                IntervalContext ic = (IntervalContext) parentCtx;
+                return ic.sign != null && ic.sign.getType() == SqlBaseParser.MINUS;
             }
         }
         return false;

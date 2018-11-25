@@ -171,7 +171,7 @@ public class RestUtils {
             char c = s.charAt(i);
             switch (c) {
                 case '+':
-                    buf[pos++] = (byte) (DECODE_PLUS_AS_SPACE ? ' ' : 'x');  // "+" -> " "
+                    buf[pos++] = (byte) (DECODE_PLUS_AS_SPACE ? ' ' : '+');  // "+" -> " "
                     break;
                 case '%':
                     if (i == size - 1) {

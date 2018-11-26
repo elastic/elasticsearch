@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
-import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptWeaver;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -29,14 +26,13 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
-public class In extends NamedExpression implements ScriptWeaver {
+public class In extends ScalarFunction {
 
     private final Expression value;
     private final List<Expression> list;
-    private Attribute lazyAttribute;
 
     public In(Location location, Expression value, List<Expression> list) {
-        super(location, null, CollectionUtils.combine(list, value), null);
+        super(location, CollectionUtils.combine(list, value));
         this.value = value;
         this.list = new ArrayList<>(new LinkedHashSet<>(list));
     }
@@ -93,15 +89,6 @@ public class In extends NamedExpression implements ScriptWeaver {
         StringJoiner sj = new StringJoiner(", ", " IN (", ")");
         list.forEach(e -> sj.add(Expressions.name(e)));
         return Expressions.name(value) + sj.toString();
-    }
-
-    @Override
-    public Attribute toAttribute() {
-        if (lazyAttribute == null) {
-            lazyAttribute = new ScalarFunctionAttribute(location(), name(), dataType(), null,
-                false, id(), false, "IN", asScript(), null, asPipe());
-        }
-        return lazyAttribute;
     }
 
     @Override

@@ -129,9 +129,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.maxDeterminizedStates(randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.autoGeneratePhraseQueries(randomBoolean());
-        }
-        if (randomBoolean()) {
             queryStringQueryBuilder.enablePositionIncrements(randomBoolean());
         }
         if (randomBoolean()) {
@@ -1386,6 +1383,54 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     Settings.builder().putList("index.query.default_field", "*").build())
             );
         }
+    }
+
+    public void testPhraseSlop() throws Exception {
+        Query query = new QueryStringQueryBuilder("quick fox")
+            .field(STRING_FIELD_NAME)
+            .type(MultiMatchQueryBuilder.Type.PHRASE)
+            .toQuery(createShardContext());
+
+        PhraseQuery expected = new PhraseQuery.Builder()
+            .add(new Term(STRING_FIELD_NAME, "quick"))
+            .add(new Term(STRING_FIELD_NAME, "fox"))
+            .build();
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("quick fox")
+            .field(STRING_FIELD_NAME)
+            .type(MultiMatchQueryBuilder.Type.PHRASE)
+            .phraseSlop(2)
+            .toQuery(createShardContext());
+
+        expected = new PhraseQuery.Builder()
+            .add(new Term(STRING_FIELD_NAME, "quick"))
+            .add(new Term(STRING_FIELD_NAME, "fox"))
+            .setSlop(2)
+            .build();
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("\"quick fox\"")
+            .field(STRING_FIELD_NAME)
+            .phraseSlop(2)
+            .toQuery(createShardContext());
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("\"quick fox\"~2")
+            .field(STRING_FIELD_NAME)
+            .phraseSlop(10)
+            .toQuery(createShardContext());
+        assertEquals(expected, query);
+    }
+
+    public void testAnalyzedPrefix() throws Exception {
+        Query query = new QueryStringQueryBuilder("quick* @&*")
+            .field(STRING_FIELD_NAME)
+            .analyzer("standard")
+            .analyzeWildcard(true)
+            .toQuery(createShardContext());
+        Query expected = new PrefixQuery(new Term(STRING_FIELD_NAME, "quick"));
+        assertEquals(expected, query);
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

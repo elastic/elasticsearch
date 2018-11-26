@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.stats.QueryMetric;
 import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.util.ArrayList;
@@ -58,13 +59,26 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         // the rest having default values (since the query is already created)
         Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
                 request.filter());
+        
+        // mode() shouldn't be null
+        QueryMetric metric = QueryMetric.from(request.mode(), request.clientId());
+        planExecutor.metrics().total(metric);
 
         if (Strings.hasText(request.cursor()) == false) {
             planExecutor.sql(cfg, request.query(), request.params(),
-                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)), listener::onFailure));
+                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)),
+                            e -> {
+                                planExecutor.metrics().failed(metric);
+                                listener.onFailure(e);
+                            }));
         } else {
+            planExecutor.metrics().paging(metric);
             planExecutor.nextPage(cfg, Cursors.decodeFromString(request.cursor()),
-                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet, null)), listener::onFailure));
+                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet, null)),
+                            e -> {
+                                planExecutor.metrics().failed(metric);
+                                listener.onFailure(e);
+                            }));
         }
     }
 
@@ -72,7 +86,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
         for (Schema.Entry entry : rowSet.schema()) {
             if (Mode.isDriver(request.mode())) {
-                columns.add(new ColumnInfo("", entry.name(), entry.type().esType, entry.type().jdbcType,
+                columns.add(new ColumnInfo("", entry.name(), entry.type().esType, entry.type().sqlType.getVendorTypeNumber(),
                         entry.type().displaySize));
             } else {
                 columns.add(new ColumnInfo("", entry.name(), entry.type().esType));

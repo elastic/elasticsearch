@@ -20,6 +20,7 @@
 package org.elasticsearch.index.snapshots;
 
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -58,6 +59,7 @@ public class IndexShardSnapshotStatus {
     }
 
     private final AtomicReference<Stage> stage;
+    private final CompletableFuture<Void> abortFuture = new CompletableFuture<>();
     private long startTime;
     private long totalTime;
     private int incrementalFileCount;
@@ -124,6 +126,7 @@ public class IndexShardSnapshotStatus {
     public synchronized Copy abortIfNotCompleted(final String failure) {
         if (stage.compareAndSet(Stage.INIT, Stage.ABORTED) || stage.compareAndSet(Stage.STARTED, Stage.ABORTED)) {
             this.failure = failure;
+            abortFuture.complete(null);
         }
         return asCopy();
     }
@@ -133,6 +136,10 @@ public class IndexShardSnapshotStatus {
             this.totalTime = Math.max(0L, endTime - startTime);
             this.failure = failure;
         }
+    }
+
+    public CompletableFuture<Void> abortFuture() {
+        return abortFuture;
     }
 
     public boolean isAborted() {

@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -67,6 +68,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -106,7 +108,6 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.DirectoryNotEmptyException;
@@ -1164,6 +1165,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         private final Store store;
         private final IndexShardSnapshotStatus snapshotStatus;
+        private final CancellableThreads cancellableThreads = new CancellableThreads() {
+            @Override
+            protected void onCancel(String reason, @Nullable Exception suppressedException) {
+                throw new IndexShardSnapshotFailedException(shardId, "Aborted");
+            }
+        };
         private final long startTime;
 
         /**
@@ -1177,6 +1184,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         SnapshotContext(Store store, SnapshotId snapshotId, IndexId indexId, IndexShardSnapshotStatus snapshotStatus, long startTime) {
             super(snapshotId, Version.CURRENT, indexId, store.shardId());
             this.snapshotStatus = snapshotStatus;
+            snapshotStatus.abortFuture().thenAccept(v -> cancellableThreads.cancel("snapshot aborted"));
             this.store = store;
             this.startTime = startTime;
         }
@@ -1331,13 +1339,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     final long partBytes = fileInfo.partBytes(i);
 
                     final InputStreamIndexInput inputStreamIndexInput = new InputStreamIndexInput(indexInput, partBytes);
-                    InputStream inputStream = inputStreamIndexInput;
+                    final InputStream inputStream;
                     if (snapshotRateLimiter != null) {
                         inputStream = new RateLimitingInputStream(inputStreamIndexInput, snapshotRateLimiter,
                                                                   snapshotRateLimitingTimeInNanos::inc);
+                    } else {
+                        inputStream = inputStreamIndexInput;
                     }
-                    inputStream = new AbortableInputStream(inputStream, fileInfo.physicalName());
-                    blobContainer.writeBlob(fileInfo.partName(i), inputStream, partBytes, true);
+                    final int index = i;
+                    cancellableThreads.executeIO(
+                        () -> blobContainer.writeBlob(fileInfo.partName(index), inputStream, partBytes, true)
+                    );
                 }
                 Store.verify(indexInput);
                 snapshotStatus.addProcessedFile(fileInfo.length());
@@ -1385,34 +1397,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             // no file, not exact and not multipart
             return false;
-        }
-
-        private class AbortableInputStream extends FilterInputStream {
-            private final String fileName;
-
-            AbortableInputStream(InputStream delegate, String fileName) {
-                super(delegate);
-                this.fileName = fileName;
-            }
-
-            @Override
-            public int read() throws IOException {
-                checkAborted();
-                return in.read();
-            }
-
-            @Override
-            public int read(byte[] b, int off, int len) throws IOException {
-                checkAborted();
-                return in.read(b, off, len);
-            }
-
-            private void checkAborted() {
-                if (snapshotStatus.isAborted()) {
-                    logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
-                    throw new IndexShardSnapshotFailedException(shardId, "Aborted");
-                }
-            }
         }
     }
 

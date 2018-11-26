@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
@@ -220,6 +221,7 @@ public final class Verifier {
                 Set<Failure> localFailures = new LinkedHashSet<>();
 
                 validateInExpression(p, localFailures);
+                validateConditional(p, localFailures);
 
                 if (!groupingFailures.contains(p)) {
                     checkGroupBy(p, localFailures, resolvedFunctions, groupingFailures);
@@ -578,7 +580,7 @@ public final class Verifier {
             e.forEachUp((In in) -> {
                     DataType dt = in.value().dataType();
                     for (Expression value : in.list()) {
-                        if (areTypesCompatible(in.value().dataType(), value.dataType()) == false) {
+                        if (areTypesCompatible(dt, value.dataType()) == false) {
                             localFailures.add(fail(value, "expected data type [%s], value provided is of type [%s]",
                                 dt, value.dataType()));
                             return;
@@ -586,6 +588,30 @@ public final class Verifier {
                     }
                 },
                 In.class));
+    }
+
+    private static void validateConditional(LogicalPlan p, Set<Failure> localFailures) {
+        p.forEachExpressions(e ->
+            e.forEachUp((ConditionalFunction greatest) -> {
+                    int idx = 0;
+                    DataType dt = DataType.NULL;
+                    for (; idx < greatest.children().size(); idx++) {
+                        DataType childDT = greatest.children().get(idx).dataType();
+                        if (childDT != DataType.NULL) {
+                            dt = childDT;
+                            break;
+                        }
+                    }
+                    for (; idx < greatest.children().size(); idx++) {
+                        Expression value = greatest.children().get(idx);
+                        if (areTypesCompatible(dt, value.dataType()) == false) {
+                            localFailures.add(fail(value, "expected data type [%s], value provided is of type [%s]",
+                                dt, value.dataType()));
+                            return;
+                        }
+                    }
+                },
+                ConditionalFunction.class));
     }
 
     private static boolean areTypesCompatible(DataType left, DataType right) {

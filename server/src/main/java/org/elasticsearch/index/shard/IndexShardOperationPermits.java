@@ -34,9 +34,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -103,7 +103,11 @@ final class IndexShardOperationPermits implements Closeable {
             final long timeout,
             final TimeUnit timeUnit,
             final CheckedRunnable<E> onBlocked) throws InterruptedException, TimeoutException, E {
-        delayOperations();
+        verifyNotClosed();
+        synchronized (this) {
+            assert queuedBlockOperations > 0 || delayedOperations.isEmpty();
+            queuedBlockOperations++;
+        }
         try (Releasable ignored = acquireAll(timeout, timeUnit)) {
             onBlocked.run();
         } finally {
@@ -121,9 +125,37 @@ final class IndexShardOperationPermits implements Closeable {
      * @param timeout    the maximum time to wait for the in-flight operations block
      * @param timeUnit   the time unit of the {@code timeout} argument
      */
-    public void asyncBlockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit)  {
-        delayOperations();
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
+    public void asyncBlockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit) {
+        verifyNotClosed();
+        synchronized (this) {
+            assert queuedBlockOperations > 0 || delayedOperations.isEmpty();
+            final boolean delayed = queuedBlockOperations > 0;
+            queuedBlockOperations++;
+            if (delayed) {
+                delayedOperations.add(new AsyncBlockDelayedOperation(onAcquired, timeout, timeUnit));
+                return;
+            }
+        }
+        asyncBlockOperations(onAcquired, timeout, timeUnit, ThreadPool.Names.GENERIC);
+    }
+
+    private void asyncBlockOperations(final ActionListener<Releasable> onAcquired,
+                                      final long timeout,
+                                      final TimeUnit timeUnit,
+                                      final String executor)  {
+        if (Assertions.ENABLED) {
+            // since queuedBlockOperations is not volatile, we have to synchronize even here for visibility
+            synchronized (this) {
+                assert queuedBlockOperations > 0;
+            }
+        }
+        try {
+            verifyNotClosed();
+        } catch (final IndexShardClosedException e) {
+            onAcquired.onFailure(new IndexShardClosedException(shardId));
+            return;
+        }
+        threadPool.executor(executor).execute(new AbstractRunnable() {
 
             final RunOnce released = new RunOnce(() -> releaseDelayedOperations());
 
@@ -150,19 +182,15 @@ final class IndexShardOperationPermits implements Closeable {
         });
     }
 
-    private void delayOperations() {
+    private void verifyNotClosed() {
         if (closed) {
             throw new IndexShardClosedException(shardId);
-        }
-        synchronized (this) {
-            assert queuedBlockOperations > 0 || delayedOperations.isEmpty();
-            queuedBlockOperations++;
         }
     }
 
     private Releasable acquireAll(final long timeout, final TimeUnit timeUnit) throws InterruptedException, TimeoutException {
         if (Assertions.ENABLED) {
-            // since delayed is not volatile, we have to synchronize even here for visibility
+            // since queuedBlockOperations is not volatile, we have to synchronize even here for visibility
             synchronized (this) {
                 assert queuedBlockOperations > 0;
             }
@@ -187,10 +215,19 @@ final class IndexShardOperationPermits implements Closeable {
                 queuedActions = new ArrayList<>(delayedOperations);
                 delayedOperations.clear();
             } else {
-                queuedActions = Collections.emptyList();
+                queuedActions = new ArrayList<>();
+                // Execute the next async block operation if there is one
+                final Optional<DelayedOperation> nextAsyncOperation = delayedOperations.stream()
+                    .filter(op -> op instanceof AsyncBlockDelayedOperation)
+                    .findFirst();
+                if (nextAsyncOperation.isPresent()) {
+                    if (delayedOperations.remove(nextAsyncOperation.get())) {
+                        queuedActions.add(nextAsyncOperation.get());
+                    }
+                }
             }
         }
-        if (!queuedActions.isEmpty()) {
+        if (queuedActions.isEmpty() == false) {
             /*
              * Try acquiring permits on fresh thread (for two reasons):
              *   - blockOperations can be called on a recovery thread which can be expected to be interrupted when recovery is cancelled;
@@ -202,7 +239,7 @@ final class IndexShardOperationPermits implements Closeable {
              */
             threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
                 for (DelayedOperation queuedAction : queuedActions) {
-                    acquire(queuedAction.listener, null, false, queuedAction.debugInfo, queuedAction.stackTrace);
+                    queuedAction.run();
                 }
             });
         }
@@ -255,7 +292,7 @@ final class IndexShardOperationPermits implements Closeable {
                     } else {
                         wrappedListener = new ContextPreservingActionListener<>(contextSupplier, onAcquired);
                     }
-                    delayedOperations.add(new DelayedOperation(wrappedListener, debugInfo, stackTrace));
+                    delayedOperations.add(new SyncDelayedOperation(wrappedListener, debugInfo, stackTrace));
                     return;
                 } else {
                     releasable = acquire(debugInfo, stackTrace);
@@ -326,13 +363,25 @@ final class IndexShardOperationPermits implements Closeable {
             .collect(Collectors.toList());
     }
 
-    private static class DelayedOperation {
-        private final ActionListener<Releasable> listener;
+    private abstract class DelayedOperation extends AbstractRunnable {
+        protected final ActionListener<Releasable> listener;
+
+        private DelayedOperation(final ActionListener<Releasable> listener) {
+            this.listener = listener;
+        }
+
+        @Override
+        public void onFailure(final Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private class SyncDelayedOperation extends DelayedOperation {
         private final String debugInfo;
         private final StackTraceElement[] stackTrace;
 
-        private DelayedOperation(ActionListener<Releasable> listener, Object debugInfo, StackTraceElement[] stackTrace) {
-            this.listener = listener;
+        private SyncDelayedOperation(ActionListener<Releasable> listener, Object debugInfo, StackTraceElement[] stackTrace) {
+            super(listener);
             if (Assertions.ENABLED) {
                 this.debugInfo = "[delayed] " + debugInfo;
                 this.stackTrace = stackTrace;
@@ -340,6 +389,27 @@ final class IndexShardOperationPermits implements Closeable {
                 this.debugInfo = null;
                 this.stackTrace = null;
             }
+        }
+
+        @Override
+        public void doRun() throws Exception {
+            acquire(listener, null, false, debugInfo, stackTrace);
+        }
+    }
+
+    private class AsyncBlockDelayedOperation extends DelayedOperation {
+        private final long timeout;
+        private final TimeUnit timeUnit;
+
+        private AsyncBlockDelayedOperation(ActionListener<Releasable> listener, long timeout, TimeUnit timeUnit) {
+            super(listener);
+            this.timeout = timeout;
+            this.timeUnit = timeUnit;
+        }
+
+        @Override
+        public void doRun() throws Exception {
+            asyncBlockOperations(listener, timeout, timeUnit, ThreadPool.Names.SAME);
         }
     }
 

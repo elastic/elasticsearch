@@ -277,7 +277,7 @@ constant
     ;
 
 comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
+    : EQ | NULLEQ | NEQ | LT | LTE | GT | GTE
     ;
 
 booleanValue
@@ -452,7 +452,8 @@ GUID_ESC: '{GUID';
 ESC_END: '}';
 
 EQ  : '=';
-NEQ : '<>' | '!=' | '<=>';
+NULLEQ: '<=>';
+NEQ : '<>' | '!=';
 LT  : '<';
 LTE : '<=';
 GT  : '>';

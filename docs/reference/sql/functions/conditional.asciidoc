@@ -190,3 +190,87 @@ include-tagged::{sql-specs}/docs.csv-spec[nullIfReturnFirst]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[nullIfReturnNull]
 ----
+
+
+[[sql-functions-conditional-greatest]]
+==== `GREATEST`
+
+.Synopsis
+[source, sql]
+----
+GREATEST ( expression<1>, expression<2>, ... )
+----
+
+*Input*:
+
+<1> 1st expression
+
+<2> 2nd expression
+
+...
+
+**N**th expression
+
+GREATEST can take an arbitrary number of arguments and
+all of them must be of the same data type.
+
+*Output*: one of the expressions or `null`
+
+.Description
+
+Returns the argument that has the largest value which is not null.
+If all arguments are null, then it returns `null`.
+
+
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[greatestReturnNonNull]
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[greatestReturnNull]
+----
+
+
+[[sql-functions-conditional-least]]
+==== `LEAST`
+
+.Synopsis
+[source, sql]
+----
+LEAST ( expression<1>, expression<2>, ... )
+----
+
+*Input*:
+
+<1> 1st expression
+
+<2> 2nd expression
+
+...
+
+**N**th expression
+
+LEAST can take an arbitrary number of arguments and
+all of them must be of the same data type.
+
+*Output*: one of the expressions or `null`
+
+.Description
+
+Returns the argument that has the smallest value which is not null.
+If all arguments are null, then it returns `null`.
+
+
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[leastReturnNonNull]
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[leastReturnNull]
+----

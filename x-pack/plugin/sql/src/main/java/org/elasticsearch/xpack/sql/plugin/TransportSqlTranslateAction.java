@@ -51,7 +51,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
 
         planExecutor.metrics().translate();
         Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(),
-                request.requestTimeout(), request.pageTimeout(), request.filter(),
+                request.requestTimeout(), request.pageTimeout(), request.filter(), request.mode(),
                 username(), clusterService.getClusterName().value());
 
         planExecutor.searchSource(cfg, request.query(), request.params(), ActionListener.wrap(

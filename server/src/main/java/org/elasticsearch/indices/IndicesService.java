@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
@@ -154,6 +155,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 
 public class IndicesService extends AbstractLifecycleComponent
     implements IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>, IndexService.ShardStoreDeleter {
+    private static final Logger logger = LogManager.getLogger(IndicesService.class);
 
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
     public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING =
@@ -611,15 +613,11 @@ public class IndicesService extends AbstractLifecycleComponent
             (type, mapping) -> {
                 assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS:
                     "mapping update consumer only required by local shards recovery";
-                try {
-                    client.admin().indices().preparePutMapping()
-                        .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
-                        .setType(type)
-                        .setSource(mapping.source().string(), XContentType.JSON)
-                        .get();
-                } catch (IOException ex) {
-                    throw new ElasticsearchException("failed to stringify mapping source", ex);
-                }
+                client.admin().indices().preparePutMapping()
+                    .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
+                    .setType(type)
+                    .setSource(mapping.source().string(), XContentType.JSON)
+                    .get();
             }, this);
         return indexShard;
     }
@@ -1234,9 +1232,9 @@ public class IndicesService extends AbstractLifecycleComponent
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
-        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), () -> {
-            return "Shard: " + request.shardId() + "\nSource:\n" + request.source();
-        }, out -> {
+        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(),
+            () -> "Shard: " + request.shardId() + "\nSource:\n" + request.source(),
+            out -> {
             queryPhase.execute(context);
             try {
                 context.queryResult().writeToNoId(out);

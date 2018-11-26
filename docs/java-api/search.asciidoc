@@ -242,7 +242,7 @@ sr = new SearchTemplateRequestBuilder(client)
         .get()                                             <5>
         .getResponse();                                    <6>
 --------------------------------------------------
-<1> template name
+<1> template's body
 <2> template is passed inline
 <3> parameters
 <4> set the execution context (ie. define the index name here)

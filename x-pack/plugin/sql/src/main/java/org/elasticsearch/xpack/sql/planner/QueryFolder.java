@@ -286,7 +286,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 if (matchingGroup != null) {
                                     if (exp instanceof Attribute || exp instanceof ScalarFunction) {
                                         Processor action = null;
-                                        TimeZone tz = null;
+                                        TimeZone tz = DataType.DATE == exp.dataType() ? UTC : null;
                                         /*
                                          * special handling of dates since aggs return the typed Date object which needs
                                          * extraction instead of handling this in the scroller, the folder handles this

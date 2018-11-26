@@ -92,8 +92,8 @@ public class TransportShardCloseAction extends TransportReplicationAction<ShardC
             throw new IllegalStateException("On-going operations in progress while checking index shard " + shardId + " before closing");
         }
 
-        final ClusterBlocks clusterB = clusterService.state().blocks();
-        if (clusterB.hasIndexBlock(shardId.getIndexName(), EXPECTED_BLOCK) == false) {
+        final ClusterBlocks clusterBlocks = clusterService.state().blocks();
+        if (clusterBlocks.hasIndexBlock(shardId.getIndexName(), EXPECTED_BLOCK) == false) {
             throw new IllegalStateException("Index shard " + shardId + " must be blocked by " + EXPECTED_BLOCK + " before closing");
         }
 

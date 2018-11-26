@@ -64,7 +64,6 @@ public class TransportShardCloseActionTests extends ESTestCase {
         final ShardId shardId = new ShardId("index", "_na_", randomIntBetween(0, 3));
         when(indexShard.shardId()).thenReturn(shardId);
 
-
         clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(new ClusterState.Builder(new ClusterName("test"))
             .blocks(ClusterBlocks.builder().addIndexBlock("index", INDEX_CLOSED_BLOCK).build()).build());

@@ -216,8 +216,6 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
     public void setLastAcceptedState(ClusterState clusterState) {
         assert clusterState.blocks().disableStatePersistence() == false;
 
-        logger.error("setLastAcceptedState {}", clusterState);
-
         try {
             incrementalWrite = previousClusterState.term() == clusterState.term();
             updateClusterState(clusterState, previousClusterState);

@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -145,8 +146,8 @@ public class MlConfigMigrator {
         );
     }
 
-    private void removeFromClusterState(List<Job> jobs, List<DatafeedConfig> datafeedConfigs, ActionListener<Boolean> listener) {
-        if (jobs.isEmpty() && datafeedConfigs.isEmpty()) {
+    private void removeFromClusterState(List<Job> jobsToRemove, List<DatafeedConfig> datafeedsToRemove, ActionListener<Boolean> listener) {
+        if (jobsToRemove.isEmpty() && datafeedsToRemove.isEmpty()) {
             listener.onResponse(Boolean.FALSE);
             return;
         }
@@ -155,13 +156,13 @@ public class MlConfigMigrator {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(currentState);
-                Map<String, Job> currentJobs = currentMlMetadata.getJobs();
-                for (Job job : jobs) {
+                Map<String, Job> currentJobs = new HashMap<>(currentMlMetadata.getJobs());
+                for (Job job : jobsToRemove) {
                     currentJobs.remove(job.getId());
                 }
 
-                SortedMap<String, DatafeedConfig> currentDatafeeds = currentMlMetadata.getDatafeeds();
-                for (DatafeedConfig datafeed : datafeedConfigs) {
+                SortedMap<String, DatafeedConfig> currentDatafeeds = new TreeMap<>(currentMlMetadata.getDatafeeds());
+                for (DatafeedConfig datafeed : datafeedsToRemove) {
                     currentDatafeeds.remove(datafeed.getId());
                 }
 
@@ -184,8 +185,10 @@ public class MlConfigMigrator {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                logger.info("ml job configurations migrated: " + jobs);
-                logger.info("ml datafeed configurations migrated: " + datafeedConfigs);
+                logger.info("ml job configurations migrated: {}", jobsToRemove.stream()
+                        .map(Job::getId).collect(Collectors.toList()));
+                logger.info("ml datafeed configurations migrated: {}", () -> datafeedsToRemove.stream()
+                        .map(DatafeedConfig::getId).collect(Collectors.toList()));
                 listener.onResponse(Boolean.TRUE);
             }
         });
@@ -271,6 +274,8 @@ public class MlConfigMigrator {
                     logger.info("failed to index ml configuration [" + itemResponse.getFailure().getId() + "], " +
                             itemResponse.getFailure().getMessage());
                 }
+            } else {
+                logger.info("ml configuration [" + itemResponse.getId() + "] indexed");
             }
         }
         return failedDocumentIds;

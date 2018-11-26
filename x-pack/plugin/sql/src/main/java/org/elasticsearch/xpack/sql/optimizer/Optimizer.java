@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
@@ -1172,6 +1173,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return Literal.of(in, null);
                 }
 
+            } else if (e instanceof NullIf) {
+                return e;
+
             } else if (e.nullable() && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
             }
@@ -1228,6 +1232,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return e;
         }
     }
+
 
     static class BooleanSimplification extends OptimizerExpressionRule {
 

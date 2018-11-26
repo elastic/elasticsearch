@@ -112,6 +112,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -144,6 +145,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, Property.Dynamic, Property.NodeScope);
     public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS =
             Setting.boolSetting("search.default_allow_partial_results", true, Property.Dynamic, Property.NodeScope);
+
+    public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT =
+        Setting.intSetting("search.max_open_scroll_context", 150, 0, Property.NodeScope);
 
 
     private final ThreadPool threadPool;
@@ -181,6 +185,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
     private final MultiBucketConsumerService multiBucketConsumerService;
+
+    private final AtomicInteger openScrollContexts = new AtomicInteger();
 
     public SearchService(ClusterService clusterService, IndicesService indicesService,
                          ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
@@ -592,11 +598,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     final SearchContext createAndPutContext(ShardSearchRequest request) throws IOException {
+        if (request.scroll() != null && openScrollContexts.get() >= MAX_OPEN_SCROLL_CONTEXT.get(clusterService.getSettings())) {
+            throw new ElasticsearchException(
+                "Trying to create too many scroll contexts. Must be less than or equal to: [" +
+                    MAX_OPEN_SCROLL_CONTEXT.get(clusterService.getSettings()) + "]. " + "This limit can be set by changing the ["
+                    + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
+        }
+
         SearchContext context = createContext(request);
         boolean success = false;
         try {
             putContext(context);
             if (request.scroll() != null) {
+                openScrollContexts.incrementAndGet();
                 context.indexShard().getSearchOperationListener().onNewScrollContext(context);
             }
             context.indexShard().getSearchOperationListener().onNewContext(context);
@@ -696,6 +710,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 assert context.refCount() > 0 : " refCount must be > 0: " + context.refCount();
                 context.indexShard().getSearchOperationListener().onFreeContext(context);
                 if (context.scrollContext() != null) {
+                    openScrollContexts.decrementAndGet();
                     context.indexShard().getSearchOperationListener().onFreeScrollContext(context);
                 }
                 return true;

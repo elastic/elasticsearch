@@ -41,24 +41,14 @@ import javax.security.auth.login.LoginException;
  * It may respond with token which needs to be communicated with the peer.
  */
 public class KerberosTicketValidator {
-    static final Oid SPNEGO_OID = getSpnegoOid();
-    static final Oid KERBEROS_V5_OID = getKerberosOid();
+    static final Oid SPNEGO_OID = getOid("1.3.6.1.5.5.2");
+    static final Oid KERBEROS_V5_OID = getOid("1.2.840.113554.1.2.2");
     static final Oid[] SUPPORTED_OIDS = new Oid[] { SPNEGO_OID, KERBEROS_V5_OID };
 
-    private static Oid getSpnegoOid() {
+    private static Oid getOid(final String id) {
         Oid oid = null;
         try {
-            oid = new Oid("1.3.6.1.5.5.2");
-        } catch (GSSException gsse) {
-            throw ExceptionsHelper.convertToRuntime(gsse);
-        }
-        return oid;
-    }
-
-    private static Oid getKerberosOid() {
-        Oid oid = null;
-        try {
-            oid = new Oid("1.2.840.113554.1.2.2");
+            oid = new Oid(id);
         } catch (GSSException gsse) {
             throw ExceptionsHelper.convertToRuntime(gsse);
         }

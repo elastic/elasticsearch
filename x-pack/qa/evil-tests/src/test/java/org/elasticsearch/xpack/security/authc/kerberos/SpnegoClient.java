@@ -68,12 +68,12 @@ class SpnegoClient implements AutoCloseable {
      * @param password password for client
      * @param servicePrincipalName Service principal name with whom this client
      * interacts with.
-     * @param mech the Oid of the desired mechanism. Use (Oid) null to request
+     * @param mechanism the Oid of the desired mechanism. Use (Oid) null to request
      * the default mechanism.
      * @throws PrivilegedActionException when privileged action threw exception
      * @throws GSSException thrown when GSS API error occurs
      */
-    SpnegoClient(final String userPrincipalName, final SecureString password, final String servicePrincipalName,final Oid mech)
+    SpnegoClient(final String userPrincipalName, final SecureString password, final String servicePrincipalName, final Oid mechanism)
             throws PrivilegedActionException, GSSException {
         String oldUseSubjectCredsOnlyFlag = null;
         try {
@@ -85,9 +85,9 @@ class SpnegoClient implements AutoCloseable {
                     .doPrivileged((PrivilegedExceptionAction<LoginContext>) () -> loginUsingPassword(userPrincipalName, password));
             final GSSCredential userCreds = KerberosTestCase.doAsWrapper(loginContext.getSubject(),
                     (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(gssUserPrincipalName,
-                            GSSCredential.DEFAULT_LIFETIME, mech, GSSCredential.INITIATE_ONLY));
-            gssContext = gssManager.createContext(gssServicePrincipalName.canonicalize(mech),
-                    mech, userCreds, GSSCredential.DEFAULT_LIFETIME);
+                            GSSCredential.DEFAULT_LIFETIME, mechanism, GSSCredential.INITIATE_ONLY));
+            gssContext = gssManager.createContext(gssServicePrincipalName.canonicalize(mechanism),
+                    mechanism, userCreds, GSSCredential.DEFAULT_LIFETIME);
             gssContext.requestMutualAuth(true);
         } catch (PrivilegedActionException pve) {
             LOGGER.error("privileged action exception, with root cause", pve.getException());

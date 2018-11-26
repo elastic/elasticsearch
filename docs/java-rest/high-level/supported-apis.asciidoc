@@ -142,8 +142,8 @@ include::indices/put_template.asciidoc[]
 include::indices/validate_query.asciidoc[]
 include::indices/get_templates.asciidoc[]
 include::indices/get_index.asciidoc[]
-include::indices/freeze_index.asciidoc
-include::indices/unfreeze_index.asciidoc
+include::indices/freeze_index.asciidoc[]
+include::indices/unfreeze_index.asciidoc[]
 
 == Cluster APIs
 

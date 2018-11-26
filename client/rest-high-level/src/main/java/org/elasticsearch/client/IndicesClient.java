@@ -60,6 +60,8 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
+import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -871,7 +873,6 @@ public final class IndicesClient {
         return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::unfreezeIndex, options,
             ShardsAcknowledgedResponse::fromXContent, emptySet());
     }
-
 
     /**
      * Asynchronously calls the _unfreeze API

@@ -200,6 +200,7 @@ COALESCE        |CONDITIONAL
 IFNULL          |CONDITIONAL
 ISNULL          |CONDITIONAL
 NVL             |CONDITIONAL
+NULLIF          |CONDITIONAL
 DAY             |SCALAR
 DAYNAME         |SCALAR
 DAYOFMONTH      |SCALAR         
@@ -1596,4 +1597,45 @@ SELECT NVL(null, 'search') AS "nvl";
 ---------------
 search
 // end::nvlReturnSecond
+;
+
+
+nullIfReturnFirst
+// tag::nullIfReturnFirst
+SELECT NULLIF('elastic', 'search') AS "nullif";
+    nullif
+---------------
+elastic
+// end::nullIfReturnFirst
+;
+
+
+nullIfReturnNull
+// tag::nullIfReturnNull
+SELECT NULLIF('elastic', 'elastic') AS "nullif";
+
+    nullif:s
+---------------
+null
+// end::nullIfReturnNull
+;
+
+nullEqualsCompareWithNull
+// tag::nullEqualsCompareWithNull
+SELECT 'elastic' <=> null AS "equals";
+
+    equals
+---------------
+false
+// end::nullEqualsCompareWithNull
+;
+
+nullEqualsCompareTwoNulls
+// tag::nullEqualsCompareTwoNulls
+SELECT null <=> null AS "equals";
+
+    equals
+---------------
+true
+// end::nullEqualsCompareTwoNulls
 ;

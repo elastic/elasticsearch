@@ -12,4 +12,13 @@ coalesceWhere
 SELECT COALESCE(null, ABS(emp_no) + 1, 123) AS c FROM test_emp WHERE COALESCE(null, ABS(emp_no) + 1, 123, 321) > 100 ORDER BY emp_no NULLS FIRST LIMIT 5;
 
 ifNullField
-SELECT IFNULL(null, ABS(emp_no) + 1) AS c FROM test_emp ORDER BY emp_no LIMIT 5;
+SELECT IFNULL(null, ABS(emp_no) + 1) AS "ifnull" FROM test_emp ORDER BY emp_no LIMIT 5;
+
+nullIfField
+SELECT NULLIF(emp_no - 2 + 3, ABS(emp_no) + 1) AS "nullif1", NULLIF(emp_no + 1, emp_no - 1) as "nullif2" FROM test_emp ORDER BY emp_no LIMIT 5;
+
+nullIfWhere
+SELECT NULLIF(10002, ABS(emp_no) + 1) AS c, emp_no FROM test_emp WHERE NULLIF(10003, ABS(emp_no) + 1) IS NOT NULL ORDER BY emp_no NULLS FIRST LIMIT 5;
+
+nullIfHaving
+SELECT NULLIF(10030, ABS(MAX(emp_no)) + 1) AS nif FROM test_emp GROUP BY languages HAVING nif IS NOT NULL ORDER BY languages;

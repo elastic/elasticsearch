@@ -1,7 +1,7 @@
 --
 :api: ccr-unfollow
 :request: UnfollowRequest
-:response: UnfollowResponse
+:response: AcknowledgedResponse
 --
 
 [id="{upid}-{api}"]

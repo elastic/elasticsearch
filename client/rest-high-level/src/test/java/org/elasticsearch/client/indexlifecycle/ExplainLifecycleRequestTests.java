@@ -54,7 +54,7 @@ public class ExplainLifecycleRequestTests extends ESTestCase {
         switch (between(0, 1)) {
         case 0:
             indices = randomValueOtherThanMany(i -> Arrays.equals(i, instance.getIndices()),
-                    () -> generateRandomStringArray(20, 10, false, true));
+                    () -> generateRandomStringArray(20, 10, false, false));
             break;
         case 1:
             indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),

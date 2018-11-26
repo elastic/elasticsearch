@@ -32,7 +32,7 @@ final class Conditionals {
         return null;
     }
 
-    static Object coalesceOnInput(List<Processor> processors, Object input) {
+    static Object coalesceInput(List<Processor> processors, Object input) {
         for (Processor proc : processors) {
             Object result = proc.process(input);
             if (result != null) {
@@ -46,7 +46,7 @@ final class Conditionals {
         return extremum(values, Comparisons::gt);
     }
 
-    static Object greatestOnInput(Collection<Processor> processors, Object input) {
+    static Object greatestInput(Collection<Processor> processors, Object input) {
         List<Object> values = new ArrayList<>(processors.size());
         for (Processor processor : processors) {
             values.add(processor.process(input));
@@ -58,7 +58,7 @@ final class Conditionals {
         return extremum(values, Comparisons::lt);
     }
 
-    static Object leastOnInput(List<Processor> processors, Object input) {
+    static Object leastInput(List<Processor> processors, Object input) {
         List<Object> values = new ArrayList<>(processors.size());
         for (Processor processor : processors) {
             values.add(processor.process(input));

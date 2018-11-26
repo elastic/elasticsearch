@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public abstract class ArbitraryConditionalFunction extends ConditionalFunction {
 
-    private ConditionalOperation operation;
+    private final ConditionalOperation operation;
 
     ArbitraryConditionalFunction(Location location, List<Expression> fields, ConditionalOperation operation) {
         super(location, fields);

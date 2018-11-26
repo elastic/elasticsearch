@@ -21,9 +21,9 @@ public class ConditionalProcessor implements Processor {
 
     public enum ConditionalOperation implements Function<Collection<Object>, Object> {
 
-        COALESCE(Conditionals::coalesce, Conditionals::coalesceOnInput),
-        GREATEST(Conditionals::greatest, Conditionals::greatestOnInput),
-        LEAST(Conditionals::least, Conditionals::leastOnInput);
+        COALESCE(Conditionals::coalesce, Conditionals::coalesceInput),
+        GREATEST(Conditionals::greatest, Conditionals::greatestInput),
+        LEAST(Conditionals::least, Conditionals::leastInput);
 
 
         String scriptMethodName() {

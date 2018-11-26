@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.joda.time.base.BaseDateTime;
 
 import java.util.List;

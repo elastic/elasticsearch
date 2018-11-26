@@ -26,14 +26,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 
 /**
  * Factory for ASCIIFoldingFilter.
  */
 public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
-        implements MultiTermAwareComponent {
+        implements NormalizingTokenFilterFactory {
+
     public static final ParseField PRESERVE_ORIGINAL = new ParseField("preserve_original");
     public static final boolean DEFAULT_PRESERVE_ORIGINAL = false;
 
@@ -51,21 +51,8 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
     }
 
     @Override
-    public Object getMultiTermComponent() {
-        if (preserveOriginal == false) {
-            return this;
-        } else {
-            // See https://issues.apache.org/jira/browse/LUCENE-7536 for the reasoning
-            return new TokenFilterFactory() {
-                @Override
-                public String name() {
-                    return ASCIIFoldingTokenFilterFactory.this.name();
-                }
-                @Override
-                public TokenStream create(TokenStream tokenStream) {
-                    return new ASCIIFoldingFilter(tokenStream, false);
-                }
-            };
-        }
+    public TokenStream normalize(TokenStream tokenStream) {
+        // Normalization should only emit a single token, so always turn off preserveOriginal
+        return new ASCIIFoldingFilter(tokenStream, false);
     }
 }

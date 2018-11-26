@@ -225,12 +225,12 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             new Thread(() -> {
                 try {
                     SSLSocket acceptedSocket = (SSLSocket) SocketAccess.doPrivileged(sslServerSocket::accept);
-                    acceptedSocket.addHandshakeCompletedListener((e) -> {
-                        latch.countDown();
-                        IOUtils.closeWhileHandlingException(acceptedSocket);
-                    });
+
                     // A read call will execute the handshake
-                    acceptedSocket.getInputStream().read();
+                    int byteRead = acceptedSocket.getInputStream().read();
+                    assertEquals('E', byteRead);
+                    latch.countDown();
+                    IOUtils.closeWhileHandlingException(acceptedSocket);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }

@@ -770,7 +770,7 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     static void applyCommonTestConfig(Project project) {
-        project.tasks.withType(RandomizedTestingTask) {
+        project.tasks.withType(RandomizedTestingTask) {task ->
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
             ifNoTests System.getProperty('tests.ifNoTests', 'fail')

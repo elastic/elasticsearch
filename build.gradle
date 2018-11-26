@@ -639,5 +639,20 @@ allprojects {
 }
 
 
+if (gradle.startParameter.taskNames.contains("check")) {
+  gradle.taskGraph.whenReady { tg ->
+    allprojects { project ->
+      tasks.withType(RandomizedTestingTask.class) { each ->
+        if (tg.hasTask(each) == false) {
+          throw new IllegalStateException(
+                  "Found that ${project.path}:check does not depend on testing task:${each.path}"
+          )
+        }
+      }
+    }
+  }
+}
+
+
 
 

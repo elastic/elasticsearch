@@ -47,7 +47,6 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -75,7 +74,7 @@ public class TestingConventionsTasks extends DefaultTask {
     @TaskAction
     public void doCheck() throws IOException {
         activeTestsExists = false;
-        final Optional<String> problems;
+        final String problems;
 
         try (URLClassLoader isolatedClassLoader = new URLClassLoader(
             getTestsClassPath().getFiles().stream().map(this::fileToUrl).toArray(URL[]::new)
@@ -137,8 +136,9 @@ public class TestingConventionsTasks extends DefaultTask {
             );
         }
 
-        if (problems.isPresent()) {
-            throw new IllegalStateException("Testing conventions are not honored:\n" + problems.get());
+        if (problems.isEmpty()) {
+            getLogger().error(problems);
+            throw new IllegalStateException("Testing conventions are not honored");
         } else {
             getSuccessMarker().getParentFile().mkdirs();
             Files.write(getSuccessMarker().toPath(), new byte[]{}, StandardOpenOption.CREATE);
@@ -146,12 +146,12 @@ public class TestingConventionsTasks extends DefaultTask {
     }
 
 
-    private Optional<String> collectProblems(String... problems) {
+    private String collectProblems(String... problems) {
         return Stream.of(problems)
-            .filter(String::isBlank)
+            .map(String::trim)
+            .filter(String::isEmpty)
             .map(each -> each + "\n")
-            .reduce(String::concat)
-            .map(String::trim);
+            .collect(Collectors.joining());
     }
 
 

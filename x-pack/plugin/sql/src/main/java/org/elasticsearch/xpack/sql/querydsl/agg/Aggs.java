@@ -10,6 +10,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 
 import java.util.ArrayList;
@@ -39,15 +40,15 @@ public class Aggs {
 
     public static final String ROOT_GROUP_NAME = "groupby";
 
-    public static final GroupByKey IMPLICIT_GROUP_KEY = new GroupByKey(ROOT_GROUP_NAME, EMPTY, null) {
+    public static final GroupByKey IMPLICIT_GROUP_KEY = new GroupByKey(ROOT_GROUP_NAME, EMPTY, null, null) {
 
         @Override
-        public CompositeValuesSourceBuilder<?> asValueSource() {
+        public CompositeValuesSourceBuilder<?> createSourceBuilder() {
             throw new SqlIllegalArgumentException("Default group does not translate to an aggregation");
         }
 
         @Override
-        protected GroupByKey copy(String id, String fieldName, Direction direction) {
+        protected GroupByKey copy(String id, String fieldName, ScriptTemplate script, Direction direction) {
             return this;
         }
     };

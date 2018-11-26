@@ -392,4 +392,12 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
     }
+
+    public void testGroupByDateHistogram() {
+
+    }
+
+    public void testGroupByHistogram() {
+
+    }
 }

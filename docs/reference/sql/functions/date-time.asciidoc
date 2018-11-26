@@ -1,7 +1,99 @@
 [role="xpack"]
 [testenv="basic"]
 [[sql-functions-datetime]]
-=== Date and Time Functions
+=== Date/Time and Interval Functions and Operators
+
+{es-sql} offers a wide range of facilities for performing date/time manipulations.
+
+[[sql-functions-datetime-interval]]
+==== Intervals
+
+A common requirement when dealing with date/time in general is date/time math which resolves around 
+the notion of ``interval``s, a topic that is worth exploring in the context of {es} and {es-sql}.
+
+{es} has comprehensive support for <<date-math, date math>> both inside <<date-math-index-names,index names>> and <<mapping-date-format, queries>>.
+Inside {es-sql} the former is supported as is by passing the expression in the table name, while the latter is supported through the standard SQL `INTERVAL`.
+
+The table below shows the mapping between {es} and {es-sql}:
+
+[cols="^m,^m",options="header"]
+
+|===
+|  {es}  | {es-sql}
+
+2+h| Index/Table date math
+
+2+|<index-{now/M{YYYY.MM}}>
+
+2+h| Query date math
+
+| 1y  | INTERVAL 1 YEAR
+| 2M  | INTERVAL 2 MONTH
+| 3w  | INTERVAL 21 DAY
+| 4d  | INTERVAL 4 DAY
+| 5h  | INTERVAL 5 HOUR
+| 6m  | INTERVAL 6 MINUTE
+| 7s  | INTERVAL 7 SECOND
+
+|===
+
+`INTERVAL` allows either `YEAR` and `MONTH` to be mixed together _or_ `DAY`, `HOUR`, `MINUTE` and `SECOND`.
+
+TIP: {es-sql} accepts also the plural for each time unit (e.g. both `YEAR` and `YEARS` are valid).
+
+Example of the possible combinations below:
+
+[cols="^,^",options="header"]
+
+|===
+|  Interval                                     | Description
+                                              
+| `INTERVAL '1-2' YEAR TO MONTH`                | 1 year and 2 months
+| `INTERVAL '3 4' DAYS TO HOURS`                | 3 days and 4 hours
+| `INTERVAL '5 6:12' DAYS TO MINUTES`           | 5 days, 6 hours and 12 minutes
+| `INTERVAL '3 4:56:01' DAY TO SECOND`          | 3 days, 4 hours, 56 minutes and 1 second
+| `INTERVAL '2 3:45:01.23456789' DAY TO SECOND` | 2 days, 3 hours, 45 minutes, 1 second and 234567890 milliseconds
+| `INTERVAL '123:45' HOUR TO MINUTES`           | 123 hours and 45 minutes
+| `INTERVAL '65:43:21.0123' HOUR TO SECONDS`    | 65 hours, 43 minutes, 21 seconds and 12300000 milliseconds
+| `INTERVAL '45:01.23' MINUTES TO SECONDS`      | 45 minutes, 1 second and 230000000 milliseconds
+
+|===
+
+==== Operators
+
+Basic arithmetic operators (`+`, `-`, etc) support date-time parameters as indicated below:
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[dtIntervalPlusInterval]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[dtDatePlusInterval]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[dtMinusInterval]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[dtIntervalMinusInterval]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[dtDateMinusInterval]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[dtIntervalMul]
+--------------------------------------------------
+
+==== Functions
 
 beta[]
 

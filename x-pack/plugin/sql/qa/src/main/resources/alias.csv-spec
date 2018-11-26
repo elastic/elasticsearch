@@ -92,7 +92,7 @@ test_emp             | BASE TABLE
 test_emp_copy        | BASE TABLE
 ;
 
-testGroupByOnAlias
+groupByOnAlias
 SELECT gender g, PERCENTILE(emp_no, 97) p1 FROM test_alias GROUP BY g ORDER BY g DESC;
 
 g:s             | p1:d
@@ -102,7 +102,7 @@ F               | 10099.52
 null            | 10019.0
 ;
 
-testGroupByOnPattern
+groupByOnPattern
 SELECT gender, PERCENTILE(emp_no, 97) p1 FROM "test_*" WHERE gender is NOT NULL GROUP BY gender;
 
 gender:s             | p1:d

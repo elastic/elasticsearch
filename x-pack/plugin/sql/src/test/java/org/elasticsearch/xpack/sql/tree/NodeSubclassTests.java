@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.LiteralTests;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
@@ -20,14 +21,15 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
+import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipesTests;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPipe;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.tree.NodeTests.ChildrenAreAProperty;
@@ -452,6 +454,10 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
              */
             if (argClass == char.class) {
                 return randomFrom('\\', '|', '/', '`');
+            }
+        } else if (toBuildClass == Histogram.class) {
+            if (argClass == Expression.class) {
+                return LiteralTests.randomLiteral();
             }
         }
 

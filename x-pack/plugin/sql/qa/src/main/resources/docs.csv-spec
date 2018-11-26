@@ -195,7 +195,8 @@ PERCENTILE_RANK |AGGREGATE
 SKEWNESS        |AGGREGATE      
 STDDEV_POP      |AGGREGATE      
 SUM_OF_SQUARES  |AGGREGATE      
-VAR_POP         |AGGREGATE      
+VAR_POP         |AGGREGATE    
+HISTOGRAM       |GROUPING         
 COALESCE        |CONDITIONAL
 GREATEST        |CONDITIONAL
 IFNULL          |CONDITIONAL
@@ -683,6 +684,130 @@ SELECT MIN(salary) AS min, MAX(salary) AS max FROM emp HAVING min > 25000;
 
 // end::groupByHavingImplicitNoMatch
 //;
+
+///////////////////////////////
+//
+// Grouping
+//
+///////////////////////////////
+
+histogramNumeric
+// tag::histogramNumeric
+SELECT HISTOGRAM(salary, 5000) AS h FROM emp GROUP BY h;
+
+       h       
+---------------
+25000          
+30000          
+35000          
+40000          
+45000          
+50000          
+55000          
+60000          
+65000          
+70000
+
+// end::histogramNumeric  
+;
+
+histogramDate
+// tag::histogramDate
+SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) AS c FROM emp GROUP BY h;
+
+
+         h          |       c       
+--------------------+---------------
+null                |10             
+1951-04-10T22:00:00Z|1              
+1952-04-04T22:00:00Z|10             
+1953-03-30T22:00:00Z|10             
+1954-03-25T22:00:00Z|7              
+1955-03-20T22:00:00Z|4              
+1956-03-14T22:00:00Z|4              
+1957-03-09T22:00:00Z|6              
+1958-03-04T22:00:00Z|6              
+1959-02-27T22:00:00Z|9              
+1960-02-22T22:00:00Z|7              
+1961-02-16T22:00:00Z|8              
+1962-02-11T22:00:00Z|6              
+1963-02-06T22:00:00Z|7              
+1964-02-01T22:00:00Z|5     
+
+// end::histogramDate
+;
+
+///////////////////////////////
+//
+// Date/Time
+//
+///////////////////////////////
+
+
+dtIntervalPlusInterval
+// tag::dtIntervalPlusInterval
+SELECT INTERVAL 1 DAY + INTERVAL 53 MINUTES AS result;
+
+    result     
+---------------
++1 00:53:00.0                       
+
+// end::dtIntervalPlusInterval
+;
+
+
+dtDatePlusInterval
+// tag::dtDatePlusInterval
+SELECT CAST('1969-05-13T12:34:56' AS DATE) + INTERVAL 49 YEARS AS result;
+
+       result       
+--------------------
+2018-05-13T12:34:56Z
+// end::dtDatePlusInterval
+;
+
+dtMinusInterval
+// tag::dtMinusInterval
+SELECT - INTERVAL '49-1' YEAR TO MONTH result;
+
+    result     
+---------------
+-49-1         
+
+// end::dtMinusInterval
+;
+
+dtIntervalMinusInterval
+// tag::dtIntervalMinusInterval
+SELECT INTERVAL '1' DAY - INTERVAL '2' HOURS AS result;
+
+    result     
+---------------
++0 22:00:00.0  
+// end::dtIntervalMinusInterval
+;
+
+
+dtDateMinusInterval
+// tag::dtDateMinusInterval
+SELECT CAST('2018-05-13T12:34:56' AS DATE) - INTERVAL '2-8' YEAR TO MONTH AS result; 
+
+       result       
+--------------------
+2015-09-13T12:34:56Z
+// end::dtDateMinusInterval
+;
+
+dtIntervalMul
+// tag::dtIntervalMul
+SELECT -2 * INTERVAL '3' YEARS AS result;
+
+    result     
+---------------
+-6-0    
+// end::dtIntervalMul
+;
+
 
 ///////////////////////////////
 //

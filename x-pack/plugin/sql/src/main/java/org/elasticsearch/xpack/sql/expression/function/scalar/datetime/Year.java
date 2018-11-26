@@ -11,11 +11,15 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
 import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Extract the year from a datetime.
  */
 public class Year extends DateTimeHistogramFunction {
+
+    private static long YEAR_IN_MILLIS = TimeUnit.DAYS.toMillis(1) * 365L;
+
     public Year(Location location, Expression field, TimeZone timeZone) {
         super(location, field, timeZone, DateTimeExtractor.YEAR);
     }
@@ -41,7 +45,7 @@ public class Year extends DateTimeHistogramFunction {
     }
 
     @Override
-    public String interval() {
-        return "year";
+    public long interval() {
+        return YEAR_IN_MILLIS;
     }
 }

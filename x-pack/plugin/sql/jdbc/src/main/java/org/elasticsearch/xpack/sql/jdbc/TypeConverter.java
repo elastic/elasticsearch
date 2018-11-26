@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.xpack.sql.proto.StringUtils;
+
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -118,10 +120,11 @@ final class TypeConverter {
             return (T) convert(val, columnType, typeString);
         }
 
-        // converting a Long to a Timestamp shouldn't be possible according to the spec,
-        // it feels a little brittle to check this scenario here and I don't particularly like it
-        // TODO: can we do any better or should we go over the spec and allow getLong(date) to be valid?
-        if (!(type == Long.class && columnType == EsType.DATE) && type.isInstance(val)) {
+        // if the value type is the same as the target, no conversion is needed
+        // make sure though to check the internal type against the desired one
+        // since otherwise the internal object format can leak out
+        // (for example dates when longs are requested or intervals for strings)
+        if (type.isInstance(val) && TypeUtils.classOf(columnType) == type) {
             try {
                 return type.cast(val);
             } catch (ClassCastException cce) {
@@ -268,7 +271,7 @@ final class TypeConverter {
     }
 
     private static String asString(Object nativeValue) {
-        return nativeValue == null ? null : String.valueOf(nativeValue);
+        return nativeValue == null ? null : StringUtils.toString(nativeValue);
     }
 
     private static <T> T failConversion(Object value, EsType columnType, String typeString, Class<T> target) throws SQLException {

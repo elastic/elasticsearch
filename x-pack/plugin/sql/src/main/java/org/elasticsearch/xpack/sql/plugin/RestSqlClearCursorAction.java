@@ -27,7 +27,7 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlClearCursorAction.class));
 
-    RestSqlClearCursorAction(Settings settings, RestController controller) {
+    public RestSqlClearCursorAction(Settings settings, RestController controller) {
         super(settings);
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.expression.function.aggregate;
+package org.elasticsearch.xpack.sql.expression.function.grouping;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -21,20 +21,20 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
 /**
- * A type of {@code Function} that takes multiple values and extracts a single value out of them. For example, {@code AVG()}.
+ * A type of {@code Function} that creates groups or buckets.
  */
-public abstract class AggregateFunction extends Function {
+public abstract class GroupingFunction extends Function {
 
     private final Expression field;
     private final List<Expression> parameters;
 
-    private AggregateFunctionAttribute lazyAttribute;
+    private GroupingFunctionAttribute lazyAttribute;
 
-    protected AggregateFunction(Location location, Expression field) {
+    protected GroupingFunction(Location location, Expression field) {
         this(location, field, emptyList());
     }
 
-    protected AggregateFunction(Location location, Expression field, List<Expression> parameters) {
+    protected GroupingFunction(Location location, Expression field, List<Expression> parameters) {
         super(location, CollectionUtils.combine(singletonList(field), parameters));
         this.field = field;
         this.parameters = parameters;
@@ -49,10 +49,10 @@ public abstract class AggregateFunction extends Function {
     }
 
     @Override
-    public AggregateFunctionAttribute toAttribute() {
+    public GroupingFunctionAttribute toAttribute() {
         if (lazyAttribute == null) {
             // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
-            lazyAttribute = new AggregateFunctionAttribute(location(), name(), dataType(), id(), functionId(), null);
+            lazyAttribute = new GroupingFunctionAttribute(location(), name(), dataType(), id(), functionId(), null);
         }
         return lazyAttribute;
     }
@@ -65,7 +65,7 @@ public abstract class AggregateFunction extends Function {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new SqlIllegalArgumentException("Aggregate functions cannot be scripted");
+        throw new SqlIllegalArgumentException("Grouping functions cannot be scripted");
     }
 
     @Override
@@ -73,7 +73,7 @@ public abstract class AggregateFunction extends Function {
         if (false == super.equals(obj)) {
             return false;
         }
-        AggregateFunction other = (AggregateFunction) obj;
+        GroupingFunction other = (GroupingFunction) obj;
         return Objects.equals(other.field(), field())
             && Objects.equals(other.parameters(), parameters());
     }

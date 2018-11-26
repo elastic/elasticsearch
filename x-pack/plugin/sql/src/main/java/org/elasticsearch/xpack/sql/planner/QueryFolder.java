@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFuncti
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
@@ -336,6 +337,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 TimeZone dt = DataType.DATE == child.dataType() ? UTC : null;
                                 queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, dt));
                             }
+                            // handle histogram
+                            else if (child instanceof GroupingFunction) {
+                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, null));
+                            }
+                            // fallback to regular agg functions
                             else {
                                 // the only thing left is agg function
                                 Check.isTrue(Functions.isAggregate(child),

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.misc.Interval;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
@@ -83,6 +84,12 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
     static Location source(Token token) {
         Check.notNull(token, "token is null");
         return new Location(token.getLine(), token.getCharPositionInLine());
+    }
+
+    static String text(ParserRuleContext parserRuleContext) {
+        Check.notNull(parserRuleContext, "parserRuleContext is null");
+        Interval interval = new Interval(parserRuleContext.start.getStartIndex(), parserRuleContext.stop.getStopIndex());
+        return parserRuleContext.start.getInputStream().getText(interval);
     }
 
     /**

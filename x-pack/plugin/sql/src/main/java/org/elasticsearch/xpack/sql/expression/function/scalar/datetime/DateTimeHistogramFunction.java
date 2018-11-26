@@ -24,5 +24,5 @@ public abstract class DateTimeHistogramFunction extends DateTimeFunction {
     /**
      * used for aggregration (date histogram)
      */
-    public abstract String interval();
+    public abstract long interval();
 }

@@ -180,7 +180,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
             "  exit 1;" +
             "}");
 
-        Result result = sh.runIgnoreExitCode("& C:\\project\\procdump64.exe -accepteula -mp elasticsearch-service-x64 C:\\project\\es-service.dmp");
+        Result result = sh.runIgnoreExitCode("& C:\\project\\procdump64.exe -accepteula -ma -l -r elasticsearch-service-x64 C:\\project\\es-service.dmp");
         System.out.println("procdump\n" + "stdout: \n" + result.stdout);
         System.out.println("stderr: \n" + result.stderr);
 

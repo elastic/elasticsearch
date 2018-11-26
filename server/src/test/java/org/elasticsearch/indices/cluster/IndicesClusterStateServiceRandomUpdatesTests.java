@@ -21,11 +21,7 @@ package org.elasticsearch.indices.cluster;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -35,7 +31,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -48,13 +43,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
@@ -105,44 +97,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     public void tearDown() throws Exception {
         super.tearDown();
         terminate(threadPool);
-    }
-
-    public void testRepository() {
-        ClusterState state = ClusterStateCreationUtils.state(3, new String[]{"test-index"}, randomIntBetween(1, 5));
-        state = cluster.putRepository(
-            state,
-            new PutRepositoryRequest("test-repo").type("fs").verify(false)
-                .settings(
-                    "{\"location\": \"" + Environment.PATH_REPO_SETTING.get(ClusterStateChanges.SETTINGS).get(0) + "\"}",
-                    XContentType.JSON
-                )
-        );
-        state = cluster.createSnapshot(state, new CreateSnapshotRequest("test-repo", "test-snap"));
-        assertNotNull(state.custom(SnapshotsInProgress.TYPE));
-        SnapshotsInProgress.Entry firstEntry = ((SnapshotsInProgress) state.custom(SnapshotsInProgress.TYPE)).entries().get(0);
-        assertEquals("test-snap", firstEntry.snapshot().getSnapshotId().getName());
-        assertEquals(SnapshotsInProgress.State.INIT, firstEntry.state());
-        state = cluster.beginSnapshot(state, firstEntry, false);
-        SnapshotsInProgress.Entry secondEntry = ((SnapshotsInProgress) state.custom(SnapshotsInProgress.TYPE)).entries().get(0);
-        assertEquals(Strings.toString(state, true, true), SnapshotsInProgress.State.STARTED, secondEntry.state());
-        final ClusterState finalState = state;
-        RuntimeException ex =
-            expectThrows(RuntimeException.class, () -> cluster.deleteIndices(finalState, new DeleteIndexRequest("test-index")));
-        assertEquals(
-            "Cannot delete indices that are being snapshotted: [[test-index]]. " +
-                "Try again after snapshot finishes or cancel the currently running snapshot.",
-            ex.getCause().getMessage()
-        );
-        state = cluster.deleteSnapshot(state, new DeleteSnapshotRequest("test-repo", "test-snap"));
-        assertNotNull(state.custom(SnapshotsInProgress.TYPE));
-        // TODO: This should be 1, but we're currently leaving one aborted entry behind
-        assertEquals(1, ((SnapshotsInProgress) state.custom(SnapshotsInProgress.TYPE)).entries().size());
-        // TODO: This should not throw, but currently does because the deleted snapshot is not properly cleared from the state
-        final ClusterState beforeDeleteState = state;
-        expectThrows(
-            RuntimeException.class,
-            () -> cluster.deleteRepository(beforeDeleteState, new DeleteRepositoryRequest("test-repo"))
-        );
     }
 
     public void testRandomClusterStateUpdates() {

@@ -1619,3 +1619,23 @@ SELECT NULLIF('elastic', 'elastic') AS "nullif";
 null
 // end::nullIfReturnNull
 ;
+
+nullEqualsCompareWithNull
+// tag::nullEqualsCompareWithNull
+SELECT 'elastic' <=> null AS "equals";
+
+    equals
+---------------
+false
+// end::nullEqualsCompareWithNull
+;
+
+nullEqualsCompareTwoNulls
+// tag::nullEqualsCompareTwoNulls
+SELECT null <=> null AS "equals";
+
+    equals
+---------------
+true
+// end::nullEqualsCompareTwoNulls
+;

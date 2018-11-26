@@ -92,6 +92,10 @@ public final class InternalSqlScriptUtils {
         return BinaryComparisonOperation.EQ.apply(left, right);
     }
 
+    public static Boolean nulleq(Object left, Object right) {
+        return BinaryComparisonOperation.NULLEQ.apply(left, right);
+    }
+
     public static Boolean neq(Object left, Object right) {
         return BinaryComparisonOperation.NEQ.apply(left, right);
     }

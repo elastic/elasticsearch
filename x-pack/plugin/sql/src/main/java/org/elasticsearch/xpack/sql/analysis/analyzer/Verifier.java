@@ -170,7 +170,7 @@ public final class Verifier {
                                     for (Attribute a : p.intputSet()) {
                                         String nameCandidate = useQualifier ? a.qualifiedName() : a.name();
                                         // add only primitives (object types would only result in another error)
-                                        if (!(a.dataType() == DataType.UNSUPPORTED) && a.dataType().isPrimitive()) {
+                                        if ((a.dataType() != DataType.UNSUPPORTED) && a.dataType().isPrimitive()) {
                                             potentialMatches.add(nameCandidate);
                                         }
                                     }
@@ -284,14 +284,13 @@ public final class Verifier {
      */
     private static boolean checkGroupBy(LogicalPlan p, Set<Failure> localFailures,
             Map<String, Function> resolvedFunctions, Set<LogicalPlan> groupingFailures) {
-        return checkGroupByAgg(p, localFailures, groupingFailures, resolvedFunctions)
-                && checkGroupByOrder(p, localFailures, groupingFailures, resolvedFunctions)
+        return checkGroupByAgg(p, localFailures, resolvedFunctions)
+                && checkGroupByOrder(p, localFailures, groupingFailures)
                 && checkGroupByHaving(p, localFailures, groupingFailures, resolvedFunctions);
     }
 
     // check whether an orderBy failed or if it occurs on a non-key
-    private static boolean checkGroupByOrder(LogicalPlan p, Set<Failure> localFailures,
-            Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
+    private static boolean checkGroupByOrder(LogicalPlan p, Set<Failure> localFailures, Set<LogicalPlan> groupingFailures) {
         if (p instanceof OrderBy) {
             OrderBy o = (OrderBy) p;
             LogicalPlan child = o.child();
@@ -434,8 +433,7 @@ public final class Verifier {
 
 
     // check whether plain columns specified in an agg are mentioned in the group-by
-    private static boolean checkGroupByAgg(LogicalPlan p, Set<Failure> localFailures,
-            Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
+    private static boolean checkGroupByAgg(LogicalPlan p, Set<Failure> localFailures, Map<String, Function> functions) {
         if (p instanceof Aggregate) {
             Aggregate a = (Aggregate) p;
 
@@ -592,18 +590,21 @@ public final class Verifier {
 
     private static void validateConditional(LogicalPlan p, Set<Failure> localFailures) {
         p.forEachExpressions(e ->
-            e.forEachUp((ConditionalFunction greatest) -> {
+            e.forEachUp((ConditionalFunction cf) -> {
                     int idx = 0;
                     DataType dt = DataType.NULL;
-                    for (; idx < greatest.children().size(); idx++) {
-                        DataType childDT = greatest.children().get(idx).dataType();
+
+                    // Find the data type of the first non-null argument
+                    for (; idx < cf.children().size(); idx++) {
+                        DataType childDT = cf.children().get(idx).dataType();
                         if (childDT != DataType.NULL) {
                             dt = childDT;
                             break;
                         }
                     }
-                    for (; idx < greatest.children().size(); idx++) {
-                        Expression value = greatest.children().get(idx);
+                    // Compare the data type of the rest of the arguments with the data type of first non-null argument
+                    for (; idx < cf.children().size(); idx++) {
+                        Expression value = cf.children().get(idx);
                         if (areTypesCompatible(dt, value.dataType()) == false) {
                             localFailures.add(fail(value, "expected data type [%s], value provided is of type [%s]",
                                 dt, value.dataType()));

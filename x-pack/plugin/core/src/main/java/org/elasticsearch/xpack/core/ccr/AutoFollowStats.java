@@ -35,7 +35,8 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
     private static final ParseField AUTO_FOLLOW_EXCEPTION = new ParseField("auto_follow_exception");
     private static final ParseField TRACKING_REMOTE_CLUSTERS = new ParseField("tracking_remote_clusters");
     private static final ParseField CLUSTER_NAME = new ParseField("cluster_name");
-    private static final ParseField TIME_SINCE_LAST_AUTO_FOLLOW_STARTED_MILLIS = new ParseField("time_since_last_auto_follow_started_millis");
+    private static final ParseField TIME_SINCE_LAST_AUTO_FOLLOW_STARTED_MILLIS =
+        new ParseField("time_since_last_auto_follow_started_millis");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<AutoFollowStats, Void> STATS_PARSER = new ConstructingObjectParser<>("auto_follow_stats",

@@ -98,6 +98,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTypesContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimeEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimestampEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -656,12 +657,14 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(source(ctx), siae.getMessage());
         }
 
+        Object val = Long.valueOf(value);
         DataType type = DataType.LONG;
         // try to downsize to int if possible (since that's the most common type)
         if ((int) value == value) {
             type = DataType.INTEGER;
+            val = Integer.valueOf((int) value);
         }
-        return new Literal(source(ctx), value, type);
+        return new Literal(source(ctx), val, type);
     }
 
     @Override
@@ -839,6 +842,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             } else if (parentCtx instanceof SqlBaseParser.IntervalContext) {
                 IntervalContext ic = (IntervalContext) parentCtx;
                 return ic.sign != null && ic.sign.getType() == SqlBaseParser.MINUS;
+            } else if (parentCtx instanceof SqlBaseParser.SysTypesContext) {
+                return ((SysTypesContext) parentCtx).MINUS() != null;
             }
         }
         return false;

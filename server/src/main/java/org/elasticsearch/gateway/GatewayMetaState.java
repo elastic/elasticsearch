@@ -95,17 +95,15 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
     }
 
     private void initializeClusterState(ClusterName clusterName) throws IOException {
-        if (isMasterOrDataNode()) {
-            long startNS = System.nanoTime();
-            Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
-            previousManifest = manifestAndMetaData.v1();
+        long startNS = System.nanoTime();
+        Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
+        previousManifest = manifestAndMetaData.v1();
 
-            previousClusterState = ClusterState.builder(clusterName)
-                    .version(previousManifest.getClusterStateVersion())
-                    .metaData(manifestAndMetaData.v2()).build();
+        previousClusterState = ClusterState.builder(clusterName)
+                .version(previousManifest.getClusterStateVersion())
+                .metaData(manifestAndMetaData.v2()).build();
 
-            logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
-        }
+        logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
     }
 
     public void setLocalNode(DiscoveryNode localNode) {
@@ -158,9 +156,7 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
     }
 
     protected boolean isMasterOrDataNode() {
-        //return DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings);
-        //TODO figure out whether to check it, in Zen2 it leads to NPE
-        return true;
+        return DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings);
     }
 
     private void ensureAtomicMoveSupported() throws IOException {

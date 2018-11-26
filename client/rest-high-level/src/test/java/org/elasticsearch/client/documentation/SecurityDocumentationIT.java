@@ -52,6 +52,8 @@ import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetPrivilegesResponse;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
+import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
@@ -67,6 +69,7 @@ import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpress
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.common.Strings;
@@ -401,6 +404,89 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetRoles() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+        addRole("my_role");
+        addRole("my_role2");
+        addRole("my_role3");
+        {
+            //tag::get-roles-request
+            GetRolesRequest request = new GetRolesRequest("my_role");
+            //end::get-roles-request
+            //tag::get-roles-execute
+            GetRolesResponse response = client.security().getRoles(request, RequestOptions.DEFAULT);
+            //end::get-roles-execute
+            //tag::get-roles-response
+            List<Role> roles = response.getRoles();
+            //end::get-roles-response
+
+            assertNotNull(response);
+            assertThat(roles.size(), equalTo(1));
+            assertThat(roles.get(0).getName(), equalTo("my_role"));
+            assertThat(roles.get(0).getClusterPrivileges().contains("all"), equalTo(true));
+        }
+
+        {
+            //tag::get-roles-list-request
+            GetRolesRequest request = new GetRolesRequest("my_role", "my_role2");
+            GetRolesResponse response = client.security().getRoles(request, RequestOptions.DEFAULT);
+            //end::get-roles-list-request
+
+            List<Role> roles = response.getRoles();
+            assertNotNull(response);
+            assertThat(roles.size(), equalTo(2));
+            assertThat(roles.get(0).getClusterPrivileges().contains("all"), equalTo(true));
+            assertThat(roles.get(1).getClusterPrivileges().contains("all"), equalTo(true));
+        }
+
+        {
+            //tag::get-roles-all-request
+            GetRolesRequest request = new GetRolesRequest();
+            GetRolesResponse response = client.security().getRoles(request, RequestOptions.DEFAULT);
+            //end::get-roles-all-request
+
+            List<Role> roles = response.getRoles();
+            assertNotNull(response);
+            // 21 system roles plus the three we created
+            assertThat(roles.size(), equalTo(24));
+        }
+
+        {
+            GetRolesRequest request = new GetRolesRequest("my_role");
+            ActionListener<GetRolesResponse> listener;
+
+            //tag::get-roles-execute-listener
+            listener = new ActionListener<GetRolesResponse>() {
+                @Override
+                public void onResponse(GetRolesResponse getRolesResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::get-roles-execute-listener
+
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<GetRolesResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            //tag::get-roles-execute-async
+            client.security().getRolesAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            //end::get-roles-execute-async
+
+            final GetRolesResponse response = future.get(30, TimeUnit.SECONDS);
+            assertNotNull(response);
+            assertThat(response.getRoles().size(), equalTo(1));
+            assertThat(response.getRoles().get(0).getName(), equalTo("my_role"));
+            assertThat(response.getRoles().get(0).getClusterPrivileges().contains("all"), equalTo(true));
+        }
+    }
+
     public void testAuthenticate() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -414,7 +500,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::authenticate-response
 
             assertThat(user.getUsername(), is("test_user"));
-            assertThat(user.getRoles(), contains(new String[] {"superuser"}));
+            assertThat(user.getRoles(), contains(new String[]{"superuser"}));
             assertThat(user.getFullName(), nullValue());
             assertThat(user.getEmail(), nullValue());
             assertThat(user.getMetadata().isEmpty(), is(true));

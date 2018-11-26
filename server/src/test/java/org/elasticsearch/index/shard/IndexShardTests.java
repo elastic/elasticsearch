@@ -3607,7 +3607,7 @@ public class IndexShardTests extends IndexShardTestCase {
             final long globalCheckpoint = replica.getGlobalCheckpoint();
             final long maxSeqNoOfUpdatesOrDeletes = replica.getMaxSeqNoOfUpdatesOrDeletes();
 
-            final int operations = scaledRandomIntBetween(10, 64);
+            final int operations = scaledRandomIntBetween(5, 32);
             final CyclicBarrier barrier = new CyclicBarrier(1 + operations);
             final CountDownLatch latch = new CountDownLatch(operations);
 

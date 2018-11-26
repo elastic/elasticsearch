@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -548,7 +549,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             } catch (final AlreadyClosedException e) {
                                 // okay, the index was deleted
                             }
-                        });
+                        }, null);
                 }
             }
             // set this last, once we finished updating all internal state.
@@ -2316,22 +2317,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexShardOperationPermits.asyncBlockOperations(onPermitAcquired, timeout.duration(), timeout.timeUnit());
     }
 
-    @FunctionalInterface
-    private interface PrimaryTermUpdateListener extends ActionListener<Releasable> {
-
-        void onPrimaryTermUpdate() throws Exception;
-
-        @Override
-        default void onResponse(final Releasable releasable) {
-            Releasables.close(releasable);
-        }
-
-        @Override
-        default void onFailure(final Exception e) {
-        }
-    }
-
-    private void bumpPrimaryTerm(final long newPrimaryTerm, final PrimaryTermUpdateListener listener) {
+    private <E extends Exception> void bumpPrimaryTerm(final long newPrimaryTerm,
+                                                       final CheckedRunnable<E> onBlocked,
+                                                       @Nullable ActionListener<Releasable> combineWithAction) {
         assert Thread.holdsLock(mutex);
         assert newPrimaryTerm >= pendingPrimaryTerm;
         assert operationPrimaryTerm <= pendingPrimaryTerm;
@@ -2340,18 +2328,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             @Override
             public void onFailure(final Exception e) {
                 try {
+                    innerFail(e);
+                } finally {
+                    if (combineWithAction != null) {
+                        combineWithAction.onFailure(e);
+                    }
+                }
+            }
+
+            private void innerFail(final Exception e) {
+                try {
                     failShard("exception during primary term transition", e);
                 } catch (AlreadyClosedException ace) {
                     // ignore, shard is already closed
-                } finally {
-                    listener.onFailure(e);
                 }
             }
 
             @Override
             public void onResponse(final Releasable releasable) {
                 final RunOnce releaseOnce = new RunOnce(releasable::close);
-                boolean success = false;
                 try {
                     assert operationPrimaryTerm <= pendingPrimaryTerm;
                     termUpdated.await();
@@ -2359,14 +2354,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // in the order submitted. We need to guard against another term bump
                     if (operationPrimaryTerm < newPrimaryTerm) {
                         operationPrimaryTerm = newPrimaryTerm;
-                        listener.onPrimaryTermUpdate();
+                        onBlocked.run();
                     }
-                    listener.onResponse(releaseOnce::run);
-                    success = true;
                 } catch (final Exception e) {
-                    onFailure(e);
+                    if (combineWithAction == null) {
+                        // otherwise leave it to combineWithAction to release the permit
+                        releaseOnce.run();
+                    }
+                    innerFail(e);
                 } finally {
-                    if (success == false) {
+                    if (combineWithAction != null) {
+                        combineWithAction.onResponse(releasable);
+                    } else {
                         releaseOnce.run();
                     }
                 }
@@ -2480,37 +2479,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         throw new IndexShardNotStartedException(shardId, shardState);
                     }
 
-                    bumpPrimaryTerm(opPrimaryTerm, new PrimaryTermUpdateListener() {
-                        @Override
-                        public void onPrimaryTermUpdate() throws Exception {
-                            updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
-                            final long currentGlobalCheckpoint = getGlobalCheckpoint();
-                            final long maxSeqNo = seqNoStats().getMaxSeqNo();
-                            logger.info("detected new primary with primary term [{}], global checkpoint [{}], max_seq_no [{}]",
-                                opPrimaryTerm, currentGlobalCheckpoint, maxSeqNo);
-                            if (currentGlobalCheckpoint < maxSeqNo) {
-                                resetEngineToGlobalCheckpoint();
-                            } else {
-                                getEngine().rollTranslogGeneration();
-                            }
+                    bumpPrimaryTerm(opPrimaryTerm, () -> {
+                        updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
+                        final long currentGlobalCheckpoint = getGlobalCheckpoint();
+                        final long maxSeqNo = seqNoStats().getMaxSeqNo();
+                        logger.info("detected new primary with primary term [{}], global checkpoint [{}], max_seq_no [{}]",
+                            opPrimaryTerm, currentGlobalCheckpoint, maxSeqNo);
+                        if (currentGlobalCheckpoint < maxSeqNo) {
+                            resetEngineToGlobalCheckpoint();
+                        } else {
+                            getEngine().rollTranslogGeneration();
                         }
-
-                        @Override
-                        public void onResponse(final Releasable releasable) {
-                            if (allowCombineOperationWithPrimaryTermUpdate) {
-                                operationListener.onResponse(releasable);
-                            } else {
-                                Releasables.close(releasable);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (allowCombineOperationWithPrimaryTermUpdate) {
-                                operationListener.onFailure(e);
-                            }
-                        }
-                    });
+                    }, allowCombineOperationWithPrimaryTermUpdate ? operationListener : null);
 
                     if (allowCombineOperationWithPrimaryTermUpdate) {
                         logger.debug("operation execution has been combined with primary term update");

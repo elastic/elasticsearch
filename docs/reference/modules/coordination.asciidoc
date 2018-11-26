@@ -66,7 +66,7 @@ contents as follows:
 
 [source,js]
 --------------------------------------------------
-GET /_cluster/state?filter_path=TODO
+GET /_cluster/state?filter_path=metadata.cluster_coordination.last_committed_config
 --------------------------------------------------
 // CONSOLE
 
@@ -181,10 +181,10 @@ cluster's availability. A node's vote can be withdrawn using the following API:
 --------------------------------------------------
 # Withdraw vote from node and wait for its removal from the voting
 # configuration up to the default timeout of 30 seconds
-POST /_nodes/node_name/withdraw_vote
+POST /_cluster/withdrawn_votes/node_name
 # Withdraw vote from node and wait for its removal from the voting
 # configuration up to one minute
-POST /_nodes/node_name/withdraw_vote?timeout=1m
+POST /_cluster/withdrawn_votes/node_name?timeout=1m
 --------------------------------------------------
 // CONSOLE
 
@@ -210,7 +210,7 @@ and can be inspected as follows:
 
 [source,js]
 --------------------------------------------------
-GET /_cluster/state?filter_path=TODO
+GET /_cluster/state?filter_path=metadata.cluster_coordination.voting_tombstones
 --------------------------------------------------
 // CONSOLE
 
@@ -229,11 +229,9 @@ created in error or were only required temporarily:
 
 [source,js]
 --------------------------------------------------
-# Allow the selected nodes back into the voting configuration by
-# removing their tombstones
-DELETE /_nodes/node_name/withdraw_vote
-# Remove all voting tombstones
-DELETE /_nodes/_all/withdraw_vote
+# Remove all previous withdrawals of votes, allowing any node to return to the
+# voting configuration in future.
+DELETE /_cluster/withdrawn_votes
 --------------------------------------------------
 // CONSOLE
 

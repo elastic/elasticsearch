@@ -79,7 +79,19 @@ public class Zen1IT extends ESIntegTestCase {
                 continue;
             }
 
-            internalCluster().restartNode(node, InternalTestCluster.EMPTY_CALLBACK);
+            internalCluster().restartNode(node, new RestartCallback() {
+                @Override
+                public Settings onNodeStopped(String restartingNode) {
+                    String viaNode = randomValueOtherThan(restartingNode, () -> randomFrom(nodes));
+                    final ClusterHealthRequestBuilder clusterHealthRequestBuilder = client(viaNode).admin().cluster().prepareHealth()
+                        .setWaitForEvents(Priority.LANGUID)
+                        .setWaitForNodes(Integer.toString(zen1NodeCount + zen2NodeCount - 1))
+                        .setTimeout(TimeValue.timeValueSeconds(30));
+                    ClusterHealthResponse clusterHealthResponse = clusterHealthRequestBuilder.get();
+                    assertFalse(restartingNode, clusterHealthResponse.isTimedOut());
+                    return Settings.EMPTY;
+                }
+            });
             ensureStableCluster(zen1NodeCount + zen2NodeCount);
         }
     }

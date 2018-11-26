@@ -20,7 +20,6 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.Distribution;
-import org.elasticsearch.gradle.Version;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
@@ -35,7 +34,7 @@ public class ElasticsearchNode {
     private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
 
     private Distribution distribution;
-    private Version version;
+    private String version;
 
     public ElasticsearchNode(String name, GradleServicesAdapter services) {
         this.name = name;
@@ -46,11 +45,11 @@ public class ElasticsearchNode {
         return name;
     }
 
-    public Version getVersion() {
+    public String getVersion() {
         return version;
     }
 
-    public void setVersion(Version version) {
+    public void setVersion(String version) {
         checkFrozen();
         this.version = version;
     }
@@ -75,6 +74,7 @@ public class ElasticsearchNode {
     public void freeze() {
         logger.info("Locking configuration of `{}`", this);
         configurationFrozen.set(true);
+        Objects.requireNonNull(version, "Version of test cluster `" + this + "` can't be null");
     }
 
     private void checkFrozen() {

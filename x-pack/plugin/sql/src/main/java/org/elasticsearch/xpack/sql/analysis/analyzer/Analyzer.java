@@ -45,10 +45,10 @@ import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
-import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.InvalidMappedField;
 import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
 
 import java.util.ArrayList;
@@ -65,18 +65,9 @@ import java.util.TimeZone;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
-    /**
-     * Verify a plan.
-     */
-    public static Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = Verifier.verify(plan);
-        return failures.stream().collect(toMap(Failure::source, Failure::message));
-    }
-
     /**
      * Valid functions.
      */
@@ -90,11 +81,16 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      * that deal with date and time.
      */
     private final TimeZone timeZone;
+    /**
+     * The verifier has the role of checking the analyzed tree for failures and build a list of failures.
+     */
+    private final Verifier verifier;
 
-    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, TimeZone timeZone) {
+    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, TimeZone timeZone, Verifier verifier) {
         this.functionRegistry = functionRegistry;
         this.indexResolution = results;
         this.timeZone = timeZone;
+        this.verifier = verifier;
     }
 
     @Override
@@ -131,7 +127,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     }
 
     public LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = Verifier.verify(plan);
+        Collection<Failure> failures = verifier.verify(plan);
         if (!failures.isEmpty()) {
             throw new VerificationException(failures);
         }
@@ -153,8 +149,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     //
     // Shared methods around the analyzer rules
     //
-
     private static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList) {
+        return resolveAgainstList(u, attrList, false);
+    }
+
+    private static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList, boolean allowCompound) {
         List<Attribute> matches = new ArrayList<>();
 
         // first take into account the qualified version
@@ -181,7 +180,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         if (matches.size() == 1) {
-            return matches.get(0);
+            return handleSpecialFields(u, matches.get(0), allowCompound);
         }
 
         return u.withUnresolvedMessage("Reference [" + u.qualifiedName()
@@ -191,6 +190,31 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                  .sorted()
                  .collect(toList())
                 );
+    }
+
+    private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {
+        // if it's a object/compound type, keep it unresolved with a nice error message
+        if (named instanceof FieldAttribute) {
+            FieldAttribute fa = (FieldAttribute) named;
+
+            // incompatible mappings
+            if (fa.field() instanceof InvalidMappedField) {
+                named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] due to ambiguities being "
+                        + ((InvalidMappedField) fa.field()).errorMessage());
+            }
+            // unsupported types
+            else if (DataTypes.isUnsupported(fa.dataType())) {
+                UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
+                named = u.withUnresolvedMessage(
+                        "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() + "] as is unsupported");
+            }
+            // compound fields
+            else if (allowCompound == false && fa.dataType().isPrimitive() == false) {
+                named = u.withUnresolvedMessage(
+                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esType + "] only its subfields");
+            }
+        }
+        return named;
     }
 
     private static boolean hasStar(List<? extends Expression> exprs) {
@@ -209,7 +233,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     private static boolean containsAggregate(Expression exp) {
         return containsAggregate(singletonList(exp));
     }
-
 
     private static class CTESubstitution extends AnalyzeRule<With> {
 
@@ -348,21 +371,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     NamedExpression named = resolveAgainstList(u, childrenOutput);
                     // if resolved, return it; otherwise keep it in place to be resolved later
                     if (named != null) {
-                        // if it's a object/compound type, keep it unresolved with a nice error message
-                        if (named instanceof FieldAttribute) {
-                            FieldAttribute fa = (FieldAttribute) named;
-                            if (DataTypes.isUnsupported(fa.dataType())) {
-                                UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
-                                named = u.withUnresolvedMessage(
-                                        "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() +
-                                                "] as is unsupported");
-                            }
-                            else if (!fa.dataType().isPrimitive()) {
-                                named = u.withUnresolvedMessage(
-                                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esType + "] only its subfields");
-                            }
-                        }
-
                         if (log.isTraceEnabled()) {
                             log.trace("Resolved {} to {}", u, named);
                         }
@@ -407,15 +415,19 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (us.qualifier() != null) {
                 // resolve the so-called qualifier first
                 // since this is an unresolved start we don't know whether it's a path or an actual qualifier
-                Attribute q = resolveAgainstList(us.qualifier(), output);
+                Attribute q = resolveAgainstList(us.qualifier(), output, true);
 
                 // the wildcard couldn't be expanded because the field doesn't exist at all
                 // so, add to the list of expanded attributes its qualifier (the field without the wildcard)
                 // the qualifier will be unresolved and later used in the error message presented to the user
                 if (q == null) {
-                    expanded.add(us.qualifier());
-                    return expanded;
+                    return singletonList(us.qualifier());
                 }
+                // qualifier is unknown (e.g. unsupported type), bail out early
+                else if (q.resolved() == false) {
+                    return singletonList(q);
+                }
+
                 // now use the resolved 'qualifier' to match
                 for (Attribute attr : output) {
                     // filter the attributes that match based on their path
@@ -558,7 +570,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         private Integer findOrdinal(Expression expression) {
             if (expression instanceof Literal) {
                 Literal l = (Literal) expression;
-                if (l.dataType().isInteger) {
+                if (l.dataType().isInteger()) {
                     Object v = l.value();
                     if (v instanceof Number) {
                         return Integer.valueOf(((Number) v).intValue());

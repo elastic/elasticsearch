@@ -34,7 +34,8 @@ final class AggregationResultUtils {
      * @return a map containing the results of the aggregation in a consumable way
      */
     public static Stream<Map<String, Object>> extractCompositeAggregationResults(CompositeAggregation agg,
-            List<CompositeValuesSourceBuilder<?>> sources, Collection<AggregationBuilder> aggregationBuilders, DataFrameIndexerJobStats dataFrameIndexerJobStats) {
+            List<CompositeValuesSourceBuilder<?>> sources, Collection<AggregationBuilder> aggregationBuilders,
+            DataFrameIndexerJobStats dataFrameIndexerJobStats) {
         return agg.getBuckets().stream().map(bucket -> {
             dataFrameIndexerJobStats.incrementNumDocuments(bucket.getDocCount());
 

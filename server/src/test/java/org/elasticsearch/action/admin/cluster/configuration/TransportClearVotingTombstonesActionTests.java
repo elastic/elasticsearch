@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -66,6 +67,7 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
     private static ThreadPool threadPool;
     private static ClusterService clusterService;
     private static DiscoveryNode localNode, otherNode1, otherNode2;
+    private static VotingTombstone otherNode1Tombstone, otherNode2Tombstone;
 
     private TransportService transportService;
 
@@ -74,7 +76,9 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
         threadPool = new TestThreadPool("test", Settings.EMPTY);
         localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
         otherNode1 = new DiscoveryNode("other1", "other1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        otherNode1Tombstone = new VotingTombstone(otherNode1);
         otherNode2 = new DiscoveryNode("other2", "other2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        otherNode2Tombstone = new VotingTombstone(otherNode2);
         clusterService = createClusterService(threadPool, localNode);
     }
 
@@ -101,8 +105,8 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
                 .localNodeId(localNode.getId()).masterNodeId(localNode.getId()));
         builder.metaData(MetaData.builder()
                 .coordinationMetaData(CoordinationMetaData.builder()
-                    .addVotingTombstone(otherNode1)
-                    .addVotingTombstone(otherNode2)
+                        .addVotingTombstone(otherNode1Tombstone)
+                        .addVotingTombstone(otherNode2Tombstone)
                 .build()));
         setState(clusterService, builder);
     }
@@ -141,7 +145,8 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), containsInAnyOrder(otherNode1, otherNode2));
+        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(),
+                containsInAnyOrder(otherNode1Tombstone, otherNode2Tombstone));
         final Throwable rootCause = responseHolder.get().getRootCause();
         assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
         assertThat(rootCause.getMessage(),

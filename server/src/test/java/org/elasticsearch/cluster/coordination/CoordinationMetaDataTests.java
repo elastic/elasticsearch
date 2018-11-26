@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.set.Sets;
@@ -37,8 +35,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CoordinationMetaDataTests extends ESTestCase {
@@ -97,6 +93,33 @@ public class CoordinationMetaDataTests extends ESTestCase {
         return new VotingConfiguration(Sets.newHashSet(generateRandomStringArray(randomInt(10), 20, false)));
     }
 
+    public void testVotingTombstoneSerializationEqualsHashCode() {
+        VotingTombstone tombstone = new VotingTombstone(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(tombstone,
+                orig -> ESTestCase.copyWriteable(orig, new NamedWriteableRegistry(Collections.emptyList()), VotingTombstone::new),
+                orig -> randomlyChangeVotingTombstone(orig));
+    }
+
+    public void testVotingTombstoneXContent() throws IOException {
+        VotingTombstone originalTombstone = new VotingTombstone(randomAlphaOfLength(10), randomAlphaOfLength(10));
+
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        originalTombstone.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final VotingTombstone fromXContentTombstone = VotingTombstone.fromXContent(parser);
+            assertThat(originalTombstone, equalTo(fromXContentTombstone));
+        }
+    }
+
+    private VotingTombstone randomlyChangeVotingTombstone(VotingTombstone tombstone) {
+        if (randomBoolean()) {
+            return new VotingTombstone(randomAlphaOfLength(10), tombstone.getNodeName());
+        } else {
+            return new VotingTombstone(tombstone.getNodeId(), randomAlphaOfLength(10));
+        }
+    }
+
     private VotingConfiguration randomlyChangeVotingConfiguration(VotingConfiguration cfg) {
         Set<String> newNodeIds = new HashSet<>(cfg.getNodeIds());
         if (cfg.isEmpty() == false && randomBoolean()) {
@@ -113,20 +136,18 @@ public class CoordinationMetaDataTests extends ESTestCase {
         return new VotingConfiguration(newNodeIds);
     }
 
-    private Set<DiscoveryNode> randomDiscoveryNodeSet() {
+    private Set<VotingTombstone> randomVotingTombstones() {
         final int size = randomIntBetween(1, 10);
-        final Set<DiscoveryNode> nodes = new HashSet<>(size);
+        final Set<VotingTombstone> nodes = new HashSet<>(size);
         while (nodes.size() < size) {
-            assertTrue(nodes.add(new DiscoveryNode(randomAlphaOfLength(10), randomAlphaOfLength(10),
-                UUIDs.randomBase64UUID(random()), randomAlphaOfLength(10), randomAlphaOfLength(10), buildNewFakeTransportAddress(),
-                emptyMap(), singleton(DiscoveryNode.Role.MASTER), Version.CURRENT)));
+            assertTrue(nodes.add(new VotingTombstone(randomAlphaOfLength(10), randomAlphaOfLength(10))));
         }
         return nodes;
     }
 
     public void testCoordinationMetaDataSerializationEqualsHashCode() {
         CoordinationMetaData initialMetaData = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
-                randomDiscoveryNodeSet());
+                randomVotingTombstones());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialMetaData,
             orig -> ESTestCase.copyWriteable(orig, new NamedWriteableRegistry(Collections.emptyList()), CoordinationMetaData::new),
             meta -> {
@@ -145,7 +166,7 @@ public class CoordinationMetaDataTests extends ESTestCase {
                         if (meta.getVotingTombstones().isEmpty() == false && randomBoolean()) {
                             builder.clearVotingTombstones();
                         } else {
-                            randomDiscoveryNodeSet().forEach(dn -> builder.addVotingTombstone(dn));
+                            randomVotingTombstones().forEach(dn -> builder.addVotingTombstone(dn));
                         }
                         break;
                 }
@@ -155,7 +176,7 @@ public class CoordinationMetaDataTests extends ESTestCase {
 
     public void testXContent() throws IOException {
         CoordinationMetaData originalMeta = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
-                Collections.emptySet()); //TODO use non-empty tombstones set once toXContent for tombstones is implemented
+                randomVotingTombstones());
 
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();

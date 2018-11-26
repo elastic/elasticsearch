@@ -62,8 +62,7 @@ public class PublicationTests extends ESTestCase {
             this.localNode = localNode;
             ClusterState initialState = CoordinationStateTests.clusterState(0L, 0L, localNode,
                 CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG, CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG, 0L);
-            coordinationState = new CoordinationState(settings, localNode, new InMemoryPersistedState(0L,
-                initialState));
+            coordinationState = new CoordinationState(settings, localNode, new InMemoryPersistedState(0L, initialState));
         }
 
         final DiscoveryNode localNode;
@@ -436,6 +435,4 @@ public class PublicationTests extends ESTestCase {
                 return ts.stream();
             });
     }
-
-
 }

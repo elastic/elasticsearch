@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.configuration;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -69,10 +70,10 @@ public class AddVotingTombstonesRequest extends MasterNodeRequest<AddVotingTombs
         timeout = in.readTimeValue();
     }
 
-    Set<DiscoveryNode> resolveNodes(ClusterState currentState) {
+    Set<VotingTombstone> resolveVotingTombstones(ClusterState currentState) {
         final DiscoveryNodes allNodes = currentState.nodes();
-        final Set<DiscoveryNode> resolvedNodes = Arrays.stream(allNodes.resolveNodes(nodeDescriptions))
-            .map(allNodes::get).filter(DiscoveryNode::isMasterNode).collect(Collectors.toSet());
+        final Set<VotingTombstone> resolvedNodes = Arrays.stream(allNodes.resolveNodes(nodeDescriptions))
+                .map(allNodes::get).filter(DiscoveryNode::isMasterNode).map(VotingTombstone::new).collect(Collectors.toSet());
 
         if (resolvedNodes.isEmpty()) {
             throw new IllegalArgumentException("add voting tombstones request for " + Arrays.asList(nodeDescriptions)
@@ -83,8 +84,9 @@ public class AddVotingTombstonesRequest extends MasterNodeRequest<AddVotingTombs
         return resolvedNodes;
     }
 
-    Set<DiscoveryNode> resolveNodesAndCheckMaximum(ClusterState currentState, int maxTombstoneCount, String maximumSettingKey) {
-        final Set<DiscoveryNode> resolvedNodes = resolveNodes(currentState);
+    Set<VotingTombstone> resolveVotingTombstonesAndCheckMaximum(ClusterState currentState, int maxTombstoneCount,
+                                                                String maximumSettingKey) {
+        final Set<VotingTombstone> resolvedNodes = resolveVotingTombstones(currentState);
 
         final int oldTombstoneCount = currentState.getVotingTombstones().size();
         final int newTombstoneCount = resolvedNodes.size();

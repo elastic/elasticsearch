@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -277,7 +278,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return coordinationMetaData().getLastCommittedConfiguration();
     }
 
-    public Set<DiscoveryNode> getVotingTombstones() {
+    public Set<VotingTombstone> getVotingTombstones() {
         return coordinationMetaData().getVotingTombstones();
     }
 

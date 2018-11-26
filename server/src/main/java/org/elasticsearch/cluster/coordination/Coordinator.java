@@ -119,6 +119,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private long maxTermSeen;
     private final Reconfigurator reconfigurator;
     private final ClusterBootstrapService clusterBootstrapService;
+    private final LagDetector lagDetector;
 
     private Mode mode;
     private Optional<DiscoveryNode> lastKnownLeader;
@@ -157,6 +158,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService);
+        this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
+            transportService::getLocalNode);
     }
 
     private Runnable getOnLeaderFailure() {
@@ -374,6 +377,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             followersChecker.clearCurrentNodes();
             followersChecker.updateFastResponseState(getCurrentTerm(), mode);
+            lagDetector.clearTrackedNodes();
 
             if (applierState.nodes().getMasterNodeId() != null) {
                 applierState = clusterStateWithNoMasterBlock(applierState);
@@ -428,6 +432,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         followersChecker.clearCurrentNodes();
         followersChecker.updateFastResponseState(getCurrentTerm(), mode);
+        lagDetector.clearTrackedNodes();
     }
 
     private PreVoteResponse getPreVoteResponse() {
@@ -512,6 +517,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlock(NO_MASTER_BLOCK_WRITES.id());
             assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse())
                 : preVoteCollector + " vs " + getPreVoteResponse();
+
+            assert lagDetector.getTrackedNodes().contains(getLocalNode()) == false : lagDetector.getTrackedNodes();
+            assert followersChecker.getKnownFollowers().equals(lagDetector.getTrackedNodes())
+                : followersChecker.getKnownFollowers() + " vs " + lagDetector.getTrackedNodes();
+
             if (mode == Mode.LEADER) {
                 final boolean becomingMaster = getStateForMasterService().term() != getCurrentTerm();
 
@@ -831,8 +841,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     }
                 });
 
-                leaderChecker.setCurrentNodes(publishRequest.getAcceptedState().nodes());
-                followersChecker.setCurrentNodes(publishRequest.getAcceptedState().nodes());
+                final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
+                leaderChecker.setCurrentNodes(publishNodes);
+                followersChecker.setCurrentNodes(publishNodes);
+                lagDetector.setTrackedNodes(publishNodes);
                 publication.start(followersChecker.getFaultyNodes());
             }
         } catch (Exception e) {
@@ -985,6 +997,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             }
                         } else {
                             ackListener.onNodeAck(node, e);
+                            if (e == null) {
+                                lagDetector.setAppliedVersion(node, publishRequest.getAcceptedState().version());
+                            }
                         }
                     }
                 },
@@ -1051,6 +1066,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                     if (mode == Mode.LEADER) {
                                         scheduleReconfigurationIfNeeded();
                                     }
+                                    lagDetector.startLagDetector(publishRequest.getAcceptedState().version());
                                 }
                                 ackListener.onNodeAck(getLocalNode(), null);
                                 publishListener.onResponse(null);

@@ -197,7 +197,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     /**
      * Returns true if we can use <code>query</code> with a {@link SortedDocsProducer} on <code>fieldName</code>.
      */
-    private static boolean checkQuery(Query query, String fieldName) {
+    private static boolean checkMatchAllOrRangeQuery(Query query, String fieldName) {
         if (query == null) {
             return true;
         } else if (query.getClass() == MatchAllDocsQuery.class) {
@@ -217,7 +217,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         query = extractQuery(query);
         if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                checkQuery(query, fieldType.name()) == false) {
+                checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
             return null;
         }
         final byte[] lowerPoint;

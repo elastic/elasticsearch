@@ -474,7 +474,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING,
                     LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
                     DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING,
-                    DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING,
+                    DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING
             )));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(

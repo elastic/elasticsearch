@@ -45,6 +45,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
     private MlConfigMigrator configMigrator;
 
     @Before
+    @SuppressWarnings("unchecked")
     private void setupMocks() {
         auditor = mock(Auditor.class);
         clusterService = mock(ClusterService.class);
@@ -139,4 +140,37 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         verify(configMigrator, never()).migrateConfigs(any(), any());
     }
 
+    public void testMigrateNotTriggered_GivenPre66Nodes() {
+        MlAssignmentNotifier notifier = new MlAssignmentNotifier(auditor, threadPool, configMigrator, clusterService);
+        notifier.onMaster();
+
+        ClusterState previous = ClusterState.builder(new ClusterName("_name"))
+                .build();
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        addJobTask("job_id", null, null, tasksBuilder);
+        MetaData metaData = MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()).build();
+
+        // mixed 6.5 and 6.6 nodes
+        ClusterState current = ClusterState.builder(new ClusterName("_name"))
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.V_6_5_0))
+                        .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.V_6_6_0)))
+                .metaData(metaData)
+                .build();
+
+        notifier.clusterChanged(new ClusterChangedEvent("_test", current, previous));
+        verify(configMigrator, never()).migrateConfigs(any(), any());
+
+        current = ClusterState.builder(new ClusterName("_name"))
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.V_6_6_0))
+                        .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.V_6_6_0)))
+                .metaData(metaData)
+                .build();
+
+        // all 6.6 nodes
+        notifier.clusterChanged(new ClusterChangedEvent("_test", current, previous));
+        verify(configMigrator, times(1)).migrateConfigs(any(), any());
+    }
 }

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.featureindexbuilder.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -15,9 +14,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.featureindexbuilder.FeatureIndexBuilder;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
 
 public class RestGetDataFrameJobsAction extends BaseRestHandler {
-    public static final ParseField ID = new ParseField("id");
 
     public RestGetDataFrameJobsAction(Settings settings, RestController controller) {
         super(settings);
@@ -26,13 +25,13 @@ public class RestGetDataFrameJobsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        String id = restRequest.param(ID.getPreferredName());
+        String id = restRequest.param(FeatureIndexBuilderJob.ID.getPreferredName());
         GetDataFrameJobsAction.Request request = new GetDataFrameJobsAction.Request(id);
         return channel -> client.execute(GetDataFrameJobsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override
     public String getName() {
-        return "data_frame_get_job_action";
+        return "data_frame_get_jobs_action";
     }
 }

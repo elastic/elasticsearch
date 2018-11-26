@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
@@ -26,10 +28,11 @@ public class TransportSqlStatsAction extends TransportNodesAction<SqlStatsReques
     private final PlanExecutor planExecutor;
 
     @Inject
-    public TransportSqlStatsAction(TransportService transportService, ClusterService clusterService,
-                                   ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor) {
-        super(SqlStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-              SqlStatsRequest::new, SqlStatsRequest.NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT,
+    public TransportSqlStatsAction(Settings settings,TransportService transportService, ClusterService clusterService,
+                                   ThreadPool threadPool, ActionFilters actionFilters,
+                                   IndexNameExpressionResolver indexNameExpressionResolver, PlanExecutor planExecutor) {
+        super(settings, SqlStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+              indexNameExpressionResolver, SqlStatsRequest::new, SqlStatsRequest.NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT,
               SqlStatsResponse.NodeStatsResponse.class);
         this.planExecutor = planExecutor;
     }

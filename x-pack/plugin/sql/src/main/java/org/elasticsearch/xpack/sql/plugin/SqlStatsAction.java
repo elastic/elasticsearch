@@ -7,8 +7,9 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
-public class SqlStatsAction extends Action<SqlStatsResponse> {
+public class SqlStatsAction extends Action<SqlStatsRequest, SqlStatsResponse, SqlStatsRequestBuilder> {
 
     public static final SqlStatsAction INSTANCE = new SqlStatsAction();
     public static final String NAME = "cluster:monitor/xpack/sql/stats/dist";
@@ -22,4 +23,8 @@ public class SqlStatsAction extends Action<SqlStatsResponse> {
         return new SqlStatsResponse();
     }
 
+    @Override
+    public SqlStatsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new SqlStatsRequestBuilder(client);
+    }
 }

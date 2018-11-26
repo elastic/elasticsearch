@@ -19,6 +19,7 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -61,7 +62,8 @@ public class NodeService implements Closeable {
 
     private final Discovery discovery;
 
-    NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
+    @Inject
+    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
                 TransportService transportService, IndicesService indicesService, PluginsService pluginService,
                 CircuitBreakerService circuitBreakerService, ScriptService scriptService,
                 @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,

@@ -35,7 +35,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class IndexExplainResponseTests extends AbstractXContentTestCase<IndexLifecycleExplainResponse> {
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
+
+public class IndexLifecycleExplainResponseTests extends AbstractXContentTestCase<IndexLifecycleExplainResponse> {
 
     static IndexLifecycleExplainResponse randomIndexExplainResponse() {
         if (frequently()) {
@@ -50,18 +53,38 @@ public class IndexExplainResponseTests extends AbstractXContentTestCase<IndexLif
     }
 
     private static IndexLifecycleExplainResponse randomManagedIndexExplainResponse() {
+        boolean stepNull = randomBoolean();
         return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            randomNonNegativeLong(),
+            randomBoolean() ? null : randomNonNegativeLong(),
+            stepNull ? null : randomAlphaOfLength(10),
+            stepNull ? null : randomAlphaOfLength(10),
+            stepNull ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomAlphaOfLength(10),
-            randomBoolean() ? null : randomAlphaOfLength(10),
-            randomBoolean() ? null : randomAlphaOfLength(10),
-            randomBoolean() ? null : randomAlphaOfLength(10),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
+            stepNull ? null : randomNonNegativeLong(),
+            stepNull ? null : randomNonNegativeLong(),
+            stepNull ? null : randomNonNegativeLong(),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
             randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
+    }
+
+    public void testInvalidStepDetails() {
+        final int numNull = randomIntBetween(1, 6);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
+            IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomBoolean() ? null : randomNonNegativeLong(),
+                (numNull == 1) ? null : randomAlphaOfLength(10),
+                (numNull == 2) ? null : randomAlphaOfLength(10),
+                (numNull == 3) ? null : randomAlphaOfLength(10),
+                randomBoolean() ? null : randomAlphaOfLength(10),
+                (numNull == 4) ? null : randomNonNegativeLong(),
+                (numNull == 5) ? null : randomNonNegativeLong(),
+                (numNull == 6) ? null : randomNonNegativeLong(),
+                randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
+                randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")));
+        assertThat(exception.getMessage(), startsWith("invalid step details in response"));
+        assertThat(exception.getMessage(), containsString("=null"));
     }
 
     @Override

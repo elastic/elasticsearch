@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 public class IndexLifecycleExplainResponse implements ToXContentObject, Writeable {
 
@@ -63,10 +64,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), MANAGED_BY_ILM_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), POLICY_NAME_FIELD);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), LIFECYCLE_DATE_MILLIS_FIELD);
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), PHASE_FIELD);
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), ACTION_FIELD);
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), STEP_FIELD);
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FAILED_STEP_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PHASE_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ACTION_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), STEP_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FAILED_STEP_FIELD);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), PHASE_TIME_MILLIS_FIELD);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), ACTION_TIME_MILLIS_FIELD);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), STEP_TIME_MILLIS_FIELD);
@@ -110,6 +111,16 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         if (managedByILM) {
             if (policyName == null) {
                 throw new IllegalArgumentException("[" + POLICY_NAME_FIELD.getPreferredName() + "] cannot be null for managed index");
+            }
+            long numNull = Stream.of(phase, action, step, phaseTime, actionTime, stepTime).filter(Objects::isNull).count();
+            if (numNull > 0 && numNull < 6) {
+                throw new IllegalArgumentException("invalid step details in response [" +
+                    PHASE_FIELD.getPreferredName() + "=" + phase + ", " +
+                    PHASE_TIME_FIELD.getPreferredName() + "=" + phaseTime + ", " +
+                    ACTION_FIELD.getPreferredName() + "=" + action + ", " +
+                    ACTION_TIME_FIELD.getPreferredName() + "=" + actionTime + ", " +
+                    STEP_FIELD.getPreferredName() + "=" + step + ", " +
+                    STEP_TIME_FIELD.getPreferredName() + "=" + stepTime + "]");
             }
         } else {
             if (policyName != null || lifecycleDate != null || phase != null || action != null || step != null || failedStep != null
@@ -244,15 +255,21 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (lifecycleDate != null) {
                 builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
             }
-            builder.field(PHASE_FIELD.getPreferredName(), phase);
+            if (phase != null) {
+                builder.field(PHASE_FIELD.getPreferredName(), phase);
+            }
             if (phaseTime != null) {
                 builder.timeField(PHASE_TIME_MILLIS_FIELD.getPreferredName(), PHASE_TIME_FIELD.getPreferredName(), phaseTime);
             }
-            builder.field(ACTION_FIELD.getPreferredName(), action);
+            if (action != null) {
+                builder.field(ACTION_FIELD.getPreferredName(), action);
+            }
             if (actionTime != null) {
                 builder.timeField(ACTION_TIME_MILLIS_FIELD.getPreferredName(), ACTION_TIME_FIELD.getPreferredName(), actionTime);
             }
-            builder.field(STEP_FIELD.getPreferredName(), step);
+            if (step != null) {
+                builder.field(STEP_FIELD.getPreferredName(), step);
+            }
             if (stepTime != null) {
                 builder.timeField(STEP_TIME_MILLIS_FIELD.getPreferredName(), STEP_TIME_FIELD.getPreferredName(), stepTime);
             }

@@ -17,6 +17,11 @@ The Stop Rollup Job API allows you to stop a job by ID.
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The ID of the job to stop.
+<2> Whether the request should wait that the stop operation has completed
+before returning (optional, defaults to `false`)
+<3> If `wait_for_completion=true`, this parameter controls how long to wait
+before giving up and throwing an error (optional, defaults to 30 seconds).
+
 
 [id="{upid}-{api}-response"]
 ==== Response

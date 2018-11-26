@@ -289,8 +289,8 @@ be iterated over:
 include-tagged::{doc-tests-file}[{api}-hits-singleHit]
 --------------------------------------------------
 
-The `SearchHit` provides access to basic information like index, type, docId and
-score of each search hit:
+The `SearchHit` provides access to basic information like index, document ID
+and score of each search hit:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

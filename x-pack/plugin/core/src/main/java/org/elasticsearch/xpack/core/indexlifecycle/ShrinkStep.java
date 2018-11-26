@@ -15,6 +15,9 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.Objects;
 
+/**
+ * Shrinks an index, using a prefix prepended to the original index name for the name of the shrunken index.
+ */
 public class ShrinkStep extends AsyncActionStep {
     public static final String NAME = "shrink";
 

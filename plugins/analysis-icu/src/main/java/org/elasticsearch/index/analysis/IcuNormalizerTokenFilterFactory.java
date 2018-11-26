@@ -37,7 +37,7 @@ import org.elasticsearch.index.IndexSettings;
  * <p>The {@code name} can be used to provide the type of normalization to perform.</p>
  * <p>The {@code unicodeSetFilter} attribute can be used to provide the UniCodeSet for filtering.</p>
  */
-public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
+public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(IcuNormalizerTokenFilterFactory.class));
@@ -54,11 +54,6 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, normalizer);
-    }
-
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
     }
 
     static Normalizer2 wrapWithUnicodeSetFilter(final IndexSettings indexSettings,

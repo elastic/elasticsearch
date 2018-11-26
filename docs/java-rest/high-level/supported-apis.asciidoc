@@ -268,6 +268,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-put-calendar>>
 * <<{upid}-get-calendar-events>>
 * <<{upid}-post-calendar-event>>
+* <<{upid}-delete-calendar-event>>
 * <<{upid}-put-calendar-job>>
 * <<{upid}-delete-calendar-job>>
 * <<{upid}-delete-calendar>>
@@ -279,6 +280,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-delete-model-snapshot>>
 * <<{upid}-revert-model-snapshot>>
 * <<{upid}-update-model-snapshot>>
+* <<{upid}-delete-expired-data>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -308,6 +310,7 @@ include::ml/get-calendars.asciidoc[]
 include::ml/put-calendar.asciidoc[]
 include::ml/get-calendar-events.asciidoc[]
 include::ml/post-calendar-event.asciidoc[]
+include::ml/delete-calendar-event.asciidoc[]
 include::ml/put-calendar-job.asciidoc[]
 include::ml/delete-calendar-job.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
@@ -319,6 +322,7 @@ include::ml/get-model-snapshots.asciidoc[]
 include::ml/delete-model-snapshot.asciidoc[]
 include::ml/revert-model-snapshot.asciidoc[]
 include::ml/update-model-snapshot.asciidoc[]
+include::ml/delete-expired-data.asciidoc[]
 
 == Migration APIs
 
@@ -364,6 +368,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-enable-user>>
 * <<java-rest-high-security-disable-user>>
 * <<java-rest-high-security-change-password>>
+* <<{upid}-get-roles>>
 * <<java-rest-high-security-delete-role>>
 * <<{upid}-clear-roles-cache>>
 * <<{upid}-clear-realm-cache>>
@@ -382,6 +387,7 @@ include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
 include::security/disable-user.asciidoc[]
 include::security/change-password.asciidoc[]
+include::security/get-roles.asciidoc[]
 include::security/delete-role.asciidoc[]
 include::security/delete-privileges.asciidoc[]
 include::security/get-privileges.asciidoc[]

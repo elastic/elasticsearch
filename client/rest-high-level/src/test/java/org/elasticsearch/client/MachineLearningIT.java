@@ -788,7 +788,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.getDeleted());
     }
 
-    public  String createExpiredData(String jobId) throws Exception {
+    private  String createExpiredData(String jobId) throws Exception {
         String indexId = jobId + "-data";
         // Set up the index and docs
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexId);
@@ -1287,7 +1287,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         return generator.ofCodePointsLength(random(), 10, 10);
     }
 
-    public static Job buildJobForExpiredDataTests(String jobId) {
+    private static Job buildJobForExpiredDataTests(String jobId) {
         Job.Builder builder = new Job.Builder(jobId);
         builder.setDescription(randomAlphaOfLength(10));
 
@@ -1338,7 +1338,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
     }
 
-    public void waitForJobToClose(String jobId) throws Exception {
+    private void waitForJobToClose(String jobId) throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
         assertBusy(() -> {
@@ -1347,7 +1347,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    public void startDatafeed(String datafeedId, String start, String end) throws Exception {
+    private void startDatafeed(String datafeedId, String start, String end) throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
         StartDatafeedRequest startDatafeedRequest = new StartDatafeedRequest(datafeedId);
@@ -1360,7 +1360,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isStarted());
     }
 
-    public void updateModelSnapshotTimestamp(String jobId, String timestamp) throws Exception {
+    private void updateModelSnapshotTimestamp(String jobId, String timestamp) throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
         GetModelSnapshotsRequest getModelSnapshotsRequest = new GetModelSnapshotsRequest(jobId);

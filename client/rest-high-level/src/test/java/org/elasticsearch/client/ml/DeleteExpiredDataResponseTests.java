@@ -38,6 +38,6 @@ public class DeleteExpiredDataResponseTests extends AbstractXContentTestCase<Del
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

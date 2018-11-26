@@ -453,7 +453,35 @@ public class HttpExporterTests extends ESTestCase {
             exporter.openBulk(bulkListener);
 
             // wait for it to actually respond
-            awaitResponseAndClose.await(15, TimeUnit.SECONDS);
+            assertTrue(awaitResponseAndClose.await(15, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testHttpExporterReturnsNullForOpenBulkIfNotReady() throws Exception {
+        final Config config = createConfig(Settings.EMPTY);
+        final RestClient client = mock(RestClient.class);
+        final Sniffer sniffer = randomFrom(mock(Sniffer.class), null);
+        final NodeFailureListener listener = mock(NodeFailureListener.class);
+        // always has to check, and never succeeds checks but it does not throw an exception (e.g., version check fails)
+        final HttpResource resource = new MockHttpResource(exporterName(), true, false, false);
+
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource)) {
+            verify(listener).setResource(resource);
+
+            final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
+            final ActionListener<ExportBulk> bulkListener = ActionListener.wrap(
+                bulk -> {
+                    assertThat(bulk, nullValue());
+
+                    awaitResponseAndClose.countDown();
+                },
+                e -> fail(e.getMessage())
+            );
+
+            exporter.openBulk(bulkListener);
+
+            // wait for it to actually respond
+            assertTrue(awaitResponseAndClose.await(15, TimeUnit.SECONDS));
         }
     }
 
@@ -481,7 +509,7 @@ public class HttpExporterTests extends ESTestCase {
             exporter.openBulk(bulkListener);
 
             // wait for it to actually respond
-            awaitResponseAndClose.await(15, TimeUnit.SECONDS);
+            assertTrue(awaitResponseAndClose.await(15, TimeUnit.SECONDS));
         }
     }
 

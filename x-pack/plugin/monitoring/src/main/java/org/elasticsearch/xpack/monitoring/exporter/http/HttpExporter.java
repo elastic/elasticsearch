@@ -677,6 +677,9 @@ public class HttpExporter extends Exporter {
                 final String name = "xpack.monitoring.exporters." + config.name();
 
                 listener.onResponse(new HttpExportBulk(name, client, defaultParams, dateTimeFormatter, threadContext));
+            } else {
+                // we're not ready yet, so keep waiting
+                listener.onResponse(null);
             }
         }, listener::onFailure));
     }

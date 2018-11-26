@@ -146,7 +146,7 @@ public class HttpResourceTests extends ESTestCase {
                 // then respond here
                 final Thread thread = new Thread(() -> {
                     try {
-                        secondCheck.await(15, TimeUnit.SECONDS);
+                        assertTrue(secondCheck.await(15, TimeUnit.SECONDS));
                         listener.onResponse(response);
                     } catch (InterruptedException e) {
                         listener.onFailure(e);
@@ -161,7 +161,7 @@ public class HttpResourceTests extends ESTestCase {
         resource.checkAndPublishIfDirty(client, listener);
         resource.checkAndPublishIfDirty(client, checkingListener);
 
-        firstCheck.await(15, TimeUnit.SECONDS);
+        assertTrue(firstCheck.await(15, TimeUnit.SECONDS));
 
         verify(listener).onResponse(response);
 

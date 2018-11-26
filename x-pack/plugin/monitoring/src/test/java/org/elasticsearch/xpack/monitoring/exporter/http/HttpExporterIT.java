@@ -295,7 +295,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     public void testUnsupportedClusterVersion() throws Exception {
-        Settings settings = Settings.builder()
+        final Settings settings = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", "http")
                 .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
                 .build();
@@ -317,15 +317,25 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 bulk -> {
                     assertNull(bulk);
 
+                    logger.error("[testUnsupportedClusterVersion] responded to listener");
+
                     awaitResponseAndClose.countDown();
                 },
-                e -> fail(e.getMessage())
+                e -> {
+                    logger.error("[testUnsupportedClusterVersion] failed to respond to listener");
+
+                    fail(e.getMessage());
+                }
             );
 
             exporter.openBulk(listener);
 
+            logger.error("[testUnsupportedClusterVersion] waiting for latch");
+
             // wait for it to actually respond
-            awaitResponseAndClose.await(15, TimeUnit.SECONDS);
+            assertTrue(awaitResponseAndClose.await(15, TimeUnit.SECONDS));
+
+            logger.error("[testUnsupportedClusterVersion] waited for latch");
         }
 
         assertThat(webServer.requests(), hasSize(1));
@@ -593,7 +603,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             }, e -> fail("Failed to create HttpExportBulk")));
 
             // block until the bulk responds
-            awaitResponseAndClose.await(15, TimeUnit.SECONDS);
+            assertTrue(awaitResponseAndClose.await(15, TimeUnit.SECONDS));
         }
     }
 

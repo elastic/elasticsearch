@@ -43,7 +43,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     TransportVerifyShardBeforeCloseAction.ShardCloseRequest, TransportVerifyShardBeforeCloseAction.ShardCloseRequest, ReplicationResponse> {
 
     public static final String NAME = CloseIndexAction.NAME + "[s]";
-    private static final ClusterBlock EXPECTED_BLOCK = MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
+    public static final ClusterBlock EXPECTED_BLOCK = MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
 
     @Inject
     public TransportVerifyShardBeforeCloseAction(final Settings settings, final TransportService transportService,

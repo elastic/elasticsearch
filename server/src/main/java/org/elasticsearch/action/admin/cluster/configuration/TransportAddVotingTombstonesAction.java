@@ -30,9 +30,9 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -80,16 +80,16 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
     protected void masterOperation(AddVotingTombstonesRequest request, ClusterState state,
                                    ActionListener<AddVotingTombstonesResponse> listener) throws Exception {
 
-        resolveNodesAndCheckMaximum(request, state); // throws IllegalArgumentException if no nodes matched or maximum exceeded
+        resolveVotingTombstonesAndCheckMaximum(request, state); // throws IllegalArgumentException if no nodes matched or maximum exceeded
 
         clusterService.submitStateUpdateTask("add-voting-tombstones", new ClusterStateUpdateTask(Priority.URGENT) {
 
-            private Set<DiscoveryNode> resolvedNodes;
+            private Set<VotingTombstone> resolvedNodes;
 
             @Override
             public ClusterState execute(ClusterState currentState) {
                 assert resolvedNodes == null : resolvedNodes;
-                resolvedNodes = resolveNodesAndCheckMaximum(request, currentState);
+                resolvedNodes = resolveVotingTombstonesAndCheckMaximum(request, currentState);
 
                 final CoordinationMetaData.Builder builder = CoordinationMetaData.builder(currentState.coordinationMetaData());
                 resolvedNodes.forEach(builder::addVotingTombstone);
@@ -110,7 +110,7 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
                 final ClusterStateObserver observer
                     = new ClusterStateObserver(clusterService, request.getTimeout(), logger, threadPool.getThreadContext());
 
-                final Set<String> resolvedNodeIds = resolvedNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
+                final Set<String> resolvedNodeIds = resolvedNodes.stream().map(VotingTombstone::getNodeId).collect(Collectors.toSet());
 
                 final Predicate<ClusterState> allNodesRemoved = clusterState -> {
                     final Set<String> votingNodeIds = clusterState.getLastCommittedConfiguration().getNodeIds();
@@ -145,8 +145,8 @@ public class TransportAddVotingTombstonesAction extends TransportMasterNodeActio
         });
     }
 
-    private static Set<DiscoveryNode> resolveNodesAndCheckMaximum(AddVotingTombstonesRequest request, ClusterState state) {
-        return request.resolveNodesAndCheckMaximum(state,
+    private static Set<VotingTombstone> resolveVotingTombstonesAndCheckMaximum(AddVotingTombstonesRequest request, ClusterState state) {
+        return request.resolveVotingTombstonesAndCheckMaximum(state,
             MAXIMUM_VOTING_TOMBSTONES_SETTING.get(state.metaData().settings()), MAXIMUM_VOTING_TOMBSTONES_SETTING.getKey());
     }
 

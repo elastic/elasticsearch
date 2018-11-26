@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterStateObserver.Listener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -76,6 +77,7 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
     private static ThreadPool threadPool;
     private static ClusterService clusterService;
     private static DiscoveryNode localNode, otherNode1, otherNode2, otherDataNode;
+    private static VotingTombstone localNodeTombstone, otherNode1Tombstone, otherNode2Tombstone;
 
     private TransportService transportService;
     private ClusterStateObserver clusterStateObserver;
@@ -84,8 +86,11 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
     public static void createThreadPoolAndClusterService() {
         threadPool = new TestThreadPool("test", Settings.EMPTY);
         localNode = makeDiscoveryNode("local");
+        localNodeTombstone = new VotingTombstone(localNode);
         otherNode1 = makeDiscoveryNode("other1");
+        otherNode1Tombstone = new VotingTombstone(otherNode1);
         otherNode2 = makeDiscoveryNode("other2");
+        otherNode2Tombstone = new VotingTombstone(otherNode2);
         otherDataNode = new DiscoveryNode("data", "data", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         clusterService = createClusterService(threadPool, localNode);
     }
@@ -137,7 +142,7 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), contains(otherNode1));
+        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), contains(otherNode1Tombstone));
     }
 
     public void testWithdrawsVotesFromMultipleNodes() throws InterruptedException {
@@ -153,7 +158,8 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), containsInAnyOrder(otherNode1, otherNode2));
+        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(),
+                containsInAnyOrder(otherNode1Tombstone, otherNode2Tombstone));
     }
 
     public void testWithdrawsVotesFromNodesMatchingWildcard() throws InterruptedException {
@@ -169,7 +175,8 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), containsInAnyOrder(otherNode1, otherNode2));
+        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(),
+                containsInAnyOrder(otherNode1Tombstone, otherNode2Tombstone));
     }
 
     public void testWithdrawsVotesFromAllMasterEligibleNodes() throws InterruptedException {
@@ -186,7 +193,7 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(),
-            containsInAnyOrder(localNode, otherNode1, otherNode2));
+                containsInAnyOrder(localNodeTombstone, otherNode1Tombstone, otherNode2Tombstone));
     }
 
     public void testWithdrawsVoteFromLocalNode() throws InterruptedException {
@@ -202,7 +209,8 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), contains(localNode));
+        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(),
+                contains(localNodeTombstone));
     }
 
     public void testReturnsImmediatelyIfVoteAlreadyWithdrawn() throws InterruptedException {
@@ -226,7 +234,8 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), contains(otherNode1));
+        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(),
+                contains(otherNode1Tombstone));
     }
 
     public void testReturnsErrorIfNoMatchingNodes() throws InterruptedException {
@@ -272,7 +281,7 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
         builder.metaData(MetaData.builder(state.metaData()).
                 coordinationMetaData(
                         CoordinationMetaData.builder(state.coordinationMetaData())
-                        .addVotingTombstone(otherNode1).
+                                .addVotingTombstone(otherNode1Tombstone).
                 build()));
         setState(clusterService, builder);
 
@@ -287,7 +296,8 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), contains(otherNode1));
+        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(),
+                contains(otherNode1Tombstone));
     }
 
     public void testReturnsErrorIfMaximumTombstoneCountExceeded() throws InterruptedException {
@@ -295,11 +305,12 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
                 Settings.builder().put(clusterService.state().metaData().persistentSettings())
                         .put(MAXIMUM_VOTING_TOMBSTONES_SETTING.getKey(), 2).build());
         CoordinationMetaData.Builder coordinationMetaDataBuilder =
-                CoordinationMetaData.builder(clusterService.state().coordinationMetaData()).addVotingTombstone(localNode);
+                CoordinationMetaData.builder(clusterService.state().coordinationMetaData())
+                        .addVotingTombstone(localNodeTombstone);
 
         final int existingCount, newCount;
         if (randomBoolean()) {
-            coordinationMetaDataBuilder.addVotingTombstone(otherNode1);
+            coordinationMetaDataBuilder.addVotingTombstone(otherNode1Tombstone);
             existingCount = 2;
             newCount = 1;
         } else {
@@ -395,7 +406,7 @@ public class TransportAddVotingTombstonesActionTests extends ESTestCase {
                     assertThat(currentState, sameInstance(state));
                     final Set<String> votingNodeIds = new HashSet<>();
                     currentState.nodes().forEach(n -> votingNodeIds.add(n.getId()));
-                    currentState.getVotingTombstones().forEach(t -> votingNodeIds.remove(t.getId()));
+                    currentState.getVotingTombstones().forEach(t -> votingNodeIds.remove(t.getNodeId()));
                     final VotingConfiguration votingConfiguration = new VotingConfiguration(votingNodeIds);
                     return builder(currentState)
                         .metaData(MetaData.builder(currentState.metaData())

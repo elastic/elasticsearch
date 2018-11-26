@@ -49,40 +49,48 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
 
     private final VotingConfiguration lastAcceptedConfiguration;
 
-    private final Set<DiscoveryNode> votingTombstones;
+    private final Set<VotingTombstone> votingTombstones;
 
     private static final ParseField TERM_PARSE_FIELD = new ParseField("term");
     private static final ParseField LAST_COMMITTED_CONFIGURATION_FIELD = new ParseField("last_committed_config");
     private static final ParseField LAST_ACCEPTED_CONFIGURATION_FIELD = new ParseField("last_accepted_config");
+    private static final ParseField VOTING_TOMBSTONES_FIELD = new ParseField("voting_tombstones");
 
     private static long term(Object[] termAndConfigs) {
         return (long)termAndConfigs[0];
     }
 
     @SuppressWarnings("unchecked")
-    private static VotingConfiguration lastCommittedConfig(Object[] termAndConfig) {
-        List<String> nodeIds = (List<String>) termAndConfig[1];
+    private static VotingConfiguration lastCommittedConfig(Object[] fields) {
+        List<String> nodeIds = (List<String>) fields[1];
         return new VotingConfiguration(new HashSet<>(nodeIds));
     }
 
     @SuppressWarnings("unchecked")
-    private static VotingConfiguration lastAcceptedConfig(Object[] termAndConfig) {
-        List<String> nodeIds = (List<String>) termAndConfig[2];
+    private static VotingConfiguration lastAcceptedConfig(Object[] fields) {
+        List<String> nodeIds = (List<String>) fields[2];
         return new VotingConfiguration(new HashSet<>(nodeIds));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Set<VotingTombstone> votingTombstones(Object[] fields) {
+        Set<VotingTombstone> votingTombstones = new HashSet<>((List<VotingTombstone>) fields[3]);
+        return votingTombstones;
     }
 
     private static final ConstructingObjectParser<CoordinationMetaData, Void> PARSER = new ConstructingObjectParser<>(
             "coordination_metadata",
-            termAndConfigs -> new CoordinationMetaData(term(termAndConfigs), lastCommittedConfig(termAndConfigs),
-                    lastAcceptedConfig(termAndConfigs), Collections.emptySet()));
+            fields -> new CoordinationMetaData(term(fields), lastCommittedConfig(fields),
+                    lastAcceptedConfig(fields), votingTombstones(fields)));
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), TERM_PARSE_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LAST_COMMITTED_CONFIGURATION_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LAST_ACCEPTED_CONFIGURATION_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), VotingTombstone.PARSER, VOTING_TOMBSTONES_FIELD);
     }
 
     public CoordinationMetaData(long term, VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
-        Set<DiscoveryNode> votingTombstones) {
+                                Set<VotingTombstone> votingTombstones) {
         this.term = term;
         this.lastCommittedConfiguration = lastCommittedConfiguration;
         this.lastAcceptedConfiguration = lastAcceptedConfiguration;
@@ -93,7 +101,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         term = in.readLong();
         lastCommittedConfiguration = new VotingConfiguration(in);
         lastAcceptedConfiguration = new VotingConfiguration(in);
-        votingTombstones = Collections.unmodifiableSet(in.readSet(DiscoveryNode::new));
+        votingTombstones = Collections.unmodifiableSet(in.readSet(VotingTombstone::new));
     }
 
     public static Builder builder() {
@@ -117,8 +125,8 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         return builder
             .field(TERM_PARSE_FIELD.getPreferredName(), term)
             .field(LAST_COMMITTED_CONFIGURATION_FIELD.getPreferredName(), lastCommittedConfiguration)
-            .field(LAST_ACCEPTED_CONFIGURATION_FIELD.getPreferredName(), lastAcceptedConfiguration);
-        // TODO include voting tombstones here
+            .field(LAST_ACCEPTED_CONFIGURATION_FIELD.getPreferredName(), lastAcceptedConfiguration)
+            .field(VOTING_TOMBSTONES_FIELD.getPreferredName(), votingTombstones);
     }
 
     public static CoordinationMetaData fromXContent(XContentParser parser) throws IOException {
@@ -137,7 +145,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         return lastCommittedConfiguration;
     }
 
-    public Set<DiscoveryNode> getVotingTombstones() {
+    public Set<VotingTombstone> getVotingTombstones() {
         return votingTombstones;
     }
 
@@ -177,7 +185,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         private long term = 0;
         private VotingConfiguration lastCommittedConfiguration = VotingConfiguration.EMPTY_CONFIG;
         private VotingConfiguration lastAcceptedConfiguration = VotingConfiguration.EMPTY_CONFIG;
-        private final Set<DiscoveryNode> votingTombstones = new HashSet<>();
+        private final Set<VotingTombstone> votingTombstones = new HashSet<>();
 
         public Builder() {
 
@@ -205,7 +213,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
             return this;
         }
 
-        public Builder addVotingTombstone(DiscoveryNode tombstone) {
+        public Builder addVotingTombstone(VotingTombstone tombstone) {
             votingTombstones.add(tombstone);
             return this;
         }
@@ -218,6 +226,97 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         public CoordinationMetaData build() {
             return new CoordinationMetaData(term, lastCommittedConfiguration, lastAcceptedConfiguration, votingTombstones);
         }
+    }
+
+    public static class VotingTombstone implements Writeable, ToXContentFragment {
+        private final String nodeId;
+        private final String nodeName;
+
+        public VotingTombstone(DiscoveryNode node) {
+            this(node.getId(), node.getName());
+        }
+
+        public VotingTombstone(StreamInput in) throws IOException {
+            this.nodeId = in.readString();
+            this.nodeName = in.readString();
+        }
+
+        public VotingTombstone(String nodeId, String nodeName) {
+            this.nodeId = nodeId;
+            this.nodeName = nodeName;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(nodeId);
+            out.writeString(nodeName);
+        }
+
+        public String getNodeId() {
+            return nodeId;
+        }
+
+        public String getNodeName() {
+            return nodeName;
+        }
+
+        private static final ParseField NODE_ID_PARSE_FIELD = new ParseField("node_id");
+        private static final ParseField NODE_NAME_PARSE_FIELD = new ParseField("node_name");
+
+        private static String nodeId(Object[] nodeIdAndName) {
+            return (String) nodeIdAndName[0];
+        }
+
+        private static String nodeName(Object[] nodeIdAndName) {
+            return (String) nodeIdAndName[1];
+        }
+
+        private static final ConstructingObjectParser<VotingTombstone, Void> PARSER = new ConstructingObjectParser<>(
+                "voting_tombstone",
+                nodeIdAndName -> new VotingTombstone(nodeId(nodeIdAndName), nodeName(nodeIdAndName))
+        );
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE_ID_PARSE_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE_NAME_PARSE_FIELD);
+        }
+
+        public static VotingTombstone fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject()
+                    .field(NODE_ID_PARSE_FIELD.getPreferredName(), nodeId)
+                    .field(NODE_NAME_PARSE_FIELD.getPreferredName(), nodeName)
+                    .endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            VotingTombstone that = (VotingTombstone) o;
+            return Objects.equals(nodeId, that.nodeId) &&
+                    Objects.equals(nodeName, that.nodeName);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(nodeId, nodeName);
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            if (nodeName.length() > 0) {
+                sb.append('{').append(nodeName).append('}');
+            }
+            sb.append('{').append(nodeId).append('}');
+            return sb.toString();
+        }
+
     }
 
     /**

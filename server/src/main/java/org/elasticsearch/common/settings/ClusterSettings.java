@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.DiscoveryUpgradeService;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
@@ -471,8 +472,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
                     TransportAddVotingTombstonesAction.MAXIMUM_VOTING_TOMBSTONES_SETTING,
                     ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING,
+                    LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
                     DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING,
-                    DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING
+                    DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING,
             )));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(

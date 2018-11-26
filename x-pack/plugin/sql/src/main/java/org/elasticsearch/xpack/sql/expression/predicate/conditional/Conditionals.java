@@ -72,12 +72,12 @@ final class Conditionals {
         }
 
         Object result = null;
-        int i = 0;
+        boolean isFirst = true;
         for (Object value : values) {
-            if ((i == 0) || (result == null) || (comparison.apply(value, result) == Boolean.TRUE)) {
+            if (isFirst || (result == null) || (comparison.apply(value, result) == Boolean.TRUE)) {
                 result = value;
             }
-            i++;
+            isFirst = false;
         }
         return result;
     }

@@ -156,7 +156,12 @@ public final class ActiveShardCount implements Writeable {
                 continue;
             }
             final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);
-            assert indexRoutingTable != null;
+            if (indexRoutingTable == null && indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                // its possible the index was closed while waiting for active shard copies,
+                // in this case, we'll just consider it that we have enough active shard copies
+                // and we can stop waiting
+                continue;
+            }
             if (indexRoutingTable.allPrimaryShardsActive() == false) {
                 // all primary shards aren't active yet
                 return false;

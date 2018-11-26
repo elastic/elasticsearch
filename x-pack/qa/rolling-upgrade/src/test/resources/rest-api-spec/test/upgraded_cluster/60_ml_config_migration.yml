@@ -50,6 +50,10 @@ setup:
   - is_false: datafeeds.1.node
 
   - do:
+      xpack.ml.stop_datafeed:
+        datafeed_id: migration-old-cluster-started-datafeed
+
+  - do:
       xpack.ml.close_job:
         job_id: migration-old-cluster-open-job
 
@@ -58,9 +62,6 @@ setup:
         job_id: migration-old-cluster-open-job
   - is_true: jobs.0.finished_time
 
-  - do:
-      xpack.ml.stop_datafeed:
-        datafeed_id: migration-old-cluster-started-datafeed
 
   - do:
       xpack.ml.delete_datafeed:

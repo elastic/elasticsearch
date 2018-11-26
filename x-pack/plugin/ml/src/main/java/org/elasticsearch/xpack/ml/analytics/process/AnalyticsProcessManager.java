@@ -8,10 +8,13 @@ package org.elasticsearch.xpack.ml.analytics.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.analytics.DataFrameAnalysis;
 import org.elasticsearch.xpack.ml.analytics.DataFrameDataExtractor;
 
 import java.io.IOException;
@@ -39,7 +42,7 @@ public class AnalyticsProcessManager {
 
     public void processData(String jobId, DataFrameDataExtractor dataExtractor) {
         threadPool.generic().execute(() -> {
-            AnalyticsProcess process = createProcess(jobId);
+            AnalyticsProcess process = createProcess(jobId, dataExtractor);
             try {
                 // Fake header
                 process.writeRecord(dataExtractor.getFieldNamesArray());
@@ -69,13 +72,20 @@ public class AnalyticsProcessManager {
         });
     }
 
-    private AnalyticsProcess createProcess(String jobId) {
+    private AnalyticsProcess createProcess(String jobId, DataFrameDataExtractor dataExtractor) {
         // TODO We should rename the thread pool to reflect its more general use now, e.g. JOB_PROCESS_THREAD_POOL_NAME
         ExecutorService executorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
-        AnalyticsProcess process = processFactory.createAnalyticsProcess(jobId, executorService);
+        AnalyticsProcess process = processFactory.createAnalyticsProcess(jobId, createProcessConfig(dataExtractor), executorService);
         if (process.isProcessAlive() == false) {
             throw ExceptionsHelper.serverError("Failed to start analytics process");
         }
         return process;
+    }
+
+    private AnalyticsProcessConfig createProcessConfig(DataFrameDataExtractor dataExtractor) {
+        DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
+        AnalyticsProcessConfig config = new AnalyticsProcessConfig(dataSummary.rows, dataSummary.cols,
+                new ByteSizeValue(1, ByteSizeUnit.GB), 1, new DataFrameAnalysis("outliers"));
+        return config;
     }
 }

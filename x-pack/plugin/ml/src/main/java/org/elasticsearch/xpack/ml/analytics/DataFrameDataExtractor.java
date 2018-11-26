@@ -189,4 +189,25 @@ public class DataFrameDataExtractor {
         List<String> fieldNames = getFieldNames();
         return fieldNames.toArray(new String[fieldNames.size()]);
     }
+
+    public DataSummary collectDataSummary() {
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
+            .setIndices(context.indices)
+            .setSize(0)
+            .setQuery(context.query);
+
+        SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
+        return new DataSummary(searchResponse.getHits().getTotalHits(), context.extractedFields.getAllFields().size());
+    }
+
+    public static class DataSummary {
+
+        public final long rows;
+        public final long cols;
+
+        public DataSummary(long rows, long cols) {
+            this.rows = rows;
+            this.cols = cols;
+        }
+    }
 }

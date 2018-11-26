@@ -8,17 +8,10 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
-import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
@@ -36,75 +29,17 @@ import static org.mockito.Mockito.when;
 
 public class MlConfigMigratorTests extends ESTestCase {
 
-    public void testClosedJobConfigs() {
-        Job openJob1 = JobTests.buildJobBuilder("openjob1").build();
-        Job openJob2 = JobTests.buildJobBuilder("openjob2").build();
+    public void testNonDeletingJobs() {
+        Job job1 = JobTests.buildJobBuilder("openjob1").build();
+        Job job2 = JobTests.buildJobBuilder("openjob2").build();
+        Job deletingJob = JobTests.buildJobBuilder("deleting-job").setDeleting(true).build();
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder()
-                .putJob(openJob1, false)
-                .putJob(openJob2, false)
-                .putDatafeed(createCompatibleDatafeed(openJob1.getId()), Collections.emptyMap());
+                .putJob(job1, false)
+                .putJob(job2, false)
+                .putJob(deletingJob, false)
+                .putDatafeed(createCompatibleDatafeed(job1.getId()), Collections.emptyMap());
 
-
-        ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests"))
-                .metaData(MetaData.builder()
-                        .putCustom(MlMetadata.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData.builder().build())
-                )
-                .build();
-
-        assertThat(MlConfigMigrator.closedJobConfigs(clusterState), containsInAnyOrder(openJob1, openJob2));
-
-
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
-        tasksBuilder.addTask(MlTasks.jobTaskId("openjob1"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-1"),
-                new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
-
-        clusterState = ClusterState.builder(new ClusterName("migratortests"))
-                .metaData(MetaData.builder()
-                        .putCustom(MlMetadata.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())
-                )
-                .build();
-
-        assertThat(MlConfigMigrator.closedJobConfigs(clusterState), containsInAnyOrder(openJob2));
-    }
-
-    public void testStoppedDatafeedConfigs() {
-        Job openJob1 = JobTests.buildJobBuilder("openjob1").build();
-        Job openJob2 = JobTests.buildJobBuilder("openjob2").build();
-        DatafeedConfig datafeedConfig1 = createCompatibleDatafeed(openJob1.getId());
-        DatafeedConfig datafeedConfig2 = createCompatibleDatafeed(openJob2.getId());
-        MlMetadata.Builder mlMetadata = new MlMetadata.Builder()
-                .putJob(openJob1, false)
-                .putJob(openJob2, false)
-                .putDatafeed(datafeedConfig1, Collections.emptyMap())
-                .putDatafeed(datafeedConfig2, Collections.emptyMap());
-
-        ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests"))
-                .metaData(MetaData.builder()
-                        .putCustom(MlMetadata.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData.builder().build())
-                )
-                .build();
-
-        assertThat(MlConfigMigrator.stoppedDatafeedConfigs(clusterState), containsInAnyOrder(datafeedConfig1, datafeedConfig2));
-
-
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
-        tasksBuilder.addTask(MlTasks.jobTaskId("openjob1"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-1"),
-                new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
-        tasksBuilder.addTask(MlTasks.datafeedTaskId(datafeedConfig1.getId()), MlTasks.DATAFEED_TASK_NAME,
-                new StartDatafeedAction.DatafeedParams(datafeedConfig1.getId(), 0L),
-                new PersistentTasksCustomMetaData.Assignment("node-2", "test assignment"));
-
-        clusterState = ClusterState.builder(new ClusterName("migratortests"))
-                .metaData(MetaData.builder()
-                        .putCustom(MlMetadata.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())
-                )
-                .build();
-
-        assertThat(MlConfigMigrator.stoppedDatafeedConfigs(clusterState), containsInAnyOrder(datafeedConfig2));
+        assertThat(MlConfigMigrator.nonDeletingJobs(mlMetadata.build()), containsInAnyOrder(job1, job2));
     }
 
     private DatafeedConfig createCompatibleDatafeed(String jobId) {

@@ -25,9 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
-import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -36,6 +34,7 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -47,6 +46,24 @@ import java.util.stream.Collectors;
 /**
  * Migrates job and datafeed configurations from the clusterstate to
  * index documents.
+ *
+ * There are 3 steps to the migration process
+ * 1. Read config from the clusterstate
+ *     - If a job or datafeed is added after this call it will be added to the index
+ *     - If deleted then it's possible the config will be copied before it is deleted.
+ *       Mitigate against this by filtering out jobs marked as deleting
+ * 2. Copy the config to the index
+ *     - The index operation could fail, don't delete from clusterstate in this case
+ * 3. Remove config from the clusterstate
+ *     - Before this happens config is duplicated in index and clusterstate, all ops
+ *       must prefer to use the index config at this stage
+ *     - If the clusterstate update fails then the config will remain duplicated
+ *       and the migration process should try again
+ *
+ * If there was an error in step 3 and the config is in both the clusterstate and
+ * index then when the migrator retries it must not overwrite an existing job config
+ * document as once the index document is present all update operations will function
+ * on that rather than the clusterstate
  */
 public class MlConfigMigrator {
 
@@ -64,8 +81,7 @@ public class MlConfigMigrator {
 
     /**
      * Migrate ml job and datafeed configurations from the clusterstate
-     * to index documents. Only the configs that do not have an associated
-     * persistent task are migrated.
+     * to index documents.
      *
      * Configs to be migrated are read from the cluster state then bulk
      * indexed into .ml-config. Those successfully indexed are then removed
@@ -80,10 +96,12 @@ public class MlConfigMigrator {
      * @param clusterState The current clusterstate
      * @param listener     The success listener
      */
-    public void migrateConfigsWithoutTasks(ClusterState clusterState, ActionListener<Boolean> listener) {
+    public void migrateConfigs(ClusterState clusterState, ActionListener<Boolean> listener) {
 
-        List<DatafeedConfig> datafeedsToMigrate = stoppedDatafeedConfigs(clusterState);
-        List<Job> jobsToMigrate = closedJobConfigs(clusterState).stream()
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+
+        Collection<DatafeedConfig> datafeedsToMigrate = mlMetadata.getDatafeeds().values();
+        List<Job> jobsToMigrate = nonDeletingJobs(mlMetadata).stream()
                 .map(MlConfigMigrator::updateJobForMigration)
                 .collect(Collectors.toList());
 
@@ -104,8 +122,8 @@ public class MlConfigMigrator {
     }
 
     // Exposed for testing
-    public void writeConfigToIndex(List<DatafeedConfig> datafeedsToMigrate,
-                                   List<Job> jobsToMigrate,
+    public void writeConfigToIndex(Collection<DatafeedConfig> datafeedsToMigrate,
+                                   Collection<Job> jobsToMigrate,
                                    ActionListener<Set<String>> listener) {
 
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
@@ -168,14 +186,14 @@ public class MlConfigMigrator {
         });
     }
 
-    private void addJobIndexRequests(List<Job> jobs, BulkRequestBuilder bulkRequestBuilder) {
+    private void addJobIndexRequests(Collection<Job> jobs, BulkRequestBuilder bulkRequestBuilder) {
         ToXContent.Params params = new ToXContent.MapParams(JobConfigProvider.TO_XCONTENT_PARAMS);
         for (Job job : jobs) {
             bulkRequestBuilder.add(indexRequest(job, Job.documentId(job.getId()), params));
         }
     }
 
-    private void addDatafeedIndexRequests(List<DatafeedConfig> datafeedConfigs, BulkRequestBuilder bulkRequestBuilder) {
+    private void addDatafeedIndexRequests(Collection<DatafeedConfig> datafeedConfigs, BulkRequestBuilder bulkRequestBuilder) {
         ToXContent.Params params = new ToXContent.MapParams(DatafeedConfigProvider.TO_XCONTENT_PARAMS);
         for (DatafeedConfig datafeedConfig : datafeedConfigs) {
             bulkRequestBuilder.add(indexRequest(datafeedConfig, DatafeedConfig.documentId(datafeedConfig.getId()), params));
@@ -184,7 +202,7 @@ public class MlConfigMigrator {
 
     private IndexRequest indexRequest(ToXContentObject source, String documentId, ToXContent.Params params) {
         IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName(), ElasticsearchMappings.DOC_TYPE, documentId);
-        // It is an error if there is an existing document
+        // do not overwrite existing documents
         indexRequest.opType(DocWriteRequest.OpType.CREATE);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -211,36 +229,15 @@ public class MlConfigMigrator {
     }
 
     /**
-     * Find the configurations for all closed jobs in the cluster state.
-     * Closed jobs are those that do not have an associated persistent task.
+     * Find the configurations for all jobs in the cluster state that
+     * are not marked as deleting.
      *
-     * @param clusterState The cluster state
-     * @return The closed job configurations
+     * @param mlMetadata MlMetaData
+     * @return Jobs not marked as deleting
      */
-    public static List<Job> closedJobConfigs(ClusterState clusterState) {
-        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        Set<String> openJobIds = MlTasks.openJobIds(persistentTasks);
-
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+    public static List<Job> nonDeletingJobs(MlMetadata mlMetadata) {
         return mlMetadata.getJobs().values().stream()
-                .filter(job -> openJobIds.contains(job.getId()) == false)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Find the configurations for stopped datafeeds in the cluster state.
-     * Stopped datafeeds are those that do not have an associated persistent task.
-     *
-     * @param clusterState The cluster state
-     * @return The closed job configurations
-     */
-    public static List<DatafeedConfig> stoppedDatafeedConfigs(ClusterState clusterState) {
-        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        Set<String> startedDatafeedIds = MlTasks.startedDatafeedIds(persistentTasks);
-
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-        return mlMetadata.getDatafeeds().values().stream()
-                .filter(datafeedConfig-> startedDatafeedIds.contains(datafeedConfig.getId()) == false)
+                .filter(job -> job.isDeleting() == false)
                 .collect(Collectors.toList());
     }
 
@@ -280,7 +277,7 @@ public class MlConfigMigrator {
                 .collect(Collectors.toList());
     }
 
-    static List<DatafeedConfig> filterFailedDatafeedConfigWrites(Set<String> failedDocumentIds, List<DatafeedConfig> datafeeds) {
+    static List<DatafeedConfig> filterFailedDatafeedConfigWrites(Set<String> failedDocumentIds, Collection<DatafeedConfig> datafeeds) {
         return datafeeds.stream()
                 .filter(datafeed -> failedDocumentIds.contains(DatafeedConfig.documentId(datafeed.getId())) == false)
                 .collect(Collectors.toList());

@@ -85,7 +85,7 @@ public class MlAssignmentNotifier implements ClusterStateListener, LocalNodeMast
             return;
         }
 
-        mlConfigMigrator.migrateConfigsWithoutTasks(event.state(), ActionListener.wrap(
+        mlConfigMigrator.migrateConfigs(event.state(), ActionListener.wrap(
                 response -> threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(current, previous, event.state())),
                 e -> logger.error("error migrating ml configurations", e)
         ));

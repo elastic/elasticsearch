@@ -172,7 +172,7 @@ public class ActiveShardCountTests extends ESTestCase {
         final int numberOfReplicas = randomIntBetween(4, 7);
 
         final ClusterState clusterState = initializeWithClosedIndex(indexName, numberOfShards, numberOfReplicas);
-        for (ActiveShardCount waitForActiveShards : Arrays.asList(ActiveShardCount.DEFAULT,ActiveShardCount.ALL, ActiveShardCount.ONE)) {
+        for (ActiveShardCount waitForActiveShards : Arrays.asList(ActiveShardCount.DEFAULT, ActiveShardCount.ALL, ActiveShardCount.ONE)) {
             assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
         }
     }

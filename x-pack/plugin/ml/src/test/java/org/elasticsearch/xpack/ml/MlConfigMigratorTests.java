@@ -119,6 +119,16 @@ public class MlConfigMigratorTests extends ESTestCase {
         assertEquals(oldVersion, migratedJob.getCustomSettings().get(MlConfigMigrator.MIGRATED_FROM_VERSION));
     }
 
+    public void testUpdateJobForMigration_GivenV54Job() {
+        Job.Builder oldJob = JobTests.buildJobBuilder("pre-migration");
+        // v5.4 jobs did not have a version and should not have a new one set
+        oldJob.setJobVersion(null);
+
+        Job migratedJob = MlConfigMigrator.updateJobForMigration(oldJob.build());
+        assertNull(migratedJob.getJobVersion());
+        assertTrue(migratedJob.getCustomSettings().containsKey(MlConfigMigrator.MIGRATED_FROM_VERSION));
+    }    
+
     public void testFilterFailedJobConfigWrites() {
         List<Job> jobs = new ArrayList<>();
         jobs.add(JobTests.buildJobBuilder("foo").build());

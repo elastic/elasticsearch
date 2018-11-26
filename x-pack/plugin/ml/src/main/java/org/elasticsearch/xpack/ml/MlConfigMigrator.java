@@ -42,6 +42,10 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
 
+/**
+ * Migrates job and datafeed configurations from the clusterstate to
+ * index documents.
+ */
 public class MlConfigMigrator {
 
     private static final Logger logger = LogManager.getLogger(MlConfigMigrator.class);
@@ -180,7 +184,13 @@ public class MlConfigMigrator {
         Map<String, Object> custom = job.getCustomSettings() == null ? new HashMap<>() : new HashMap<>(job.getCustomSettings());
         custom.put(MIGRATED_FROM_VERSION, job.getJobVersion());
         builder.setCustomSettings(custom);
-        builder.setJobVersion(Version.CURRENT);
+        // Pre v5.5 (ml beta) jobs do not have a version.
+        // These jobs cannot be opened, we rely on the missing version
+        // to indicate this.
+        // See TransportOpenJobAction.validate()
+        if (job.getJobVersion() != null) {
+            builder.setJobVersion(Version.CURRENT);
+        }
         return builder.build();
     }
 

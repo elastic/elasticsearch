@@ -132,6 +132,7 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -396,7 +397,9 @@ public class Node implements Closeable {
                     .flatMap(p -> p.getNamedXContent().stream()),
                 ClusterModule.getNamedXWriteables().stream())
                 .flatMap(Function.identity()).collect(toList()));
-            modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class), xContentRegistry));
+            RepositoriesModule repositoriesModule = new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class),
+                xContentRegistry);
+            modules.add(repositoriesModule);
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
 
             // collect engine factory providers from server and from plugins
@@ -569,6 +572,8 @@ public class Node implements Closeable {
             logger.debug("initializing HTTP handlers ...");
             actionModule.initRestHandlers(() -> clusterService.state().nodes());
             logger.info("initialized");
+
+            repositoriesModule.initRepositoryPlugins(injector.getInstance(RepositoriesService.class));
 
             success = true;
         } catch (IOException ex) {

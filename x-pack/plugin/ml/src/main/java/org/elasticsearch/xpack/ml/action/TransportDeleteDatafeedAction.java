@@ -131,15 +131,21 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
             return;
         }
 
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
-        if (mlMetadata.getDatafeed(request.getDatafeedId()) != null) {
-            deleteDatafeedFromMetadata(request, listener);
-        } else {
-            datafeedConfigProvider.deleteDatafeedConfig(request.getDatafeedId(), ActionListener.wrap(
-                    deleteResponse -> listener.onResponse(new AcknowledgedResponse(true)),
-                    listener::onFailure
-            ));
-        }
+
+        datafeedConfigProvider.deleteDatafeedConfig(request.getDatafeedId(), ActionListener.wrap(
+                deleteResponse -> listener.onResponse(new AcknowledgedResponse(true)),
+                e -> {
+                    if (e.getClass() == ResourceNotFoundException.class) {
+                        // is the datafeed in the clusterstate
+                        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
+                        if (mlMetadata.getDatafeed(request.getDatafeedId()) != null) {
+                            deleteDatafeedFromMetadata(request, listener);
+                            return;
+                        }
+                    }
+                    listener.onFailure(e);
+                }
+        ));
     }
 
     private void deleteDatafeedFromMetadata(DeleteDatafeedAction.Request request, ActionListener<AcknowledgedResponse> listener) {

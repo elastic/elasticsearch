@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -69,19 +70,6 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
     protected void masterOperation(UpdateDatafeedAction.Request request, ClusterState state,
                                    ActionListener<PutDatafeedAction.Response> listener) throws Exception {
 
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
-        boolean datafeedConfigIsInClusterState = mlMetadata.getDatafeed(request.getUpdate().getId()) != null;
-        if (datafeedConfigIsInClusterState) {
-            updateDatafeedInClusterState(request, listener);
-        } else {
-            updateDatafeedInIndex(request, state, listener);
-        }
-    }
-
-    private void updateDatafeedInIndex(UpdateDatafeedAction.Request request, ClusterState state,
-                                       ActionListener<PutDatafeedAction.Response> listener) throws Exception {
-        final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
-
         // Check datafeed is stopped
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         if (MlTasks.getDatafeedTask(request.getUpdate().getId(), tasks) != null) {
@@ -91,6 +79,12 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
             return;
         }
 
+        updateDatafeedInIndex(request, state, listener);
+    }
+
+    private void updateDatafeedInIndex(UpdateDatafeedAction.Request request, ClusterState state,
+                                       ActionListener<PutDatafeedAction.Response> listener) throws Exception {
+        final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
         String datafeedId = request.getUpdate().getId();
 
         CheckedConsumer<Boolean, Exception> updateConsumer = ok -> {
@@ -98,7 +92,17 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
                     jobConfigProvider::validateDatafeedJob,
                     ActionListener.wrap(
                             updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
-                            listener::onFailure
+                            e -> {
+                                if (e.getClass() == ResourceNotFoundException.class) {
+                                    // try the clusterstate
+                                    MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
+                                    if (mlMetadata.getDatafeed(request.getUpdate().getId()) != null) {
+                                        updateDatafeedInClusterState(request, listener);
+                                        return;
+                                    }
+                                }
+                                listener.onFailure(e);
+                            }
                     ));
         };
 

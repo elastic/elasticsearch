@@ -35,14 +35,19 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataResponse;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.FindFileStructureRequest;
+import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -109,6 +114,7 @@ import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.client.ml.datafeed.DelayedDataCheckConfig;
+import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -139,6 +145,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.junit.After;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -1729,6 +1738,68 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testFindFileStructure() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Path anInterestingFile = createTempFile();
+        String contents = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\"," +
+                "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\"," +
+                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n" +
+            "{\"logger\":\"controller\",\"timestamp\":1478261151445," +
+                "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\"," +
+                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
+        Files.write(anInterestingFile, Collections.singleton(contents), StandardCharsets.UTF_8);
+
+        {
+            // tag::find-file-structure-request
+            FindFileStructureRequest findFileStructureRequest = new FindFileStructureRequest(); // <1>
+            findFileStructureRequest.setSample(Files.readAllBytes(anInterestingFile)); // <2>
+            // end::find-file-structure-request
+
+            // tag::find-file-structure-request-options
+            findFileStructureRequest.setLinesToSample(500); // <1>
+            findFileStructureRequest.setExplain(true); // <2>
+            // end::find-file-structure-request-options
+
+            // tag::find-file-structure-execute
+            FindFileStructureResponse findFileStructureResponse =
+                client.machineLearning().findFileStructure(findFileStructureRequest, RequestOptions.DEFAULT);
+            // end::find-file-structure-execute
+
+            // tag::find-file-structure-response
+            FileStructure structure = findFileStructureResponse.getFileStructure(); // <1>
+            // end::find-file-structure-response
+            assertEquals(2, structure.getNumLinesAnalyzed());
+        }
+        {
+            // tag::find-file-structure-execute-listener
+            ActionListener<FindFileStructureResponse> listener = new ActionListener<FindFileStructureResponse>() {
+                @Override
+                public void onResponse(FindFileStructureResponse findFileStructureResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::find-file-structure-execute-listener
+            FindFileStructureRequest findFileStructureRequest = new FindFileStructureRequest();
+            findFileStructureRequest.setSample(Files.readAllBytes(anInterestingFile));
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::find-file-structure-execute-async
+            client.machineLearning().findFileStructureAsync(findFileStructureRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::find-file-structure-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testGetInfluencers() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -1889,6 +1960,56 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
+
+    public void testDeleteExpiredData() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-delete-expired-data";
+        MachineLearningIT.buildJob(jobId);
+       {
+            // tag::delete-expired-data-request
+            DeleteExpiredDataRequest request = new DeleteExpiredDataRequest(); // <1>
+            // end::delete-expired-data-request
+
+            // tag::delete-expired-data-execute
+            DeleteExpiredDataResponse response = client.machineLearning().deleteExpiredData(request, RequestOptions.DEFAULT);
+            // end::delete-expired-data-execute
+
+            // tag::delete-expired-data-response
+            boolean deleted = response.getDeleted(); // <1>
+            // end::delete-expired-data-response
+
+            assertTrue(deleted);
+        }
+        {
+            // tag::delete-expired-data-execute-listener
+            ActionListener<DeleteExpiredDataResponse> listener = new ActionListener<DeleteExpiredDataResponse>() {
+                @Override
+                public void onResponse(DeleteExpiredDataResponse deleteExpiredDataResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-expired-data-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            DeleteExpiredDataRequest deleteExpiredDataRequest = new DeleteExpiredDataRequest();
+
+            // tag::delete-expired-data-execute-async
+            client.machineLearning().deleteExpiredDataAsync(deleteExpiredDataRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-expired-data-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
 
     public void testDeleteModelSnapshot() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
@@ -2590,7 +2711,71 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-    
+
+    public void testDeleteCalendarEvent() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays",
+            Arrays.asList("job_1", "job_group_1", "job_2"),
+            "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        List<ScheduledEvent> events = Arrays.asList(ScheduledEventTests.testInstance(calendar.getId(), null),
+            ScheduledEventTests.testInstance(calendar.getId(), null));
+        client.machineLearning().postCalendarEvent(new PostCalendarEventRequest("holidays", events), RequestOptions.DEFAULT);
+        GetCalendarEventsResponse getCalendarEventsResponse =
+            client.machineLearning().getCalendarEvents(new GetCalendarEventsRequest("holidays"), RequestOptions.DEFAULT);
+        {
+
+            // tag::delete-calendar-event-request
+            DeleteCalendarEventRequest request = new DeleteCalendarEventRequest("holidays", // <1>
+                "EventId"); // <2>
+            // end::delete-calendar-event-request
+
+            request = new DeleteCalendarEventRequest("holidays", getCalendarEventsResponse.events().get(0).getEventId());
+
+            // tag::delete-calendar-event-execute
+            AcknowledgedResponse response = client.machineLearning().deleteCalendarEvent(request, RequestOptions.DEFAULT);
+            // end::delete-calendar-event-execute
+
+            // tag::delete-calendar-event-response
+            boolean acknowledged = response.isAcknowledged(); // <1>
+            // end::delete-calendar-event-response
+
+            assertThat(acknowledged, is(true));
+        }
+        {
+            DeleteCalendarEventRequest request = new DeleteCalendarEventRequest("holidays",
+                getCalendarEventsResponse.events().get(1).getEventId());
+
+            // tag::delete-calendar-event-execute-listener
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse deleteCalendarEventResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::delete-calendar-event-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-calendar-event-execute-async
+            client.machineLearning().deleteCalendarEventAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-calendar-event-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+
     public void testCreateFilter() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {

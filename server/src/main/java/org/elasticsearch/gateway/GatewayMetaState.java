@@ -43,7 +43,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;

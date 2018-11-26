@@ -126,8 +126,10 @@ public class DiscoveryModule {
                 clusterSettings, hostsProvider, allocationService, Collections.unmodifiableCollection(joinValidators), gatewayMetaState));
         discoveryTypes.put("zen2", () -> new Coordinator(NODE_NAME_SETTING.get(settings), settings, clusterSettings, transportService,
                 namedWriteableRegistry, allocationService, masterService,
-                () -> {gatewayMetaState.setLocalNode(transportService.getLocalNode()); return gatewayMetaState;},
-                hostsProvider, clusterApplier, Randomness.get()));
+                () -> {
+                    gatewayMetaState.setLocalNode(transportService.getLocalNode());
+                    return gatewayMetaState;
+                }, hostsProvider, clusterApplier, Randomness.get()));
         discoveryTypes.put("single-node", () -> new SingleNodeDiscovery(settings, transportService, masterService, clusterApplier));
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getDiscoveryTypes(threadPool, transportService, namedWriteableRegistry,

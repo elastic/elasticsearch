@@ -43,14 +43,15 @@ public class PersistedStateIT extends ESIntegTestCase {
         final int maxShardsPersNode = randomIntBetween(1000, 10000);
 
         client().admin().cluster().updateSettings(
-                new ClusterUpdateSettingsRequest().persistentSettings(Settings.builder().put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()
-                        , maxShardsPersNode).build())).actionGet();
+                new ClusterUpdateSettingsRequest().persistentSettings(Settings.builder()
+                        .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPersNode).build()))
+                .actionGet();
         internalCluster().fullRestart();
         ensureStableCluster(1);
         MetaData metaData =
                 client().admin().cluster().state(new ClusterStateRequest()).actionGet(30, TimeUnit.SECONDS).getState().metaData();
-        assertThat(metaData.persistentSettings().get(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()),
-                equalTo(Integer.toString(maxShardsPersNode)));
+        assertThat(metaData.persistentSettings()
+                        .get(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()), equalTo(Integer.toString(maxShardsPersNode)));
 
     }
 }

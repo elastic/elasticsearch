@@ -667,7 +667,6 @@ public class IndexShardTests extends IndexShardTestCase {
                 } else {
                     indexShard.acquireAllPrimaryOperationsPermits(future, TimeValue.timeValueHours(1L));
                 }
-                assertEquals(0, indexShard.getActiveOperationsCount());
             });
             threads[threadId].start();
         }

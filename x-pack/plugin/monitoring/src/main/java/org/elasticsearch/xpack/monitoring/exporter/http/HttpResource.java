@@ -102,7 +102,7 @@ public abstract class HttpResource {
      * <p>
      * Expected usage:
      * <pre><code>
-     * resource.checkAndPublishIfDirty(client, ActionListener.wrap((success) -> {
+     * resource.checkAndPublishIfDirty(client, ActionListener.wrap((success) -&gt; {
      *     if (success) {
      *         // use client with resources having been verified
      *     }
@@ -113,19 +113,10 @@ public abstract class HttpResource {
      * @param listener Returns {@code true} if the resource is available for use. {@code false} to stop.
      */
     public final void checkAndPublishIfDirty(final RestClient client, final ActionListener<Boolean> listener) {
-        final State state = this.state.get();
-
-        switch (state) {
-            case CLEAN:
-                listener.onResponse(true);
-                break;
-            case CHECKING:
-                // if it's already checking, then we choose to ignore _this_ check
-                listener.onResponse(false);
-                break;
-            case DIRTY:
-                checkAndPublish(client, listener);
-                break;
+        if (state.get() == State.CLEAN) {
+            listener.onResponse(true);
+        } else {
+            checkAndPublish(client, listener);
         }
     }
 
@@ -144,17 +135,18 @@ public abstract class HttpResource {
      * @see #isDirty()
      */
     public final void checkAndPublish(final RestClient client, final ActionListener<Boolean> listener) {
-        // we always check when asked, regardless of clean or dirty
-        state.set(State.CHECKING);
-
-        doCheckAndPublish(client, ActionListener.wrap(success -> {
-            state.compareAndSet(State.CHECKING, success ? State.CLEAN : State.DIRTY);
-            listener.onResponse(success);
-        }, e -> {
-            state.compareAndSet(State.CHECKING, State.DIRTY);
-
-            listener.onFailure(e);
-        }));
+        // we always check when asked, regardless of clean or dirty, but we do not run parallel checks
+        if (state.getAndSet(State.CHECKING) != State.CHECKING) {
+            doCheckAndPublish(client, ActionListener.wrap(success -> {
+                state.compareAndSet(State.CHECKING, success ? State.CLEAN : State.DIRTY);
+                listener.onResponse(success);
+            }, e -> {
+                state.compareAndSet(State.CHECKING, State.DIRTY);
+                listener.onFailure(e);
+            }));
+        } else {
+            listener.onResponse(false);
+        }
     }
 
     /**

@@ -230,9 +230,9 @@ public abstract class PublishableHttpResource extends HttpResource {
 
             @Override
             public void onSuccess(final Response response) {
-                final int statusCode = response.getStatusLine().getStatusCode();
-
                 try {
+                    final int statusCode = response.getStatusLine().getStatusCode();
+
                     // checking the content is the job of whoever called this function by checking the tuple's response
                     if (exists.contains(statusCode)) {
                         logger.debug("{} [{}] found on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
@@ -249,7 +249,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                     } else {
                         onFailure(new ResponseException(response));
                     }
-                } catch (IOException | RuntimeException e) {
+                } catch (Exception e) {
                     logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to parse [{}/{}] on the [{}]",
                                                                               resourceBasePath, resourceName, resourceOwnerName),
                                  e);
@@ -357,7 +357,7 @@ public abstract class PublishableHttpResource extends HttpResource {
      * responses will result in {@code false} and logged failure.
      *
      * @param client The REST client to make the request(s).
-     * @param listener Returns {@code true} if it successfully deleted the item; otherwise {@code false}.
+     * @param listener Returns {@code true} if it successfully deleted the item; <em>never</em> {@code false}.
      * @param logger The logger to use for status messages.
      * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template").
      * @param resourceName The name of the resource (e.g., "template123").
@@ -445,7 +445,9 @@ public abstract class PublishableHttpResource extends HttpResource {
             final Object version = resource != null ? resource.get("version") : null;
 
             // the version in the template is expected to include the alpha/beta/rc codes as well
-            return version instanceof Number && ((Number)version).intValue() < minimumVersion;
+            if (version instanceof Number) {
+                return ((Number) version).intValue() < minimumVersion;
+            }
         }
 
         return true;
@@ -461,8 +463,8 @@ public abstract class PublishableHttpResource extends HttpResource {
         return true;
     }
 
-    private void addParameters(Request request) {
-        for (Map.Entry<String, String> param : parameters.entrySet()) {
+    private void addParameters(final Request request) {
+        for (final Map.Entry<String, String> param : parameters.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());
         }
     }

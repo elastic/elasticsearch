@@ -22,16 +22,12 @@ package org.elasticsearch.indices.state;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -43,7 +39,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
@@ -320,26 +315,6 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(client.admin().cluster().prepareState().get().getState().metaData().index("test").getState(),
             equalTo(IndexMetaData.State.OPEN)));
         ensureGreen("test");
-    }
-
-    public void testCloseUnassignedIndex() throws Exception {
-        final String index = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final Settings indexSettings = Settings.builder().put("index.routing.allocation.include.tag", "does_not_exist").build();
-        final CreateIndexRequest createIndexRequest = new CreateIndexRequest(index).settings(indexSettings);
-
-        final PlainActionFuture<CreateIndexResponse> createIndexFuture = new PlainActionFuture<>();
-        client().admin().indices().create(createIndexRequest, createIndexFuture);
-
-        assertBusy(() -> {
-            assertIndexIsOpened(index);
-            ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth(index).get();
-            assertThat(healthResponse.isTimedOut(), is(false));
-            assertThat(healthResponse.getStatus(), is(ClusterHealthStatus.RED));
-        });
-        assertThat(createIndexFuture.isDone(), is(false));
-        assertAcked(client().admin().indices().prepareClose(index));
-        assertThat(createIndexFuture.isDone(), is(true));
-        assertAcked(createIndexFuture.get());
     }
 
     private void assertIndexIsOpened(String... indices) {

@@ -162,6 +162,7 @@ public final class ActiveShardCount implements Writeable {
                 // and we can stop waiting
                 continue;
             }
+            assert indexRoutingTable != null;
             if (indexRoutingTable.allPrimaryShardsActive() == false) {
                 // all primary shards aren't active yet
                 return false;

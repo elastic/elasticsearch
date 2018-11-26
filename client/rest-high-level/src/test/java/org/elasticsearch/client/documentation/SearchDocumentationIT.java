@@ -20,6 +20,7 @@
 package org.elasticsearch.client.documentation;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -235,7 +236,11 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchHits hits = searchResponse.getHits();
             // end::search-hits-get
             // tag::search-hits-info
-            long totalHits = hits.getTotalHits().value;
+            TotalHits totalHits = hits.getTotalHits();
+            // the total number of hits, must be interpreted in the context of totalHits.relation
+            long numHits = totalHits.value;
+            // whether the number of hits is accurate (EQUAL_TO) or a lower bound of the total (GREATER_THAN_OR_EQUAL_TO)
+            TotalHits.Relation relation = totalHits.relation;
             float maxScore = hits.getMaxScore();
             // end::search-hits-info
             // tag::search-hits-singleHit
@@ -259,7 +264,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                         (Map<String, Object>) sourceAsMap.get("innerObject");
                 // end::search-hits-singleHit-source
             }
-            assertEquals(3, totalHits);
+            assertEquals(3, numHits);
+            assertEquals(TotalHits.Relation.EQUAL_TO, relation);
             assertNotNull(hits.getHits()[0].getSourceAsString());
             assertNotNull(hits.getHits()[0].getSourceAsMap().get("title"));
             assertNotNull(hits.getHits()[0].getSourceAsMap().get("innerObject"));

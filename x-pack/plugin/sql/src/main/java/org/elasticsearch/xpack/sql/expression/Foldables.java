@@ -10,6 +10,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 public abstract class Foldables {
@@ -49,6 +51,14 @@ public abstract class Foldables {
         List<T> l = new ArrayList<>(list.size());
         for (Expression e : list) {
              l.add(valueOf(e, to));
+        }
+        return l;
+    }
+
+    public static <T> Collection<T> valuesOfNoDuplicates(List<Expression> list, DataType to) {
+        LinkedHashSet<T> l = new LinkedHashSet<>(list.size());
+        for (Expression e : list) {
+            l.add(valueOf(e, to));
         }
         return l;
     }

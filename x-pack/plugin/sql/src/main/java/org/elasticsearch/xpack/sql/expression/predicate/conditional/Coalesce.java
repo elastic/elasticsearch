@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
@@ -16,10 +14,10 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation.COALESCE;
 
-public class Coalesce extends ConditionalFunction {
+public class Coalesce extends ArbitraryConditionalFunction {
 
     public Coalesce(Location location, List<Expression> fields) {
-        super(location, fields);
+        super(location, fields, COALESCE);
     }
 
     @Override
@@ -41,20 +39,9 @@ public class Coalesce extends ConditionalFunction {
         return (children.isEmpty() || (children.get(0).foldable() && children.get(0).fold() != null));
     }
 
-
     @Override
     public Object fold() {
         List<Expression> children = children();
         return children.isEmpty() ? null : children.get(0).fold();
-    }
-
-    @Override
-    protected String scriptMethodName() {
-        return COALESCE.scriptMethodName();
-    }
-
-    @Override
-    protected Pipe makePipe() {
-        return new ConditionalPipe(location(), this, Expressions.pipe(children()), COALESCE);
     }
 }

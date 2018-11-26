@@ -26,8 +26,6 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public class NullIf extends ConditionalFunction {
 
-    private DataType dataType;
-
     public NullIf(Location location, Expression left, Expression right) {
         super(location, Arrays.asList(left, right));
     }
@@ -66,11 +64,6 @@ public class NullIf extends ConditionalFunction {
     @Override
     public Object fold() {
         return NullIfProcessor.apply(children().get(0).fold(), children().get(1).fold());
-    }
-
-    @Override
-    protected String scriptMethodName() {
-        return null;
     }
 
     @Override

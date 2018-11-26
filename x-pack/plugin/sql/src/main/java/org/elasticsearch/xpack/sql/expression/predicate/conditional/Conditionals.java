@@ -43,7 +43,7 @@ final class Conditionals {
     }
 
     static Object greatest(Collection<Object> values) {
-        return getMinOrMax(values, Comparisons::gt);
+        return extremum(values, Comparisons::gt);
     }
 
     static Object greatestOnInput(Collection<Processor> processors, Object input) {
@@ -55,7 +55,7 @@ final class Conditionals {
     }
 
     static Object least(Collection<Object> values) {
-        return getMinOrMax(values, Comparisons::lt);
+        return extremum(values, Comparisons::lt);
     }
 
     static Object leastOnInput(List<Processor> processors, Object input) {
@@ -66,7 +66,7 @@ final class Conditionals {
         return least(values);
     }
 
-    private static Object getMinOrMax(Collection<Object> values, BiFunction<Object, Object, Boolean> comparison) {
+    private static Object extremum(Collection<Object> values, BiFunction<Object, Object, Boolean> comparison) {
         if (values == null || values.isEmpty()) {
             return null;
         }

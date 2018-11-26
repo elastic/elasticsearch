@@ -7,8 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
@@ -18,10 +17,10 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation.GREATEST;
 
-public class Greatest extends ConditionalFunction {
+public class Greatest extends ArbitraryConditionalFunction {
 
     public Greatest(Location location, List<Expression> fields) {
-        super(location, new ArrayList<>(new LinkedHashSet<>(fields)));
+        super(location, new ArrayList<>(new LinkedHashSet<>(fields)), GREATEST);
     }
 
     @Override
@@ -36,20 +35,6 @@ public class Greatest extends ConditionalFunction {
 
     @Override
     public Object fold() {
-        LinkedHashSet<Object> values = new LinkedHashSet<>(children().size());
-        for (Expression e : children()) {
-            values.add(e.fold());
-        }
-        return GREATEST.apply(values);
-    }
-
-    @Override
-    protected String scriptMethodName() {
-        return GREATEST.scriptMethodName();
-    }
-
-    @Override
-    protected Pipe makePipe() {
-        return new ConditionalPipe(location(), this, Expressions.pipe(children()), GREATEST);
+        return GREATEST.apply(Foldables.valuesOfNoDuplicates(children(), dataType));
     }
 }

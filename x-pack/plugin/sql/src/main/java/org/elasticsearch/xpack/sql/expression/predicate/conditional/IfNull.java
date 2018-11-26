@@ -24,7 +24,8 @@ public class IfNull extends Coalesce {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new IfNull(location(), newChildren.get(0), newChildren.get(1));
+        // Return generic Coalesce as the size of newChildren can be < 2 a after optimisation
+        return new Coalesce(location(), newChildren);
     }
 
     @Override

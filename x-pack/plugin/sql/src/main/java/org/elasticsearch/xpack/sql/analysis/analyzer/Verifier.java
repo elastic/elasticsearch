@@ -23,14 +23,20 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
+import org.elasticsearch.xpack.sql.plan.logical.Limit;
+import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
+import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.stats.FeatureMetric;
+import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -42,10 +48,25 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.lang.String.format;
+import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.HAVING;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LOCAL;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.ORDERBY;
+import static org.elasticsearch.xpack.sql.stats.FeatureMetric.WHERE;
 
-final class Verifier {
-
-    private Verifier() {}
+/**
+ * The verifier has the role of checking the analyzed tree for failures and build a list of failures following this check.
+ * It is created in the plan executor along with the metrics instance passed as constructor parameter.
+ */
+public final class Verifier {
+    private final Metrics metrics;
+    
+    public Verifier(Metrics metrics) {
+        this.metrics = metrics;
+    }
 
     static class Failure {
         private final Node<?> source;
@@ -93,7 +114,12 @@ final class Verifier {
         return new Failure(source, format(Locale.ROOT, message, args));
     }
 
-    static Collection<Failure> verify(LogicalPlan plan) {
+    public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
+        Collection<Failure> failures = verify(plan);
+        return failures.stream().collect(toMap(Failure::source, Failure::message));
+    }
+
+    Collection<Failure> verify(LogicalPlan plan) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // start bottom-up
@@ -103,7 +129,7 @@ final class Verifier {
                 return;
             }
 
-            // if the children are unresolved, this node will also so counting it will only add noise
+            // if the children are unresolved, so will this node; counting it will only add noise
             if (!p.childrenResolved()) {
                 return;
             }
@@ -211,6 +237,33 @@ final class Verifier {
 
                 failures.addAll(localFailures);
             });
+        }
+        
+        // gather metrics
+        if (failures.isEmpty()) {
+            BitSet b = new BitSet(FeatureMetric.values().length);
+            plan.forEachDown(p -> {
+                if (p instanceof Aggregate) {
+                    b.set(GROUPBY.ordinal());
+                } else if (p instanceof OrderBy) {
+                    b.set(ORDERBY.ordinal());
+                } else if (p instanceof Filter) {
+                    if (((Filter) p).child() instanceof Aggregate) {
+                        b.set(HAVING.ordinal());
+                    } else {
+                        b.set(WHERE.ordinal());
+                    }
+                } else if (p instanceof Limit) {
+                    b.set(LIMIT.ordinal());
+                } else if (p instanceof LocalRelation) {
+                    b.set(LOCAL.ordinal());
+                } else if (p instanceof Command) {
+                    b.set(COMMAND.ordinal());
+                }
+            });
+            for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
+                metrics.inc(FeatureMetric.values()[i]);
+            }
         }
 
         return failures;

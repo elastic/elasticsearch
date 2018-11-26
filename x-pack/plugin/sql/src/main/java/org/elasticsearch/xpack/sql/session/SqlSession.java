@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer.PreAnalysis;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
@@ -36,6 +37,7 @@ public class SqlSession {
     private final FunctionRegistry functionRegistry;
     private final IndexResolver indexResolver;
     private final PreAnalyzer preAnalyzer;
+    private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
 
@@ -44,12 +46,13 @@ public class SqlSession {
 
     public SqlSession(SqlSession other) {
         this(other.settings, other.client, other.functionRegistry, other.indexResolver,
-                other.preAnalyzer, other.optimizer,other.planner);
+             other.preAnalyzer, other.verifier, other.optimizer, other.planner);
     }
 
     public SqlSession(Configuration settings, Client client, FunctionRegistry functionRegistry,
             IndexResolver indexResolver,
             PreAnalyzer preAnalyzer,
+            Verifier verifier,
             Optimizer optimizer,
             Planner planner) {
         this.client = client;
@@ -59,6 +62,7 @@ public class SqlSession {
         this.preAnalyzer = preAnalyzer;
         this.optimizer = optimizer;
         this.planner = planner;
+        this.verifier = verifier;
 
         this.settings = settings;
     }
@@ -82,6 +86,10 @@ public class SqlSession {
     public Optimizer optimizer() {
         return optimizer;
     }
+    
+    public Verifier verifier() {
+        return verifier;
+    }
 
     private LogicalPlan doParse(String sql, List<SqlTypedParamValue> params) {
         return new SqlParser().createStatement(sql, params);
@@ -94,9 +102,8 @@ public class SqlSession {
         }
 
         preAnalyze(parsed, c -> {
-            Analyzer analyzer = new Analyzer(functionRegistry, c, settings.timeZone());
-            LogicalPlan p = analyzer.analyze(parsed);
-            return verify ? analyzer.verify(p) : p;
+            Analyzer analyzer = new Analyzer(functionRegistry, c, settings.timeZone(), verifier);
+            return analyzer.analyze(parsed, verify);
         }, listener);
     }
 
@@ -107,7 +114,7 @@ public class SqlSession {
         }
 
         preAnalyze(parsed, r -> {
-            Analyzer analyzer = new Analyzer(functionRegistry, r, settings.timeZone());
+            Analyzer analyzer = new Analyzer(functionRegistry, r, settings.timeZone(), verifier);
             return analyzer.debugAnalyze(parsed);
         }, listener);
     }

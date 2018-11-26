@@ -1232,9 +1232,9 @@ public class IndicesService extends AbstractLifecycleComponent
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
-        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), () -> {
-            return "Shard: " + request.shardId() + "\nSource:\n" + request.source();
-        }, out -> {
+        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(),
+            () -> "Shard: " + request.shardId() + "\nSource:\n" + request.source(),
+            out -> {
             queryPhase.execute(context);
             try {
                 context.queryResult().writeToNoId(out);

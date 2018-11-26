@@ -6,9 +6,13 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -22,10 +26,13 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MlConfigMigratorTests extends ESTestCase {
 
@@ -127,7 +134,7 @@ public class MlConfigMigratorTests extends ESTestCase {
         Job migratedJob = MlConfigMigrator.updateJobForMigration(oldJob.build());
         assertNull(migratedJob.getJobVersion());
         assertTrue(migratedJob.getCustomSettings().containsKey(MlConfigMigrator.MIGRATED_FROM_VERSION));
-    }    
+    }
 
     public void testFilterFailedJobConfigWrites() {
         List<Job> jobs = new ArrayList<>();
@@ -149,5 +156,29 @@ public class MlConfigMigratorTests extends ESTestCase {
         assertThat(MlConfigMigrator.filterFailedDatafeedConfigWrites(Collections.emptySet(), datafeeds), hasSize(3));
         assertThat(MlConfigMigrator.filterFailedDatafeedConfigWrites(Collections.singleton(DatafeedConfig.documentId("df-foo")), datafeeds),
                 contains(datafeeds.get(1), datafeeds.get(2)));
+    }
+
+    public void testDocumentsNotWritten() {
+        BulkItemResponse ok = mock(BulkItemResponse.class);
+        when(ok.isFailed()).thenReturn(false);
+
+        BulkItemResponse failed = mock(BulkItemResponse.class);
+        when(failed.isFailed()).thenReturn(true);
+        BulkItemResponse.Failure failure = mock(BulkItemResponse.Failure.class);
+        when(failure.getId()).thenReturn("failed-doc-id");
+        when(failure.getCause()).thenReturn(mock(IllegalStateException.class));
+        when(failed.getFailure()).thenReturn(failure);
+
+        BulkItemResponse alreadyExists = mock(BulkItemResponse.class);
+        when(alreadyExists.isFailed()).thenReturn(true);
+        BulkItemResponse.Failure alreadyExistsFailure = mock(BulkItemResponse.Failure.class);
+        when(alreadyExistsFailure.getId()).thenReturn("already-exists-doc-id");
+        VersionConflictEngineException vcException = new VersionConflictEngineException(new ShardId("i", "i", 0), "doc", "id", "");
+        when(alreadyExistsFailure.getCause()).thenReturn(vcException);
+        when(alreadyExists.getFailure()).thenReturn(alreadyExistsFailure);
+
+        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[] {ok, failed, alreadyExists}, 1L);
+        Set<String> docsIds = MlConfigMigrator.documentsNotWritten(bulkResponse);
+        assertThat(docsIds, contains("failed-doc-id"));
     }
 }

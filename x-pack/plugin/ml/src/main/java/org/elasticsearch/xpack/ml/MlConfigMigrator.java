@@ -14,6 +14,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -90,17 +92,31 @@ public class MlConfigMigrator {
             return;
         }
 
-        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-        addJobIndexRequest(jobsToMigrate, bulkRequestBuilder);
-        addDatafeedIndexRequest(datafeedsToMigrate, bulkRequestBuilder);
-
-        bulkRequestBuilder.execute(ActionListener.wrap(
-                bulkResponse -> {
-                    Set<String> failedDocumentIds = checkFailures(bulkResponse);
+        writeConfigToIndex(datafeedsToMigrate, jobsToMigrate, ActionListener.wrap(
+                failedDocumentIds -> {
                     List<Job> successfulJobWrites = filterFailedJobConfigWrites(failedDocumentIds, jobsToMigrate);
                     List<DatafeedConfig> successfullDatafeedWrites =
                             filterFailedDatafeedConfigWrites(failedDocumentIds, datafeedsToMigrate);
                     removeFromClusterState(successfulJobWrites, successfullDatafeedWrites, listener);
+                },
+                listener::onFailure
+        ));
+    }
+
+    // Exposed for testing
+    public void writeConfigToIndex(List<DatafeedConfig> datafeedsToMigrate,
+                                   List<Job> jobsToMigrate,
+                                   ActionListener<Set<String>> listener) {
+
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+        addJobIndexRequests(jobsToMigrate, bulkRequestBuilder);
+        addDatafeedIndexRequests(datafeedsToMigrate, bulkRequestBuilder);
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        bulkRequestBuilder.execute(ActionListener.wrap(
+                bulkResponse -> {
+                    Set<String> failedDocumentIds = documentsNotWritten(bulkResponse);
+                    listener.onResponse(failedDocumentIds);
                 },
                 listener::onFailure
         ));
@@ -152,14 +168,14 @@ public class MlConfigMigrator {
         });
     }
 
-    private void addJobIndexRequest(List<Job> jobs, BulkRequestBuilder bulkRequestBuilder) {
+    private void addJobIndexRequests(List<Job> jobs, BulkRequestBuilder bulkRequestBuilder) {
         ToXContent.Params params = new ToXContent.MapParams(JobConfigProvider.TO_XCONTENT_PARAMS);
         for (Job job : jobs) {
             bulkRequestBuilder.add(indexRequest(job, Job.documentId(job.getId()), params));
         }
     }
 
-    private void addDatafeedIndexRequest(List<DatafeedConfig> datafeedConfigs, BulkRequestBuilder bulkRequestBuilder) {
+    private void addDatafeedIndexRequests(List<DatafeedConfig> datafeedConfigs, BulkRequestBuilder bulkRequestBuilder) {
         ToXContent.Params params = new ToXContent.MapParams(DatafeedConfigProvider.TO_XCONTENT_PARAMS);
         for (DatafeedConfig datafeedConfig : datafeedConfigs) {
             bulkRequestBuilder.add(indexRequest(datafeedConfig, DatafeedConfig.documentId(datafeedConfig.getId()), params));
@@ -174,12 +190,12 @@ public class MlConfigMigrator {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             indexRequest.source(source.toXContent(builder, params));
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to serialise object [" + documentId + "]", e);
+            throw new IllegalStateException("failed to serialise object [" + documentId + "]", e);
         }
         return indexRequest;
     }
 
-    static Job updateJobForMigration(Job job) {
+    public static Job updateJobForMigration(Job job) {
         Job.Builder builder = new Job.Builder(job);
         Map<String, Object> custom = job.getCustomSettings() == null ? new HashMap<>() : new HashMap<>(job.getCustomSettings());
         custom.put(MIGRATED_FROM_VERSION, job.getJobVersion());
@@ -228,14 +244,31 @@ public class MlConfigMigrator {
                 .collect(Collectors.toList());
     }
 
-    private Set<String> checkFailures(BulkResponse response) {
+    /**
+     * Check for failures in the bulk response and return the
+     * Ids of any documents not written to the index
+     *
+     * If the index operation failed because the document already
+     * exists this is not considered an error.
+     *
+     * @param response BulkResponse
+     * @return The set of document Ids not written by the bulk request
+     */
+    static Set<String> documentsNotWritten(BulkResponse response) {
         Set<String> failedDocumentIds = new HashSet<>();
 
         for (BulkItemResponse itemResponse : response.getItems()) {
             if (itemResponse.isFailed()) {
-                failedDocumentIds.add(itemResponse.getFailure().getId());
-                logger.debug("failed to index document [" + itemResponse.getFailure().getId() + "], " +
-                        itemResponse.getFailure().getMessage());
+                BulkItemResponse.Failure failure = itemResponse.getFailure();
+                if (failure.getCause().getClass() == VersionConflictEngineException.class) {
+                    // not a failure. The document is already written but perhaps
+                    // has not been removed from the clusterstate
+                    logger.debug("cannot write ml configuration [" + itemResponse.getFailure().getId() + "] as it already exists");
+                } else {
+                    failedDocumentIds.add(itemResponse.getFailure().getId());
+                    logger.debug("failed to index ml configuration [" + itemResponse.getFailure().getId() + "], " +
+                            itemResponse.getFailure().getMessage());
+                }
             }
         }
         return failedDocumentIds;

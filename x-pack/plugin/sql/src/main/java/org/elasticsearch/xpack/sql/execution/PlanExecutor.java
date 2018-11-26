@@ -49,10 +49,6 @@ public class PlanExecutor {
         this.planner = new Planner();
     }
 
-    public NamedWriteableRegistry writableRegistry() {
-        return writableRegistry;
-    }
-
     private SqlSession newSession(Configuration cfg) {
         return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, optimizer, planner);
     }

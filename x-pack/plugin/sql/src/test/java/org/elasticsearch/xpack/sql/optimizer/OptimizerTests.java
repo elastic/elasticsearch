@@ -35,13 +35,15 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
@@ -446,6 +448,28 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(Coalesce.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(Literal.TRUE, e.children().get(0));
+    }
+
+    public void testSimplifyIfNullNulls() {
+        Expression e = new SimplifyCoalesce().rule(new IfNull(EMPTY, Literal.NULL, Literal.NULL));
+        assertEquals(Coalesce.class, e.getClass());
+        assertEquals(0, e.children().size());
+    }
+
+    public void testSimplifyIfNullWithNullAndValue() {
+        Expression e = new SimplifyCoalesce().rule(new IfNull(EMPTY, Literal.NULL, ONE));
+        assertEquals(1, e.children().size());
+        assertEquals(ONE, e.children().get(0));
+
+        e = new SimplifyCoalesce().rule(new IfNull(EMPTY, ONE, Literal.NULL));
+        assertEquals(1, e.children().size());
+        assertEquals(ONE, e.children().get(0));
+    }
+
+    public void testFoldNullNotAppliedOnNullIf() {
+        Expression orig = new NullIf(EMPTY, ONE, Literal.NULL);
+        Expression f = new FoldNull().rule(orig);
+        assertEquals(orig, f);
     }
 
     //

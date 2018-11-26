@@ -14,7 +14,7 @@ import java.sql.SQLException;
  * in a sense that it can accept ? in the places where it's not allowed by the server (for example as a index name), but that's
  * a reasonable compromise to avoid sending the prepared statement server to the server for extra validation.
  */
-public final class SqlQueryParameterAnalyzer {
+final class SqlQueryParameterAnalyzer {
 
     private SqlQueryParameterAnalyzer() {
 

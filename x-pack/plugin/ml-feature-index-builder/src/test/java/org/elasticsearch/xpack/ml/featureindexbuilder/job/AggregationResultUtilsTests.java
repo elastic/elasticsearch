@@ -271,13 +271,14 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
     private void executeTest(List<CompositeValuesSourceBuilder<?>> sources, Collection<AggregationBuilder> aggregationBuilders,
             Map<String, Object> input, List<Map<String, Object>> expected) throws IOException {
+        DataFrameIndexerJobStats stats = new DataFrameIndexerJobStats();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);
 
         try (XContentParser parser = createParser(builder)) {
             CompositeAggregation agg = ParsedComposite.fromXContent(parser, "my_feature");
-            List<Map<String, Object>> result = AggregationResultUtils.extractCompositeAggregationResults(agg, sources, aggregationBuilders)
-                    .collect(Collectors.toList());
+            List<Map<String, Object>> result = AggregationResultUtils
+                    .extractCompositeAggregationResults(agg, sources, aggregationBuilders, stats).collect(Collectors.toList());
 
             assertEquals(expected, result);
         }

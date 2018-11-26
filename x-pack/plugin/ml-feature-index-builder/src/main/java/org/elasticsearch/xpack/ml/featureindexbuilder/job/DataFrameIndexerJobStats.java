@@ -17,15 +17,15 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-public class FeatureIndexBuilderJobStats extends IndexerJobStats {
+public class DataFrameIndexerJobStats extends IndexerJobStats {
     private static ParseField NUM_PAGES = new ParseField("pages_processed");
     private static ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
     private static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed");
     private static ParseField NUM_INVOCATIONS = new ParseField("trigger_count");
 
-    public static final ConstructingObjectParser<FeatureIndexBuilderJobStats, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DataFrameIndexerJobStats, Void> PARSER = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
-            args -> new FeatureIndexBuilderJobStats((long) args[0], (long) args[1], (long) args[2], (long) args[3]));
+            args -> new DataFrameIndexerJobStats((long) args[0], (long) args[1], (long) args[2], (long) args[3]));
 
     static {
         PARSER.declareLong(constructorArg(), NUM_PAGES);
@@ -34,15 +34,15 @@ public class FeatureIndexBuilderJobStats extends IndexerJobStats {
         PARSER.declareLong(constructorArg(), NUM_INVOCATIONS);
     }
 
-    public FeatureIndexBuilderJobStats() {
+    public DataFrameIndexerJobStats() {
         super();
     }
 
-    public FeatureIndexBuilderJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations) {
+    public DataFrameIndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations) {
         super(numPages, numInputDocuments, numOuputDocuments, numInvocations);
     }
 
-    public FeatureIndexBuilderJobStats(StreamInput in) throws IOException {
+    public DataFrameIndexerJobStats(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -57,7 +57,7 @@ public class FeatureIndexBuilderJobStats extends IndexerJobStats {
         return builder;
     }
 
-    public static FeatureIndexBuilderJobStats fromXContent(XContentParser parser) {
+    public static DataFrameIndexerJobStats fromXContent(XContentParser parser) {
         try {
             return PARSER.parse(parser, null);
         } catch (IOException e) {

@@ -106,7 +106,7 @@ public class TestingConventionsTasks extends DefaultTask {
                     Task::getName,
                     task -> allClassFiles.matching(getRandomizedTestingPatternSet(task)).getFiles()
                 ));
-            
+
             problems = collectProblems(
                 checkNoneExists(
                     "Test classes implemented by inner classes will not run",

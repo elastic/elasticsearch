@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -12,6 +13,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
+import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.LocationTests;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
@@ -35,16 +37,16 @@ public class FunctionRegistryTests extends ESTestCase {
         UnresolvedFunction ur = uf(STANDARD);
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
-                uf(DISTINCT).buildResolved(randomTimeZone(), def));
+                uf(DISTINCT).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("does not support DISTINCT yet it was specified"));
 
         // Any children aren't supported
         e = expectThrows(ParsingException.class, () ->
-                uf(STANDARD, mock(Expression.class)).buildResolved(randomTimeZone(), def));
+                uf(STANDARD, mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects no arguments"));
     }
 
@@ -56,21 +58,21 @@ public class FunctionRegistryTests extends ESTestCase {
         }));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertFalse(def.datetime());
-        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
-                uf(DISTINCT, mock(Expression.class)).buildResolved(randomTimeZone(), def));
+                uf(DISTINCT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("does not support DISTINCT yet it was specified"));
 
         // No children aren't supported
         e = expectThrows(ParsingException.class, () ->
-                uf(STANDARD).buildResolved(randomTimeZone(), def));
+                uf(STANDARD).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
 
         // Multiple children aren't supported
         e = expectThrows(ParsingException.class, () ->
-            uf(STANDARD, mock(Expression.class), mock(Expression.class)).buildResolved(randomTimeZone(), def));
+            uf(STANDARD, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
 
@@ -83,17 +85,17 @@ public class FunctionRegistryTests extends ESTestCase {
                     return new DummyFunction(l);
         }));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
         assertFalse(def.datetime());
 
         // No children aren't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
-                uf(STANDARD).buildResolved(randomTimeZone(), def));
+                uf(STANDARD).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
 
         // Multiple children aren't supported
         e = expectThrows(ParsingException.class, () ->
-                uf(STANDARD, mock(Expression.class), mock(Expression.class)).buildResolved(randomTimeZone(), def));
+                uf(STANDARD, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
 
@@ -101,28 +103,29 @@ public class FunctionRegistryTests extends ESTestCase {
         boolean urIsExtract = randomBoolean();
         UnresolvedFunction ur = uf(urIsExtract ? EXTRACT : STANDARD, mock(Expression.class));
         TimeZone providedTimeZone = randomTimeZone();
+        Configuration providedConfiguration = randomConfiguration(providedTimeZone);
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Location l, Expression e, TimeZone tz) -> {
                     assertEquals(providedTimeZone, tz);
                     assertSame(e, ur.children().get(0));
                     return new DummyFunction(l);
         }));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertEquals(ur.location(), ur.buildResolved(providedTimeZone, def).location());
+        assertEquals(ur.location(), ur.buildResolved(providedConfiguration, def).location());
         assertTrue(def.datetime());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
-                uf(DISTINCT, mock(Expression.class)).buildResolved(randomTimeZone(), def));
+                uf(DISTINCT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("does not support DISTINCT yet it was specified"));
 
         // No children aren't supported
         e = expectThrows(ParsingException.class, () ->
-                uf(STANDARD).buildResolved(randomTimeZone(), def));
+                uf(STANDARD).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
 
         // Multiple children aren't supported
         e = expectThrows(ParsingException.class, () ->
-                uf(STANDARD, mock(Expression.class), mock(Expression.class)).buildResolved(randomTimeZone(), def));
+                uf(STANDARD, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
 
@@ -134,28 +137,28 @@ public class FunctionRegistryTests extends ESTestCase {
                     return new DummyFunction(l);
         }));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
         assertFalse(def.datetime());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
-                uf(DISTINCT, mock(Expression.class), mock(Expression.class)).buildResolved(randomTimeZone(), def));
+                uf(DISTINCT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("does not support DISTINCT yet it was specified"));
 
         // No children aren't supported
         e = expectThrows(ParsingException.class, () ->
-                uf(STANDARD).buildResolved(randomTimeZone(), def));
+                uf(STANDARD).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
 
         // One child isn't supported
         e = expectThrows(ParsingException.class, () ->
-                uf(STANDARD, mock(Expression.class)).buildResolved(randomTimeZone(), def));
+                uf(STANDARD, mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
 
         // Many children aren't supported
         e = expectThrows(ParsingException.class, () ->
                 uf(STANDARD, mock(Expression.class), mock(Expression.class), mock(Expression.class))
-                    .buildResolved(randomTimeZone(), def));
+                    .buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
     }
     
@@ -189,26 +192,26 @@ public class FunctionRegistryTests extends ESTestCase {
 
         // Resolve by primary name
         FunctionDefinition def = r.resolveFunction(r.resolveAlias("DuMMy_FuncTIon"));
-        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
 
         def = r.resolveFunction(r.resolveAlias("Dummy_Function"));
-        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
 
         def = r.resolveFunction(r.resolveAlias("dummy_function"));
-        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
 
         def = r.resolveFunction(r.resolveAlias("DUMMY_FUNCTION"));
-        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
 
         // Resolve by alias
         def = r.resolveFunction(r.resolveAlias("DumMy_FunC"));
-        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
 
         def = r.resolveFunction(r.resolveAlias("dummy_func"));
-        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
 
         def = r.resolveFunction(r.resolveAlias("DUMMY_FUNC"));
-        assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
+        assertEquals(ur.location(), ur.buildResolved(randomConfiguration(), def).location());
 
         // Not resolved
         SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class,
@@ -224,6 +227,26 @@ public class FunctionRegistryTests extends ESTestCase {
 
     private UnresolvedFunction uf(UnresolvedFunction.ResolutionType resolutionType, Expression... children) {
         return new UnresolvedFunction(LocationTests.randomLocation(), "DUMMY_FUNCTION", resolutionType, Arrays.asList(children));
+    }
+    
+    private Configuration randomConfiguration() {
+        return new Configuration(randomTimeZone(),
+                randomIntBetween(0,  1000),
+                new TimeValue(randomNonNegativeLong()),
+                new TimeValue(randomNonNegativeLong()),
+                null,
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10));
+    }
+    
+    private Configuration randomConfiguration(TimeZone providedTimeZone) {
+        return new Configuration(providedTimeZone,
+                randomIntBetween(0,  1000),
+                new TimeValue(randomNonNegativeLong()),
+                new TimeValue(randomNonNegativeLong()),
+                null,
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10));
     }
 
     public static class DummyFunction extends ScalarFunction {

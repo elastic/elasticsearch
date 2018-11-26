@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
+import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -60,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -80,16 +80,21 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      * Time zone in which we're executing this SQL. It is attached to functions
      * that deal with date and time.
      */
-    private final TimeZone timeZone;
+    //private final TimeZone timeZone;
+    /**
+     * Per-request specific settings needed in some of the functions, to which it
+     * is attached. TimeZone, Username and Clustername are needed in some of the functions.
+     */
+    private final Configuration configuration;
     /**
      * The verifier has the role of checking the analyzed tree for failures and build a list of failures.
      */
     private final Verifier verifier;
 
-    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, TimeZone timeZone, Verifier verifier) {
+    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, Configuration configuration, Verifier verifier) {
         this.functionRegistry = functionRegistry;
         this.indexResolution = results;
-        this.timeZone = timeZone;
+        this.configuration = configuration;
         this.verifier = verifier;
     }
 
@@ -815,7 +820,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                     // TODO: look into Generator for significant terms, etc..
                     FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                    Function f = uf.buildResolved(timeZone, def);
+                    Function f = uf.buildResolved(configuration, def);
 
                     list.add(f);
                     return f;

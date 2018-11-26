@@ -9,11 +9,16 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
@@ -33,14 +38,20 @@ import java.util.List;
 import static java.util.Collections.unmodifiableList;
 
 public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse> {
+    private final SecurityContext securityContext;
+    private final ClusterService clusterService;
     private final PlanExecutor planExecutor;
     private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
-    public TransportSqlQueryAction(TransportService transportService, ActionFilters actionFilters,
-                                   PlanExecutor planExecutor, SqlLicenseChecker sqlLicenseChecker) {
+    public TransportSqlQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
+                                   ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,
+                                   SqlLicenseChecker sqlLicenseChecker) {
         super(SqlQueryAction.NAME, transportService, actionFilters, (Writeable.Reader<SqlQueryRequest>) SqlQueryRequest::new);
 
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
+                new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.clusterService = clusterService;
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
     }
@@ -48,17 +59,18 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     @Override
     protected void doExecute(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
-        operation(planExecutor, request, listener);
+        operation(planExecutor, request, listener, username(), clusterService.getClusterName().value());
     }
 
     /**
      * Actual implementation of the action. Statically available to support embedded mode.
      */
-    public static void operation(PlanExecutor planExecutor, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
+    public static void operation(PlanExecutor planExecutor, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener,
+                                 String username, String clusterName) {
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
         Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
-                request.filter());
+                request.filter(), username, clusterName);
         
         // mode() shouldn't be null
         QueryMetric metric = QueryMetric.from(request.mode(), request.clientId());
@@ -108,5 +120,9 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                 Cursors.encodeToString(Version.CURRENT, rowSet.nextPageCursor()),
                 columns,
                 rows);
+    }
+    
+    private String username() {
+        return this.securityContext != null ? this.securityContext.getUser().principal() : null;
     }
 }

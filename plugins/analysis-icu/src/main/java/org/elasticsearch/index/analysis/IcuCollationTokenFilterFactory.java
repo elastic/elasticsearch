@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.collation.ICUCollationDocValuesField;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -172,6 +173,6 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new ICUCollationKeyFilter(tokenStream, collator);
+        return new ICUCollationDocValuesField(tokenStream.toString(), collator).tokenStreamValue();
     }
 }

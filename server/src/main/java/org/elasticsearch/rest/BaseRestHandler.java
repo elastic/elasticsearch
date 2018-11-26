@@ -18,13 +18,15 @@
  */
 
 package org.elasticsearch.rest;
-
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -51,12 +53,13 @@ import java.util.stream.Collectors;
  * are copied, but a selected few. It is possible to control what headers are copied over by returning them in
  * {@link ActionPlugin#getRestHeaders()}.
  */
-public abstract class BaseRestHandler extends AbstractComponent implements RestHandler {
+public abstract class BaseRestHandler implements RestHandler {
 
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
 
     private final LongAdder usageCount = new LongAdder();
+    private static final Logger logger = LogManager.getLogger(BaseRestHandler.class);
 
     protected BaseRestHandler(Settings settings) {
         // TODO drop settings from ctor

@@ -235,10 +235,11 @@ public class FunctionRegistry {
                 def(UCase.class, UCase::new));
         // DataType conversion
         addToMap(def(Cast.class, Cast::new, "CONVERT"));
+        // Scalar "meta" functions
+        addToMap(def(Database.class, Database::new),
+                def(User.class, User::new));
         // Special
-        addToMap(def(Database.class, Database::new));
         addToMap(def(Score.class, Score::new));
-        addToMap(def(User.class, User::new));
     }
 
     void addToMap(FunctionDefinition...functions) {

@@ -18,32 +18,12 @@ import java.util.List;
 import java.util.Objects;
 
 public class Database extends ScalarFunction {
-    
+
     private final Configuration configuration;
 
     public Database(Location location, Configuration configuration) {
         super(location);
         this.configuration = configuration;
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        return null;
-    }
-
-    @Override
-    public DataType dataType() {
-        return DataType.KEYWORD;
-    }
-    
-    @Override
-    public Object fold() {
-        return configuration.clusterName();
-    }
-
-    @Override
-    protected String functionArgs() {
-        return StringUtils.EMPTY;
     }
 
     @Override
@@ -57,8 +37,29 @@ public class Database extends ScalarFunction {
     }
 
     @Override
+    public DataType dataType() {
+        return DataType.KEYWORD;
+    }
+    
+    @Override
+    public Object fold() {
+        return configuration.clusterName();
+    }
+
+
+    @Override
     public boolean foldable() {
         return true;
+    }
+    
+    @Override
+    protected String functionArgs() {
+        return StringUtils.EMPTY;
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        return null;
     }
 
     @Override

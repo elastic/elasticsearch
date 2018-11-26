@@ -25,20 +25,20 @@ public class User extends ScalarFunction {
         super(location);
         this.configuration = configuration;
     }
-    
+
     @Override
-    public ScriptTemplate asScript() {
-        return null;
+    public Expression replaceChildren(List<Expression> newChildren) {
+        throw new UnsupportedOperationException("this node doesn't have any children");
+    }
+
+    @Override
+    protected NodeInfo<User> info() {
+        return NodeInfo.create(this, User::new, configuration);
     }
 
     @Override
     public DataType dataType() {
         return DataType.KEYWORD;
-    }
-
-    @Override
-    public boolean foldable() {
-        return true;
     }
 
     @Override
@@ -52,18 +52,18 @@ public class User extends ScalarFunction {
     }
 
     @Override
+    public boolean foldable() {
+        return true;
+    }
+
+    @Override
     protected String functionArgs() {
         return StringUtils.EMPTY;
     }
 
     @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        throw new UnsupportedOperationException("this node doesn't have any children");
-    }
-
-    @Override
-    protected NodeInfo<User> info() {
-        return NodeInfo.create(this, User::new, configuration);
+    public ScriptTemplate asScript() {
+        return null;
     }
 
     @Override

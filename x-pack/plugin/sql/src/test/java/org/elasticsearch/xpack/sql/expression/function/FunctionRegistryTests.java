@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.LocationTests;
@@ -235,6 +236,7 @@ public class FunctionRegistryTests extends ESTestCase {
                 new TimeValue(randomNonNegativeLong()),
                 new TimeValue(randomNonNegativeLong()),
                 null,
+                randomFrom(Mode.values()),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10));
     }
@@ -245,6 +247,7 @@ public class FunctionRegistryTests extends ESTestCase {
                 new TimeValue(randomNonNegativeLong()),
                 new TimeValue(randomNonNegativeLong()),
                 null,
+                randomFrom(Mode.values()),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10));
     }

@@ -70,11 +70,10 @@ public class MessagesTests extends ESTestCase {
             });
     }
 
-    public void testPublishRequestEqualsHashCodeSerialization() {
+    public void testPublishRequestEqualsHashCode() {
         PublishRequest initialPublishRequest = new PublishRequest(randomClusterState());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPublishRequest,
-            publishRequest -> copyWriteable(publishRequest, writableRegistry(),
-                in -> new PublishRequest(in, publishRequest.getAcceptedState().nodes().getLocalNode())),
+            publishRequest -> new PublishRequest(publishRequest.getAcceptedState()),
             in -> new PublishRequest(randomClusterState()));
     }
 
@@ -194,8 +193,8 @@ public class MessagesTests extends ESTestCase {
 
     public ClusterState randomClusterState() {
         return CoordinationStateTests.clusterState(randomNonNegativeLong(), randomNonNegativeLong(), createNode(randomAlphaOfLength(10)),
-            new ClusterState.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))),
-            new ClusterState.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))),
+            new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))),
+            new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))),
             randomLong());
     }
 

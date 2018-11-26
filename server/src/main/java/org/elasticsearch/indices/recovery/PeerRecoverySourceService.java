@@ -19,10 +19,11 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -48,7 +49,9 @@ import java.util.Set;
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
  * source shard to the target shard.
  */
-public class PeerRecoverySourceService extends AbstractComponent implements IndexEventListener {
+public class PeerRecoverySourceService implements IndexEventListener {
+
+    private static final Logger logger = LogManager.getLogger(PeerRecoverySourceService.class);
 
     public static class Actions {
         public static final String START_RECOVERY = "internal:index/shard/recovery/start_recovery";
@@ -61,13 +64,13 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
 
     @Inject
-    public PeerRecoverySourceService(Settings settings, TransportService transportService, IndicesService indicesService,
+    public PeerRecoverySourceService(TransportService transportService, IndicesService indicesService,
                                      RecoverySettings recoverySettings) {
-        super(settings);
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
-        transportService.registerRequestHandler(Actions.START_RECOVERY, StartRecoveryRequest::new, ThreadPool.Names.GENERIC, new StartRecoveryTransportRequestHandler());
+        transportService.registerRequestHandler(Actions.START_RECOVERY, StartRecoveryRequest::new, ThreadPool.Names.GENERIC,
+            new StartRecoveryTransportRequestHandler());
     }
 
     @Override
@@ -88,13 +91,16 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
             throw new DelayRecoveryException("source shard [" + routingEntry + "] is not an active primary");
         }
 
-        if (request.isPrimaryRelocation() && (routingEntry.relocating() == false || routingEntry.relocatingNodeId().equals(request.targetNode().getId()) == false)) {
-            logger.debug("delaying recovery of {} as source shard is not marked yet as relocating to {}", request.shardId(), request.targetNode());
+        if (request.isPrimaryRelocation() && (routingEntry.relocating() == false ||
+            routingEntry.relocatingNodeId().equals(request.targetNode().getId()) == false)) {
+            logger.debug("delaying recovery of {} as source shard is not marked yet as relocating to {}",
+                request.shardId(), request.targetNode());
             throw new DelayRecoveryException("source shard is not marked yet as relocating to [" + request.targetNode() + "]");
         }
 
         RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, shard);
-        logger.trace("[{}][{}] starting recovery to {}", request.shardId().getIndex().getName(), request.shardId().id(), request.targetNode());
+        logger.trace("[{}][{}] starting recovery to {}", request.shardId().getIndex().getName(), request.shardId().id(),
+            request.targetNode());
         try {
             return handler.recoverToTarget();
         } finally {

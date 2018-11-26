@@ -19,16 +19,17 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,7 +44,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
  */
 public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 
-    private static final Logger logger = Loggers.getLogger(WorkerBulkByScrollTaskState.class);
+    private static final Logger logger = LogManager.getLogger(WorkerBulkByScrollTaskState.class);
 
     /**
      * Maximum wait time allowed for throttling.
@@ -188,8 +189,12 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         synchronized (delayedPrepareBulkRequestReference) {
             TimeValue delay = throttleWaitTime(lastBatchStartTime, timeValueNanos(System.nanoTime()), lastBatchSize);
             logger.debug("[{}]: preparing bulk request for [{}]", task.getId(), delay);
-            delayedPrepareBulkRequestReference.set(new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(),
-                delay, new RunOnce(prepareBulkRequestRunnable)));
+            try {
+                delayedPrepareBulkRequestReference.set(new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(),
+                    delay, new RunOnce(prepareBulkRequestRunnable)));
+            } catch (EsRejectedExecutionException e) {
+                prepareBulkRequestRunnable.onRejection(e);
+            }
         }
     }
 
@@ -242,25 +247,17 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 
     class DelayedPrepareBulkRequest {
         private final ThreadPool threadPool;
-        private final AbstractRunnable command;
+        private final Runnable command;
         private final float requestsPerSecond;
         private final ScheduledFuture<?> future;
 
-        DelayedPrepareBulkRequest(ThreadPool threadPool, float requestsPerSecond, TimeValue delay, AbstractRunnable command) {
+        DelayedPrepareBulkRequest(ThreadPool threadPool, float requestsPerSecond, TimeValue delay, Runnable command) {
             this.threadPool = threadPool;
             this.requestsPerSecond = requestsPerSecond;
             this.command = command;
-            this.future = threadPool.schedule(delay, ThreadPool.Names.GENERIC, new AbstractRunnable() {
-                @Override
-                protected void doRun() throws Exception {
-                    throttledNanos.addAndGet(delay.nanos());
-                    command.run();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    command.onFailure(e);
-                }
+            this.future = threadPool.schedule(delay, ThreadPool.Names.GENERIC, () -> {
+                throttledNanos.addAndGet(delay.nanos());
+                command.run();
             });
         }
 
@@ -300,31 +297,6 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
                 return timeValueNanos(0);
             }
             return timeValueNanos(round(remainingDelay * requestsPerSecond / newRequestsPerSecond));
-        }
-    }
-
-    /**
-     * Runnable that can only be run one time. This is paranoia to prevent furiously rethrottling from running the command multiple times.
-     * Without it the command would be run multiple times.
-     */
-    private static class RunOnce extends AbstractRunnable {
-        private final AtomicBoolean hasRun = new AtomicBoolean(false);
-        private final AbstractRunnable delegate;
-
-        RunOnce(AbstractRunnable delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        protected void doRun() throws Exception {
-            if (hasRun.compareAndSet(false, true)) {
-                delegate.run();
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            delegate.onFailure(e);
         }
     }
 }

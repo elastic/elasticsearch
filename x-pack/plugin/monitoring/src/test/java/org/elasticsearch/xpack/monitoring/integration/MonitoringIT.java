@@ -206,6 +206,11 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                            .status(),
                    is(RestStatus.CREATED));
 
+        final Settings settings = Settings.builder()
+            .put("cluster.metadata.display_name", "my cluster")
+            .build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+
         whenExportersAreReady(() -> {
             final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
@@ -378,6 +383,11 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(clusterState.remove("last_committed_config"), notNullValue());
         assertThat(clusterState.remove("last_accepted_config"), notNullValue());
         assertThat(clusterState.keySet(), empty());
+
+        final Map<String, Object> clusterSettings = (Map<String, Object>) source.get("cluster_settings");
+        assertThat(clusterSettings, notNullValue());
+        assertThat(clusterSettings.remove("cluster"), notNullValue());
+        assertThat(clusterSettings.keySet(), empty());
     }
 
     /**
@@ -617,6 +627,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         final Settings settings = Settings.builder()
                 .putNull("xpack.monitoring.collection.enabled")
                 .putNull("xpack.monitoring.exporters._local.enabled")
+                .putNull("cluster.metadata.display_name")
                 .build();
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));

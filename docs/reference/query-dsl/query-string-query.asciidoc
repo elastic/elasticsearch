@@ -60,8 +60,11 @@ The `query_string` top level parameters include:
 specified. Defaults to the `index.query.default_field` index settings, which in
 turn defaults to `*`. `*` extracts all fields in the mapping that are eligible
 to term queries and filters the metadata fields. All extracted fields are then
-combined to build a query when no prefix field is provided. There is a limit of
-no more than 1024 fields being queried at once.
+combined to build a query when no prefix field is provided.
+
+WARNING: There is a limit on the number of fields that can be queried
+at once. It is defined by the `indices.query.bool.max_clause_count` <<search-settings>>
+which defaults to 1024.
 
 |`default_operator` |The default operator used if no explicit operator
 is specified. For example, with a default operator of `OR`, the query
@@ -141,8 +144,11 @@ When not explicitly specifying the field to search on in the query
 string syntax, the `index.query.default_field` will be used to derive
 which field to search on. If the `index.query.default_field` is not specified,
 the `query_string` will automatically attempt to determine the existing fields in the index's
-mapping that are queryable, and perform the search on those fields. Note that this will not
-include nested documents, use a nested query to search those documents.
+mapping that are queryable, and perform the search on those fields. 
+This will not include nested documents, use a nested query to search those documents.
+
+NOTE: For mappings with a large number of fields, searching across all queryable
+fields in the mapping could be expensive.
 
 [float]
 ==== Multi Field

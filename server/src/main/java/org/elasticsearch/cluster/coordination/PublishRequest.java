@@ -19,34 +19,19 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
 
-import java.io.IOException;
 import java.util.Objects;
 
 /**
  * Request which is used by the master node to publish cluster state changes.
+ * Actual serialization of this request is done by {@link PublicationTransportHandler}
  */
-public class PublishRequest extends TransportRequest {
+public class PublishRequest {
 
     private final ClusterState acceptedState;
 
     public PublishRequest(ClusterState acceptedState) {
         this.acceptedState = acceptedState;
-    }
-
-    public PublishRequest(StreamInput in, DiscoveryNode localNode) throws IOException {
-        super(in);
-        acceptedState = ClusterState.readFrom(in, localNode);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        acceptedState.writeTo(out);
     }
 
     public ClusterState getAcceptedState() {

@@ -70,6 +70,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.transport.MockTransportService;
 
@@ -100,6 +101,13 @@ import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), false) // no state persistence yet
+            .build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -610,7 +618,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         return getDirs(nodeId, shardId, dirSuffix);
     }
 
-    private Set<Path> getDirs(String nodeId, ShardId shardId, String dirSuffix) {
+    public static Set<Path> getDirs(String nodeId, ShardId shardId, String dirSuffix) {
         final NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
         final Set<Path> translogDirs = new TreeSet<>();
         final NodeStats nodeStats = nodeStatses.getNodes().get(0);

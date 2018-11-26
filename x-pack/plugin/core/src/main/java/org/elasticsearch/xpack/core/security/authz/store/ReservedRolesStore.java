@@ -72,8 +72,25 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 "cluster:admin/xpack/watcher/watch/delete",
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
-                                RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build() },
+                                RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build(),
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("metricbeat-*").privileges("index", "create_index").build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("remote_monitoring_collector", new RoleDescriptor(
+                        "remote_monitoring_collector",
+                        new String[] {
+                            "monitor"
+                        },
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("monitor").build(),
+                            RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("read").build()
+                        },
+                        null,
+                        null,
+                        null,
+                        MetadataUtils.DEFAULT_RESERVED_METADATA,
+                        null
+                ))
                 .put("ingest_admin", new RoleDescriptor("ingest_admin", new String[] { "manage_index_templates", "manage_pipeline" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 // reporting_user doesn't have any privileges in Elasticsearch, and Kibana authorizes privileges based on this role
@@ -101,7 +118,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".management-beats").privileges("create_index", "read", "write").build()
+                                        .indices(".management-beats").privileges("create_index", "read", "write").build(),
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices(".tasks").privileges("create_index", "read", "create").build()
                         },
                         null,
                         new ConditionalClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },

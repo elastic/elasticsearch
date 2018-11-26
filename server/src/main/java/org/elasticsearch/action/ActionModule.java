@@ -23,6 +23,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapClusterAction;
+import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesAction;
+import org.elasticsearch.action.admin.cluster.bootstrap.TransportBootstrapClusterAction;
+import org.elasticsearch.action.admin.cluster.bootstrap.TransportGetDiscoveredNodesAction;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingTombstonesAction;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingTombstonesAction;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingTombstonesAction;
+import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingTombstonesAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
@@ -310,6 +318,7 @@ import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
+import org.elasticsearch.rest.action.search.RestCountAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -384,7 +393,7 @@ public class ActionModule extends AbstractModule {
         if (transportClient) {
             restController = null;
         } else {
-            restController = new RestController(settings, headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+            restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
         }
     }
 
@@ -422,6 +431,10 @@ public class ActionModule extends AbstractModule {
         actions.register(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
         actions.register(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
 
+        actions.register(GetDiscoveredNodesAction.INSTANCE, TransportGetDiscoveredNodesAction.class);
+        actions.register(BootstrapClusterAction.INSTANCE, TransportBootstrapClusterAction.class);
+        actions.register(AddVotingTombstonesAction.INSTANCE, TransportAddVotingTombstonesAction.class);
+        actions.register(ClearVotingTombstonesAction.INSTANCE, TransportClearVotingTombstonesAction.class);
         actions.register(ClusterAllocationExplainAction.INSTANCE, TransportClusterAllocationExplainAction.class);
         actions.register(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         actions.register(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
@@ -595,7 +608,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetSourceAction(settings, restController));
         registerHandler.accept(new RestMultiGetAction(settings, restController));
         registerHandler.accept(new RestDeleteAction(settings, restController));
-        registerHandler.accept(new org.elasticsearch.rest.action.document.RestCountAction(settings, restController));
+        registerHandler.accept(new RestCountAction(settings, restController));
         registerHandler.accept(new RestTermVectorsAction(settings, restController));
         registerHandler.accept(new RestMultiTermVectorsAction(settings, restController));
         registerHandler.accept(new RestBulkAction(settings, restController));

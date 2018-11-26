@@ -19,9 +19,10 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -37,33 +38,37 @@ import java.util.stream.Stream;
 /**
  * Computes the optimal configuration of voting nodes in the cluster.
  */
-public class Reconfigurator extends AbstractComponent {
+public class Reconfigurator {
+
+    private static final Logger logger = LogManager.getLogger(Reconfigurator.class);
 
     /**
      * The cluster usually requires a vote from at least half of the master nodes in order to commit a cluster state update, and to achieve
-     * this it makes automatic adjustments to the quorum size as master nodes join or leave the cluster. However, if master nodes leave the
-     * cluster slowly enough then these automatic adjustments can end up with a single master node; if this last node were to fail then the
-     * cluster would be rendered permanently unavailable. Instead it may be preferable to stop processing cluster state updates and become
-     * unavailable when the second-last (more generally, n'th-last) node leaves the cluster, so that the cluster is never in a situation
-     * where a single node's failure can cause permanent unavailability. This setting determines the size of the smallest set of master
-     * nodes required to process a cluster state update.
+     * the best resilience it makes automatic adjustments to the voting configuration as master nodes join or leave the cluster. Adjustments
+     * that fix or increase the size of the voting configuration are always a good idea, but the wisdom of reducing the voting configuration
+     * size is less clear. For instance, automatically reducing the voting configuration down to a single node means the cluster requires
+     * this node to operate, which is not resilient: if it broke we could restore every other master-eligible node in the cluster to health
+     * and still the cluster would be unavailable. However not reducing the voting configuration size can also hamper resilience: in a
+     * five-node cluster we could lose two nodes and by reducing the voting configuration to the remaining three nodes we could tolerate the
+     * loss of a further node before failing.
+     *
+     * We offer two options: either we auto-shrink the voting configuration as long as it contains more than three nodes, or we don't and we
+     * require the user to control the voting configuration manually using the retirement API. The former, default, option, guarantees that
+     * as long as there have been at least three master-eligible nodes in the cluster and no more than one of them is currently unavailable,
+     * then the cluster will still operate, which is what almost everyone wants. Manual control is for users who want different guarantees.
      */
-    public static final Setting<Integer> CLUSTER_MASTER_NODES_FAILURE_TOLERANCE =
-        Setting.intSetting("cluster.master_nodes_failure_tolerance", 0, 0, Property.NodeScope, Property.Dynamic);
-    // the default is not supposed to be important since we expect to set this setting explicitly at bootstrapping time
-    // TODO contemplate setting the default to something larger than 0 (1? 1<<30?)
-    // TODO prevent this being set as a transient or a per-node setting?
+    public static final Setting<Boolean> CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION =
+        Setting.boolSetting("cluster.auto_shrink_voting_configuration", true, Property.NodeScope, Property.Dynamic);
 
-    private volatile int masterNodesFailureTolerance;
+    private volatile boolean autoShrinkVotingConfiguration;
 
     public Reconfigurator(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
-        masterNodesFailureTolerance = CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE, this::setMasterNodesFailureTolerance);
+        autoShrinkVotingConfiguration = CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION, this::setAutoShrinkVotingConfiguration);
     }
 
-    public void setMasterNodesFailureTolerance(int masterNodesFailureTolerance) {
-        this.masterNodesFailureTolerance = masterNodesFailureTolerance;
+    public void setAutoShrinkVotingConfiguration(boolean autoShrinkVotingConfiguration) {
+        this.autoShrinkVotingConfiguration = autoShrinkVotingConfiguration;
     }
 
     private static int roundDownToOdd(int size) {
@@ -73,7 +78,7 @@ public class Reconfigurator extends AbstractComponent {
     @Override
     public String toString() {
         return "Reconfigurator{" +
-            "masterNodesFailureTolerance=" + masterNodesFailureTolerance +
+            "autoShrinkVotingConfiguration=" + autoShrinkVotingConfiguration +
             '}';
     }
 
@@ -88,26 +93,20 @@ public class Reconfigurator extends AbstractComponent {
      * @param currentConfig  The current configuration. As far as possible, we prefer to keep the current config as-is.
      * @return An optimal configuration, or leave the current configuration unchanged if the optimal configuration has no live quorum.
      */
-    public ClusterState.VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds,
-                                                        ClusterState.VotingConfiguration currentConfig) {
+    public VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds, VotingConfiguration currentConfig) {
         logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}", this, currentConfig, liveNodes, retiredNodeIds);
-
-        final int safeConfigurationSize = 2 * masterNodesFailureTolerance + 1;
-        if (currentConfig.getNodeIds().size() < safeConfigurationSize) {
-            throw new AssertionError(currentConfig + " is smaller than expected " + safeConfigurationSize);
-        }
 
         /*
          *  There are three true/false properties of each node in play: live/non-live, retired/non-retired and in-config/not-in-config.
          *  Firstly we divide the nodes into disjoint sets based on these properties:
          *
-         *  -    retiredInConfigNotLiveIds
          *  - nonRetiredInConfigNotLiveIds
-         *  -    retiredInConfigLiveIds
          *  - nonRetiredInConfigLiveIds
          *  - nonRetiredLiveNotInConfigIds
          *
-         *  The other 3 possibilities are not relevant:
+         *  The other 5 possibilities are not relevant:
+         *  - retired, in-config, live             -- retired nodes should be removed from the config
+         *  - retired, in-config, non-live         -- retired nodes should be removed from the config
          *  - retired, not-in-config, live         -- cannot add a retired node back to the config
          *  - retired, not-in-config, non-live     -- cannot add a retired node back to the config
          *  - non-retired, non-live, not-in-config -- no evidence this node exists at all
@@ -119,15 +118,11 @@ public class Reconfigurator extends AbstractComponent {
         liveInConfigIds.retainAll(liveNodeIds);
 
         final Set<String> inConfigNotLiveIds = Sets.sortedDifference(currentConfig.getNodeIds(), liveInConfigIds);
-        final Set<String> retiredInConfigNotLiveIds = new TreeSet<>(inConfigNotLiveIds);
-        retiredInConfigNotLiveIds.retainAll(retiredNodeIds);
         final Set<String> nonRetiredInConfigNotLiveIds = new TreeSet<>(inConfigNotLiveIds);
-        nonRetiredInConfigNotLiveIds.removeAll(retiredInConfigNotLiveIds);
+        nonRetiredInConfigNotLiveIds.removeAll(retiredNodeIds);
 
-        final Set<String> retiredInConfigLiveIds = new TreeSet<>(liveInConfigIds);
-        retiredInConfigLiveIds.retainAll(retiredNodeIds);
         final Set<String> nonRetiredInConfigLiveIds = new TreeSet<>(liveInConfigIds);
-        nonRetiredInConfigLiveIds.removeAll(retiredInConfigLiveIds);
+        nonRetiredInConfigLiveIds.removeAll(retiredNodeIds);
 
         final Set<String> nonRetiredLiveNotInConfigIds = Sets.sortedDifference(liveNodeIds, currentConfig.getNodeIds());
         nonRetiredLiveNotInConfigIds.removeAll(retiredNodeIds);
@@ -135,23 +130,28 @@ public class Reconfigurator extends AbstractComponent {
         /*
          * Now we work out how many nodes should be in the configuration:
          */
+        final int targetSize;
 
-        // ideally we want the configuration to be all the non-retired live nodes ...
         final int nonRetiredLiveNodeCount = nonRetiredInConfigLiveIds.size() + nonRetiredLiveNotInConfigIds.size();
-
-        // ... except one, if even, because odd configurations are slightly more resilient ...
-        final int votingNodeCount = roundDownToOdd(nonRetiredLiveNodeCount);
-
-        // ... except that the new configuration must satisfy CLUSTER_MASTER_NODES_FAILURE_TOLERANCE too:
-        final int targetSize = Math.max(votingNodeCount, safeConfigurationSize);
+        final int nonRetiredConfigSize = nonRetiredInConfigLiveIds.size() + nonRetiredInConfigNotLiveIds.size();
+        if (autoShrinkVotingConfiguration) {
+            if (nonRetiredLiveNodeCount >= 3) {
+                targetSize = roundDownToOdd(nonRetiredLiveNodeCount);
+            } else {
+                // only have one or two available nodes; may not shrink below 3 nodes automatically, but if
+                // the config (excluding retired nodes) is already smaller than 3 then it's ok.
+                targetSize = nonRetiredConfigSize < 3 ? 1 : 3;
+            }
+        } else {
+            targetSize = Math.max(roundDownToOdd(nonRetiredLiveNodeCount), nonRetiredConfigSize);
+        }
 
         /*
          * The new configuration is formed by taking this many nodes in the following preference order:
          */
-        final ClusterState.VotingConfiguration newConfig = new ClusterState.VotingConfiguration(
-            Stream.of(nonRetiredInConfigLiveIds, nonRetiredLiveNotInConfigIds, // live nodes first, preferring the current config
-                retiredInConfigLiveIds, // if we need more, first use retired nodes that are still alive and haven't been removed yet
-                nonRetiredInConfigNotLiveIds, retiredInConfigNotLiveIds) // if we need more, use non-live nodes
+        final VotingConfiguration newConfig = new VotingConfiguration(
+            // live nodes first, preferring the current config, and if we need more then use non-live nodes
+            Stream.of(nonRetiredInConfigLiveIds, nonRetiredLiveNotInConfigIds, nonRetiredInConfigNotLiveIds)
                 .flatMap(Collection::stream).limit(targetSize).collect(Collectors.toSet()));
 
         if (newConfig.hasQuorum(liveNodeIds)) {

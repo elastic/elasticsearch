@@ -230,6 +230,20 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertFalse(taskQueue.hasDeferredTasks());
     }
 
+    public void testRunInTimeOrder() {
+        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final List<String> strings = new ArrayList<>(2);
+
+        final long executionTimeMillis1 = randomLongBetween(1, 100);
+        final long executionTimeMillis2 = randomLongBetween(executionTimeMillis1 + 1, 200);
+
+        taskQueue.scheduleAt(executionTimeMillis1, () -> strings.add("foo"));
+        taskQueue.scheduleAt(executionTimeMillis2, () -> strings.add("bar"));
+
+        taskQueue.runAllTasksInTimeOrder();
+        assertThat(strings, contains("foo", "bar"));
+    }
+
     public void testExecutorServiceEnqueuesTasks() {
         final DeterministicTaskQueue taskQueue = newTaskQueue();
         final List<String> strings = new ArrayList<>(2);

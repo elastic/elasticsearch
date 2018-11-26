@@ -25,6 +25,7 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -46,7 +47,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#delete(DeleteRequest)
  * @see org.elasticsearch.client.Requests#deleteRequest(String)
  */
-public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
+public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
+        implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
 
     private String type;
     private String id;
@@ -82,14 +84,15 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (type == null) {
+        if (Strings.isEmpty(type)) {
             validationException = addValidationError("type is missing", validationException);
         }
-        if (id == null) {
+        if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
         }
-        if (!versionType.validateVersionForWrites(version)) {
-            validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
+        if (versionType.validateVersionForWrites(version) == false) {
+            validationException = addValidationError("illegal version value [" + version + "] for version type ["
+                + versionType.name() + "]", validationException);
         }
         if (versionType == VersionType.FORCE) {
             validationException = addValidationError("version type [force] may no longer be used", validationException);
@@ -108,6 +111,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
     /**
      * Sets the type of the document to delete.
      */
+    @Override
     public DeleteRequest type(String type) {
         this.type = type;
         return this;
@@ -185,7 +189,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readOptionalString(); // _parent
         }
         version = in.readLong();
@@ -198,7 +202,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing());
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalString(null); // _parent
         }
         out.writeLong(version);

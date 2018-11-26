@@ -21,7 +21,6 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -82,7 +81,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -168,7 +166,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        shardStateAction = new ShardStateAction(Settings.EMPTY, clusterService, transportService, null, null, threadPool);
+        shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
         action = new TestAction(Settings.EMPTY, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
     }
 
@@ -985,8 +983,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ReplicationTask task = maybeTask();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final Transport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-                new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()),
-                Version.CURRENT);
+                new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()));
         transportService = new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
@@ -1121,7 +1118,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                    ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService, mockIndicesService(clusterService), threadPool,
                 shardStateAction,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
+                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(),
                 Request::new, Request::new, ThreadPool.Names.SAME);
         }
 
@@ -1130,7 +1127,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                    ThreadPool threadPool, boolean withDocumentFailureOnPrimary, boolean withDocumentFailureOnReplica) {
             super(settings, actionName, transportService, clusterService, mockIndicesService(clusterService), threadPool,
                 shardStateAction,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
+                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(),
                 Request::new, Request::new, ThreadPool.Names.SAME);
         }
 
@@ -1254,11 +1251,6 @@ public class TransportReplicationActionTests extends ESTestCase {
 
             @Override
             public void sendResponse(TransportResponse response) throws IOException {
-                listener.onResponse(((TestResponse) response));
-            }
-
-            @Override
-            public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
                 listener.onResponse(((TestResponse) response));
             }
 

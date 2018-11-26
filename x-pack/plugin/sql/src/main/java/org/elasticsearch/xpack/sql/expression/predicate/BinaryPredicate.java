@@ -15,24 +15,35 @@ import java.util.Objects;
 
 /**
  * Binary operator. Operators act as _special_ functions in that they have a symbol
- * instead of a name and do not use parathensis.
+ * instead of a name and do not use parentheses.
  * Further more they are not registered as the rest of the functions as are implicit
  * to the language.
  */
-public abstract class BinaryPredicate extends BinaryScalarFunction {
+public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, U, R>> extends BinaryScalarFunction {
 
-    private final String symbol;
     private final String name;
+    private final F function;
 
-    protected BinaryPredicate(Location location, Expression left, Expression right, String symbol) {
+    protected BinaryPredicate(Location location, Expression left, Expression right, F function) {
         super(location, left, right);
-        this.name = name(left, right, symbol);
-        this.symbol = symbol;
+        this.name = name(left, right, function.symbol());
+        this.function = function;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public R fold() {
+        return function().apply((T) left().fold(), (U) right().fold());
+    }
+
+    @Override
+    protected String scriptMethodName() {
+        return function.scriptMethodName();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(left(), right());
+        return Objects.hash(left(), right(), function.symbol());
     }
 
     @Override
@@ -47,11 +58,24 @@ public abstract class BinaryPredicate extends BinaryScalarFunction {
             return false;
         }
 
-        BinaryPredicate other = (BinaryPredicate) obj;
+        BinaryPredicate<?, ?, ?, ?> other = (BinaryPredicate<?, ?, ?, ?>) obj;
 
-        return Objects.equals(symbol, other.symbol)
+        return Objects.equals(symbol(), other.symbol())
                 && Objects.equals(left(), other.left())
                 && Objects.equals(right(), other.right());
+    }
+
+    @Override
+    public String name() {
+        return name;
+    }
+
+    public String symbol() {
+        return function.symbol();
+    }
+
+    public F function() {
+        return function;
     }
 
     private static String name(Expression left, Expression right, String symbol) {
@@ -71,14 +95,5 @@ public abstract class BinaryPredicate extends BinaryScalarFunction {
             sb.append(")");
         }
         return sb.toString();
-    }
-
-    @Override
-    public String name() {
-        return name;
-    }
-
-    public final String symbol() {
-        return symbol;
     }
 }

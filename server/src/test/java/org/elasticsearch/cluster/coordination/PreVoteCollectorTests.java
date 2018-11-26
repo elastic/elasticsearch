@@ -21,8 +21,9 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -35,6 +36,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -108,7 +110,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        preVoteCollector = new PreVoteCollector(settings, transportService, () -> {
+        preVoteCollector = new PreVoteCollector(transportService, () -> {
             assert electionOccurred == false;
             electionOccurred = true;
         }, l -> {
@@ -258,6 +260,11 @@ public class PreVoteCollectorTests extends ESTestCase {
 
         transportService.sendRequest(localNode, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
             new TransportResponseHandler<PreVoteResponse>() {
+                @Override
+                public PreVoteResponse read(StreamInput in) throws IOException {
+                    return new PreVoteResponse(in);
+                }
+
                 @Override
                 public void handleResponse(PreVoteResponse response) {
                     responseRef.set(response);

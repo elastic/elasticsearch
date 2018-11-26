@@ -19,16 +19,16 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -42,7 +42,9 @@ import java.util.function.LongConsumer;
 import static org.elasticsearch.cluster.coordination.CoordinationState.isElectionQuorum;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 
-public class PreVoteCollector extends AbstractComponent {
+public class PreVoteCollector {
+
+    private static final Logger logger = LogManager.getLogger(PreVoteCollector.class);
 
     public static final String REQUEST_PRE_VOTE_ACTION_NAME = "internal:cluster/request_pre_vote";
 
@@ -53,9 +55,7 @@ public class PreVoteCollector extends AbstractComponent {
     // Tuple for simple atomic updates. null until the first call to `update()`.
     private volatile Tuple<DiscoveryNode, PreVoteResponse> state; // DiscoveryNode component is null if there is currently no known leader.
 
-    PreVoteCollector(final Settings settings, final TransportService transportService, final Runnable startElection,
-                     final LongConsumer updateMaxTermSeen) {
-        super(settings);
+    PreVoteCollector(final TransportService transportService, final Runnable startElection, final LongConsumer updateMaxTermSeen) {
         this.transportService = transportService;
         this.startElection = startElection;
         this.updateMaxTermSeen = updateMaxTermSeen;

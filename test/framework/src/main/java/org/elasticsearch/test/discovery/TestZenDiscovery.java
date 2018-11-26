@@ -86,8 +86,9 @@ public class TestZenDiscovery extends ZenDiscovery {
                         () -> new InMemoryPersistedState(0L, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                             .nodes(DiscoveryNodes.builder().add(transportService.getLocalNode())
                                 .localNodeId(transportService.getLocalNode().getId()).build()).build());
-                    return new Coordinator(fixedSettings, clusterSettings, transportService, allocationService, masterService,
-                        persistedStateSupplier, hostsProvider, clusterApplier, new Random(Randomness.get().nextLong()));
+                    return new Coordinator("test_node", fixedSettings, clusterSettings, transportService, namedWriteableRegistry,
+                        allocationService, masterService, persistedStateSupplier, hostsProvider, clusterApplier,
+                        new Random(Randomness.get().nextLong()));
                 } else {
                     return new TestZenDiscovery(fixedSettings, threadPool, transportService, namedWriteableRegistry, masterService,
                         clusterApplier, clusterSettings, hostsProvider, allocationService);
@@ -121,7 +122,7 @@ public class TestZenDiscovery extends ZenDiscovery {
     protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
                                  UnicastHostsProvider hostsProvider) {
         if (USE_MOCK_PINGS.get(settings) && USE_ZEN2.get(settings) == false) {
-            return new MockZenPing(settings, this);
+            return new MockZenPing(this);
         } else {
             return super.newZenPing(settings, threadPool, transportService, hostsProvider);
         }

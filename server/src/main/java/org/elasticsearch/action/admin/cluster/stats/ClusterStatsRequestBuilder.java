@@ -22,7 +22,8 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<ClusterStatsRequest, ClusterStatsResponse, ClusterStatsRequestBuilder> {
+public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<ClusterStatsRequest,
+        ClusterStatsResponse, ClusterStatsRequestBuilder> {
 
     public ClusterStatsRequestBuilder(ElasticsearchClient client, ClusterStatsAction action) {
         super(client, action, new ClusterStatsRequest());

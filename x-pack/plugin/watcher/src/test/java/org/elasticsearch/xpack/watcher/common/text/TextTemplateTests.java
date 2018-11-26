@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.common.text;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,7 +46,7 @@ public class TextTemplateTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         service = mock(ScriptService.class);
-        engine = new TextTemplateEngine(Settings.EMPTY, service);
+        engine = new TextTemplateEngine(service);
     }
 
     public void testRender() throws Exception {
@@ -131,7 +130,7 @@ public class TextTemplateTests extends ESTestCase {
 
     private void assertScriptServiceInvoked(final String input) {
         ScriptService scriptService = mock(ScriptService.class);
-        TextTemplateEngine e = new TextTemplateEngine(Settings.EMPTY, scriptService);
+        TextTemplateEngine e = new TextTemplateEngine(scriptService);
 
         TemplateScript.Factory compiledTemplate = templateParams ->
             new TemplateScript(templateParams) {

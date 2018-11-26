@@ -9,10 +9,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import static org.hamcrest.core.StringStartsWith.startsWith;
@@ -155,5 +158,106 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("?a", sub2.children().get(0).toString());
         assertEquals(Literal.class, sub2.children().get(1).getClass());
         assertEquals("2", ((Literal) sub2.children().get(1)).name());
+    }
+
+    public void testEquals() {
+        Expression expr = parser.createExpression("a = 10");
+        assertEquals(Equals.class, expr.getClass());
+        Equals eq = (Equals) expr;
+        assertEquals("(a) == 10", eq.name());
+        assertEquals(2, eq.children().size());
+    }
+
+    public void testNotEquals() {
+        Expression expr = parser.createExpression("a != 10");
+        assertEquals(NotEquals.class, expr.getClass());
+        NotEquals neq = (NotEquals) expr;
+        assertEquals("(a) != 10", neq.name());
+        assertEquals(2, neq.children().size());
+    }
+
+    public void testCastWithUnquotedDataType() {
+        Expression expr = parser.createExpression("CAST(10*2 AS long)");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(Mul.class, cast.field().getClass());
+        Mul mul = (Mul) cast.field();
+        assertEquals("10 * 2", mul.name());
+        assertEquals(DataType.INTEGER, mul.dataType());
+    }
+
+    public void testCastWithQuotedDataType() {
+        Expression expr = parser.createExpression("CAST(10*2 AS \"LonG\")");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(Mul.class, cast.field().getClass());
+        Mul mul = (Mul) cast.field();
+        assertEquals("10 * 2", mul.name());
+        assertEquals(DataType.INTEGER, mul.dataType());
+    }
+
+    public void testCastWithInvalidDataType() {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CAST(1 AS INVALID)"));
+        assertEquals("line 1:12: Does not recognize type invalid", ex.getMessage());
+    }
+
+    public void testConvertWithUnquotedDataType() {
+        Expression expr = parser.createExpression("CONVERT(10*2, long)");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(Mul.class, cast.field().getClass());
+        Mul mul = (Mul) cast.field();
+        assertEquals("10 * 2", mul.name());
+        assertEquals(DataType.INTEGER, mul.dataType());
+    }
+
+    public void testConvertWithQuotedDataType() {
+        Expression expr = parser.createExpression("CONVERT(10*2, \"LonG\")");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(Mul.class, cast.field().getClass());
+        Mul mul = (Mul) cast.field();
+        assertEquals("10 * 2", mul.name());
+        assertEquals(DataType.INTEGER, mul.dataType());
+    }
+
+    public void testConvertWithUnquotedODBCDataType() {
+        Expression expr = parser.createExpression("CONVERT(1, Sql_BigInt)");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+    }
+
+    public void testConvertWithQuotedODBCDataType() {
+        Expression expr = parser.createExpression("CONVERT(1, \"sql_BIGint\")");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+    }
+
+    public void testConvertWithInvalidODBCDataType() {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CONVERT(1, SQL_INVALID)"));
+        assertEquals("line 1:13: Invalid data type [SQL_INVALID] provided", ex.getMessage());
+    }
+
+    public void testConvertWithInvalidESDataType() {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CONVERT(1, INVALID)"));
+        assertEquals("line 1:13: Invalid data type [INVALID] provided", ex.getMessage());
     }
 }

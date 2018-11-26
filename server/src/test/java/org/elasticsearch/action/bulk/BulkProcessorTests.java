@@ -72,19 +72,9 @@ public class BulkProcessorTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             threadPool.getThreadContext().putHeader(headerKey, headerValue);
             threadPool.getThreadContext().putTransient(transientKey, transientValue);
-            bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(), new BulkProcessor.Listener() {
-                @Override
-                public void beforeBulk(long executionId, BulkRequest request) {
-                }
-
-                @Override
-                public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                }
-
-                @Override
-                public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-                }
-            }, 1, bulkSize, new ByteSizeValue(5, ByteSizeUnit.MB), flushInterval, threadPool, () -> {});
+            bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(), emptyListener(),
+                1, bulkSize, new ByteSizeValue(5, ByteSizeUnit.MB), flushInterval,
+                threadPool, () -> {}, BulkRequest::new);
         }
         assertNull(threadPool.getThreadContext().getHeader(headerKey));
         assertNull(threadPool.getThreadContext().getTransient(transientKey));
@@ -100,28 +90,32 @@ public class BulkProcessorTests extends ESTestCase {
         bulkProcessor.close();
     }
 
+
     public void testAwaitOnCloseCallsOnClose() throws Exception {
         final AtomicBoolean called = new AtomicBoolean(false);
-        BulkProcessor bulkProcessor = new BulkProcessor((request, listener) -> {
-        }, BackoffPolicy.noBackoff(), new BulkProcessor.Listener() {
-            @Override
-            public void beforeBulk(long executionId, BulkRequest request) {
-
-            }
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-
-            }
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-
-            }
-        }, 0, 10, new ByteSizeValue(1000), null, (delay, executor, command) -> null, () -> called.set(true));
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {};
+        BulkProcessor bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(), emptyListener(),
+            0, 10, new ByteSizeValue(1000), null,
+            (delay, executor, command) -> null, () -> called.set(true), BulkRequest::new);
 
         assertFalse(called.get());
         bulkProcessor.awaitClose(100, TimeUnit.MILLISECONDS);
         assertTrue(called.get());
+    }
+
+    private BulkProcessor.Listener emptyListener() {
+        return new BulkProcessor.Listener() {
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+            }
+        };
     }
 }

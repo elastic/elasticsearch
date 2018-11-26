@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -31,11 +30,9 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
     AcknowledgedResponse> {
 
     @Inject
-    public TransportFinalizeJobExecutionAction(Settings settings, TransportService transportService,
-                                               ClusterService clusterService, ThreadPool threadPool,
-                                               ActionFilters actionFilters,
-                                               IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, FinalizeJobExecutionAction.NAME, transportService, clusterService, threadPool, actionFilters,
+    public TransportFinalizeJobExecutionAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(FinalizeJobExecutionAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, FinalizeJobExecutionAction.Request::new);
     }
 

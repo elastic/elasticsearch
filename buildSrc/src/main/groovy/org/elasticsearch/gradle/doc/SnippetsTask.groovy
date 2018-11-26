@@ -273,6 +273,10 @@ public class SnippetsTask extends DefaultTask {
                     snippet.testSetup = true
                     return
                 }
+                if (line ==~ /\/\/\s*TEARDOWN\s*/) {
+                    snippet.testTearDown = true
+                    return
+                }
                 if (snippet == null) {
                     // Outside
                     return
@@ -317,6 +321,7 @@ public class SnippetsTask extends DefaultTask {
         boolean test = false
         boolean testResponse = false
         boolean testSetup = false
+        boolean testTearDown = false
         String skip = null
         boolean continued = false
         String language = null

@@ -23,6 +23,12 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.license.StartTrialRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.license.StartBasicRequest;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.license.DeleteLicenseRequest;
+import org.elasticsearch.client.license.GetLicenseRequest;
+import org.elasticsearch.client.license.PutLicenseRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -36,6 +42,53 @@ import static org.hamcrest.CoreMatchers.is;
 
 
 public class LicenseRequestConvertersTests extends ESTestCase {
+
+    public void testGetLicense() {
+        final boolean local = randomBoolean();
+        final GetLicenseRequest getLicenseRequest = new GetLicenseRequest();
+        getLicenseRequest.setLocal(local);
+        final Map<String, String> expectedParams = new HashMap<>();
+        if (local) {
+            expectedParams.put("local", Boolean.TRUE.toString());
+        }
+
+        Request request = LicenseRequestConverters.getLicense(getLicenseRequest);
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getEndpoint(), equalTo("/_xpack/license"));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), is(nullValue()));
+    }
+
+    public void testPutLicense() {
+        final boolean acknowledge = randomBoolean();
+        final PutLicenseRequest putLicenseRequest = new PutLicenseRequest();
+        putLicenseRequest.setAcknowledge(acknowledge);
+        final Map<String, String> expectedParams = new HashMap<>();
+        if (acknowledge) {
+            expectedParams.put("acknowledge", Boolean.TRUE.toString());
+        }
+        setRandomTimeout(putLicenseRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(putLicenseRequest, expectedParams);
+
+        Request request = LicenseRequestConverters.putLicense(putLicenseRequest);
+        assertThat(request.getMethod(), equalTo(HttpPut.METHOD_NAME));
+        assertThat(request.getEndpoint(), equalTo("/_xpack/license"));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), is(nullValue()));
+    }
+
+    public void testDeleteLicense() {
+        final DeleteLicenseRequest deleteLicenseRequest = new DeleteLicenseRequest();
+        final Map<String, String> expectedParams = new HashMap<>();
+        setRandomTimeout(deleteLicenseRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(deleteLicenseRequest, expectedParams);
+
+        Request request = LicenseRequestConverters.deleteLicense(deleteLicenseRequest);
+        assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+        assertThat(request.getEndpoint(), equalTo("/_xpack/license"));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), is(nullValue()));
+    }
 
     public void testStartTrial() {
         final boolean acknowledge = randomBoolean();
@@ -74,5 +127,21 @@ public class LicenseRequestConvertersTests extends ESTestCase {
         assertThat(request.getEndpoint(), equalTo("/_xpack/license/start_basic"));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), is(nullValue()));
+    }
+
+    public void testGetLicenseTrialStatus() {
+        Request request = LicenseRequestConverters.getLicenseTrialStatus();
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/license/trial_status", request.getEndpoint());
+        assertEquals(request.getParameters().size(), 0);
+        assertNull(request.getEntity());
+    }
+
+    public void testGetLicenseBasicStatus() {
+        Request request = LicenseRequestConverters.getLicenseBasicStatus();
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/license/basic_status", request.getEndpoint());
+        assertEquals(request.getParameters().size(), 0);
+        assertNull(request.getEntity());
     }
 }

@@ -79,7 +79,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+                                                      ParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }
 
@@ -92,7 +93,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     static final class TypeFieldType extends StringFieldType {
 
-        private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(TypeFieldType.class));
+        private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TypeFieldType.class));
 
         TypeFieldType() {
         }
@@ -160,8 +161,9 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("range_single_type",
-                    "Running [range] query on [_type] field for an index with a single type. As types are deprecated, this functionality will be removed in future releases.");
+            deprecationLogger.deprecatedAndMaybeLog("range_single_type",
+                    "Running [range] query on [_type] field for an index with a single type."
+                        + " As types are deprecated, this functionality will be removed in future releases.");
             Query result = new MatchAllDocsQuery();
             String type = context.getMapperService().documentMapper().type();
             if (type != null) {

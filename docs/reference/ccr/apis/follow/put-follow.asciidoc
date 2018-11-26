@@ -1,0 +1,105 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-put-follow]]
+=== Create Follower API
+++++
+<titleabbrev>Create Follower</titleabbrev>
+++++
+
+beta[]
+
+Creates a follower index.
+
+==== Description
+
+This API creates a new follower index that is configured to follow the
+referenced leader index. When this API returns, the follower index exists, and
+{ccr} starts replicating operations from the leader index to the follower index.
+
+==== Request
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+POST /follower_index/_ccr/pause_follow
+--------------------------------------------------
+// CONSOLE
+// TEARDOWN
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /<follower_index>/_ccr/follow
+{
+  "remote_cluster" : "<remote_cluster>",
+  "leader_index" : "<leader_index>"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:remote_cluster_and_leader_index]
+// TEST[s/<follower_index>/follower_index/]
+// TEST[s/<remote_cluster>/remote_cluster/]
+// TEST[s/<leader_index>/leader_index/]
+
+==== Path Parameters
+
+`follower_index` (required)::
+  (string) the name of the follower index
+
+==== Request Body
+`remote_cluster` (required)::
+  (string) the <<modules-remote-clusters,remote cluster>> containing the leader
+  index
+
+`leader_index` (required)::
+  (string) the name of the index in the leader cluster to follow
+
+include::../follow-request-body.asciidoc[]
+
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have `write`, `monitor`,
+and `manage_follow_index` index privileges for the follower index. You must have
+`read` and `monitor` index privileges for the leader index. You must also have
+`manage_ccr` cluster privileges on the cluster that contains the follower index.
+For more information, see
+{stack-ov}/security-privileges.html[Security privileges].
+
+==== Example
+
+This example creates a follower index named `follower_index`:
+
+[source,js]
+--------------------------------------------------
+PUT /follower_index/_ccr/follow
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index" : "leader_index",
+  "max_read_request_operation_count" : 1024,
+  "max_outstanding_read_requests" : 16,
+  "max_read_request_size" : "1024k",
+  "max_write_request_operation_count" : 32768,
+  "max_write_request_size" : "16k",
+  "max_outstanding_write_requests" : 8,
+  "max_write_buffer_count" : 512,
+  "max_write_buffer_size" : "512k",
+  "max_retry_delay" : "10s",
+  "read_poll_timeout" : "30s"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:remote_cluster_and_leader_index]
+
+The API returns the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "follow_index_created" : true,
+  "follow_index_shards_acked" : true,
+  "index_following_started" : true
+}
+--------------------------------------------------
+// TESTRESPONSE

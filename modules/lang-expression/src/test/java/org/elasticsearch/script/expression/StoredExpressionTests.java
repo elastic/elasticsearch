@@ -70,7 +70,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
                     .setIndices("test").setTypes("scriptTest").get();
             fail("search script should have been rejected");
         } catch(Exception e) {
-            assertThat(e.toString(), containsString("cannot execute scripts using [search] context"));
+            assertThat(e.toString(), containsString("cannot execute scripts using [field] context"));
         }
         try {
             client().prepareSearch("test")

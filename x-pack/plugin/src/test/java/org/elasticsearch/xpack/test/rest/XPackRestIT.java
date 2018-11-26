@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Request;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -109,7 +111,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                             getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
                         boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
                         assertThat(isAcknowledged, is(true));
-                        break;
+                        throw new AssertionError("waiting until stopped state reached started state");
                     case "stopping":
                         throw new AssertionError("waiting until stopping state reached stopped state to start again");
                     case "starting":
@@ -246,7 +248,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
         if (isWaitForPendingTasks()) {
             // This waits for pending tasks to complete, so must go last (otherwise
             // it could be waiting for pending tasks while monitoring is still running).
-            XPackRestTestHelper.waitForPendingTasks(adminClient(), task -> {
+            ESRestTestCase.waitForPendingTasks(adminClient(), task -> {
                     // Don't check rollup jobs because we clear them in the superclass.
                     return task.contains(RollupJob.NAME);
             });

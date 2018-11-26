@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Collection;
@@ -34,7 +36,9 @@ import java.util.Optional;
  * The core class of the cluster state coordination algorithm, directly implementing the
  * <a href="https://github.com/elastic/elasticsearch-formal-models/blob/master/ZenWithTerms/tla/ZenWithTerms.tla">formal model</a>
  */
-public class CoordinationState extends AbstractComponent {
+public class CoordinationState {
+
+    private static final Logger logger = LogManager.getLogger(CoordinationState.class);
 
     private final DiscoveryNode localNode;
 
@@ -50,8 +54,6 @@ public class CoordinationState extends AbstractComponent {
     private VoteCollection publishVotes;
 
     public CoordinationState(Settings settings, DiscoveryNode localNode, PersistedState persistedState) {
-        super(settings);
-
         this.localNode = localNode;
 
         // persisted state
@@ -456,9 +458,11 @@ public class CoordinationState extends AbstractComponent {
          */
         default void markLastAcceptedConfigAsCommitted() {
             final ClusterState lastAcceptedState = getLastAcceptedState();
-            setLastAcceptedState(ClusterState.builder(lastAcceptedState)
-                .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
-                .build());
+            final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder(lastAcceptedState.coordinationMetaData())
+                    .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
+                    .build();
+            final MetaData metaData = MetaData.builder(lastAcceptedState.metaData()).coordinationMetaData(coordinationMetaData).build();
+            setLastAcceptedState(ClusterState.builder(lastAcceptedState).metaData(metaData).build());
         }
     }
 

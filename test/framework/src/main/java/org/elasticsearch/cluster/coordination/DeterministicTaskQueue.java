@@ -20,8 +20,9 @@
 package org.elasticsearch.cluster.coordination;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,8 +43,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-public class DeterministicTaskQueue extends AbstractComponent {
+public class DeterministicTaskQueue {
 
+    private static final Logger logger = LogManager.getLogger(DeterministicTaskQueue.class);
+
+    private final Settings settings;
     private final List<Runnable> runnableTasks = new ArrayList<>();
     private final Random random;
     private List<DeferredTask> deferredTasks = new ArrayList<>();
@@ -53,7 +57,7 @@ public class DeterministicTaskQueue extends AbstractComponent {
     private long latestDeferredExecutionTime;
 
     public DeterministicTaskQueue(Settings settings, Random random) {
-        super(settings);
+        this.settings = settings;
         this.random = random;
     }
 
@@ -78,6 +82,16 @@ public class DeterministicTaskQueue extends AbstractComponent {
                 advanceTime();
             } else if (hasRunnableTasks()) {
                 runRandomTask();
+            }
+        }
+    }
+
+    public void runAllTasksInTimeOrder() {
+        while (hasDeferredTasks() || hasRunnableTasks()) {
+            if (hasRunnableTasks()) {
+                runRandomTask();
+            } else {
+                advanceTime();
             }
         }
     }

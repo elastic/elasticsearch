@@ -255,6 +255,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockOsInfo.getAvailableProcessors()).thenReturn(32);
         when(mockOsInfo.getAllocatedProcessors()).thenReturn(16);
         when(mockOsInfo.getName()).thenReturn("_os_name");
+        when(mockOsInfo.getPrettyName()).thenReturn("_pretty_os_name");
 
         final JvmInfo mockJvmInfo = mock(JvmInfo.class);
         when(mockNodeInfo.getJvm()).thenReturn(mockJvmInfo);
@@ -446,6 +447,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                             + "\"count\":1"
                           + "}"
                         + "],"
+                        + "\"pretty_names\":["
+                          + "{"
+                            + "\"pretty_name\":\"_pretty_os_name\","
+                            + "\"count\":1"
+                          + "}"
+                        + "],"
                         + "\"mem\":{"
                           + "\"total_in_bytes\":100,"
                           + "\"free_in_bytes\":79,"
@@ -512,11 +519,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     + "\"nodes_hash\":1314980060,"
                     + "\"status\":\"green\","
                     + "\"cluster_uuid\":\"_cluster\","
-                    + "\"term\":0,"
                     + "\"version\":12,"
                     + "\"state_uuid\":\"_state_uuid\","
-                    + "\"last_committed_config\":[],"
-                    + "\"last_accepted_config\":[],"
                     + "\"master_node\":\"_node\","
                     + "\"nodes\":{"
                       + "\"_node_id\":{"

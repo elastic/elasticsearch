@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -45,9 +44,11 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
 
     @Inject
-    public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterStateAction.NAME, false, transportService, clusterService, threadPool, actionFilters, ClusterStateRequest::new, indexNameExpressionResolver);
+    public TransportClusterStateAction(TransportService transportService, ClusterService clusterService,
+                                       ThreadPool threadPool, ActionFilters actionFilters,
+                                       IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(ClusterStateAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
+              ClusterStateRequest::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -76,11 +77,9 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         ClusterState currentState = clusterService.state();
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
-        builder.term(currentState.term());
         builder.version(currentState.version());
         builder.stateUUID(currentState.stateUUID());
-        builder.lastCommittedConfiguration(currentState.getLastCommittedConfiguration());
-        builder.lastAcceptedConfiguration(currentState.getLastAcceptedConfiguration());
+
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
         }
@@ -104,6 +103,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         MetaData.Builder mdBuilder = MetaData.builder();
         mdBuilder.clusterUUID(currentState.metaData().clusterUUID());
+        mdBuilder.coordinationMetaData(currentState.coordinationMetaData());
 
         if (request.metaData()) {
             if (request.indices().length > 0) {

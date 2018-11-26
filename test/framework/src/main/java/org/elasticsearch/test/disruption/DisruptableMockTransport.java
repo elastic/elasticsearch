@@ -29,7 +29,6 @@ import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -164,12 +163,6 @@ public abstract class DisruptableMockTransport extends MockTransport {
                         return "response to " + requestDescription;
                     }
                 });
-            }
-
-            @Override
-            public void sendResponse(TransportResponse response,
-                                     TransportResponseOptions options) {
-                sendResponse(response);
             }
 
             @Override

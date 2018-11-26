@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -63,6 +62,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -124,11 +124,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         super.tearDown();
         assertAcked(client().admin().indices().prepareDelete("*").get());
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
-        Settings.Builder unexpectedPersistentSettingsBuilder = Settings.builder().put(metaData.persistentSettings());
-        unexpectedPersistentSettingsBuilder.remove(Reconfigurator.CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey());
-        Settings unexpectedPersistentSettings = unexpectedPersistentSettingsBuilder.build();
-        assertThat("test leaves persistent cluster metadata behind: " + unexpectedPersistentSettings.keySet(),
-                unexpectedPersistentSettings.size(), equalTo(0));
+        assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().keySet(),
+                metaData.persistentSettings().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().keySet(),
                 metaData.transientSettings().size(), equalTo(0));
         if (resetNodeAfterTest()) {
@@ -204,6 +201,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // turn it off for these tests.
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
+            .put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
@@ -219,14 +217,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
-        bootstrapNodes(true,
-            () -> {
-                try {
-                    node.start();
-                } catch (NodeValidationException e) {
-                    throw new RuntimeException(e);
-                }
-            }, Collections.singletonList(node), logger);
+        try {
+            node.start();
+        } catch (NodeValidationException e) {
+            throw new RuntimeException(e);
+        }
         return node;
     }
 
@@ -234,7 +229,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * Returns a client to the single-node cluster.
      */
     public Client client() {
-        return NODE.client();
+        return wrapClient(NODE.client());
+    }
+
+    public Client wrapClient(final Client client) {
+        return client;
     }
 
     /**

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -28,8 +29,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,11 +40,9 @@ import java.util.List;
  * Individual implementations of this class are responsible for providing
  * the logic to determine to which nodes (if any) those shards are allocated.
  */
-public abstract class BaseGatewayShardAllocator extends AbstractComponent {
+public abstract class BaseGatewayShardAllocator {
 
-    public BaseGatewayShardAllocator(Settings settings) {
-        super(settings);
-    }
+    protected final Logger logger = LogManager.getLogger(this.getClass());
 
     /**
      * Allocate unassigned shards to nodes (if any) where valid copies of the shard already exist.

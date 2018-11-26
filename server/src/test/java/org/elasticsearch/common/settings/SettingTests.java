@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -33,6 +34,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -917,6 +920,41 @@ public class SettingTests extends ESTestCase {
             assertFalse(fooSetting.exists(Settings.builder().put(setting, "bar").build()));
             assertTrue(fooSetting.existsOrFallbackExists(Settings.builder().put(setting, "bar").build()));
         }
+    }
+
+    public void testAffixMapUpdateWithNullSettingValue() {
+        // GIVEN an affix setting changed from "prefix._foo"="bar" to "prefix._foo"=null
+        final Settings current = Settings.builder()
+            .put("prefix._foo", (String) null)
+            .build();
+
+        final Settings previous = Settings.builder()
+            .put("prefix._foo", "bar")
+            .build();
+
+        final Setting.AffixSetting<String> affixSetting =
+            Setting.prefixKeySetting("prefix" + ".",
+                (key) -> Setting.simpleString(key, (value, map) -> {}, Property.Dynamic, Property.NodeScope));
+
+        final Consumer<Map<String, String>> consumer = (map) -> {};
+        final BiConsumer<String, String> validator = (s1, s2) -> {};
+
+        // WHEN creating an affix updater
+        final SettingUpdater<Map<String, String>> updater = affixSetting.newAffixMapUpdater(consumer, logger, validator);
+
+        // THEN affix updater is always expected to have changed (even when defaults are omitted)
+        assertTrue(updater.hasChanged(current, previous));
+
+        // THEN changes are expected when defaults aren't omitted
+        final Map<String, String> updatedSettings = updater.getValue(current, previous);
+        assertNotNull(updatedSettings);
+        assertEquals(1, updatedSettings.size());
+
+        // THEN changes are reported when defaults aren't omitted
+        final String key = updatedSettings.keySet().iterator().next();
+        final String value = updatedSettings.get(key);
+        assertEquals("_foo", key);
+        assertEquals("", value);
     }
 
 }

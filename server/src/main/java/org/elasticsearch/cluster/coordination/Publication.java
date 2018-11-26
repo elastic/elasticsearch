@@ -19,14 +19,14 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
@@ -37,7 +37,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
-public abstract class Publication extends AbstractComponent {
+public abstract class Publication {
+
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     private final List<PublicationTarget> publicationTargets;
     private final PublishRequest publishRequest;
@@ -49,8 +51,7 @@ public abstract class Publication extends AbstractComponent {
     private boolean isCompleted; // set when publication is completed
     private boolean timedOut; // set when publication timed out
 
-    public Publication(Settings settings, PublishRequest publishRequest, AckListener ackListener, LongSupplier currentTimeSupplier) {
-        super(settings);
+    public Publication(PublishRequest publishRequest, AckListener ackListener, LongSupplier currentTimeSupplier) {
         this.publishRequest = publishRequest;
         this.ackListener = ackListener;
         this.currentTimeSupplier = currentTimeSupplier;

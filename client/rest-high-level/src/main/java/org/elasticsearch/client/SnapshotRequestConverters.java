@@ -36,7 +36,9 @@ import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 
-public class SnapshotRequestConverters {
+final class SnapshotRequestConverters {
+
+    private SnapshotRequestConverters() {}
 
     static Request getRepositories(GetRepositoriesRequest getRepositoriesRequest) {
         String[] repositories = getRepositoriesRequest.repositories() == null ? Strings.EMPTY_ARRAY : getRepositoriesRequest.repositories();

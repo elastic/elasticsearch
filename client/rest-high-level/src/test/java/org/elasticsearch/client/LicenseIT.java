@@ -20,15 +20,23 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.license.DeleteLicenseRequest;
+import org.elasticsearch.client.license.GetBasicStatusResponse;
+import org.elasticsearch.client.license.GetLicenseRequest;
+import org.elasticsearch.client.license.GetLicenseResponse;
+import org.elasticsearch.client.license.GetTrialStatusResponse;
+import org.elasticsearch.client.license.LicensesStatus;
+import org.elasticsearch.client.license.PutLicenseRequest;
+import org.elasticsearch.client.license.PutLicenseResponse;
 import org.elasticsearch.client.license.StartBasicRequest;
 import org.elasticsearch.client.license.StartBasicResponse;
 import org.elasticsearch.client.license.StartTrialRequest;
 import org.elasticsearch.client.license.StartTrialResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.protocol.xpack.license.LicensesStatus;
-import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -39,6 +47,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
@@ -164,5 +173,41 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
                 assertThat(message, not(isEmptyOrNullString()));
             }
         }
+    }
+
+    public void testGetLicense() throws Exception {
+        final GetLicenseRequest request = new GetLicenseRequest();
+        final GetLicenseResponse response = highLevelClient().license().getLicense(request, RequestOptions.DEFAULT);
+        final String licenseDefinition = response.getLicenseDefinition();
+        assertThat(licenseDefinition, notNullValue());
+
+        final XContentParser parser = createParser(JsonXContent.jsonXContent, licenseDefinition);
+        final Map<String, Object> map = parser.map();
+        assertThat(map.containsKey("license"), equalTo(true));
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> license = (Map<String, Object>) map.get("license");
+        assertThat(license.get("status"), equalTo("active"));
+        assertThat(license.get("type"), equalTo("trial"));
+    }
+
+    public void testPutLicense() throws Exception {
+        putTrialLicense();
+    }
+
+    public void testDeleteLicense() throws Exception {
+        final DeleteLicenseRequest request = new DeleteLicenseRequest();
+        final AcknowledgedResponse response = highLevelClient().license().deleteLicense(request, RequestOptions.DEFAULT);
+        assertThat(response.isAcknowledged(), equalTo(true));
+    }
+
+    public void testGetTrialStatus() throws IOException {
+        GetTrialStatusResponse trialStatus = highLevelClient().license().getTrialStatus(RequestOptions.DEFAULT);
+        assertFalse(trialStatus.isEligibleToStartTrial());
+    }
+
+    public void testGetBasicStatus() throws IOException {
+        GetBasicStatusResponse basicStatus = highLevelClient().license().getBasicStatus(RequestOptions.DEFAULT);
+        assertTrue(basicStatus.isEligibleToStartBasic());
     }
 }

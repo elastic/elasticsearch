@@ -11,9 +11,12 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
@@ -97,6 +100,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
+import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
@@ -136,7 +140,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("transport_client"), is(true));
         assertThat(ReservedRolesStore.isReserved("kibana_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("ingest_admin"), is(true));
-        assertThat(ReservedRolesStore.isReserved("remote_monitoring_agent"), is(true));
         assertThat(ReservedRolesStore.isReserved("monitoring_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("reporting_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("machine_learning_user"), is(true));
@@ -149,6 +152,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved(LogstashSystemUser.ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(BeatsSystemUser.ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(APMSystemUser.ROLE_NAME), is(true));
+        assertThat(ReservedRolesStore.isReserved(RemoteMonitoringUser.COLLECTION_ROLE_NAME), is(true));
+        assertThat(ReservedRolesStore.isReserved(RemoteMonitoringUser.INDEXING_ROLE_NAME), is(true));
     }
 
     public void testIngestAdminRole() {
@@ -274,6 +279,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(index), is(false));
+
+        // Tasks index
+        final String taskIndex = org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
+        // Things that kibana_system *should* be able to do
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(taskIndex), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(taskIndex), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(taskIndex), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(taskIndex), is(true));
+        // Things that kibana_system *should not* be able to do
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(taskIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(taskIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(CloseIndexAction.NAME).test(taskIndex), is(false));
     }
 
     public void testKibanaUserRole() {
@@ -399,17 +416,75 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo")
                 .test(randomAlphaOfLengthBetween(8, 24)), is(false));
 
-        final String index = ".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(index), is(true));
+        final String monitoringIndex = ".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo").test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar").test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(monitoringIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(monitoringIndex), is(true));
+
+        final String metricbeatIndex = "metricbeat-" + randomAlphaOfLength(randomIntBetween(0, 13));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo").test(metricbeatIndex), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar").test(metricbeatIndex), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(metricbeatIndex), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(metricbeatIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(metricbeatIndex), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(metricbeatIndex), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(metricbeatIndex), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(metricbeatIndex), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(metricbeatIndex), is(false));
+
+    }
+
+    public void testRemoteMonitoringCollectorRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("remote_monitoring_collector");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role remoteMonitoringAgentRole = Role.builder(roleDescriptor, null).build();
+        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterHealthAction.NAME, request), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterStateAction.NAME, request), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterStatsAction.NAME, request), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(GetIndexTemplatesAction.NAME, request), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(DeleteIndexTemplateAction.NAME, request), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(MonitoringBulkAction.NAME, request), is(false));
+
+        assertThat(remoteMonitoringAgentRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
+
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(RecoveryAction.NAME).test("foo"), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test("foo"), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".reporting"), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".kibana"), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(".kibana"), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo")
+            .test(randomAlphaOfLengthBetween(8, 24)), is(false));
+
+        Arrays.asList(
+            ".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "metricbeat-" + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach((index) -> {
+            logger.info("index name [{}]", index);
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(false));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(false));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(false));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(false));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(false));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(false));
+            assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(index), is(false));
+        });
     }
 
     public void testReportingUserRole() {

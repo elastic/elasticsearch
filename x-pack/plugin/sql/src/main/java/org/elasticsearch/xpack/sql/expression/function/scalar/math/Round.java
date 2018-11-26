@@ -8,15 +8,9 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-
-import java.util.Locale;
-
-import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Function that takes two parameters: one is the field/value itself, the other is a non-floating point numeric
@@ -38,17 +32,6 @@ public class Round extends BinaryNumericFunction {
     @Override
     protected Round replaceChildren(Expression newLeft, Expression newRight) {
         return new Round(location(), newLeft, newRight);
-    }
-
-    @Override
-    protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s)"),
-                mathFunction(),
-                leftScript.template(),
-                rightScript.template()),
-                paramsBuilder()
-                    .script(leftScript.params()).script(rightScript.params())
-                    .build(), dataType());
     }
     
     @Override

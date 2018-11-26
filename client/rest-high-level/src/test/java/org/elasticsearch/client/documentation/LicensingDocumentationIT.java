@@ -30,15 +30,17 @@ import org.elasticsearch.client.license.StartTrialRequest;
 import org.elasticsearch.client.license.StartTrialResponse;
 import org.elasticsearch.client.license.StartBasicRequest;
 import org.elasticsearch.client.license.StartBasicResponse;
+import org.elasticsearch.client.license.GetBasicStatusResponse;
+import org.elasticsearch.client.license.GetTrialStatusResponse;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.GetLicenseResponse;
-import org.elasticsearch.protocol.xpack.license.LicensesStatus;
-import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.junit.After;
 import org.junit.BeforeClass;
+import org.elasticsearch.client.license.DeleteLicenseRequest;
+import org.elasticsearch.client.license.GetLicenseRequest;
+import org.elasticsearch.client.license.GetLicenseResponse;
+import org.elasticsearch.client.license.LicensesStatus;
+import org.elasticsearch.client.license.PutLicenseRequest;
+import org.elasticsearch.client.license.PutLicenseResponse;
 
 import java.io.IOException;
 import java.util.Map;
@@ -334,6 +336,32 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::start-basic-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetTrialStatus() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::get-trial-status-execute
+            GetTrialStatusResponse response = client.license().getTrialStatus(RequestOptions.DEFAULT);
+            //end::get-trial-status-execute
+
+            //tag::get-trial-status-response
+            boolean eligibleToStartTrial = response.isEligibleToStartTrial(); // <1>
+            //end::get-trial-status-response
+        }
+    }
+
+    public void testGetBasicStatus() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::get-basic-status-execute
+            GetBasicStatusResponse response = client.license().getBasicStatus(RequestOptions.DEFAULT);
+            //end::get-basic-status-execute
+
+            //tag::get-basic-status-response
+            boolean eligibleToStartbasic = response.isEligibleToStartBasic(); // <1>
+            //end::get-basic-status-response
         }
     }
 }

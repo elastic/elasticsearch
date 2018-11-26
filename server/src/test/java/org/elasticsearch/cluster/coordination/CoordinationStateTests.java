@@ -22,7 +22,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
@@ -785,12 +785,14 @@ public class CoordinationStateTests extends ESTestCase {
                                             VotingConfiguration lastAcceptedConfig, long value) {
         return setValue(ClusterState.builder(ClusterName.DEFAULT)
             .version(version)
-            .term(term)
-            .lastCommittedConfiguration(lastCommittedConfig)
-            .lastAcceptedConfiguration(lastAcceptedConfig)
             .nodes(discoveryNodes)
             .metaData(MetaData.builder()
-                .clusterUUID(UUIDs.randomBase64UUID(random()))) // generate cluster UUID deterministically for repeatable tests
+                .clusterUUID(UUIDs.randomBase64UUID(random())) // generate cluster UUID deterministically for repeatable tests
+                .coordinationMetaData(CoordinationMetaData.builder()
+                        .term(term)
+                        .lastCommittedConfiguration(lastCommittedConfig)
+                        .lastAcceptedConfiguration(lastAcceptedConfig)
+                        .build()))
             .stateUUID(UUIDs.randomBase64UUID(random())) // generate cluster state UUID deterministically for repeatable tests
             .build(), value);
     }
@@ -829,8 +831,11 @@ public class CoordinationStateTests extends ESTestCase {
 
         void setInitialState(VotingConfiguration initialConfig, long initialValue) {
             final ClusterState.Builder builder = ClusterState.builder(state.getLastAcceptedState()).incrementVersion();
-            builder.lastAcceptedConfiguration(initialConfig);
-            builder.lastCommittedConfiguration(initialConfig);
+            builder.metaData(MetaData.builder()
+                    .coordinationMetaData(CoordinationMetaData.builder()
+                        .lastAcceptedConfiguration(initialConfig)
+                        .lastCommittedConfiguration(initialConfig)
+                    .build()));
             state.setInitialState(setValue(builder.build(), initialValue));
         }
     }

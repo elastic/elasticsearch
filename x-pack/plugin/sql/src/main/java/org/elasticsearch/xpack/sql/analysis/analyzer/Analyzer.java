@@ -153,8 +153,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     //
     // Shared methods around the analyzer rules
     //
-
     private static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList) {
+        return resolveAgainstList(u, attrList, false);
+    }
+
+    private static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList, boolean allowCompound) {
         List<Attribute> matches = new ArrayList<>();
 
         // first take into account the qualified version
@@ -181,7 +184,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         if (matches.size() == 1) {
-            return matches.get(0);
+            return handleSpecialFields(u, matches.get(0), allowCompound);
         }
 
         return u.withUnresolvedMessage("Reference [" + u.qualifiedName()
@@ -191,6 +194,25 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                  .sorted()
                  .collect(toList())
                 );
+    }
+
+    private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {
+        // if it's a object/compound type, keep it unresolved with a nice error message
+        if (named instanceof FieldAttribute) {
+            FieldAttribute fa = (FieldAttribute) named;
+            // unsupported types
+            if (DataTypes.isUnsupported(fa.dataType())) {
+                UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
+                named = u.withUnresolvedMessage(
+                        "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() + "] as is unsupported");
+            }
+            // compound fields
+            else if (allowCompound == false && fa.dataType().isPrimitive() == false) {
+                named = u.withUnresolvedMessage(
+                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esType + "] only its subfields");
+            }
+        }
+        return named;
     }
 
     private static boolean hasStar(List<? extends Expression> exprs) {
@@ -348,21 +370,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     NamedExpression named = resolveAgainstList(u, childrenOutput);
                     // if resolved, return it; otherwise keep it in place to be resolved later
                     if (named != null) {
-                        // if it's a object/compound type, keep it unresolved with a nice error message
-                        if (named instanceof FieldAttribute) {
-                            FieldAttribute fa = (FieldAttribute) named;
-                            if (DataTypes.isUnsupported(fa.dataType())) {
-                                UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
-                                named = u.withUnresolvedMessage(
-                                        "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() +
-                                                "] as is unsupported");
-                            }
-                            else if (!fa.dataType().isPrimitive()) {
-                                named = u.withUnresolvedMessage(
-                                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esType + "] only its subfields");
-                            }
-                        }
-
                         if (log.isTraceEnabled()) {
                             log.trace("Resolved {} to {}", u, named);
                         }
@@ -380,7 +387,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             List<Attribute> output = child.output();
             for (NamedExpression ne : projections) {
                 if (ne instanceof UnresolvedStar) {
-                    result.addAll(expandStar((UnresolvedStar) ne, output));
+                    List<NamedExpression> expanded = expandStar((UnresolvedStar) ne, output);
+                    // the field exists, but cannot be expanded (no sub-fields)
+                    if (expanded.isEmpty()) {
+                        result.add(ne);
+                    } else {
+                        result.addAll(expanded);
+                    }
                 } else if (ne instanceof UnresolvedAlias) {
                     UnresolvedAlias ua = (UnresolvedAlias) ne;
                     if (ua.child() instanceof UnresolvedStar) {
@@ -401,7 +414,18 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (us.qualifier() != null) {
                 // resolve the so-called qualifier first
                 // since this is an unresolved start we don't know whether it's a path or an actual qualifier
-                Attribute q = resolveAgainstList(us.qualifier(), output);
+                Attribute q = resolveAgainstList(us.qualifier(), output, true);
+
+                // the wildcard couldn't be expanded because the field doesn't exist at all
+                // so, add to the list of expanded attributes its qualifier (the field without the wildcard)
+                // the qualifier will be unresolved and later used in the error message presented to the user
+                if (q == null) {
+                    return singletonList(us.qualifier());
+                }
+                // qualifier is unknown (e.g. unsupported type), bail out early
+                else if (q.resolved() == false) {
+                    return singletonList(q);
+                }
 
                 // now use the resolved 'qualifier' to match
                 for (Attribute attr : output) {
@@ -487,7 +511,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (ordinal != null) {
                         changed = true;
                         if (ordinal > 0 && ordinal <= max) {
-                            newOrder.add(new Order(order.location(), orderBy.child().output().get(ordinal - 1), order.direction()));
+                            newOrder.add(new Order(order.location(), orderBy.child().output().get(ordinal - 1), order.direction(),
+                                    order.nullsPosition()));
                         }
                         else {
                             throw new AnalysisException(order, "Invalid %d specified in OrderBy (valid range is [1, %d])", ordinal, max);

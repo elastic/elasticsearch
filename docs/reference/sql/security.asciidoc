@@ -34,6 +34,6 @@ indices:
 
 ["source","yaml",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-tests}/security/roles.yml[cli_jdbc]
+include-tagged::{sql-tests}/security/roles.yml[cli_drivers]
 --------------------------------------------------
 

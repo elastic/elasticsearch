@@ -35,9 +35,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -71,7 +69,7 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public final class SearchPhaseController extends AbstractComponent {
+public final class SearchPhaseController {
 
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
@@ -79,11 +77,9 @@ public final class SearchPhaseController extends AbstractComponent {
 
     /**
      * Constructor.
-     * @param settings Node settings
      * @param reduceContextFunction A function that builds a context for the reduce of an {@link InternalAggregation}
      */
-    public SearchPhaseController(Settings settings, Function<Boolean, ReduceContext> reduceContextFunction) {
-        super(settings);
+    public SearchPhaseController(Function<Boolean, ReduceContext> reduceContextFunction) {
         this.reduceContextFunction = reduceContextFunction;
     }
 
@@ -175,7 +171,8 @@ public final class SearchPhaseController extends AbstractComponent {
                 final TopDocsAndMaxScore td = queryResult.consumeTopDocs();
                 assert td != null;
                 topDocsStats.add(td);
-                if (td.topDocs.scoreDocs.length > 0) { // make sure we set the shard index before we add it - the consumer didn't do that yet
+                // make sure we set the shard index before we add it - the consumer didn't do that yet
+                if (td.topDocs.scoreDocs.length > 0) {
                     setShardIndex(td.topDocs, queryResult.getShardIndex());
                     topDocs.add(td.topDocs);
                 }
@@ -312,7 +309,8 @@ public final class SearchPhaseController extends AbstractComponent {
      * completion suggestion ordered by suggestion name
      */
     public InternalSearchResponse merge(boolean ignoreFrom, ReducedQueryPhase reducedQueryPhase,
-                                        Collection<? extends SearchPhaseResult> fetchResults, IntFunction<SearchPhaseResult> resultsLookup) {
+                                        Collection<? extends SearchPhaseResult> fetchResults,
+                                        IntFunction<SearchPhaseResult> resultsLookup) {
         if (reducedQueryPhase.isEmptyResult) {
             return InternalSearchResponse.empty();
         }
@@ -420,7 +418,8 @@ public final class SearchPhaseController extends AbstractComponent {
      * Reduces the given query results and consumes all aggregations and profile results.
      * @param queryResults a list of non-null query shard results
      */
-    public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults, boolean isScrollRequest, boolean trackTotalHits) {
+    public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
+                                               boolean isScrollRequest, boolean trackTotalHits) {
         return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(trackTotalHits), 0, isScrollRequest);
     }
 
@@ -445,7 +444,8 @@ public final class SearchPhaseController extends AbstractComponent {
         Boolean terminatedEarly = null;
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
             return new ReducedQueryPhase(topDocsStats.totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
-                timedOut, terminatedEarly, null, null, null, EMPTY_DOCS, null, null, numReducePhases, false, 0, 0, true);
+                timedOut, terminatedEarly, null, null, null, EMPTY_DOCS, null,
+                null, numReducePhases, false, 0, 0, true);
         }
         final QuerySearchResult firstResult = queryResults.stream().findFirst().get().queryResult();
         final boolean hasSuggest = firstResult.suggest() != null;
@@ -675,7 +675,8 @@ public final class SearchPhaseController extends AbstractComponent {
                 }
                 if (hasTopDocs) {
                     TopDocs reducedTopDocs = controller.mergeTopDocs(Arrays.asList(topDocsBuffer),
-                        querySearchResult.from() + querySearchResult.size() // we have to merge here in the same way we collect on a shard
+                        // we have to merge here in the same way we collect on a shard
+                        querySearchResult.from() + querySearchResult.size()
                         , 0);
                     Arrays.fill(topDocsBuffer, null);
                     topDocsBuffer[0] = reducedTopDocs;

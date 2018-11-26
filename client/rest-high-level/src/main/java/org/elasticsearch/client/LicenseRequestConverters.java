@@ -25,11 +25,14 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.license.StartTrialRequest;
 import org.elasticsearch.client.license.StartBasicRequest;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
+import org.elasticsearch.client.license.DeleteLicenseRequest;
+import org.elasticsearch.client.license.GetLicenseRequest;
+import org.elasticsearch.client.license.PutLicenseRequest;
 
-public class LicenseRequestConverters {
+final class LicenseRequestConverters {
+
+    private LicenseRequestConverters() {}
+
     static Request putLicense(PutLicenseRequest putLicenseRequest) {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_xpack", "license").build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -47,7 +50,7 @@ public class LicenseRequestConverters {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_xpack", "license").build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params(request);
-        parameters.withLocal(getLicenseRequest.local());
+        parameters.withLocal(getLicenseRequest.isLocal());
         return request;
     }
 
@@ -84,5 +87,13 @@ public class LicenseRequestConverters {
             parameters.putParam("acknowledge", "true");
         }
         return request;
+    }
+
+    static Request getLicenseTrialStatus() {
+        return new Request(HttpGet.METHOD_NAME, "/_xpack/license/trial_status");
+    }
+
+    static Request getLicenseBasicStatus() {
+        return new Request(HttpGet.METHOD_NAME, "/_xpack/license/basic_status");
     }
 }

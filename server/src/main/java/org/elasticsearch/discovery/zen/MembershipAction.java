@@ -19,12 +19,12 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -41,7 +41,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
-public class MembershipAction extends AbstractComponent {
+public class MembershipAction {
+
+    private static final Logger logger = LogManager.getLogger(MembershipAction.class);
 
     public static final String DISCOVERY_JOIN_ACTION_NAME = "internal:discovery/zen/join";
     public static final String DISCOVERY_JOIN_VALIDATE_ACTION_NAME = "internal:discovery/zen/join/validate";
@@ -63,9 +65,8 @@ public class MembershipAction extends AbstractComponent {
 
     private final MembershipListener listener;
 
-    public MembershipAction(Settings settings, TransportService transportService, MembershipListener listener,
+    public MembershipAction(TransportService transportService, MembershipListener listener,
                             Collection<BiConsumer<DiscoveryNode,ClusterState>> joinValidators) {
-        super(settings);
         this.transportService = transportService;
         this.listener = listener;
 
@@ -104,12 +105,12 @@ public class MembershipAction extends AbstractComponent {
 
     public static class JoinRequest extends TransportRequest {
 
-        DiscoveryNode node;
+        public DiscoveryNode node;
 
         public JoinRequest() {
         }
 
-        private JoinRequest(DiscoveryNode node) {
+        public JoinRequest(DiscoveryNode node) {
             this.node = node;
         }
 
@@ -154,10 +155,10 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    static class ValidateJoinRequest extends TransportRequest {
+    public static class ValidateJoinRequest extends TransportRequest {
         private ClusterState state;
 
-        ValidateJoinRequest() {}
+        public ValidateJoinRequest() {}
 
         ValidateJoinRequest(ClusterState state) {
             this.state = state;

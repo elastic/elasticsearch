@@ -19,9 +19,10 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -43,7 +44,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * so that if elections are failing due to a network partition that lasts for a long time then when the partition heals there is an election
  * attempt reasonably quickly.
  */
-public class ElectionSchedulerFactory extends AbstractComponent {
+public class ElectionSchedulerFactory {
+
+    private static final Logger logger = LogManager.getLogger(ElectionSchedulerFactory.class);
 
     private static final String ELECTION_INITIAL_TIMEOUT_SETTING_KEY = "cluster.election.initial_timeout";
     private static final String ELECTION_BACK_OFF_TIME_SETTING_KEY = "cluster.election.back_off_time";
@@ -84,8 +87,6 @@ public class ElectionSchedulerFactory extends AbstractComponent {
     private final Random random;
 
     public ElectionSchedulerFactory(Settings settings, Random random, ThreadPool threadPool) {
-        super(settings);
-
         this.random = random;
         this.threadPool = threadPool;
 
@@ -180,7 +181,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
             };
 
             logger.debug("scheduling {}", runnable);
-            threadPool.schedule(TimeValue.timeValueMillis(delayMillis), Names.GENERIC, runnable);
+            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(delayMillis), Names.GENERIC, runnable);
         }
 
         @Override

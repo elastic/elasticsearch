@@ -19,12 +19,13 @@
 
 package org.elasticsearch.discovery;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -41,7 +42,9 @@ import org.elasticsearch.transport.TransportService;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-public class HandshakingTransportAddressConnector extends AbstractComponent implements TransportAddressConnector {
+public class HandshakingTransportAddressConnector implements TransportAddressConnector {
+
+    private static final Logger logger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
 
     // connection timeout for probes
     public static final Setting<TimeValue> PROBE_CONNECT_TIMEOUT_SETTING =
@@ -57,7 +60,6 @@ public class HandshakingTransportAddressConnector extends AbstractComponent impl
     private final TimeValue probeHandshakeTimeout;
 
     public HandshakingTransportAddressConnector(Settings settings, TransportService transportService) {
-        super(settings);
         this.transportService = transportService;
         probeConnectTimeout = PROBE_CONNECT_TIMEOUT_SETTING.get(settings);
         probeHandshakeTimeout = PROBE_HANDSHAKE_TIMEOUT_SETTING.get(settings);

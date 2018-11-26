@@ -19,20 +19,23 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.discovery.zen.MasterFaultDetection;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -46,6 +49,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * The LeaderChecker is responsible for allowing followers to check that the currently elected leader is still connected and healthy. We are
@@ -53,7 +57,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * temporarily stand down on occasion, e.g. if it needs to move to a higher term. On deciding that the leader has failed a follower will
  * become a candidate and attempt to become a leader itself.
  */
-public class LeaderChecker extends AbstractComponent {
+public class LeaderChecker {
+
+    private static final Logger logger = LogManager.getLogger(LeaderChecker.class);
 
     public static final String LEADER_CHECK_ACTION_NAME = "internal:coordination/fault_detection/leader_check";
 
@@ -71,43 +77,82 @@ public class LeaderChecker extends AbstractComponent {
     public static final Setting<Integer> LEADER_CHECK_RETRY_COUNT_SETTING =
         Setting.intSetting("cluster.fault_detection.leader_check.retry_count", 3, 1, Setting.Property.NodeScope);
 
+    private final Settings settings;
+
     private final TimeValue leaderCheckInterval;
     private final TimeValue leaderCheckTimeout;
     private final int leaderCheckRetryCount;
     private final TransportService transportService;
     private final Runnable onLeaderFailure;
 
+    private AtomicReference<CheckScheduler> currentChecker = new AtomicReference<>();
+
     private volatile DiscoveryNodes discoveryNodes;
 
     public LeaderChecker(final Settings settings, final TransportService transportService, final Runnable onLeaderFailure) {
-        super(settings);
+        this.settings = settings;
         leaderCheckInterval = LEADER_CHECK_INTERVAL_SETTING.get(settings);
         leaderCheckTimeout = LEADER_CHECK_TIMEOUT_SETTING.get(settings);
         leaderCheckRetryCount = LEADER_CHECK_RETRY_COUNT_SETTING.get(settings);
         this.transportService = transportService;
         this.onLeaderFailure = onLeaderFailure;
 
-        transportService.registerRequestHandler(LEADER_CHECK_ACTION_NAME, Names.SAME, LeaderCheckRequest::new, this::handleLeaderCheck);
+        transportService.registerRequestHandler(LEADER_CHECK_ACTION_NAME, Names.SAME, false, false, LeaderCheckRequest::new,
+            (request, channel, task) -> {
+                handleLeaderCheck(request);
+                channel.sendResponse(Empty.INSTANCE);
+            });
+
+        transportService.registerRequestHandler(MasterFaultDetection.MASTER_PING_ACTION_NAME, MasterFaultDetection.MasterPingRequest::new,
+            Names.SAME, false, false, (request, channel, task) -> {
+                try {
+                    handleLeaderCheck(new LeaderCheckRequest(request.sourceNode));
+                } catch (CoordinationStateRejectedException e) {
+                    throw new MasterFaultDetection.ThisIsNotTheMasterYouAreLookingForException(e.getMessage());
+                }
+                channel.sendResponse(new MasterFaultDetection.MasterPingResponseResponse());
+            });
+
+        transportService.addConnectionListener(new TransportConnectionListener() {
+            @Override
+            public void onNodeDisconnected(DiscoveryNode node) {
+                handleDisconnectedNode(node);
+            }
+        });
+    }
+
+    public DiscoveryNode leader() {
+        CheckScheduler checkScheduler = currentChecker.get();
+        return checkScheduler == null ? null : checkScheduler.leader;
     }
 
     /**
-     * Start a leader checker for the given leader. Should only be called after successfully joining this leader.
+     * Starts and / or stops a leader checker for the given leader. Should only be called after successfully joining this leader.
      *
-     * @param leader the node to be checked as leader
-     * @return a `Releasable` that can be used to stop this checker.
+     * @param leader the node to be checked as leader, or null if checks should be disabled
      */
-    public Releasable startLeaderChecker(final DiscoveryNode leader) {
+    public void updateLeader(@Nullable final DiscoveryNode leader) {
         assert transportService.getLocalNode().equals(leader) == false;
-        CheckScheduler checkScheduler = new CheckScheduler(leader);
-        checkScheduler.handleWakeUp();
-        return checkScheduler;
+        final CheckScheduler checkScheduler;
+        if (leader != null) {
+            checkScheduler = new CheckScheduler(leader);
+        } else {
+            checkScheduler = null;
+        }
+        CheckScheduler previousChecker = currentChecker.getAndSet(checkScheduler);
+        if (previousChecker != null) {
+            previousChecker.close();
+        }
+        if (checkScheduler != null) {
+            checkScheduler.handleWakeUp();
+        }
     }
 
     /**
      * Update the "known" discovery nodes. Should be called on the leader before a new cluster state is published to reflect the new
      * publication targets, and also called if a leader becomes a non-leader.
      * TODO if heartbeats can make nodes become followers then this needs to be called before a heartbeat is sent to a new node too.
-     *
+     * <p>
      * isLocalNodeElectedMaster() should reflect whether this node is a leader, and nodeExists()
      * should indicate whether nodes are known publication targets or not.
      */
@@ -121,19 +166,27 @@ public class LeaderChecker extends AbstractComponent {
         return discoveryNodes.isLocalNodeElectedMaster();
     }
 
-    private void handleLeaderCheck(LeaderCheckRequest request, TransportChannel transportChannel, Task task) throws IOException {
+    private void handleLeaderCheck(LeaderCheckRequest request) {
         final DiscoveryNodes discoveryNodes = this.discoveryNodes;
         assert discoveryNodes != null;
 
         if (discoveryNodes.isLocalNodeElectedMaster() == false) {
             logger.debug("non-master handling {}", request);
-            transportChannel.sendResponse(new CoordinationStateRejectedException("non-leader rejecting leader check"));
+            throw new CoordinationStateRejectedException("non-leader rejecting leader check");
         } else if (discoveryNodes.nodeExists(request.getSender()) == false) {
             logger.debug("leader check from unknown node: {}", request);
-            transportChannel.sendResponse(new CoordinationStateRejectedException("leader check from unknown node"));
+            throw new CoordinationStateRejectedException("leader check from unknown node");
         } else {
             logger.trace("handling {}", request);
-            transportChannel.sendResponse(Empty.INSTANCE);
+        }
+    }
+
+    private void handleDisconnectedNode(DiscoveryNode discoveryNode) {
+        CheckScheduler checkScheduler = currentChecker.get();
+        if (checkScheduler != null) {
+            checkScheduler.handleDisconnectedNode(discoveryNode);
+        } else {
+            logger.trace("disconnect event ignored for {}, no check scheduler", discoveryNode);
         }
     }
 
@@ -164,11 +217,21 @@ public class LeaderChecker extends AbstractComponent {
 
             logger.trace("checking {} with [{}] = {}", leader, LEADER_CHECK_TIMEOUT_SETTING.getKey(), leaderCheckTimeout);
 
+            final String actionName;
+            final TransportRequest transportRequest;
+            if (Coordinator.isZen1Node(leader)) {
+                actionName = MasterFaultDetection.MASTER_PING_ACTION_NAME;
+                transportRequest = new MasterFaultDetection.MasterPingRequest(
+                    transportService.getLocalNode(), leader, ClusterName.CLUSTER_NAME_SETTING.get(settings));
+            } else {
+                actionName = LEADER_CHECK_ACTION_NAME;
+                transportRequest = new LeaderCheckRequest(transportService.getLocalNode());
+            }
             // TODO lag detection:
             // In the PoC, the leader sent its current version to the follower in the response to a LeaderCheck, so the follower
             // could detect if it was lagging. We'd prefer this to be implemented on the leader, so the response is just
             // TransportResponse.Empty here.
-            transportService.sendRequest(leader, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(transportService.getLocalNode()),
+            transportService.sendRequest(leader, actionName, transportRequest,
                 TransportRequestOptions.builder().withTimeout(leaderCheckTimeout).withType(Type.PING).build(),
 
                 new TransportResponseHandler<TransportResponse.Empty>() {
@@ -222,11 +285,17 @@ public class LeaderChecker extends AbstractComponent {
                 });
         }
 
-        private void leaderFailed() {
+        void leaderFailed() {
             if (isClosed.compareAndSet(false, true)) {
                 transportService.getThreadPool().generic().execute(onLeaderFailure);
             } else {
                 logger.debug("already closed, not failing leader");
+            }
+        }
+
+        void handleDisconnectedNode(DiscoveryNode discoveryNode) {
+            if (discoveryNode.equals(leader)) {
+                leaderFailed();
             }
         }
 

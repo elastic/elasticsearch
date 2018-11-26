@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
@@ -51,9 +50,8 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     private static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = timeValueSeconds(30);
 
     @Inject
-    public TransportListTasksAction(Settings settings, ClusterService clusterService,
-            TransportService transportService, ActionFilters actionFilters) {
-        super(settings, ListTasksAction.NAME, clusterService, transportService, actionFilters,
+    public TransportListTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+        super(ListTasksAction.NAME, clusterService, transportService, actionFilters,
             ListTasksRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
     }
 

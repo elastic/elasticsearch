@@ -23,8 +23,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.InternalStatsBucket;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.ParsedStatsBucket;
+import org.elasticsearch.search.aggregations.pipeline.InternalStatsBucket;
+import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 
 import java.util.Collections;
 import java.util.List;

@@ -49,6 +49,9 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.client.core.MultiTermVectorsRequest;
+import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
@@ -83,6 +86,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
+import java.util.List;
 import java.util.Locale;
 import java.util.StringJoiner;
 
@@ -117,7 +121,8 @@ final class RequestConverters {
         Params parameters = new Params(request);
         parameters.withTimeout(bulkRequest.timeout());
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
-
+        parameters.withPipeline(bulkRequest.pipeline());
+        parameters.withRouting(bulkRequest.routing());
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
         // and this content-type is supported by the Bulk API.
@@ -258,6 +263,18 @@ final class RequestConverters {
         parameters.withVersionType(getRequest.versionType());
         parameters.withFetchSourceContext(getRequest.fetchSourceContext());
 
+        return request;
+    }
+
+    static Request sourceExists(GetRequest getRequest) {
+        Request request = new Request(HttpHead.METHOD_NAME, endpoint(getRequest.index(), getRequest.type(), getRequest.id(), "_source"));
+
+        Params parameters = new Params(request);
+        parameters.withPreference(getRequest.preference());
+        parameters.withRouting(getRequest.routing());
+        parameters.withRefresh(getRequest.refresh());
+        parameters.withRealtime(getRequest.realtime());
+        // Version params are not currently supported by the source exists API so are not passed
         return request;
     }
 
@@ -427,6 +444,16 @@ final class RequestConverters {
         return request;
     }
 
+    static Request count(CountRequest countRequest) throws IOException {
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(countRequest.indices(), countRequest.types(), "_count"));
+        Params params = new Params(request);
+        params.withRouting(countRequest.routing());
+        params.withPreference(countRequest.preference());
+        params.withIndicesOptions(countRequest.indicesOptions());
+        request.setEntity(createEntity(countRequest.source(), REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request explain(ExplainRequest explainRequest) throws IOException {
         Request request = new Request(HttpGet.METHOD_NAME,
             endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain"));
@@ -460,9 +487,18 @@ final class RequestConverters {
     }
 
     static Request reindex(ReindexRequest reindexRequest) throws IOException {
+        return prepareReindexRequest(reindexRequest, true);
+    }
+
+    static Request submitReindex(ReindexRequest reindexRequest) throws IOException {
+        return prepareReindexRequest(reindexRequest, false);
+    }
+
+    private static Request prepareReindexRequest(ReindexRequest reindexRequest, boolean waitForCompletion) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params(request)
+            .withWaitForCompletion(waitForCompletion)
             .withRefresh(reindexRequest.isRefresh())
             .withTimeout(reindexRequest.getTimeout())
             .withWaitForActiveShards(reindexRequest.getWaitForActiveShards())
@@ -578,6 +614,26 @@ final class RequestConverters {
         return req;
     }
 
+    static Request termVectors(TermVectorsRequest tvrequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPart(
+            tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId()).addPathPartAsIs("_termvectors").build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withRouting(tvrequest.getRouting());
+        params.withPreference(tvrequest.getPreference());
+        params.withFields(tvrequest.getFields());
+        params.withRealtime(tvrequest.getRealtime());
+        request.setEntity(createEntity(tvrequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request mtermVectors(MultiTermVectorsRequest mtvrequest) throws IOException {
+        String endpoint = "_mtermvectors";
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(mtvrequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -596,7 +652,12 @@ final class RequestConverters {
     }
 
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
-        BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
+        return createEntity(toXContent, xContentType, ToXContent.EMPTY_PARAMS);
+    }
+
+    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType, ToXContent.Params toXContentParams)
+        throws IOException {
+        BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
@@ -679,10 +740,10 @@ final class RequestConverters {
                     putParam("_source", Boolean.FALSE.toString());
                 }
                 if (fetchSourceContext.includes() != null && fetchSourceContext.includes().length > 0) {
-                    putParam("_source_include", String.join(",", fetchSourceContext.includes()));
+                    putParam("_source_includes", String.join(",", fetchSourceContext.includes()));
                 }
                 if (fetchSourceContext.excludes() != null && fetchSourceContext.excludes().length > 0) {
-                    putParam("_source_exclude", String.join(",", fetchSourceContext.excludes()));
+                    putParam("_source_excludes", String.join(",", fetchSourceContext.excludes()));
                 }
             }
             return this;
@@ -858,11 +919,8 @@ final class RequestConverters {
             return this;
         }
 
-        Params withWaitForCompletion(boolean waitForCompletion) {
-            if (waitForCompletion) {
-                return putParam("wait_for_completion", Boolean.TRUE.toString());
-            }
-            return this;
+        Params withWaitForCompletion(Boolean waitForCompletion) {
+            return putParam("wait_for_completion", waitForCompletion.toString());
         }
 
         Params withNodes(String[] nodes) {
@@ -980,7 +1038,12 @@ final class RequestConverters {
             return this;
         }
 
-        EndpointBuilder addPathPartAsIs(String... parts) {
+        EndpointBuilder addCommaSeparatedPathParts(List<String> parts) {
+            addPathPart(String.join(",", parts));
+            return this;
+        }
+
+        EndpointBuilder addPathPartAsIs(String ... parts) {
             for (String part : parts) {
                 if (Strings.hasLength(part)) {
                     joiner.add(part);

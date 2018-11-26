@@ -5,56 +5,56 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.Foldables;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.Params;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptWeaver;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicPipe;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonPipe;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.EsField;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
-import static java.util.Collections.emptyMap;
+import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 // BETWEEN or range - is a mix of gt(e) AND lt(e)
-public class Range extends NamedExpression implements ScriptWeaver {
+public class Range extends ScalarFunction {
 
+    private final String name;
     private final Expression value, lower, upper;
     private final boolean includeLower, includeUpper;
 
     public Range(Location location, Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
-        this(location, null, value, lower, includeLower, upper, includeUpper);
-    }
-
-    public Range(Location location, String name, Expression value, Expression lower, boolean includeLower, Expression upper,
-            boolean includeUpper) {
-        super(location, name == null ? defaultName(value, lower, upper, includeLower, includeUpper) : name,
-                Arrays.asList(value, lower, upper), null);
+        super(location, asList(value, lower, upper));
 
         this.value = value;
         this.lower = lower;
         this.upper = upper;
         this.includeLower = includeLower;
         this.includeUpper = includeUpper;
+        this.name = name(value, lower, upper, includeLower, includeUpper);
+    }
+
+    @Override
+    public String name() {
+        return name;
     }
 
     @Override
     protected NodeInfo<Range> info() {
-        return NodeInfo.create(this, Range::new, name(), value, lower, includeLower, upper, includeUpper);
+        return NodeInfo.create(this, Range::new, value, lower, includeLower, upper, includeUpper);
     }
 
     @Override
@@ -130,18 +130,25 @@ public class Range extends NamedExpression implements ScriptWeaver {
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate scriptTemplate = asScript(value);
+        ScriptTemplate valueScript = asScript(value);
+        ScriptTemplate lowerScript = asScript(lower);
+        ScriptTemplate upperScript = asScript(upper);
+        
 
-        String template = formatTemplate(format(Locale.ROOT, "({} %s %s) && (%s %s {})",
-                        includeLower() ? "<=" : "<",
-                        scriptTemplate.template(),
-                        scriptTemplate.template(),
-                        includeUpper() ? "<=" : "<"));
+        String template = formatTemplate(format(Locale.ROOT, "{sql}.and({sql}.%s(%s, %s), {sql}.%s(%s, %s))",
+                        includeLower() ? "gte" : "gt",
+                        valueScript.template(),
+                        lowerScript.template(),
+                        includeUpper() ? "lte" : "lt",
+                        valueScript.template(),
+                        upperScript.template()
+                        ));
 
-        Params params = paramsBuilder().variable(Foldables.valueOf(lower))
-                .script(scriptTemplate.params())
-                .script(scriptTemplate.params())
-                .variable(Foldables.valueOf(upper))
+        Params params = paramsBuilder()
+                .script(valueScript.params())
+                .script(lowerScript.params())
+                .script(valueScript.params())
+                .script(upperScript.params())
                 .build();
 
         return new ScriptTemplate(template, params, DataType.BOOLEAN);
@@ -149,13 +156,12 @@ public class Range extends NamedExpression implements ScriptWeaver {
 
     @Override
     protected Pipe makePipe() {
-        throw new SqlIllegalArgumentException("Not supported yet");
-    }
-
-    @Override
-    public Attribute toAttribute() {
-        return new FieldAttribute(location(), "not yet implemented",
-                new EsField("not yet implemented", DataType.UNSUPPORTED, emptyMap(), false));
+        BinaryComparisonPipe lowerPipe = new BinaryComparisonPipe(location(), this, Expressions.pipe(value()), Expressions.pipe(lower()),
+                includeLower() ? BinaryComparisonOperation.GTE : BinaryComparisonOperation.GT);
+        BinaryComparisonPipe upperPipe = new BinaryComparisonPipe(location(), this, Expressions.pipe(value()), Expressions.pipe(upper()),
+                includeUpper() ? BinaryComparisonOperation.LTE : BinaryComparisonOperation.LT);
+        BinaryLogicPipe and = new BinaryLogicPipe(location(), this, lowerPipe, upperPipe, BinaryLogicOperation.AND);
+        return and;
     }
 
     @Override
@@ -181,13 +187,28 @@ public class Range extends NamedExpression implements ScriptWeaver {
                 && Objects.equals(upper, other.upper);
     }
 
-    private static String defaultName(Expression value, Expression lower, Expression upper, boolean includeLower, boolean includeUpper) {
+    private static String name(Expression value, Expression lower, Expression upper, boolean includeLower, boolean includeUpper) {
         StringBuilder sb = new StringBuilder();
-        sb.append(lower);
+        sb.append(Expressions.name(lower));
+        if (!(lower instanceof Literal)) {
+            sb.insert(0, "(");
+            sb.append(")");
+        }
         sb.append(includeLower ? " <= " : " < ");
-        sb.append(value);
+        int pos = sb.length();
+        sb.append(Expressions.name(value));
+        if (!(value instanceof Literal)) {
+            sb.insert(pos, "(");
+            sb.append(")");
+        }
         sb.append(includeUpper ? " <= " : " < ");
-        sb.append(upper);
+        pos = sb.length();
+        sb.append(Expressions.name(upper));
+        if (!(upper instanceof Literal)) {
+            sb.insert(pos, "(");
+            sb.append(")");
+        }
+
         return sb.toString();
     }
 

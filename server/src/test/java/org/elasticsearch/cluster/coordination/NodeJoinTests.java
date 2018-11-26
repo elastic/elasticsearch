@@ -22,12 +22,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTests;
 import org.elasticsearch.common.Randomness;
@@ -47,7 +47,6 @@ import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -63,10 +62,11 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -107,10 +107,14 @@ public class NodeJoinTests extends ESTestCase {
                 .add(localNode)
                 .localNodeId(localNode.getId())
                 .masterNodeId(withMaster ? localNode.getId() : null))
-            .term(term)
+            .metaData(MetaData.builder()
+                    .coordinationMetaData(
+                        CoordinationMetaData.builder()
+                        .term(term)
+                        .lastAcceptedConfiguration(config)
+                        .lastCommittedConfiguration(config)
+                    .build()))
             .version(version)
-            .lastAcceptedConfiguration(config)
-            .lastCommittedConfiguration(config)
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
         return initialClusterState;
     }
@@ -118,7 +122,8 @@ public class NodeJoinTests extends ESTestCase {
     private void setupFakeMasterServiceAndCoordinator(long term, ClusterState initialState) {
         deterministicTaskQueue
             = new DeterministicTaskQueue(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), random());
-        FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService("test", deterministicTaskQueue::scheduleNow);
+        FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService("test_node","test",
+                deterministicTaskQueue::scheduleNow);
         setupMasterServiceAndCoordinator(term, initialState, fakeMasterService, deterministicTaskQueue.getThreadPool(), Randomness.get());
         fakeMasterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             coordinator.handlePublishRequest(new PublishRequest(event.state()));
@@ -128,7 +133,7 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     private void setupRealMasterServiceAndCoordinator(long term, ClusterState initialState) {
-        MasterService masterService = new MasterService(Settings.EMPTY, threadPool);
+        MasterService masterService = new MasterService("test_node", Settings.EMPTY, threadPool);
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
         masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             clusterStateRef.set(event.state());
@@ -161,8 +166,8 @@ public class NodeJoinTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> initialState.nodes().getLocalNode(),
             clusterSettings, Collections.emptySet());
-        coordinator = new Coordinator(Settings.EMPTY, clusterSettings,
-            transportService,
+        coordinator = new Coordinator("test_node", Settings.EMPTY, clusterSettings,
+            transportService, writableRegistry(),
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,
             () -> new InMemoryPersistedState(term, initialState), r -> emptyList(),
@@ -230,11 +235,6 @@ public class NodeJoinTests extends ESTestCase {
                 public void sendResponse(TransportResponse response) {
                     logger.debug("{} completed", future);
                     future.markAsDone();
-                }
-
-                @Override
-                public void sendResponse(TransportResponse response, TransportResponseOptions options) {
-                    sendResponse(response);
                 }
 
                 @Override
@@ -467,50 +467,56 @@ public class NodeJoinTests extends ESTestCase {
         possiblyFailingJoinRequests.addAll(randomSubsetOf(possiblyFailingJoinRequests));
 
         CyclicBarrier barrier = new CyclicBarrier(correctJoinRequests.size() + possiblyFailingJoinRequests.size() + 1);
-        List<Thread> threads = new ArrayList<>();
-        threads.add(new Thread(() -> {
+
+        final AtomicBoolean stopAsserting = new AtomicBoolean();
+        final Thread assertionThread = new Thread(() -> {
             try {
                 barrier.await();
             } catch (InterruptedException | BrokenBarrierException e) {
                 throw new RuntimeException(e);
             }
-            for (int i = 0; i < 30; i++) {
+            while (stopAsserting.get() == false) {
                 coordinator.invariant();
             }
-        }));
-        threads.addAll(correctJoinRequests.stream().map(joinRequest -> new Thread(
-            () -> {
-                try {
-                    barrier.await();
-                } catch (InterruptedException | BrokenBarrierException e) {
-                    throw new RuntimeException(e);
-                }
-                joinNode(joinRequest);
-            })).collect(Collectors.toList()));
-        threads.addAll(possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
-            try {
-                barrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                throw new RuntimeException(e);
-            }
-            try {
-                joinNode(joinRequest);
-            } catch (CoordinationStateRejectedException ignore) {
-                // ignore
-            }
-        })).collect(Collectors.toList()));
+        }, "assert invariants");
 
-        threads.forEach(Thread::start);
-        threads.forEach(t -> {
+        final List<Thread> joinThreads = Stream.concat(correctJoinRequests.stream(), possiblyFailingJoinRequests.stream())
+            .map(joinRequest ->
+                new Thread(() -> {
+                    try {
+                        barrier.await();
+                    } catch (InterruptedException | BrokenBarrierException e) {
+                        throw new RuntimeException(e);
+                    }
+                    try {
+                        joinNode(joinRequest);
+                    } catch (CoordinationStateRejectedException ignore) {
+                        // ignore: even the "correct" requests may fail as a duplicate because a concurrent election may cause a node to
+                        // spontaneously join.
+                    }
+                }, "process " + joinRequest)).collect(Collectors.toList());
+
+        assertionThread.start();
+        joinThreads.forEach(Thread::start);
+        joinThreads.forEach(t -> {
             try {
                 t.join();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         });
+        stopAsserting.set(true);
+        try {
+            assertionThread.join();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
 
         assertTrue(MasterServiceTests.discoveryState(masterService).nodes().isLocalNodeElectedMaster());
-        successfulNodes.forEach(node -> assertTrue(clusterStateHasNode(node)));
+        for (DiscoveryNode successfulNode : successfulNodes) {
+            assertTrue(successfulNode.toString(), clusterStateHasNode(successfulNode));
+            assertTrue(successfulNode.toString(), coordinator.hasJoinVoteFrom(successfulNode));
+        }
     }
 
     private boolean isLocalNodeElectedMaster() {
@@ -519,17 +525,5 @@ public class NodeJoinTests extends ESTestCase {
 
     private boolean clusterStateHasNode(DiscoveryNode node) {
         return node.equals(MasterServiceTests.discoveryState(masterService).nodes().get(node.getId()));
-    }
-
-    private static class NoOpClusterApplier implements ClusterApplier {
-        @Override
-        public void setInitialState(ClusterState initialState) {
-
-        }
-
-        @Override
-        public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
-            listener.onSuccess(source);
-        }
     }
 }

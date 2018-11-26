@@ -11,7 +11,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,8 +48,7 @@ public class JobRenormalizedResultsPersister extends AbstractComponent {
     private final Client client;
     private BulkRequest bulkRequest;
 
-    public JobRenormalizedResultsPersister(String jobId, Settings settings, Client client) {
-        super(settings);
+    public JobRenormalizedResultsPersister(String jobId, Client client) {
         this.jobId = jobId;
         this.client = client;
         bulkRequest = new BulkRequest();

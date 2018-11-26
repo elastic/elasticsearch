@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -42,15 +44,21 @@ import java.util.function.Consumer;
 import static org.elasticsearch.discovery.zen.UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING;
 
 public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent implements ConfiguredHostsResolver {
+    private static final Logger logger = LogManager.getLogger(UnicastConfiguredHostsResolver.class);
 
+    private final Settings settings;
     private final AtomicBoolean resolveInProgress = new AtomicBoolean();
     private final TransportService transportService;
     private final UnicastHostsProvider hostsProvider;
     private final SetOnce<ExecutorService> executorService = new SetOnce<>();
     private final TimeValue resolveTimeout;
+    private final String nodeName;
 
-    public UnicastConfiguredHostsResolver(Settings settings, TransportService transportService, UnicastHostsProvider hostsProvider) {
+    public UnicastConfiguredHostsResolver(String nodeName, Settings settings, TransportService transportService,
+                                          UnicastHostsProvider hostsProvider) {
         super(settings);
+        this.settings = settings;
+        this.nodeName = nodeName;
         this.transportService = transportService;
         this.hostsProvider = hostsProvider;
         resolveTimeout = UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
@@ -61,7 +69,7 @@ public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent i
         final int concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
         logger.debug("using concurrent_connects [{}], resolve_timeout [{}]", concurrentConnects, resolveTimeout);
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_configured_hosts_resolver]");
-        executorService.set(EsExecutors.newScaling(nodeName() + "/" + "unicast_configured_hosts_resolver",
+        executorService.set(EsExecutors.newScaling(nodeName + "/" + "unicast_configured_hosts_resolver",
             0, concurrentConnects, 60, TimeUnit.SECONDS, threadFactory, transportService.getThreadPool().getThreadContext()));
     }
 

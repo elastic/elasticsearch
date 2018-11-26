@@ -37,7 +37,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -55,9 +54,9 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     private final GatewayMetaState metaState;
 
     @Inject
-    public TransportNodesListGatewayMetaState(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                              TransportService transportService, ActionFilters actionFilters, GatewayMetaState metaState) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+    public TransportNodesListGatewayMetaState(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                              ActionFilters actionFilters, GatewayMetaState metaState) {
+        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
             Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeGatewayMetaState.class);
         this.metaState = metaState;
     }
@@ -91,7 +90,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     @Override
     protected NodeGatewayMetaState nodeOperation(NodeRequest request) {
         try {
-            return new NodeGatewayMetaState(clusterService.localNode(), metaState.loadMetaState());
+            return new NodeGatewayMetaState(clusterService.localNode(), metaState.loadMetaData());
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load metadata", e);
         }

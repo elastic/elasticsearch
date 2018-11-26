@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
@@ -46,8 +47,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -91,10 +94,14 @@ public class PeerFinderTests extends ESTestCase {
     private static long CONNECTION_TIMEOUT_MILLIS = 30000;
 
     class MockTransportAddressConnector implements TransportAddressConnector {
-        final Set<DiscoveryNode> reachableNodes = new HashSet<>();
+        final Map<TransportAddress, DiscoveryNode> reachableNodes = new HashMap<>();
         final Set<TransportAddress> unreachableAddresses = new HashSet<>();
         final Set<TransportAddress> slowAddresses = new HashSet<>();
         final Set<TransportAddress> inFlightConnectionAttempts = new HashSet<>();
+
+        void addReachableNode(DiscoveryNode node) {
+            reachableNodes.put(node.getAddress(), node);
+        }
 
         @Override
         public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener) {
@@ -115,8 +122,9 @@ public class PeerFinderTests extends ESTestCase {
                         return;
                     }
 
-                    for (final DiscoveryNode discoveryNode : reachableNodes) {
-                        if (discoveryNode.getAddress().equals(transportAddress)) {
+                    for (final Map.Entry<TransportAddress, DiscoveryNode> addressAndNode : reachableNodes.entrySet()) {
+                        if (addressAndNode.getKey().equals(transportAddress)) {
+                            final DiscoveryNode discoveryNode = addressAndNode.getValue();
                             if (discoveryNode.isMasterNode()) {
                                 disconnectedNodes.remove(discoveryNode);
                                 connectedNodes.add(discoveryNode);
@@ -234,7 +242,22 @@ public class PeerFinderTests extends ESTestCase {
     public void testAddsReachableNodesFromUnicastHostsList() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
+
+        peerFinder.activate(lastAcceptedNodes);
+        runAllRunnableTasks();
+
+        assertFoundPeers(otherNode);
+    }
+
+    public void testDoesNotReturnDuplicateNodesWithDistinctAddresses() {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+        final TransportAddress alternativeAddress = buildNewFakeTransportAddress();
+
+        providedAddresses.add(otherNode.getAddress());
+        providedAddresses.add(alternativeAddress);
+        transportAddressConnector.addReachableNode(otherNode);
+        transportAddressConnector.reachableNodes.put(alternativeAddress, otherNode);
 
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
@@ -245,7 +268,7 @@ public class PeerFinderTests extends ESTestCase {
     public void testAddsReachableNodesFromUnicastHostsListProvidedLater() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
         addressResolveDelay = 10000;
 
         peerFinder.activate(lastAcceptedNodes);
@@ -264,7 +287,7 @@ public class PeerFinderTests extends ESTestCase {
     public void testDoesNotRequireAddressResolutionToSucceed() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
         addressResolveDelay = -1;
 
         peerFinder.activate(lastAcceptedNodes);
@@ -296,7 +319,7 @@ public class PeerFinderTests extends ESTestCase {
             emptyMap(), emptySet(), Version.CURRENT);
 
         providedAddresses.add(nonMasterNode.getAddress());
-        transportAddressConnector.reachableNodes.add(nonMasterNode);
+        transportAddressConnector.addReachableNode(nonMasterNode);
 
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
@@ -313,7 +336,7 @@ public class PeerFinderTests extends ESTestCase {
 
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
 
         deterministicTaskQueue.advanceTime();
         runAllRunnableTasks();
@@ -324,7 +347,7 @@ public class PeerFinderTests extends ESTestCase {
     public void testDeactivationClearsPastKnowledge() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
 
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
@@ -342,7 +365,7 @@ public class PeerFinderTests extends ESTestCase {
     public void testAddsReachableNodesFromClusterState() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-in-cluster-state");
         updateLastAcceptedNodes(b -> b.add(otherNode));
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
 
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
@@ -364,8 +387,8 @@ public class PeerFinderTests extends ESTestCase {
         final DiscoveryNode sourceNode = newDiscoveryNode("request-source");
         final DiscoveryNode otherKnownNode = newDiscoveryNode("other-known-node");
 
-        transportAddressConnector.reachableNodes.add(sourceNode);
-        transportAddressConnector.reachableNodes.add(otherKnownNode);
+        transportAddressConnector.addReachableNode(sourceNode);
+        transportAddressConnector.addReachableNode(otherKnownNode);
 
         peerFinder.activate(lastAcceptedNodes);
         peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.singletonList(otherKnownNode)));
@@ -378,7 +401,7 @@ public class PeerFinderTests extends ESTestCase {
         final DiscoveryNode sourceNode = newDiscoveryNode("request-source");
         final DiscoveryNode otherKnownNode = newDiscoveryNode("other-known-node");
 
-        transportAddressConnector.reachableNodes.add(sourceNode);
+        transportAddressConnector.addReachableNode(sourceNode);
         transportAddressConnector.unreachableAddresses.add(otherKnownNode.getAddress());
 
         peerFinder.activate(lastAcceptedNodes);
@@ -393,7 +416,7 @@ public class PeerFinderTests extends ESTestCase {
         final DiscoveryNode otherKnownNode = newDiscoveryNode("other-known-node");
 
         transportAddressConnector.unreachableAddresses.add(sourceNode.getAddress());
-        transportAddressConnector.reachableNodes.add(otherKnownNode);
+        transportAddressConnector.addReachableNode(otherKnownNode);
 
         peerFinder.activate(lastAcceptedNodes);
         peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.singletonList(otherKnownNode)));
@@ -405,7 +428,7 @@ public class PeerFinderTests extends ESTestCase {
     public void testRespondsToRequestWhenActive() {
         final DiscoveryNode sourceNode = newDiscoveryNode("request-source");
 
-        transportAddressConnector.reachableNodes.add(sourceNode);
+        transportAddressConnector.addReachableNode(sourceNode);
 
         peerFinder.activate(lastAcceptedNodes);
         final PeersResponse peersResponse1 = peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.emptyList()));
@@ -428,7 +451,7 @@ public class PeerFinderTests extends ESTestCase {
     public void testDelegatesRequestHandlingWhenInactive() {
         final DiscoveryNode masterNode = newDiscoveryNode("master-node");
         final DiscoveryNode sourceNode = newDiscoveryNode("request-source");
-        transportAddressConnector.reachableNodes.add(sourceNode);
+        transportAddressConnector.addReachableNode(sourceNode);
 
         peerFinder.activate(DiscoveryNodes.EMPTY_NODES);
 
@@ -444,7 +467,7 @@ public class PeerFinderTests extends ESTestCase {
     public void testReceivesRequestsFromTransportService() {
         final DiscoveryNode sourceNode = newDiscoveryNode("request-source");
 
-        transportAddressConnector.reachableNodes.add(sourceNode);
+        transportAddressConnector.addReachableNode(sourceNode);
 
         peerFinder.activate(lastAcceptedNodes);
 
@@ -452,6 +475,11 @@ public class PeerFinderTests extends ESTestCase {
 
         transportService.sendRequest(localNode, REQUEST_PEERS_ACTION_NAME, new PeersRequest(sourceNode, Collections.emptyList()),
             new TransportResponseHandler<PeersResponse>() {
+                @Override
+                public PeersResponse read(StreamInput in) throws IOException {
+                    return new PeersResponse(in);
+                }
+
                 @Override
                 public void handleResponse(PeersResponse response) {
                     assertTrue(responseReceived.compareAndSet(false, true));
@@ -479,7 +507,7 @@ public class PeerFinderTests extends ESTestCase {
     public void testRequestsPeersIncludingKnownPeersInRequest() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
 
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
@@ -495,7 +523,7 @@ public class PeerFinderTests extends ESTestCase {
     public void testAddsReachablePeersFromResponse() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
 
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
@@ -503,7 +531,7 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
 
         final DiscoveryNode discoveredNode = newDiscoveryNode("discovered-node");
-        transportAddressConnector.reachableNodes.add(discoveredNode);
+        transportAddressConnector.addReachableNode(discoveredNode);
         respondToRequests(node -> {
             assertThat(node, is(otherNode));
             return new PeersResponse(Optional.empty(), singletonList(discoveredNode), randomNonNegativeLong());
@@ -516,7 +544,7 @@ public class PeerFinderTests extends ESTestCase {
     public void testAddsReachableMasterFromResponse() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
 
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
@@ -529,7 +557,7 @@ public class PeerFinderTests extends ESTestCase {
             return new PeersResponse(Optional.of(discoveredMaster), emptyList(), randomNonNegativeLong());
         });
 
-        transportAddressConnector.reachableNodes.add(discoveredMaster);
+        transportAddressConnector.addReachableNode(discoveredMaster);
         runAllRunnableTasks();
         assertFoundPeers(otherNode, discoveredMaster);
         assertThat(peerFinder.discoveredMasterNode, nullValue());
@@ -539,7 +567,7 @@ public class PeerFinderTests extends ESTestCase {
     public void testHandlesDiscoveryOfMasterFromResponseFromMaster() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
 
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
@@ -560,7 +588,7 @@ public class PeerFinderTests extends ESTestCase {
 
     public void testOnlyRequestsPeersOncePerRoundButDoesRetryNextRound() {
         final DiscoveryNode sourceNode = newDiscoveryNode("request-source");
-        transportAddressConnector.reachableNodes.add(sourceNode);
+        transportAddressConnector.addReachableNode(sourceNode);
 
         peerFinder.activate(lastAcceptedNodes);
         peerFinder.handlePeersRequest(new PeersRequest(sourceNode, emptyList()));
@@ -579,7 +607,7 @@ public class PeerFinderTests extends ESTestCase {
         });
 
         final DiscoveryNode otherNode = newDiscoveryNode("otherNode");
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
 
         deterministicTaskQueue.advanceTime();
         runAllRunnableTasks();
@@ -594,7 +622,7 @@ public class PeerFinderTests extends ESTestCase {
     public void testDoesNotReconnectToNodesOnceConnected() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
 
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
@@ -611,7 +639,7 @@ public class PeerFinderTests extends ESTestCase {
     public void testDiscardsDisconnectedNodes() {
         final DiscoveryNode otherNode = newDiscoveryNode("original-node");
         providedAddresses.add(otherNode.getAddress());
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
 
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
@@ -644,7 +672,7 @@ public class PeerFinderTests extends ESTestCase {
 
         transportAddressConnector.slowAddresses.clear();
         transportAddressConnector.unreachableAddresses.clear();
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
 
         while (deterministicTaskQueue.getCurrentTimeMillis() < CONNECTION_TIMEOUT_MILLIS) {
             assertFoundPeers();
@@ -668,8 +696,8 @@ public class PeerFinderTests extends ESTestCase {
         final DiscoveryNode nodeToFind = newDiscoveryNode("node-to-find");
 
         providedAddresses.add(otherNode.getAddress());
-        transportAddressConnector.reachableNodes.add(otherNode);
-        transportAddressConnector.reachableNodes.add(nodeToFind);
+        transportAddressConnector.addReachableNode(otherNode);
+        transportAddressConnector.addReachableNode(nodeToFind);
 
         peerFinder.activate(lastAcceptedNodes);
 
@@ -711,7 +739,7 @@ public class PeerFinderTests extends ESTestCase {
     public void testReconnectsToDisconnectedNodes() {
         final DiscoveryNode otherNode = newDiscoveryNode("original-node");
         providedAddresses.add(otherNode.getAddress());
-        transportAddressConnector.reachableNodes.add(otherNode);
+        transportAddressConnector.addReachableNode(otherNode);
 
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
@@ -720,7 +748,7 @@ public class PeerFinderTests extends ESTestCase {
 
         transportAddressConnector.reachableNodes.clear();
         final DiscoveryNode rebootedOtherNode = new DiscoveryNode("rebooted-node", otherNode.getAddress(), Version.CURRENT);
-        transportAddressConnector.reachableNodes.add(rebootedOtherNode);
+        transportAddressConnector.addReachableNode(rebootedOtherNode);
 
         connectedNodes.remove(otherNode);
         disconnectedNodes.add(otherNode);
@@ -743,9 +771,12 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     private void assertFoundPeers(DiscoveryNode... expectedNodesArray) {
-        final Stream<DiscoveryNode> expectedNodes = Arrays.stream(expectedNodesArray);
-        final Stream<DiscoveryNode> actualNodes = StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false);
-        assertThat(actualNodes.collect(Collectors.toSet()), equalTo(expectedNodes.collect(Collectors.toSet())));
+        final Set<DiscoveryNode> expectedNodes = Arrays.stream(expectedNodesArray).collect(Collectors.toSet());
+        final List<DiscoveryNode> actualNodesList
+            = StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false).collect(Collectors.toList());
+        final HashSet<DiscoveryNode> actualNodesSet = new HashSet<>(actualNodesList);
+        assertThat(actualNodesSet, equalTo(expectedNodes));
+        assertTrue("no duplicates in " + actualNodesList, actualNodesSet.size() == actualNodesList.size());
         assertNotifiedOfAllUpdates();
     }
 

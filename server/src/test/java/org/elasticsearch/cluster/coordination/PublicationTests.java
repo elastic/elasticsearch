@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.Tuple;
@@ -61,9 +61,8 @@ public class PublicationTests extends ESTestCase {
         MockNode(Settings settings, DiscoveryNode localNode) {
             this.localNode = localNode;
             ClusterState initialState = CoordinationStateTests.clusterState(0L, 0L, localNode,
-                VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L);
-            coordinationState = new CoordinationState(settings, localNode, new InMemoryPersistedState(0L,
-                initialState));
+                CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG, CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG, 0L);
+            coordinationState = new CoordinationState(settings, localNode, new InMemoryPersistedState(0L, initialState));
         }
 
         final DiscoveryNode localNode;
@@ -72,7 +71,7 @@ public class PublicationTests extends ESTestCase {
 
         public MockPublication publish(ClusterState clusterState, Discovery.AckListener ackListener, Set<DiscoveryNode> faultyNodes) {
             PublishRequest publishRequest = coordinationState.handleClientValue(clusterState);
-            MockPublication currentPublication = new MockPublication(Settings.EMPTY, publishRequest, ackListener, () -> 0L) {
+            MockPublication currentPublication = new MockPublication(publishRequest, ackListener, () -> 0L) {
                 @Override
                 protected boolean isPublishQuorum(CoordinationState.VoteCollection votes) {
                     return coordinationState.isPublishQuorum(votes);
@@ -103,9 +102,8 @@ public class PublicationTests extends ESTestCase {
         Map<DiscoveryNode, Join> joins = new HashMap<>();
         Set<DiscoveryNode> missingJoins = new HashSet<>();
 
-        MockPublication(Settings settings, PublishRequest publishRequest, Discovery.AckListener ackListener,
-                               LongSupplier currentTimeSupplier) {
-            super(settings, publishRequest, ackListener, currentTimeSupplier);
+        MockPublication(PublishRequest publishRequest, Discovery.AckListener ackListener, LongSupplier currentTimeSupplier) {
+            super(publishRequest, ackListener, currentTimeSupplier);
             this.publishRequest = publishRequest;
         }
 
@@ -437,6 +435,4 @@ public class PublicationTests extends ESTestCase {
                 return ts.stream();
             });
     }
-
-
 }

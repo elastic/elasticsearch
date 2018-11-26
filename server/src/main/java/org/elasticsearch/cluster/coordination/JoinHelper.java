@@ -18,27 +18,32 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.discovery.zen.MembershipAction;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -54,7 +59,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
-public class JoinHelper extends AbstractComponent {
+public class JoinHelper {
+
+    private static final Logger logger = LogManager.getLogger(JoinHelper.class);
 
     public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
     public static final String START_JOIN_ACTION_NAME = "internal:cluster/coordination/start_join";
@@ -74,7 +81,6 @@ public class JoinHelper extends AbstractComponent {
     public JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
                       TransportService transportService, LongSupplier currentTermSupplier,
                       BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm) {
-        super(settings);
         this.masterService = masterService;
         this.transportService = transportService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
@@ -91,7 +97,10 @@ public class JoinHelper extends AbstractComponent {
 
                 final long currentTerm = currentTermSupplier.getAsLong();
                 if (currentState.term() != currentTerm) {
-                    currentState = ClusterState.builder(currentState).term(currentTerm).build();
+                    final CoordinationMetaData coordinationMetaData =
+                            CoordinationMetaData.builder(currentState.coordinationMetaData()).term(currentTerm).build();
+                    final MetaData metaData = MetaData.builder(currentState.metaData()).coordinationMetaData(coordinationMetaData).build();
+                    currentState = ClusterState.builder(currentState).metaData(metaData).build();
                 }
                 return super.execute(currentState, joiningTasks);
             }
@@ -99,32 +108,12 @@ public class JoinHelper extends AbstractComponent {
         };
 
         transportService.registerRequestHandler(JOIN_ACTION_NAME, ThreadPool.Names.GENERIC, false, false, JoinRequest::new,
-            (request, channel, task) -> joinHandler.accept(request, new JoinCallback() {
+            (request, channel, task) -> joinHandler.accept(request, transportJoinCallback(request, channel)));
 
-                @Override
-                public void onSuccess() {
-                    try {
-                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    } catch (IOException e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception inner) {
-                        inner.addSuppressed(e);
-                        logger.warn("failed to send back failure on join request", inner);
-                    }
-                }
-
-                @Override
-                public String toString() {
-                    return "JoinCallback{request=" + request + "}";
-                }
-            }));
+        transportService.registerRequestHandler(MembershipAction.DISCOVERY_JOIN_ACTION_NAME, MembershipAction.JoinRequest::new,
+            ThreadPool.Names.GENERIC, false, false,
+            (request, channel, task) -> joinHandler.accept(new JoinRequest(request.node, Optional.empty()), // treat as non-voting join
+                transportJoinCallback(request, channel)));
 
         transportService.registerRequestHandler(START_JOIN_ACTION_NAME, Names.GENERIC, false, false,
             StartJoinRequest::new,
@@ -133,6 +122,47 @@ public class JoinHelper extends AbstractComponent {
                 sendJoinRequest(destination, Optional.of(joinLeaderInTerm.apply(request)));
                 channel.sendResponse(Empty.INSTANCE);
             });
+
+        transportService.registerRequestHandler(MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
+            () -> new MembershipAction.ValidateJoinRequest(), ThreadPool.Names.GENERIC,
+            (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)); // TODO: implement join validation
+
+        transportService.registerRequestHandler(
+            ZenDiscovery.DISCOVERY_REJOIN_ACTION_NAME, ZenDiscovery.RejoinClusterRequest::new, ThreadPool.Names.SAME,
+            (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)); // TODO: do we need to implement anything here?
+
+        transportService.registerRequestHandler(
+            MembershipAction.DISCOVERY_LEAVE_ACTION_NAME, MembershipAction.LeaveRequest::new, ThreadPool.Names.SAME,
+            (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)); // TODO: do we need to implement anything here?
+    }
+
+    private JoinCallback transportJoinCallback(TransportRequest request, TransportChannel channel) {
+        return new JoinCallback() {
+
+            @Override
+            public void onSuccess() {
+                try {
+                    channel.sendResponse(Empty.INSTANCE);
+                } catch (IOException e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    channel.sendResponse(e);
+                } catch (Exception inner) {
+                    inner.addSuppressed(e);
+                    logger.warn("failed to send back failure on join request", inner);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "JoinCallback{request=" + request + "}";
+            }
+        };
     }
 
     public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
@@ -140,7 +170,16 @@ public class JoinHelper extends AbstractComponent {
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         if (pendingOutgoingJoins.add(dedupKey)) {
             logger.debug("attempting to join {} with {}", destination, joinRequest);
-            transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest,
+            final String actionName;
+            final TransportRequest transportRequest;
+            if (Coordinator.isZen1Node(destination)) {
+                actionName = MembershipAction.DISCOVERY_JOIN_ACTION_NAME;
+                transportRequest = new MembershipAction.JoinRequest(transportService.getLocalNode());
+            } else {
+                actionName = JOIN_ACTION_NAME;
+                transportRequest = joinRequest;
+            }
+            transportService.sendRequest(destination, actionName, transportRequest,
                 TransportRequestOptions.builder().withTimeout(joinTimeout).build(),
                 new TransportResponseHandler<Empty>() {
                     @Override

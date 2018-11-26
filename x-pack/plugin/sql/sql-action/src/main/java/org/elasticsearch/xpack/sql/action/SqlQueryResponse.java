@@ -13,11 +13,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.DateUtils;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
 import java.sql.JDBCType;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -167,9 +168,17 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
      * Serializes the provided value in SQL-compatible way based on the client mode
      */
     public static XContentBuilder value(XContentBuilder builder, Mode mode, Object value) throws IOException {
-        if (mode == Mode.JDBC && value instanceof ReadableDateTime) {
-            // JDBC cannot parse dates in string format
-            builder.value(((ReadableDateTime) value).getMillis());
+        if (value instanceof ZonedDateTime) {
+            ZonedDateTime zdt = (ZonedDateTime) value;
+            if (Mode.isDriver(mode)) {
+                // JDBC cannot parse dates in string format and ODBC can have issues with it
+                // so instead, use the millis since epoch (in UTC)
+                builder.value(zdt.toInstant().toEpochMilli());
+            }
+            // otherwise use the ISO format
+            else {
+                builder.value(DateUtils.toString(zdt));
+            }
         } else {
             builder.value(value);
         }

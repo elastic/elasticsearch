@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingTombstonesAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -31,9 +32,13 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
+import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.JoinHelper;
+import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -201,6 +206,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
                     MetaData.SETTING_READ_ONLY_SETTING,
                     MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
+                    MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
                     RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
                     RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
                     RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
@@ -297,6 +303,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     RemoteClusterService.SEARCH_REMOTE_NODE_ATTRIBUTE,
                     RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
                     RemoteClusterService.SEARCH_ENABLE_REMOTE_CLUSTERS,
+                    RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
+                    RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
                     TransportService.TRACE_LOG_EXCLUDE_SETTING,
                     TransportService.TRACE_LOG_INCLUDE_SETTING,
                     TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
@@ -451,11 +459,19 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING,
                     ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING,
                     ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING,
-                    Coordinator.PUBLISH_TIMEOUT_SETTING,
                     ElectionSchedulerFactory.ELECTION_DURATION_SETTING,
                     Coordinator.PUBLISH_TIMEOUT_SETTING,
                     JoinHelper.JOIN_TIMEOUT_SETTING,
-                    Reconfigurator.CLUSTER_MASTER_NODES_FAILURE_TOLERANCE
+                    FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING,
+                    FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING,
+                    FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING,
+                    LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING,
+                    LeaderChecker.LEADER_CHECK_INTERVAL_SETTING,
+                    LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING,
+                    Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
+                    TransportAddVotingTombstonesAction.MAXIMUM_VOTING_TOMBSTONES_SETTING,
+                    ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING,
+                    LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING
             )));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(

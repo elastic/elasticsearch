@@ -23,10 +23,10 @@ import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
-import org.elasticsearch.client.Request;
 import org.junit.After;
 import org.junit.Before;
 
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * Tests that wait for refresh is fired if the index is closed.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/35858")
 public class WaitForRefreshAndCloseIT extends ESRestTestCase {
     @Before
     public void setupIndex() throws IOException {

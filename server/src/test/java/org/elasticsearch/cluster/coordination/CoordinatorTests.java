@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -83,8 +84,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
-import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setValue;
-import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.LEADER;
@@ -1098,20 +1097,22 @@ public class CoordinatorTests extends ESTestCase {
                 }
 
                 try {
-                    if (rarely()) {
+                    if (randomBoolean() && randomBoolean() && randomBoolean()) {
                         final ClusterNode clusterNode = getAnyNodePreferringLeaders();
                         final int newValue = randomInt();
+                        final int key = randomIntBetween(0, 10);
                         onNode(clusterNode.getLocalNode(), () -> {
                             logger.debug("----> [runRandomly {}] proposing new value [{}] to [{}]",
                                 thisStep, newValue, clusterNode.getId());
-                            clusterNode.submitValue(newValue);
+                            clusterNode.submitValue(key, newValue);
                         }).run();
-                    } else if (rarely()) {
+                    } else if (randomBoolean() && randomBoolean() && randomBoolean()) {
                         final ClusterNode clusterNode = getAnyNodePreferringLeaders();
+                        final int key = randomIntBetween(0, 10);
                         onNode(clusterNode.getLocalNode(), () -> {
                             logger.debug("----> [runRandomly {}] reading value from [{}]",
                                 thisStep, clusterNode.getId());
-                            clusterNode.readValue();
+                            clusterNode.readValue(key);
                         }).run();
                     } else if (rarely()) {
                         final ClusterNode clusterNode = getAnyNodePreferringLeaders();
@@ -1546,11 +1547,15 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             AckCollector submitValue(final long value) {
-                final int eventId = history.invoke(value);
-                return submitUpdateTask("new value [" + value + "]", cs -> setValue(cs, value), new ClusterStateTaskListener() {
+                return submitValue(0, value);
+            }
+
+            AckCollector submitValue(final int key, final long value) {
+                final int eventId = history.invoke(new Tuple<>(key, value));
+                return submitUpdateTask("new value [" + value + "]", cs -> setValue(cs, key, value), new ClusterStateTaskListener() {
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        history.respond(eventId, value(oldState));
+                        history.respond(eventId, value(oldState, key));
                     }
 
                     @Override
@@ -1568,12 +1573,12 @@ public class CoordinatorTests extends ESTestCase {
                 });
             }
 
-            void readValue() {
-                final int eventId = history.invoke(null);
-                submitUpdateTask("read value", cs -> ClusterState.builder(cs).build(), new ClusterStateTaskListener() {
+            void readValue(int key) {
+                final int eventId = history.invoke(new Tuple<>(key, null));
+                submitUpdateTask("read value", cs -> cs, new ClusterStateTaskListener() {
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        history.respond(eventId, value(newState));
+                        history.respond(eventId, value(newState, key));
                     }
 
                     @Override
@@ -1617,7 +1622,9 @@ public class CoordinatorTests extends ESTestCase {
                                 updateCommittedStates();
                                 ClusterState state = committedStatesByVersion.get(newState.version());
                                 assertNotNull("State not committed : " + newState.toString(), state);
-                                assertEquals(value(state), value(newState));
+                                for (int i = 0; i < 10; i++) {
+                                    assertEquals(value(state, i), value(newState, i));
+                                }
                                 logger.trace("successfully published: [{}]", newState);
                                 taskListener.clusterStateProcessed(source, oldState, newState);
                             }
@@ -1863,11 +1870,40 @@ public class CoordinatorTests extends ESTestCase {
         HANG,
     }
 
+    public ClusterState setValue(ClusterState clusterState, int key, long value) {
+        return ClusterState.builder(clusterState).metaData(
+            MetaData.builder(clusterState.metaData())
+                .persistentSettings(Settings.builder()
+                    .put(clusterState.metaData().persistentSettings())
+                    .put("value_" + key, value)
+                    .build())
+                .build())
+            .build();
+    }
+
+    public long value(ClusterState clusterState) {
+        return value(clusterState, 0);
+    }
+
+    public long value(ClusterState clusterState, int key) {
+        return clusterState.metaData().persistentSettings().getAsLong("value_" + key, 0L);
+    }
+
     /**
      * Simple register model. Writes are modeled by providing an integer input. Reads are modeled by providing null as input.
      * Responses that time out are modeled by returning null. Successful writes return the previous value of the register.
      */
-    private final SequentialSpec spec = new SequentialSpec() {
+    private final SequentialSpec spec = new LinearizabilityChecker.KeyedSpec() {
+        @Override
+        public Object getKey(Object value) {
+            return ((Tuple) value).v1();
+        }
+
+        @Override
+        public Object getValue(Object value) {
+            return ((Tuple) value).v2();
+        }
+
         @Override
         public Object initialState() {
             return 0L;

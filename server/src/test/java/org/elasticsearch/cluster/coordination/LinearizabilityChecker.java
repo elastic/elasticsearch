@@ -22,6 +22,8 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -60,6 +62,50 @@ public class LinearizabilityChecker {
          * @return the next state, if the given current state, input and output are a valid transition, or Optional.empty() otherwise
          */
         Optional<Object> nextState(Object currentState, Object input, Object output);
+
+        /**
+         * For compositional checking, the history can be partitioned into sub-histories
+         *
+         * @param events the history of events to partition
+         * @return
+         */
+        default Collection<List<Event>> partition(List<Event> events) {
+            return Collections.singleton(events);
+        }
+    }
+
+    /**
+     * Sequential specification of a datatype that allows for keyed access
+     */
+    public interface KeyedSpec extends SequentialSpec {
+        /**
+         * extracts the key from the given keyed invocation input value
+         */
+        Object getKey(Object value);
+
+        /**
+         * extracts the key-less value from the given keyed invocation input value
+         */
+        Object getValue(Object value);
+
+        @Override
+        default Collection<List<Event>> partition(List<Event> events) {
+            final Map<Object, List<Event>> keyedPartitions = new HashMap<>();
+            final Map<Integer, Object> matches = new HashMap<>();
+            for (Event event : events) {
+                if (event.type == EventType.INVOCATION) {
+                    final Object key = getKey(event.value);
+                    final Object val = getValue(event.value);
+                    final Event unfoldedEvent = new Event(EventType.INVOCATION, val, event.id);
+                    keyedPartitions.computeIfAbsent(key, k -> new ArrayList<>()).add(unfoldedEvent);
+                    matches.put(event.id, key);
+                } else {
+                    final Object key = matches.get(event.id);
+                    keyedPartitions.get(key).add(event);
+                }
+            }
+            return keyedPartitions.values();
+        }
     }
 
     /**
@@ -162,7 +208,11 @@ public class LinearizabilityChecker {
     public boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
         history = history.clone(); // clone history before completing it
         history.complete(missingResponseGenerator); // complete history
+        final Collection<List<Event>> partitions = spec.partition(history.events);
+        return partitions.stream().allMatch(h -> isLinearizable(spec, h));
+    }
 
+    private boolean isLinearizable(SequentialSpec spec, List<Event> history) {
         Object state = spec.initialState(); // the current state of the datatype
         final FixedBitSet linearized = new FixedBitSet(history.size() / 2); // the linearized prefix of the history
 
@@ -219,7 +269,7 @@ public class LinearizabilityChecker {
      * Creates the internal linked data structure used by the linearizability checker.
      * Generates contiguous internal ids for the events so that they can be efficiently recorded in bit sets.
      */
-    private static Entry createLinkedEntries(History history) {
+    private static Entry createLinkedEntries(List<Event> history) {
         if (history.size() % 2 != 0) {
             throw new IllegalArgumentException("mismatch between number of invocations and responses");
         }
@@ -229,7 +279,7 @@ public class LinearizabilityChecker {
         final Entry[] entries = new Entry[history.size()];
         int nextInternalId = (history.size() / 2) - 1;
         for (int i = history.size() - 1; i >= 0; i--) {
-            final Event elem = history.events.get(i);
+            final Event elem = history.get(i);
             if (elem.type == EventType.RESPONSE) {
                 final Entry entry = entries[i] = new Entry(elem, null, nextInternalId--);
                 final Entry prev = matches.put(elem.id, entry);
@@ -267,12 +317,12 @@ public class LinearizabilityChecker {
         RESPONSE
     }
 
-    static class Event {
-        final EventType type;
-        final Object value;
-        final int id;
+    public static class Event {
+        public final EventType type;
+        public final Object value;
+        public final int id;
 
-        Event(EventType type, Object value, int id) {
+        public Event(EventType type, Object value, int id) {
             this.type = type;
             this.value = value;
             this.id = id;

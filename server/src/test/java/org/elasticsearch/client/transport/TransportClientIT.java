@@ -70,7 +70,7 @@ public class TransportClientIT extends ESIntegTestCase {
                 .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
                 .putList(
                     ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), Collections.singletonList("testNodeVersionIsUpdated")
-                ).put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 1)
+                )
                 .build(), Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class,
                                         MockHttpTransport.TestPlugin.class)).start()) {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();

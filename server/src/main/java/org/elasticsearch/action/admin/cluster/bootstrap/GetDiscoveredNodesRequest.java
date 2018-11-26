@@ -49,6 +49,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
         super(in);
         waitForNodes = in.readInt();
         timeout = in.readOptionalTimeValue();
+        requiredNodes = in.readList(StreamInput::readString);
     }
 
     /**
@@ -99,6 +100,12 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
         return timeout;
     }
 
+    /**
+     * Sometimes it is useful only to receive a successful response after discovering a certain set of master-eligible nodes.
+     * This parameter gives the names, hostnames, or transport addresses of the expected nodes.
+     *
+     * @return list of expected nodes
+     */
     public List<String> getRequiredNodes() {
         return requiredNodes;
     }
@@ -130,6 +137,6 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
         return "GetDiscoveredNodesRequest{" +
             "waitForNodes=" + waitForNodes +
             ", timeout=" + timeout +
-            ", requiredNodes=[" + String.join(",", requiredNodes) + "]}";
+            ", requiredNodes=" + requiredNodes + "}";
     }
 }

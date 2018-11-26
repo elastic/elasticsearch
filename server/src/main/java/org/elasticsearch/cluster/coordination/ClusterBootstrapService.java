@@ -55,7 +55,7 @@ public class ClusterBootstrapService {
         Setting.intSetting("cluster.unsafe_initial_master_node_count", 0, 0, Property.NodeScope);
 
     public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING =
-        Setting.listSetting("cluster.unsafe_initial_master_nodes", Collections.emptyList(), Function.identity(), Property.NodeScope);
+        Setting.listSetting("cluster.initial_master_nodes", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
     private final int initialMasterNodeCount;
     private final List<String> initialMasterNodes;

@@ -79,7 +79,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.client = client;
+        this.client = new OriginSettingClient(client, TASKS_ORIGIN);
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -212,7 +212,8 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         GetRequest get = new GetRequest(TaskResultsService.TASK_INDEX, TaskResultsService.TASK_TYPE,
                 request.getTaskId().toString());
         get.setParentTask(clusterService.localNode().getId(), thisTask.getId());
-        new OriginSettingClient(client, TASKS_ORIGIN).get(get, new ActionListener<GetResponse>() {
+
+        client.get(get, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
                 try {

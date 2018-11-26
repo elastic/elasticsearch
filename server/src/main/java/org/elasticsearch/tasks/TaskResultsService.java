@@ -51,6 +51,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+
 /**
  * Service that can store task results.
  */
@@ -74,7 +76,7 @@ public class TaskResultsService {
 
     @Inject
     public TaskResultsService(Client client, ClusterService clusterService) {
-        this.client = new OriginSettingClient(client, "tasks");
+        this.client = new OriginSettingClient(client, TASKS_ORIGIN);
         this.clusterService = clusterService;
     }
 

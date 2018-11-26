@@ -35,7 +35,6 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SuiteScopeClusterIT extends ESIntegTestCase {
     private static int ITER = 0;
-    private static long[] SEQUENCE = new long[100];
     private static Long CLUSTER_SEED = null;
 
     @Test
@@ -44,14 +43,8 @@ public class SuiteScopeClusterIT extends ESIntegTestCase {
     public void testReproducible() throws IOException {
         if (ITER++ == 0) {
             CLUSTER_SEED = cluster().seed();
-            for (int i = 0; i < SEQUENCE.length; i++) {
-                SEQUENCE[i] = randomLong();
-            }
         } else {
             assertEquals(CLUSTER_SEED, Long.valueOf(cluster().seed()));
-            for (int i = 0; i < SEQUENCE.length; i++) {
-                assertThat(SEQUENCE[i], equalTo(randomLong()));
-            }
         }
     }
 

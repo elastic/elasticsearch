@@ -40,6 +40,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
         return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/35861")
     public void testNetworkPartitionWithNodeShutdown() throws IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         String[] nodeNames = internalCluster().getNodeNames();

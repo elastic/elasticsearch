@@ -93,7 +93,7 @@ public class DataFrameDataExtractor {
     private SearchRequestBuilder buildSearchRequest() {
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
                 .setScroll(SCROLL_TIMEOUT)
-                .addSort("_doc", SortOrder.ASC)
+                .addSort(DataFrameFields.ID, SortOrder.ASC)
                 .setIndices(context.indices)
                 .setSize(context.scrollSize)
                 .setQuery(context.query)

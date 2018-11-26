@@ -15,7 +15,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.time.ZoneOffset;

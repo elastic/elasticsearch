@@ -1060,6 +1060,17 @@
                   }
                 }
               }
+            },
+            "tracking_remote_clusters": {
+              "type": "nested",
+              "properties": {
+                "cluster_name": {
+                  "type": "keyword"
+                },
+                "time_since_last_auto_follow_started_millis": {
+                  "type": "long"
+                }
+              }
             }
           }
         }

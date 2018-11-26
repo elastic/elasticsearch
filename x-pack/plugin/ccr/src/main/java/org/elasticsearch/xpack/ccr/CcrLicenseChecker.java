@@ -121,7 +121,8 @@ public final class CcrLicenseChecker {
                 client.getRemoteClusterClient(clusterAlias),
                 request,
                 onFailure,
-                leaderClusterState -> {
+                leaderClusterStateResponse -> {
+                    ClusterState leaderClusterState = leaderClusterStateResponse.getState();
                     IndexMetaData leaderIndexMetaData = leaderClusterState.getMetaData().index(leaderIndex);
                     if (leaderIndexMetaData == null) {
                         onFailure.accept(new IndexNotFoundException(leaderIndex));
@@ -159,7 +160,7 @@ public final class CcrLicenseChecker {
             final String clusterAlias,
             final ClusterStateRequest request,
             final Consumer<Exception> onFailure,
-            final Consumer<ClusterState> leaderClusterStateConsumer) {
+            final Consumer<ClusterStateResponse> leaderClusterStateConsumer) {
         checkRemoteClusterLicenseAndFetchClusterState(
                 client,
                 clusterAlias,
@@ -192,7 +193,7 @@ public final class CcrLicenseChecker {
             final Client remoteClient,
             final ClusterStateRequest request,
             final Consumer<Exception> onFailure,
-            final Consumer<ClusterState> leaderClusterStateConsumer,
+            final Consumer<ClusterStateResponse> leaderClusterStateConsumer,
             final Function<RemoteClusterLicenseChecker.LicenseCheck, ElasticsearchStatusException> nonCompliantLicense,
             final Function<Exception, ElasticsearchStatusException> unknownLicense) {
         // we have to check the license on the remote cluster
@@ -204,7 +205,7 @@ public final class CcrLicenseChecker {
                     public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
                         if (licenseCheck.isSuccess()) {
                             final ActionListener<ClusterStateResponse> clusterStateListener =
-                                    ActionListener.wrap(s -> leaderClusterStateConsumer.accept(s.getState()), onFailure);
+                                    ActionListener.wrap(leaderClusterStateConsumer::accept, onFailure);
                             // following an index in remote cluster, so use remote client to fetch leader index metadata
                             remoteClient.admin().cluster().state(request, clusterStateListener);
                         } else {
@@ -228,9 +229,7 @@ public final class CcrLicenseChecker {
      * @param onFailure                                 the failure consumer
      * @param historyUUIDConsumer                       the leader index history uuid and consumer
      */
-    // NOTE: Placed this method here; in order to avoid duplication of logic for fetching history UUIDs
-    // in case of following a local or a remote cluster.
-    public void fetchLeaderHistoryUUIDs(
+    private void fetchLeaderHistoryUUIDs(
         final Client remoteClient,
         final IndexMetaData leaderIndexMetaData,
         final Consumer<Exception> onFailure,

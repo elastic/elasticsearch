@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -80,7 +81,8 @@ public class TransportPutAutoFollowPatternAction extends
             .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        Consumer<ClusterState> consumer = remoteClusterState -> {
+        Consumer<ClusterStateResponse> consumer = remoteClusterStateResponse -> {
+            ClusterState remoteClusterState = remoteClusterStateResponse.getState();
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
             ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
                 if (e == null) {

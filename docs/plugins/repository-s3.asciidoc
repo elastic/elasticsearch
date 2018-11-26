@@ -308,6 +308,12 @@ You may further restrict the permissions by specifying a prefix within the bucke
 The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository
 registration will fail.
 
+==== Using other S3 endpoint
+
+If you are using any S3 api compatible service, you can set a global endpoint by setting `s3.client.default.endpoint` to your URL provider. Note that this setting will be used for all S3 repositories.
+
+Different endpoint, region and protocol settings can be set on a per-repository basis See S3 Repository for details.
+
 [[repository-s3-aws-vpc]]
 [float]
 ==== AWS VPC Bandwidth Settings

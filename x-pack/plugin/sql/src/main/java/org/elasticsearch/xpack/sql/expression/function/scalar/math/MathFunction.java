@@ -44,7 +44,7 @@ public abstract class MathFunction extends UnaryScalarFunction {
         return super.processScript(format(Locale.ROOT, "{sql}.%s(%s)", mathFunction(), template));
     }
 
-    protected String mathFunction() {
+    private String mathFunction() {
         return getClass().getSimpleName().toLowerCase(Locale.ROOT);
     }
 

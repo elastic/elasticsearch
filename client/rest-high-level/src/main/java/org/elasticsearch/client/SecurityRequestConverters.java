@@ -32,6 +32,7 @@ import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
+import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
@@ -168,6 +169,15 @@ final class SecurityRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
         return request;
+    }
+
+    static Request getRoles(GetRolesRequest getRolesRequest) {
+        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder();
+        builder.addPathPartAsIs("_xpack/security/role");
+        if (getRolesRequest.getRoleNames().size() > 0) {
+            builder.addPathPart(Strings.collectionToCommaDelimitedString(getRolesRequest.getRoleNames()));
+        }
+        return new Request(HttpGet.METHOD_NAME, builder.build());
     }
 
     static Request createToken(CreateTokenRequest createTokenRequest) throws IOException {

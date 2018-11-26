@@ -26,6 +26,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 # Comparison
 #
   Boolean eq(Object, Object)
+  Boolean nulleq(Object, Object)
   Boolean neq(Object, Object)
   Boolean lt(Object, Object)
   Boolean lte(Object, Object)
@@ -46,6 +47,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 # Null
 #
   Object coalesce(java.util.List)
+  Object nullif(Object, Object)
 
 #
 # Regex

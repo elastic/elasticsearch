@@ -53,7 +53,7 @@ public abstract class ExtractedField {
     public abstract Object[] value(SearchHit hit);
 
     public String getDocValueFormat() {
-        return DocValueFieldsContext.USE_DEFAULT_FORMAT;
+        return null;
     }
 
     public static ExtractedField newTimeField(String name, ExtractionMethod extractionMethod) {

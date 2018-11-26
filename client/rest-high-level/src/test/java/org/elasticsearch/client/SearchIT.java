@@ -1184,6 +1184,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         FieldCapabilitiesResponse response = execute(request,
             highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync);
 
+        assertEquals(new String[] {"index1", "index2"}, response.getIndices());
+
         // Check the capabilities for the 'rating' field.
         assertTrue(response.get().containsKey("rating"));
         Map<String, FieldCapabilities> ratingResponse = response.getField("rating");
@@ -1203,7 +1205,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(1, fieldResponse.size());
 
         FieldCapabilities expectedTextCapabilities = new FieldCapabilities(
-            "field", "text", true, false, new String[]{"index1", "index2"}, null, null);
+            "field", "text", true, false);
         assertEquals(expectedTextCapabilities, fieldResponse.get("text"));
     }
 

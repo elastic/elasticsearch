@@ -2333,7 +2333,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private void bumpPrimaryTerm(final long newPrimaryTerm, final PrimaryTermUpdateListener listener) {
         assert Thread.holdsLock(mutex);
-        assert newPrimaryTerm > pendingPrimaryTerm;
+        assert newPrimaryTerm >= pendingPrimaryTerm;
         assert operationPrimaryTerm <= pendingPrimaryTerm;
         final CountDownLatch termUpdated = new CountDownLatch(1);
         indexShardOperationPermits.asyncBlockOperations(new ActionListener<Releasable>() {
@@ -2467,9 +2467,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
 
-        if (opPrimaryTerm > pendingPrimaryTerm) {
+        if (requirePrimaryTermUpdate(opPrimaryTerm, allowCombineOperationWithPrimaryTermUpdate)) {
             synchronized (mutex) {
-                if (opPrimaryTerm > pendingPrimaryTerm) {
+                if (requirePrimaryTermUpdate(opPrimaryTerm, allowCombineOperationWithPrimaryTermUpdate)) {
                     final IndexShardState shardState = state();
                     // only roll translog and update primary term if shard has made it past recovery
                     // Having a new primary term here means that the old primary failed and that there is a new primary, which again
@@ -2522,6 +2522,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert opPrimaryTerm <= pendingPrimaryTerm
             : "operation primary term [" + opPrimaryTerm + "] should be at most [" + pendingPrimaryTerm + "]";
         operationExecutor.accept(operationListener);
+    }
+
+    private boolean requirePrimaryTermUpdate(final long opPrimaryTerm, final boolean allPermits) {
+        return (opPrimaryTerm > pendingPrimaryTerm) || (allPermits && opPrimaryTerm > operationPrimaryTerm);
     }
 
     public int getActiveOperationsCount() {

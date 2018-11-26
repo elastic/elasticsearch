@@ -3596,6 +3596,63 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShard(shard, false);
     }
 
+    public void testConcurrentAcquireAllReplicaOperationsPermitsWithPrimaryTermUpdate() throws Exception {
+        final IndexShard replica = newStartedShard(false);
+        indexOnReplicaWithGaps(replica, between(0, 1000), Math.toIntExact(replica.getLocalCheckpoint()));
+
+        final int operations = scaledRandomIntBetween(10, 64);
+        final Thread[] threads = new Thread[operations];
+        final CyclicBarrier startBarrier = new CyclicBarrier(1 + operations);
+        final CountDownLatch latch = new CountDownLatch(operations);
+
+        final AtomicArray<Tuple<Long, Long>> opsTerms = new AtomicArray<>(operations);
+        final long futurePrimaryTerm = replica.getOperationPrimaryTerm() + 1;
+
+        for (int i = 0; i < operations; i++) {
+            final int threadId = i;
+            threads[threadId] = new Thread(() -> {
+                try {
+                    startBarrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                replica.acquireAllReplicaOperationsPermits(
+                    futurePrimaryTerm,
+                    replica.getGlobalCheckpoint(),
+                    replica.getMaxSeqNoOfUpdatesOrDeletes(),
+                    new ActionListener<Releasable>() {
+                        @Override
+                        public void onResponse(final Releasable releasable) {
+                            try (Releasable ignored = releasable) {
+                                opsTerms.set(threadId, Tuple.tuple(replica.getPendingPrimaryTerm(), replica.getOperationPrimaryTerm()));
+                                latch.countDown();
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(final Exception e) {
+                            latch.countDown();
+                            throw new RuntimeException(e);
+                        }
+                    }, TimeValue.timeValueMinutes(30L));
+            });
+            threads[threadId].start();
+        }
+
+        startBarrier.await();
+        latch.await();
+
+        for (Tuple<Long, Long> opTerms : opsTerms.asList()) {
+            assertNotNull(opTerms);
+            assertEquals("Expected primary term and pending primary term captured during execution must match",
+                futurePrimaryTerm, opTerms.v1().longValue());
+            assertEquals("Expected primary term and operation primary term captured during execution must match",
+                futurePrimaryTerm, opTerms.v2().longValue());
+        }
+        closeShard(replica, false);
+    }
+
+
     @Override
     public Settings threadPoolSettings() {
         return Settings.builder().put(super.threadPoolSettings()).put("thread_pool.estimated_time_interval", "5ms").build();

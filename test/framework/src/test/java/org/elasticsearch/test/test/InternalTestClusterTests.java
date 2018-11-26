@@ -59,6 +59,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNode.Role.DATA;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.INGEST;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.MASTER;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
+import static org.elasticsearch.test.discovery.TestZenDiscovery.USE_ZEN2;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
@@ -265,6 +266,7 @@ public class InternalTestClusterTests extends ESTestCase {
                         NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                         2 + (masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+                    .put(USE_ZEN2.getKey(), false) // full cluster restarts not yet supported
                     .build();
             }
 
@@ -375,6 +377,7 @@ public class InternalTestClusterTests extends ESTestCase {
                         // speedup join timeout as setting initial state timeout to 0 makes split
                         // elections more likely
                         .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "3s")
+                        .put(USE_ZEN2.getKey(), false) // full cluster restarts not yet supported
                         .build();
             }
 
@@ -457,6 +460,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 return Settings.builder()
                     .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+                    .put(USE_ZEN2.getKey(), false) // full cluster restarts not yet supported
                     .build();
             }
 

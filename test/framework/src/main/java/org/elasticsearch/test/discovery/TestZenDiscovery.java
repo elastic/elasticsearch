@@ -62,7 +62,7 @@ public class TestZenDiscovery extends ZenDiscovery {
         Setting.boolSetting("discovery.zen.use_mock_pings", true, Setting.Property.NodeScope);
 
     public static final Setting<Boolean> USE_ZEN2 =
-        Setting.boolSetting("discovery.zen.use_zen2", false, Setting.Property.NodeScope);
+        Setting.boolSetting("discovery.zen.use_zen2", true, Setting.Property.NodeScope);
 
     /** A plugin which installs mock discovery and configures it to be used. */
     public static class TestPlugin extends Plugin implements DiscoveryPlugin {

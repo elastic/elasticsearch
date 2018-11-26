@@ -57,11 +57,6 @@ public class GetRollupJobResponse {
     static final ParseField SEARCH_TOTAL = new ParseField("search_total");
     static final ParseField SEARCH_FAILURES = new ParseField("search_failures");
     static final ParseField INDEX_FAILURES = new ParseField("index_failures");
-    static final ParseField MIN = new ParseField("min");
-    static final ParseField MAX = new ParseField("max");
-    static final ParseField AVG = new ParseField("avg");
-    static final ParseField COUNT = new ParseField("count");
-    static final ParseField TOTAL = new ParseField("total");
 
     private List<JobWrapper> jobs;
 

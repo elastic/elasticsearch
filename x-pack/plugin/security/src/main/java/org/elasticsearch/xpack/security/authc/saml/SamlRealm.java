@@ -372,7 +372,8 @@ public final class SamlRealm extends Realm implements Releasable {
         Stream<SamlRealm> stream = realms.stream().filter(r -> r instanceof SamlRealm).map(r -> (SamlRealm) r);
         if (Strings.hasText(realmName)) {
             stream = stream.filter(r -> realmName.equals(r.name()));
-        } else if (Strings.hasText(acsUrl)) {
+        }
+        if (Strings.hasText(acsUrl)) {
             stream = stream.filter(r -> acsUrl.equals(r.assertionConsumerServiceURL()));
         }
         return stream.collect(Collectors.toList());

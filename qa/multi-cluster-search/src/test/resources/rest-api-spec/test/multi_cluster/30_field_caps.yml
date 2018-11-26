@@ -1,9 +1,5 @@
 ---
 "Get simple field caps from remote cluster":
-  - skip:
-      version: " - 6.99.99"
-      reason: "field_caps return indices for all field in 7.0"
-
   - do:
         indices.create:
           index: field_caps_index_2
@@ -36,12 +32,12 @@
 
   - match: {fields.text.text.searchable:                true}
   - match: {fields.text.text.aggregatable:              false}
-  - match: {fields.text.text.indices:                   ["field_caps_index_2", "my_remote_cluster:field_caps_index_1", "my_remote_cluster:field_caps_index_3"]}
+  - is_false: fields.text.text.indices
   - is_false: fields.text.text.non_searchable_indices
   - is_false: fields.text.text.non_aggregatable_indices
   - match: {fields.keyword.keyword.searchable:          true}
   - match: {fields.keyword.keyword.aggregatable:        true}
-  - match: {fields.keyword.keyword.indices:                ["field_caps_index_2", "my_remote_cluster:field_caps_index_1", "my_remote_cluster:field_caps_index_3"]}
+  - is_false: fields.text.keyword.indices
   - is_false: fields.text.keyword.non_searchable_indices
   - is_false: fields.text.keyword.non_aggregatable_indices
   - match: {fields.number.double.searchable:            true}

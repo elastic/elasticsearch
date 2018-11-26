@@ -1170,6 +1170,12 @@ this period of time. Specify the time period using the standard {es}
 `cache.max_users`:: The maximum number of user entries that can live in the
 cache at any given time. Defaults to 100,000.
 
+`authorization_realms`::
+The names of the realms that should be consulted for delegate authorization.
+If this setting is used, then the Kerberos realm does not perform role mapping and
+instead loads the user from the listed realms.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm]
+
 [float]
 [[load-balancing]]
 ===== Load balancing and failover

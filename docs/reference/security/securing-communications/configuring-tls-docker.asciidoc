@@ -66,7 +66,7 @@ version: '2.2'
 services:
   create_certs:
     container_name: create_certs
-    image: docker.elastic.co/elasticsearch/elasticsearch-platinum:{version}
+    image: docker.elastic.co/elasticsearch/elasticsearch:{version}
     command: >
       bash -c '
         if [[ ! -d config/certificates/certs ]]; then
@@ -103,7 +103,7 @@ version: '2.2'
 services:
   es01:
     container_name: es01
-    image: docker.elastic.co/elasticsearch/elasticsearch-platinum:{version}
+    image: docker.elastic.co/elasticsearch/elasticsearch:{version}
     environment:
       - node.name=es01
       - discovery.zen.minimum_master_nodes=2

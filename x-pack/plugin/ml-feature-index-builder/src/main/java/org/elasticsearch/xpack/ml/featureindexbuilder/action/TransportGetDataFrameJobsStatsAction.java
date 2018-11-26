@@ -49,7 +49,7 @@ public class TransportGetDataFrameJobsStatsAction extends
     @Override
     protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,
             List<FailedNodeException> failedNodeExceptions) {
-        List<DataFrameJobStateAndStats> responses = tasks.stream().map(GetDataFrameJobsStatsAction.Response::getJobResponses)
+        List<DataFrameJobStateAndStats> responses = tasks.stream().map(GetDataFrameJobsStatsAction.Response::getJobsStateAndStats)
                 .flatMap(Collection::stream).collect(Collectors.toList());
         return new Response(responses, taskOperationFailures, failedNodeExceptions);
     }

@@ -123,17 +123,17 @@ public class GetDataFrameJobsStatsAction extends Action<GetDataFrameJobsStatsAct
     }
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
-        private List<DataFrameJobStateAndStats> jobResponses;
+        private List<DataFrameJobStateAndStats> jobsStateAndStats;
 
-        public Response(List<DataFrameJobStateAndStats> jobResponses) {
+        public Response(List<DataFrameJobStateAndStats> jobsStateAndStats) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.jobResponses = jobResponses;
+            this.jobsStateAndStats = jobsStateAndStats;
         }
 
-        public Response(List<DataFrameJobStateAndStats> jobResponses, List<TaskOperationFailure> taskFailures,
+        public Response(List<DataFrameJobStateAndStats> jobsStateAndStats, List<TaskOperationFailure> taskFailures,
                 List<? extends FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.jobResponses = jobResponses;
+            this.jobsStateAndStats = jobsStateAndStats;
         }
 
         public Response() {
@@ -145,30 +145,30 @@ public class GetDataFrameJobsStatsAction extends Action<GetDataFrameJobsStatsAct
             readFrom(in);
         }
 
-        public List<DataFrameJobStateAndStats> getJobResponses() {
-            return jobResponses;
+        public List<DataFrameJobStateAndStats> getJobsStateAndStats() {
+            return jobsStateAndStats;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            jobResponses = in.readList(DataFrameJobStateAndStats::new);
+            jobsStateAndStats = in.readList(DataFrameJobStateAndStats::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(jobResponses);
+            out.writeList(jobsStateAndStats);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(COUNT.getPreferredName(), jobResponses.size());
+            builder.field(COUNT.getPreferredName(), jobsStateAndStats.size());
             // XContentBuilder does not support passing the params object for Iterables
             builder.field(JOBS.getPreferredName());
             builder.startArray();
-            for (DataFrameJobStateAndStats jobResponse : jobResponses) {
+            for (DataFrameJobStateAndStats jobResponse : jobsStateAndStats) {
                 jobResponse.toXContent(builder, params);
             }
             builder.endArray();
@@ -178,7 +178,7 @@ public class GetDataFrameJobsStatsAction extends Action<GetDataFrameJobsStatsAct
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobResponses);
+            return Objects.hash(jobsStateAndStats);
         }
 
         @Override
@@ -192,7 +192,7 @@ public class GetDataFrameJobsStatsAction extends Action<GetDataFrameJobsStatsAct
             }
 
             final Response that = (Response) other;
-            return Objects.equals(this.jobResponses, that.jobResponses);
+            return Objects.equals(this.jobsStateAndStats, that.jobsStateAndStats);
         }
 
         @Override

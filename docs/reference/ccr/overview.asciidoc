@@ -27,7 +27,7 @@ Replication can be configured in two ways:
   {ref}/ccr-put-follow.html[create follower API]
 
 * Automatically using
-  <<ccr-overview-auto-follow,auto-follow patterns>>
+  <<ccr-auto-follow,auto-follow patterns>>
 
 NOTE: You must also <<ccr-requirements,configure the leader index>>.
 

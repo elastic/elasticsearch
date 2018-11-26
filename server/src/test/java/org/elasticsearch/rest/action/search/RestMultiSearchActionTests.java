@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -33,8 +35,11 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.usage.UsageService;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 
@@ -76,6 +81,28 @@ public class RestMultiSearchActionTests extends ESTestCase {
 
         performRequest(request);
         assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    public void testIgnoreThrottledParameter() throws IOException {
+        String content = "{\"query\" : {\"match_all\" : {}}} \n {} \n";
+        BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
+
+        boolean ignoreThrottled = randomBoolean();
+
+        Map<String, String> params = new HashMap<>();
+        params.put("ignore_throttled", String.valueOf(ignoreThrottled));
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.POST)
+            .withPath("/some_index/_msearch")
+            .withParams(params)
+            .withContent(bytesContent, XContentType.JSON)
+            .build();
+
+        MultiSearchRequest multiSearchRequest = RestMultiSearchAction.parseRequest(request, randomBoolean());
+        for (SearchRequest searchRequest : multiSearchRequest.requests()) {
+            assertEquals(searchRequest.indicesOptions().ignoreThrottled(), ignoreThrottled);
+        }
     }
 
     private void performRequest(RestRequest request) {

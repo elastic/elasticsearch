@@ -101,6 +101,13 @@ public class RestMultiSearchAction extends BaseRestHandler {
             maxConcurrentShardRequests = null;
         }
 
+        final Boolean ignoreThrottled;
+        if (restRequest.hasParam("ignore_throttled")) {
+            ignoreThrottled = restRequest.paramAsBoolean("ignore_throttled", SearchRequest.DEFAULT_INDICES_OPTIONS.ignoreThrottled());
+        } else {
+            ignoreThrottled = null;
+        }
+
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
             if (searchRequest.types().length > 0) {
                 deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
@@ -115,6 +122,18 @@ public class RestMultiSearchAction extends BaseRestHandler {
             request.setPreFilterShardSize(Math.min(preFilterShardSize, request.getPreFilterShardSize()));
             if (maxConcurrentShardRequests != null) {
                 request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+            }
+            if (ignoreThrottled != null) {
+                request.indicesOptions(IndicesOptions.fromOptions(
+                    request.indicesOptions().ignoreUnavailable(),
+                    request.indicesOptions().allowNoIndices(),
+                    request.indicesOptions().expandWildcardsOpen(),
+                    request.indicesOptions().expandWildcardsClosed(),
+                    request.indicesOptions().allowAliasesToMultipleIndices(),
+                    request.indicesOptions().forbidClosedIndices(),
+                    request.indicesOptions().ignoreAliases(),
+                    ignoreThrottled
+                ));
             }
         }
         return multiRequest;

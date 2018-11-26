@@ -31,6 +31,7 @@ public final class ClusterPrivilege extends Privilege {
     private static final Automaton MANAGE_SECURITY_AUTOMATON = patterns("cluster:admin/xpack/security/*");
     private static final Automaton MANAGE_SAML_AUTOMATON = patterns("cluster:admin/xpack/security/saml/*",
             InvalidateTokenAction.NAME, RefreshTokenAction.NAME);
+    private static final Automaton MANAGE_TOKEN_AUTOMATON = patterns("cluster:admin/xpack/security/token/*");
     private static final Automaton MONITOR_AUTOMATON = patterns("cluster:monitor/*");
     private static final Automaton MONITOR_ML_AUTOMATON = patterns("cluster:monitor/xpack/ml/*");
     private static final Automaton MONITOR_WATCHER_AUTOMATON = patterns("cluster:monitor/xpack/watcher/*");
@@ -55,6 +56,7 @@ public final class ClusterPrivilege extends Privilege {
     public static final ClusterPrivilege MONITOR_ROLLUP =        new ClusterPrivilege("monitor_rollup",      MONITOR_ROLLUP_AUTOMATON);
     public static final ClusterPrivilege MANAGE =                new ClusterPrivilege("manage",              MANAGE_AUTOMATON);
     public static final ClusterPrivilege MANAGE_ML =             new ClusterPrivilege("manage_ml",           MANAGE_ML_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_TOKEN =          new ClusterPrivilege("manage_token",        MANAGE_TOKEN_AUTOMATON);
     public static final ClusterPrivilege MANAGE_WATCHER =        new ClusterPrivilege("manage_watcher",      MANAGE_WATCHER_AUTOMATON);
     public static final ClusterPrivilege MANAGE_ROLLUP =         new ClusterPrivilege("manage_rollup",       MANAGE_ROLLUP_AUTOMATON);
     public static final ClusterPrivilege MANAGE_IDX_TEMPLATES =
@@ -79,6 +81,7 @@ public final class ClusterPrivilege extends Privilege {
             .put("monitor_rollup", MONITOR_ROLLUP)
             .put("manage", MANAGE)
             .put("manage_ml", MANAGE_ML)
+            .put("manage_token", MANAGE_TOKEN)
             .put("manage_watcher", MANAGE_WATCHER)
             .put("manage_index_templates", MANAGE_IDX_TEMPLATES)
             .put("manage_ingest_pipelines", MANAGE_INGEST_PIPELINES)

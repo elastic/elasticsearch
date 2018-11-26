@@ -310,6 +310,7 @@ import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
+import org.elasticsearch.rest.action.search.RestCountAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -595,7 +596,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetSourceAction(settings, restController));
         registerHandler.accept(new RestMultiGetAction(settings, restController));
         registerHandler.accept(new RestDeleteAction(settings, restController));
-        registerHandler.accept(new org.elasticsearch.rest.action.document.RestCountAction(settings, restController));
+        registerHandler.accept(new RestCountAction(settings, restController));
         registerHandler.accept(new RestTermVectorsAction(settings, restController));
         registerHandler.accept(new RestMultiTermVectorsAction(settings, restController));
         registerHandler.accept(new RestBulkAction(settings, restController));

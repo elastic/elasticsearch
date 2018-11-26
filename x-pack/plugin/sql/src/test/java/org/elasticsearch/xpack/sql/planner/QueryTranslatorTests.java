@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.planner;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
@@ -26,9 +27,10 @@ import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermsQuery;
+import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
-import org.joda.time.DateTime;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -50,7 +52,7 @@ public class QueryTranslatorTests extends ESTestCase {
         Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, TimeZone.getTimeZone("UTC"));
+        analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, TimeZone.getTimeZone("UTC"), new Verifier(new Metrics()));
     }
 
     @AfterClass
@@ -150,7 +152,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
-        assertEquals(DateTime.parse("1969-05-13T12:34:56Z"), rq.lower());
+        assertEquals(DateUtils.of("1969-05-13T12:34:56Z"), rq.lower());
     }
     
     public void testLikeConstructsNotSupported() {

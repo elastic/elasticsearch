@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -48,6 +49,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -702,6 +704,48 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
         assertThat(permits.getActiveOperationsCount(), equalTo(0));
         assertThat(permits.getActiveOperations(), emptyIterable());
+    }
+
+    public void testAsyncBlockOperationsAreExecutedInSubmissionOrder() throws Exception {
+        final int nbOps = scaledRandomIntBetween(10, 64);
+        final CountDownLatch latch = new CountDownLatch(nbOps);
+
+        final AtomicInteger counter = new AtomicInteger(0);
+        final AtomicArray<Integer> invocations = new AtomicArray<>(nbOps);
+
+        try (Releasable ignored = blockAndWait()) {
+            for (int i = 0; i < nbOps; i++) {
+                final int operationId = i;
+                permits.asyncBlockOperations(new ActionListener<Releasable>() {
+                    @Override
+                    public void onResponse(final Releasable releasable) {
+                        try (Releasable ignored = releasable) {
+                            invocations.setOnce(counter.getAndIncrement(), operationId);
+                            if (rarely()) {
+                                try {
+                                    Thread.sleep(scaledRandomIntBetween(1, 100));
+                                } catch (InterruptedException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                        } finally {
+                            latch.countDown();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(final Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }, 30, TimeUnit.SECONDS);
+            }
+        }
+        latch.await();
+
+        for (int i = 0; i < nbOps; i++) {
+            assertThat("Expected the operation with id [" + i + "] to be executed at place [" + i
+                + "] but got [" + invocations.get(i) + "] instead", invocations.get(i), equalTo(i));
+        }
     }
 
     private static ActionListener<Releasable> wrap(final CheckedRunnable<Exception> onResponse) {

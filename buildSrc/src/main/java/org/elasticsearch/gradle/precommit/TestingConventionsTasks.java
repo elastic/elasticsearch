@@ -27,6 +27,7 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.testing.Test;
 import org.gradle.api.tasks.util.PatternFilterable;
 
 import java.io.File;
@@ -91,7 +92,7 @@ public class TestingConventionsTasks extends DefaultTask {
                     entry -> loadClassWithoutInitializing(entry.getKey(), isolatedClassLoader))
                 );
 
-            FileTree allClassFiles = getProject().files(
+            FileTree allTestClassFiles = getProject().files(
                 classes.values().stream()
                     .filter(isStaticClass.negate())
                     .filter(isPublicClass)
@@ -100,12 +101,8 @@ public class TestingConventionsTasks extends DefaultTask {
                     .collect(Collectors.toList())
             ).getAsFileTree();
 
-            final Map<String, Set<File>> filesPerTask = getProject().getTasks().withType(getRandomizedTestingTask()).stream()
-                .map(each -> (Task) each)
-                .collect(Collectors.toMap(
-                    Task::getName,
-                    task -> allClassFiles.matching(getRandomizedTestingPatternSet(task)).getFiles()
-                ));
+            final Map<String, Set<File>> classFilesPerRandomizedTestingTask = classFilesPerRandomizedTestingTask(allTestClassFiles);
+            final Map<String, Set<File>> classFilesPerGradleTestTask = classFilesPerGradleTestTask();
 
             problems = collectProblems(
                 checkNoneExists(
@@ -123,11 +120,17 @@ public class TestingConventionsTasks extends DefaultTask {
                         .filter(implementsNamingConvention.negate())
                 ),
                 checkNoneExists(
-                    "Test classes are not included in any task",
-                    allClassFiles.getFiles().stream()
+                    "Test classes are not included in any enabled task (" +
+                        Stream.concat(
+                            classFilesPerRandomizedTestingTask.keySet().stream(),
+                            classFilesPerGradleTestTask.keySet().stream()
+                        ).collect(Collectors.joining(",")) + ")",
+                    allTestClassFiles.getFiles().stream()
                         .filter(testFile ->
-                            filesPerTask.values().stream()
-                                .anyMatch(fileSet -> fileSet.contains(testFile)) == false
+                            classFilesPerRandomizedTestingTask.values().stream()
+                                .anyMatch(fileSet -> fileSet.contains(testFile)) == false &&
+                                classFilesPerGradleTestTask.values().stream()
+                                    .anyMatch(fileSet -> fileSet.contains(testFile)) == false
                         )
                         .map(classes::get)
                 )
@@ -142,6 +145,7 @@ public class TestingConventionsTasks extends DefaultTask {
         }
     }
 
+
     private Optional<String> collectProblems(String... problems) {
         return Stream.of(problems)
             .filter(String::isBlank)
@@ -150,24 +154,61 @@ public class TestingConventionsTasks extends DefaultTask {
             .map(String::trim);
     }
 
+
+    @Input
+    public Map<String, Set<File>> classFilesPerRandomizedTestingTask(FileTree testClassFiles) {
+        return Stream.concat(
+            getProject().getTasks().withType(getRandomizedTestingTask()).stream(),
+            // Look at sub-projects too. As sometimes tests are implemented in parent but ran in sub-projects against
+            // different configurations
+            getProject().getSubprojects().stream().flatMap(subproject ->
+                subproject.getTasks().withType(getRandomizedTestingTask()).stream()
+            )
+        )
+            .filter(Task::getEnabled)
+            .collect(Collectors.toMap(
+                Task::getPath,
+                task -> testClassFiles.matching(getRandomizedTestingPatternSet(task)).getFiles()
+            ));
+    }
+
+    @Input
+    public Map<String, Set<File>> classFilesPerGradleTestTask() {
+        return Stream.concat(
+            getProject().getTasks().withType(Test.class).stream(),
+            getProject().getSubprojects().stream().flatMap(subproject ->
+                subproject.getTasks().withType(Test.class).stream()
+            )
+        )
+            .filter(Task::getEnabled)
+            .collect(Collectors.toMap(
+                Task::getPath,
+                task -> task.getCandidateClassFiles().getFiles()
+            ));
+    }
+
+    @SuppressWarnings("unchecked")
     private PatternFilterable getRandomizedTestingPatternSet(Task task) {
         try {
-            if (getRandomizedTestingTask().isAssignableFrom(task.getClass()) == false) {
-                throw new IllegalStateException("Expected " + task + " to be RandomizedTestingTask but it was " + task.getClass());
+            if (
+                getRandomizedTestingTask().isAssignableFrom(task.getClass()) == false
+            ) {
+                throw new IllegalStateException("Expected " + task + " to be RandomizedTestingTask or Test but it was " + task.getClass());
             }
             Method getPatternSet = task.getClass().getMethod("getPatternSet");
             return (PatternFilterable) getPatternSet.invoke(task);
         } catch (NoSuchMethodException e) {
             throw new IllegalStateException("Expecte task to have a `patternSet` " + task, e);
-        } catch (IllegalAccessException|InvocationTargetException e) {
+        } catch (IllegalAccessException | InvocationTargetException e) {
             throw new IllegalStateException("Failed to get pattern set from task" + task, e);
         }
     }
 
+    @SuppressWarnings("unchecked")
     private Class<? extends Task> getRandomizedTestingTask() {
         try {
             return (Class<? extends Task>) Class.forName("com.carrotsearch.gradle.junit4.RandomizedTestingTask");
-        } catch (ClassNotFoundException|ClassCastException e) {
+        } catch (ClassNotFoundException | ClassCastException e) {
             throw new IllegalStateException("Failed to load randomized testing class", e);
         }
     }

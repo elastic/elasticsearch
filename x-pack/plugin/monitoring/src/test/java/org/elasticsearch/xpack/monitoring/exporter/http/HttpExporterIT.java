@@ -317,25 +317,15 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 bulk -> {
                     assertNull(bulk);
 
-                    logger.error("[testUnsupportedClusterVersion] responded to listener");
-
                     awaitResponseAndClose.countDown();
                 },
-                e -> {
-                    logger.error("[testUnsupportedClusterVersion] failed to respond to listener");
-
-                    fail(e.getMessage());
-                }
+                e -> fail(e.getMessage())
             );
 
             exporter.openBulk(listener);
 
-            logger.error("[testUnsupportedClusterVersion] waiting for latch");
-
             // wait for it to actually respond
             assertTrue(awaitResponseAndClose.await(15, TimeUnit.SECONDS));
-
-            logger.error("[testUnsupportedClusterVersion] waited for latch");
         }
 
         assertThat(webServer.requests(), hasSize(1));

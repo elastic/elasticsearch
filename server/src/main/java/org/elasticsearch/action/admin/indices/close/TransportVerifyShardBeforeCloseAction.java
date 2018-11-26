@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.close;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -38,17 +39,19 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportShardCloseAction extends TransportReplicationAction<ShardCloseRequest, ShardCloseRequest, ReplicationResponse> {
+public class TransportVerifyShardBeforeCloseAction extends TransportReplicationAction<
+    TransportVerifyShardBeforeCloseAction.ShardCloseRequest, TransportVerifyShardBeforeCloseAction.ShardCloseRequest, ReplicationResponse> {
 
     public static final String NAME = CloseIndexAction.NAME + "[s]";
     private static final ClusterBlock EXPECTED_BLOCK = MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
 
     @Inject
-    public TransportShardCloseAction(final Settings settings, final TransportService transportService, final ClusterService clusterService,
-                                     final IndicesService indicesService, final ThreadPool threadPool, final ShardStateAction stateAction,
-                                     final ActionFilters actionFilters, final IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, NAME, transportService, clusterService, indicesService, threadPool, stateAction,
-            actionFilters, indexNameExpressionResolver, ShardCloseRequest::new, ShardCloseRequest::new, ThreadPool.Names.GENERIC);
+    public TransportVerifyShardBeforeCloseAction(final Settings settings, final TransportService transportService,
+                                                 final ClusterService clusterService, final IndicesService indicesService,
+                                                 final ThreadPool threadPool, final ShardStateAction stateAction,
+                                                 final ActionFilters actionFilters, final IndexNameExpressionResolver resolver) {
+        super(settings, NAME, transportService, clusterService, indicesService, threadPool, stateAction, actionFilters, resolver,
+            ShardCloseRequest::new, ShardCloseRequest::new, ThreadPool.Names.MANAGEMENT);
     }
 
     @Override
@@ -103,6 +106,21 @@ public class TransportShardCloseAction extends TransportReplicationAction<ShardC
                 + "] mismatches maximum sequence number [" + maxSeqNo + "] on index shard " + shardId);
         }
         indexShard.flush(new FlushRequest());
-        logger.debug("shard {} is ready for closing", shardId);
+        logger.debug("{} shard is ready for closing", shardId);
+    }
+
+    public static class ShardCloseRequest extends ReplicationRequest<ShardCloseRequest> {
+
+        ShardCloseRequest(){
+        }
+
+        public ShardCloseRequest(final ShardId shardId) {
+            super(shardId);
+        }
+
+        @Override
+        public String toString() {
+            return "close shard {" + shardId + "}";
+        }
     }
 }

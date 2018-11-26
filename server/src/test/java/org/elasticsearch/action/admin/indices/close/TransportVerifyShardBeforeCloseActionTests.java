@@ -45,10 +45,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class TransportShardCloseActionTests extends ESTestCase {
+public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
     private IndexShard indexShard;
-    private TransportShardCloseAction action;
+    private TransportVerifyShardBeforeCloseAction action;
     private ClusterService clusterService;
 
     @Override
@@ -68,16 +68,18 @@ public class TransportShardCloseActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(new ClusterState.Builder(new ClusterName("test"))
             .blocks(ClusterBlocks.builder().addIndexBlock("index", INDEX_CLOSED_BLOCK).build()).build());
 
-        action = new TransportShardCloseAction(Settings.EMPTY, mock(TransportService.class), clusterService,
+        action = new TransportVerifyShardBeforeCloseAction(Settings.EMPTY, mock(TransportService.class), clusterService,
             mock(IndicesService.class), mock(ThreadPool.class), mock(ShardStateAction.class), mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class));
     }
 
     private void executeOnPrimaryOrReplica() throws Exception {
+        final TransportVerifyShardBeforeCloseAction.ShardCloseRequest request =
+            new TransportVerifyShardBeforeCloseAction.ShardCloseRequest(indexShard.shardId());
         if (randomBoolean()) {
-            assertNotNull(action.shardOperationOnPrimary(new ShardCloseRequest(indexShard.shardId()), indexShard));
+            assertNotNull(action.shardOperationOnPrimary(request, indexShard));
         } else {
-            assertNotNull(action.shardOperationOnPrimary(new ShardCloseRequest(indexShard.shardId()), indexShard));
+            assertNotNull(action.shardOperationOnPrimary(request, indexShard));
         }
     }
 

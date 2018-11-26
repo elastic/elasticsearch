@@ -110,6 +110,12 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
         return requiredNodes;
     }
 
+    /**
+     * Sometimes it is useful only to receive a successful response after discovering a certain set of master-eligible nodes.
+     * This parameter gives the names, hostnames, or transport addresses of the expected nodes.
+     *
+     * @param requiredNodes list of expected nodes
+     */
     public void setRequiredNodes(final List<String> requiredNodes) {
         this.requiredNodes = requiredNodes;
     }

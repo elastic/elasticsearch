@@ -15,22 +15,20 @@ import java.util.List;
 
 /**
  * Variant of {@link Coalesce} with two args used by MySQL and ODBC.
- *
- * Name is `IFNull` to avoid having it registered as `IF_NULL` instead of `IFNULL`.
  */
-public class IFNull extends Coalesce {
+public class IfNull extends Coalesce {
 
-    public IFNull(Location location, Expression first, Expression second) {
+    public IfNull(Location location, Expression first, Expression second) {
         super(location, Arrays.asList(first, second));
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new IFNull(location(), newChildren.get(0), newChildren.get(1));
+        return new IfNull(location(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
-    protected NodeInfo<IFNull> info() {
-        return NodeInfo.create(this, IFNull::new, children().get(0), children().get(1));
+    protected NodeInfo<IfNull> info() {
+        return NodeInfo.create(this, IfNull::new, children().get(0), children().get(1));
     }
 }

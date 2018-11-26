@@ -38,6 +38,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     protected void doExecute(Task task, SqlTranslateRequest request, ActionListener<SqlTranslateResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
 
+        planExecutor.metrics().translate();
         Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(),
                 request.requestTimeout(), request.pageTimeout(), request.filter());
 

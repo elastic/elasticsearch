@@ -1124,7 +1124,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             threadContext.putHeader("Authorization", headerValue);
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
                 () -> authenticateBlocking("_action", message, null));
-            assertThat(e.getMessage(), containsString("missing authentication token"));
+            assertThat(e.getMessage(), containsString("api key is expired"));
             assertEquals(RestStatus.UNAUTHORIZED, e.status());
         }
     }

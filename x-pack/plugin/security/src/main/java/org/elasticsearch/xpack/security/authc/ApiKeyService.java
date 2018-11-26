@@ -222,7 +222,7 @@ public class ApiKeyService {
                 final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
                 listener.onResponse(AuthenticationResult.success(apiKeyUser));
             } else {
-                listener.onResponse(AuthenticationResult.unsuccessful("api key is expired", null));
+                listener.onResponse(AuthenticationResult.terminate("api key is expired", null));
             }
         } else {
             listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));

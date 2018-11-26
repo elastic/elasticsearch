@@ -1663,3 +1663,23 @@ SELECT LEAST(null, null, null, null) AS "least";
 null
 // end::leastReturnNull
 ;
+
+nullEqualsCompareWithNull
+// tag::nullEqualsCompareWithNull
+SELECT 'elastic' <=> null AS "equals";
+
+    equals
+---------------
+false
+// end::nullEqualsCompareWithNull
+;
+
+nullEqualsCompareTwoNulls
+// tag::nullEqualsCompareTwoNulls
+SELECT null <=> null AS "equals";
+
+    equals
+---------------
+true
+// end::nullEqualsCompareTwoNulls
+;

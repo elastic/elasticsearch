@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -1380,6 +1381,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return TRUE;
                 }
             }
+            if (bc instanceof NullEquals) {
+                if (l.semanticEquals(r)) {
+                    return TRUE;
+                }
+                if (Expressions.isNull(r)) {
+                    return new IsNull(bc.location(), l);
+                }
+            }
 
             // false for equality
             if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
@@ -1434,7 +1443,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         // combine conjunction
         private Expression propagate(And and) {
             List<Range> ranges = new ArrayList<>();
-            List<Equals> equals = new ArrayList<>();
+            List<BinaryComparison> equals = new ArrayList<>();
             List<Expression> exps = new ArrayList<>();
 
             boolean changed = false;
@@ -1442,11 +1451,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             for (Expression ex : Predicates.splitAnd(and)) {
                 if (ex instanceof Range) {
                     ranges.add((Range) ex);
-                } else if (ex instanceof Equals) {
-                    Equals otherEq = (Equals) ex;
+                } else if (ex instanceof Equals || ex instanceof NullEquals) {
+                    BinaryComparison otherEq = (BinaryComparison) ex;
                     // equals on different values evaluate to FALSE
                     if (otherEq.right().foldable()) {
-                        for (Equals eq : equals) {
+                        for (BinaryComparison eq : equals) {
                             // cannot evaluate equals so skip it
                             if (!eq.right().foldable()) {
                                 continue;
@@ -1471,7 +1480,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
 
             // check
-            for (Equals eq : equals) {
+            for (BinaryComparison eq : equals) {
                 // cannot evaluate equals so skip it
                 if (!eq.right().foldable()) {
                     continue;

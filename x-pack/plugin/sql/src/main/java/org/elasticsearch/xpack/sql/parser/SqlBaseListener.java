@@ -924,16 +924,6 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitInterval(SqlBaseParser.IntervalContext ctx);
   /**
-   * Enter a parse tree produced by {@link SqlBaseParser#intervalValue}.
-   * @param ctx the parse tree
-   */
-  void enterIntervalValue(SqlBaseParser.IntervalValueContext ctx);
-  /**
-   * Exit a parse tree produced by {@link SqlBaseParser#intervalValue}.
-   * @param ctx the parse tree
-   */
-  void exitIntervalValue(SqlBaseParser.IntervalValueContext ctx);
-  /**
    * Enter a parse tree produced by {@link SqlBaseParser#intervalField}.
    * @param ctx the parse tree
    */

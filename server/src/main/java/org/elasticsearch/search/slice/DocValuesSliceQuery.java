@@ -75,7 +75,7 @@ public final class DocValuesSliceQuery extends SliceQuery {
                         return 10;
                     }
                 };
-                return new ConstantScoreScorer(this, score(), twoPhase);
+                return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
             }
 
             @Override

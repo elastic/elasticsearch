@@ -19,6 +19,7 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -157,7 +159,8 @@ public class IndexingIT extends AbstractRollingTestCase {
 
     private void assertCount(String index, int count) throws IOException {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
-        searchTestIndexRequest.addParameter("filter_path", "hits.total.value");
+        searchTestIndexRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+        searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
         assertEquals("{\"hits\":{\"total\":{\"value\":" + count + "}}",
                 EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));

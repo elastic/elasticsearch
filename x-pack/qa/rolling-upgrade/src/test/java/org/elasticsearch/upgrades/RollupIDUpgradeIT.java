@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -196,10 +197,11 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
             collectedIDs.clear();
             client().performRequest(new Request("POST", "rollup/_refresh"));
             final Request searchRequest = new Request("GET", "rollup/_search");
+            searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
             try {
                 Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
-                assertNotNull(ObjectPath.eval("hits.total.value", searchResponse));
-                assertThat(ObjectPath.eval("hits.total.value", searchResponse), equalTo(expectedCount));
+                assertNotNull(ObjectPath.eval("hits.total", searchResponse));
+                assertThat(ObjectPath.eval("hits.total", searchResponse), equalTo(expectedCount));
 
                 for (int i = 0; i < expectedCount; i++) {
                     String id = ObjectPath.eval("hits.hits." + i + "._id", searchResponse);

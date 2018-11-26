@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -321,10 +322,11 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 builder.endObject();
 
                 Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
+                searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
                 searchRequest.setJsonEntity(Strings.toString(builder));
                 Response response = client().performRequest(searchRequest);
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);
-                int totalHits = objectPath.evaluate("hits.total.value");
+                int totalHits = objectPath.evaluate("hits.total");
                 assertThat(totalHits, is(greaterThanOrEqualTo(1)));
                 String watchid = objectPath.evaluate("hits.hits.0._source.watch_id");
                 assertThat(watchid, is(watchId));

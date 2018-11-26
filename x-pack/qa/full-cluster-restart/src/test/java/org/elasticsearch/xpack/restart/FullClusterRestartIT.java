@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -350,10 +351,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertBusy(() -> {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
                 final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
+                searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
                 try {
                     Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
-                    assertNotNull(ObjectPath.eval("hits.total.value", searchResponse));
-                    assertThat(ObjectPath.eval("hits.total.value", searchResponse), equalTo(1));
+                    assertNotNull(ObjectPath.eval("hits.total", searchResponse));
+                    assertThat(ObjectPath.eval("hits.total", searchResponse), equalTo(1));
                     assertThat(ObjectPath.eval("hits.hits.0._id", searchResponse), equalTo("3310683722"));
                 } catch (IOException e) {
                     fail();
@@ -389,10 +391,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertBusy(() -> {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
                 final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
+                searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
                 try {
                     Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
-                    assertNotNull(ObjectPath.eval("hits.total.value", searchResponse));
-                    assertThat(ObjectPath.eval("hits.total.value", searchResponse), equalTo(2));
+                    assertNotNull(ObjectPath.eval("hits.total", searchResponse));
+                    assertThat(ObjectPath.eval("hits.total", searchResponse), equalTo(2));
                     List<String> ids = new ArrayList<>(2);
                     ids.add(ObjectPath.eval("hits.hits.0._id", searchResponse));
                     ids.add(ObjectPath.eval("hits.hits.1._id", searchResponse));

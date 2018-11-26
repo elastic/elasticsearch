@@ -734,6 +734,7 @@ public class IndexShardTests extends IndexShardTestCase {
         return fut.get();
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35850")
     public void testOperationPermitOnReplicaShards() throws Exception {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShard indexShard;

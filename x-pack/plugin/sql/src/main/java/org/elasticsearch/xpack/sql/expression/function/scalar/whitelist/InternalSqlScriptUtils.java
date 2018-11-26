@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFu
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.CoalesceProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
@@ -91,6 +92,10 @@ public final class InternalSqlScriptUtils {
         return BinaryComparisonOperation.EQ.apply(left, right);
     }
 
+    public static Boolean nulleq(Object left, Object right) {
+        return BinaryComparisonOperation.NULLEQ.apply(left, right);
+    }
+
     public static Boolean neq(Object left, Object right) {
         return BinaryComparisonOperation.NEQ.apply(left, right);
     }
@@ -140,6 +145,10 @@ public final class InternalSqlScriptUtils {
     //
     public static Object coalesce(List<Object> expressions) {
         return CoalesceProcessor.apply(expressions);
+    }
+
+    public static Object nullif(Object left, Object right) {
+        return NullIfProcessor.apply(left, right);
     }
 
     //

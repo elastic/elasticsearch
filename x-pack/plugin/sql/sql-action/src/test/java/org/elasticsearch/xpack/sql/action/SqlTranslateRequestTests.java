@@ -15,6 +15,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -35,8 +36,8 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
 
     @Override
     protected SqlTranslateRequest createTestInstance() {
-        return new SqlTranslateRequest(testMode,  randomAlphaOfLength(10), Collections.emptyList(), randomFilterOrNull(random()),
-                randomTimeZone(), between(1, Integer.MAX_VALUE), randomTV(), randomTV());
+        return new SqlTranslateRequest(randomAlphaOfLength(10),  Collections.emptyList(), randomFilterOrNull(random()),
+                randomTimeZone(), between(1, Integer.MAX_VALUE), randomTV(), randomTV(), new RequestInfo(testMode));
     }
 
     @Override
@@ -76,8 +77,8 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
                 request -> request.filter(randomValueOtherThan(request.filter(),
                         () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random())))
         );
-        SqlTranslateRequest newRequest = new SqlTranslateRequest(instance.mode(), instance.query(), instance.params(), instance.filter(),
-                instance.timeZone(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout());
+        SqlTranslateRequest newRequest = new SqlTranslateRequest(instance.query(), instance.params(), instance.filter(),
+                instance.timeZone(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.requestInfo());
         mutator.accept(newRequest);
         return newRequest;
     }

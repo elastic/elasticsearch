@@ -26,9 +26,9 @@ import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.literal.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.literal.Intervals;
 import org.elasticsearch.xpack.sql.expression.literal.Intervals.TimeUnit;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
@@ -97,6 +98,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTypesContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimeEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimestampEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -180,6 +182,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         switch (op.getSymbol().getType()) {
             case SqlBaseParser.EQ:
                 return new Equals(loc, left, right);
+            case SqlBaseParser.NULLEQ:
+                return new NullEquals(loc, left, right);
             case SqlBaseParser.NEQ:
                 return new NotEquals(loc, left, right);
             case SqlBaseParser.LT:
@@ -544,10 +548,10 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                         "Invalid interval declaration; trailing unit [{}] specified but the value is with numeric (single unit), "
                         + "use the string notation instead", trailing);
             }
-            value = of(interval.valueNumeric, negative, leading);
+            value = of(interval.valueNumeric, leading);
             valueAsText = interval.valueNumeric.getText();
         } else {
-            value = visitIntervalValue(interval.valuePattern, negative, intervalType);
+            value = of(interval.valuePattern, negative, intervalType);
             valueAsText = interval.valuePattern.getText();
         }
 
@@ -559,8 +563,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         return new Literal(source(ctx), name, timeInterval, intervalType);
     }
 
-    private TemporalAmount of(NumberContext valueNumeric, boolean negative, TimeUnit unit) {
+    private TemporalAmount of(NumberContext valueNumeric, TimeUnit unit) {
         // expect numbers for now
+        // as the number parsing handles the -, there's no need to look at that
         Literal value = (Literal) visit(valueNumeric);
         Number numeric = (Number) value.fold();
 
@@ -571,7 +576,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         return Intervals.of(source(valueNumeric), numeric.longValue(), unit);
     }
 
-    private TemporalAmount visitIntervalValue(StringContext valuePattern, boolean negative, DataType intervalType) {
+    private TemporalAmount of(StringContext valuePattern, boolean negative, DataType intervalType) {
         String valueString = string(valuePattern);
         Location loc = source(valuePattern);
         TemporalAmount interval = Intervals.parseInterval(loc, valueString, intervalType);
@@ -652,12 +657,14 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(source(ctx), siae.getMessage());
         }
 
+        Object val = Long.valueOf(value);
         DataType type = DataType.LONG;
         // try to downsize to int if possible (since that's the most common type)
         if ((int) value == value) {
             type = DataType.INTEGER;
+            val = Integer.valueOf((int) value);
         }
-        return new Literal(source(ctx), value, type);
+        return new Literal(source(ctx), val, type);
     }
 
     @Override
@@ -835,6 +842,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             } else if (parentCtx instanceof SqlBaseParser.IntervalContext) {
                 IntervalContext ic = (IntervalContext) parentCtx;
                 return ic.sign != null && ic.sign.getType() == SqlBaseParser.MINUS;
+            } else if (parentCtx instanceof SqlBaseParser.SysTypesContext) {
+                return ((SysTypesContext) parentCtx).MINUS() != null;
             }
         }
         return false;

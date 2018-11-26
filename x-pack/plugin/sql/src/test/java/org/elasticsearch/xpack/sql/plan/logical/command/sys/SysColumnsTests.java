@@ -138,16 +138,16 @@ public class SysColumnsTests extends ESTestCase {
         return list.get(7);
     }
 
+    private static Object decimalPrecision(List<?> list) {
+        return list.get(8);
+    }
+
     private static Object radix(List<?> list) {
         return list.get(9);
     }
 
     private static Object nullable(List<?> list) {
         return list.get(10);
-    }
-
-    private static Object decimalPrecision(List<?> list) {
-        return list.get(8);
     }
 
     private static Object sqlDataType(List<?> list) {

@@ -32,10 +32,12 @@ import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
@@ -70,6 +72,7 @@ import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -150,6 +153,17 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(closeJobRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteExpiredData(DeleteExpiredDataRequest deleteExpiredDataRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_delete_expired_data")
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+
         return request;
     }
 
@@ -646,6 +660,67 @@ final class MLRequestConverters {
             .addPathPart(deleteFilterRequest.getId())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        return request;
+    }
+
+    static Request findFileStructure(FindFileStructureRequest findFileStructureRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("find_file_structure")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (findFileStructureRequest.getLinesToSample() != null) {
+            params.putParam(FindFileStructureRequest.LINES_TO_SAMPLE.getPreferredName(),
+                findFileStructureRequest.getLinesToSample().toString());
+        }
+        if (findFileStructureRequest.getTimeout() != null) {
+            params.putParam(FindFileStructureRequest.TIMEOUT.getPreferredName(), findFileStructureRequest.getTimeout().toString());
+        }
+        if (findFileStructureRequest.getCharset() != null) {
+            params.putParam(FindFileStructureRequest.CHARSET.getPreferredName(), findFileStructureRequest.getCharset());
+        }
+        if (findFileStructureRequest.getFormat() != null) {
+            params.putParam(FindFileStructureRequest.FORMAT.getPreferredName(), findFileStructureRequest.getFormat().toString());
+        }
+        if (findFileStructureRequest.getColumnNames() != null) {
+            params.putParam(FindFileStructureRequest.COLUMN_NAMES.getPreferredName(),
+                Strings.collectionToCommaDelimitedString(findFileStructureRequest.getColumnNames()));
+        }
+        if (findFileStructureRequest.getHasHeaderRow() != null) {
+            params.putParam(FindFileStructureRequest.HAS_HEADER_ROW.getPreferredName(),
+                findFileStructureRequest.getHasHeaderRow().toString());
+        }
+        if (findFileStructureRequest.getDelimiter() != null) {
+            params.putParam(FindFileStructureRequest.DELIMITER.getPreferredName(),
+                findFileStructureRequest.getDelimiter().toString());
+        }
+        if (findFileStructureRequest.getQuote() != null) {
+            params.putParam(FindFileStructureRequest.QUOTE.getPreferredName(), findFileStructureRequest.getQuote().toString());
+        }
+        if (findFileStructureRequest.getShouldTrimFields() != null) {
+            params.putParam(FindFileStructureRequest.SHOULD_TRIM_FIELDS.getPreferredName(),
+                findFileStructureRequest.getShouldTrimFields().toString());
+        }
+        if (findFileStructureRequest.getGrokPattern() != null) {
+            params.putParam(FindFileStructureRequest.GROK_PATTERN.getPreferredName(), findFileStructureRequest.getGrokPattern());
+        }
+        if (findFileStructureRequest.getTimestampFormat() != null) {
+            params.putParam(FindFileStructureRequest.TIMESTAMP_FORMAT.getPreferredName(), findFileStructureRequest.getTimestampFormat());
+        }
+        if (findFileStructureRequest.getTimestampField() != null) {
+            params.putParam(FindFileStructureRequest.TIMESTAMP_FIELD.getPreferredName(), findFileStructureRequest.getTimestampField());
+        }
+        if (findFileStructureRequest.getExplain() != null) {
+            params.putParam(FindFileStructureRequest.EXPLAIN.getPreferredName(), findFileStructureRequest.getExplain().toString());
+        }
+
+        BytesReference sample = findFileStructureRequest.getSample();
+        BytesRef source = sample.toBytesRef();
+        HttpEntity byteEntity = new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(XContentType.JSON));
+        request.setEntity(byteEntity);
         return request;
     }
 }

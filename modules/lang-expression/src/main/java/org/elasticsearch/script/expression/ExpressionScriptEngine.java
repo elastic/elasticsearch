@@ -118,7 +118,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             BucketAggregationSelectorScript.Factory wrappedFactory = parameters -> new BucketAggregationSelectorScript(parameters) {
                 @Override
                 public boolean execute() {
-                    return factory.newInstance(getParams()).execute() == 1.0;
+                    return factory.newInstance(getParams()).execute().doubleValue() == 1.0;
                 }
             };
             return context.factoryClazz.cast(wrappedFactory);

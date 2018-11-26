@@ -365,6 +365,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-enable-user>>
 * <<java-rest-high-security-disable-user>>
 * <<java-rest-high-security-change-password>>
+* <<{upid}-get-roles>>
 * <<java-rest-high-security-delete-role>>
 * <<{upid}-clear-roles-cache>>
 * <<{upid}-clear-realm-cache>>

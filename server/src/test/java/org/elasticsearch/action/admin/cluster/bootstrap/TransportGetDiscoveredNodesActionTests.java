@@ -51,6 +51,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -65,6 +66,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
@@ -284,6 +286,55 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     throw new AssertionError("should not be called", exp);
+                }
+            });
+
+            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        }
+
+        {
+            final CountDownLatch countDownLatch = new CountDownLatch(1);
+            final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+            getDiscoveredNodesRequest.setRequiredNodes(
+                Arrays.asList(localNode.getAddress().toString(), otherNode.getAddress().toString())
+            );
+            getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+            transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+                @Override
+                public void handleResponse(GetDiscoveredNodesResponse response) {
+                    assertThat(response.getNodes(), containsInAnyOrder(localNode, otherNode));
+                    countDownLatch.countDown();
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    throw new AssertionError("should not be called", exp);
+                }
+            });
+
+            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        }
+
+        {
+            final CountDownLatch countDownLatch = new CountDownLatch(1);
+            final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+            getDiscoveredNodesRequest.setRequiredNodes(
+                Arrays.asList(localNode.getAddress().toString(), localNode.getName())
+            );
+            getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+            transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+                @Override
+                public void handleResponse(GetDiscoveredNodesResponse response) {
+                    throw new AssertionError("should not be called");
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    Throwable t = exp.getRootCause();
+                    assertThat(t, instanceOf(IllegalArgumentException.class));
+                    assertThat(t.getMessage(), is("Node [" + localNode + "] matched both a name as well as an address entry" +
+                        " in the nodes list specified in setting [cluster.initial_master_nodes]."));
+                    countDownLatch.countDown();
                 }
             });
 

@@ -22,7 +22,7 @@ Machine Learning state documents that are not associated with any job are also d
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ov}/security-privileges.html[Security Privileges] and
+{stack-ov}/security-privileges.html[Security Privileges] and
 {stack-ov}/built-in-roles.html[Built-in Roles].
 
 

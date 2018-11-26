@@ -168,7 +168,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             privilegesByApplication.put(applicationName, appPrivilegesByResource.values());
         }
 
-        listener.onResponse(new HasPrivilegesResponse(allMatch, cluster, indices.values(), privilegesByApplication));
+        listener.onResponse(new HasPrivilegesResponse(request.username(), allMatch, cluster, indices.values(), privilegesByApplication));
     }
 
     private boolean testIndexMatch(String checkIndex, String checkPrivilegeName, Role userRole,

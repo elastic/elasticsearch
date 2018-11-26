@@ -28,9 +28,7 @@ public class DeprecationChecks {
     }
 
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
-        Collections.unmodifiableList(Arrays.asList(
-            // STUB
-        ));
+        Collections.emptyList();
 
     static List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(

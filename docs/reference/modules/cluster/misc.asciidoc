@@ -27,7 +27,7 @@ API can make the cluster read-write again.
 ==== Cluster Shard Limit
 
 There is a soft limit on the number of shards in a cluster, based on the number
-of nodes in the cluster.  This is intended to prevent operations which may
+of nodes in the cluster. This is intended to prevent operations which may
 unintentionally destabilize the cluster.
 
 If an operation, such as creating a new index, restoring a snapshot of an index,
@@ -42,7 +42,7 @@ either the limit is increased as described below, or some indices are
 number of shards below the limit.
 
 Replicas count towards this limit, but closed indexes do not. An index with 5
-primary shards and 2 replicas will be counted as 15 shards.  Any closed index
+primary shards and 2 replicas will be counted as 15 shards. Any closed index
 is counted as 0, no matter how many shards and replicas it contains.
 
 The limit defaults to 1,000 shards per data node, and can be dynamically
@@ -53,7 +53,7 @@ adjusted using the following property:
      Controls the number of shards allowed in the cluster per data node.
 
 For example, a 3-node cluster with the default setting would allow 3,000 shards
-total, across all open indexes.  If the above setting is changed to 1,500, then
+total, across all open indexes. If the above setting is changed to 1,500, then
 the cluster would allow 4,500 shards total.
 
 NOTE: If there are no data nodes in the cluster, the limit will not be enforced.

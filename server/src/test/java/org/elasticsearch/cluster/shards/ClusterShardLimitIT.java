@@ -106,7 +106,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
 
         dataNodes = ensureMultipleDataNodes(dataNodes);
 
-        int firstShardCount = between(2,10);
+        int firstShardCount = between(2, 10);
         int shardsPerNode = firstShardCount - 1;
         setShardsPerNode(shardsPerNode);
 
@@ -142,7 +142,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         int firstIndexShards = firstIndexFactor * dataNodes;
         int firstIndexReplicas = 0;
 
-        int secondIndexFactor = between(1,3);
+        int secondIndexFactor = between(1, 3);
         int secondIndexShards = secondIndexFactor * dataNodes;
         int secondIndexReplicas = dataNodes;
 

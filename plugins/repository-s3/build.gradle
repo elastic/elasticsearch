@@ -134,7 +134,10 @@ if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath) {
   s3EC2BasePath = 'integration_test'
   s3ECSBucket = 'ecs-bucket-test'
   s3ECSBasePath = 'integration_test'
+} else if (!s3EC2Bucket || !s3EC2BasePath || !s3ECSBucket || !s3ECSBasePath) {
+  throw new IllegalArgumentException("not all options specified to run EC2/ECS tests are present")
 }
+
 
 final String minioVersion = 'RELEASE.2018-06-22T23-48-46Z'
 final String minioBinDir = "${buildDir}/minio/bin"

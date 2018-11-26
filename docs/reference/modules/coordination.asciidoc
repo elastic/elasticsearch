@@ -268,11 +268,11 @@ certainly possible to get into this situation if using a more automated
 orchestrator, particularly if the orchestrator is not resilient to failures
 such as network partitions.
 
-The cluster bootstrapping process is is only required the very first time a
-whole cluster starts up: new nodes joining an established cluster can safely
-obtain all the information they need from the elected master, and nodes that
-have previously been part of a cluster will have stored to disk all the
-information required when restarting.
+The cluster bootstrapping process is only required the very first time a whole
+cluster starts up: new nodes joining an established cluster can safely obtain
+all the information they need from the elected master, and nodes that have
+previously been part of a cluster will have stored to disk all the information
+required when restarting.
 
 A cluster can be bootstrapped by sending the _bootstrap configuration_ to any
 of its master-eligible nodes via the `POST /_cluster/bootstrap_configuration`

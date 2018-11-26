@@ -108,7 +108,7 @@ public class ReproduceInfoPrinter extends RunListener {
 
             if (description.getMethodName() != null) {
                 //prints out the raw method description instead of methodName(description) which filters out the parameters
-                super.appendOpt(SYSPROP_TESTMETHOD(), "\"" + escapeMethodName(description.getMethodName()) + "\"");
+                super.appendOpt(SYSPROP_TESTMETHOD(), "\"" + description.getMethodName() + "\"");
             }
 
             return appendESProperties();
@@ -177,12 +177,5 @@ public class ReproduceInfoPrinter extends RunListener {
             return this;
         }
 
-        /**
-         * Escapes method names to line up with the glob parser in randomized
-         * runner.
-         */
-        private String escapeMethodName(String method) {
-            return method.replaceAll("[()]", "?");
-        }
     }
 }

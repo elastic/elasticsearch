@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 public abstract class Foldables {
 
@@ -48,19 +49,18 @@ public abstract class Foldables {
     }
 
     public static <T> List<T> valuesOf(List<Expression> list, DataType to) {
-        List<T> l = new ArrayList<>(list.size());
-        for (Expression e : list) {
-             l.add(valueOf(e, to));
-        }
-        return l;
+        return foldAndAdd(list, to, new ArrayList<>(list.size()));
     }
 
-    public static <T> Collection<T> valuesOfNoDuplicates(List<Expression> list, DataType to) {
-        LinkedHashSet<T> l = new LinkedHashSet<>(list.size());
-        for (Expression e : list) {
-            l.add(valueOf(e, to));
+    public static <T> Set<T> valuesOfNoDuplicates(List<Expression> list, DataType to) {
+        return foldAndAdd(list, to, new LinkedHashSet<>(list.size()));
+    }
+
+    private static <T, C extends Collection<T>> C foldAndAdd(Collection<Expression> expressions, DataType to, C values) {
+        for (Expression e : expressions) {
+            values.add(valueOf(e, to));
         }
-        return l;
+        return values;
     }
 
     public static List<Double> doubleValuesOf(List<Expression> list) {

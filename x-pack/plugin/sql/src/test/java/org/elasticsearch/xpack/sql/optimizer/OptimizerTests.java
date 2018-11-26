@@ -457,16 +457,18 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSimplifyIfNullNulls() {
         Expression e = new SimplifyConditional().rule(new IfNull(EMPTY, Literal.NULL, Literal.NULL));
-        assertEquals(Coalesce.class, e.getClass());
+        assertEquals(IfNull.class, e.getClass());
         assertEquals(0, e.children().size());
     }
 
     public void testSimplifyIfNullWithNullAndValue() {
         Expression e = new SimplifyConditional().rule(new IfNull(EMPTY, Literal.NULL, ONE));
+        assertEquals(IfNull.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
 
         e = new SimplifyConditional().rule(new IfNull(EMPTY, ONE, Literal.NULL));
+        assertEquals(IfNull.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
     }

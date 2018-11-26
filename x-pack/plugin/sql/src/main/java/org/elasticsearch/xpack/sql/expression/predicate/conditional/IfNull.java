@@ -19,13 +19,16 @@ import java.util.List;
 public class IfNull extends Coalesce {
 
     public IfNull(Location location, Expression first, Expression second) {
-        super(location, Arrays.asList(first, second));
+        this(location, Arrays.asList(first, second));
+    }
+
+    private IfNull(Location location, List<Expression> expressions) {
+        super(location, expressions);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        // Return generic Coalesce as the size of newChildren can be < 2 a after optimisation
-        return new Coalesce(location(), newChildren);
+        return new IfNull(location(), newChildren);
     }
 
     @Override

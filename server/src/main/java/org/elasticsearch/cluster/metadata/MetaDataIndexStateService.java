@@ -161,6 +161,10 @@ public class MetaDataIndexStateService {
                     // Check if index closing conflicts with any running snapshots
                     SnapshotsService.checkIndexClosing(currentState, indicesToClose);
 
+                    // If the cluster is in a mixed version that does not support the shard close action,
+                    // we use the previous way to close indices and directly close them without sanity checks
+                    final boolean useDirectClose = currentState.nodes().getMinNodeVersion().before(Version.V_7_0_0);
+
                     final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
 
@@ -169,9 +173,8 @@ public class MetaDataIndexStateService {
                         if (currentState.blocks().hasIndexBlock(index.getName(), INDEX_CLOSED_BLOCK) == false) {
                             blocks.addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
                         }
-                        final IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
-                        if (indexRoutingTable != null && indexRoutingTable.allPrimaryShardsUnassigned()) {
-                            logger.debug("fast closing index {} as it is unassigned", index);
+                        if (useDirectClose) {
+                            logger.debug("closing index {} directly", index);
                             metadata.put(IndexMetaData.builder(indexToClose).state(IndexMetaData.State.CLOSE));
                             routingTable.remove(index.getName());
                         }
@@ -257,14 +260,18 @@ public class MetaDataIndexStateService {
                                               @Nullable final Long taskId, @Nullable final TimeValue timeout,
                                               final ActionListener<CloseIndexResponse.IndexResult> listener) {
         final IndexMetaData indexMetaData = state.metaData().index(index);
-        if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-            logger.debug("index {} has been blocked before closing and is now closed, ignoring", index);
+        if (indexMetaData == null || indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+            logger.debug("index {} has been blocked before closing and is already closed, ignoring", index);
             listener.onResponse(new CloseIndexResponse.IndexResult(index));
             return;
         }
         final IndexRoutingTable indexRoutingTable = state.routingTable().index(index);
-        if (indexMetaData == null || indexRoutingTable == null) {
+        if (indexRoutingTable == null) {
             logger.debug("index {} has been blocked before closing but is now deleted, ignoring", index);
+            listener.onResponse(new CloseIndexResponse.IndexResult(index));
+            return;
+        } else if (indexRoutingTable.allPrimaryShardsUnassigned()) {
+            logger.debug("index {} has been blocked before closing but is now unassigned, ignoring", index);
             listener.onResponse(new CloseIndexResponse.IndexResult(index));
             return;
         }

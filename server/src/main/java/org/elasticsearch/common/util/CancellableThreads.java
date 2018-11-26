@@ -45,7 +45,8 @@ public class CancellableThreads {
     }
 
 
-    /** call this will throw an exception if operation was cancelled. Override {@link #onCancel(String, Exception)} for custom failure logic */
+    /** call this will throw an exception if operation was cancelled.
+     * Override {@link #onCancel(String, Exception)} for custom failure logic */
     public synchronized void checkForCancel() {
         if (isCancelled()) {
             onCancel(reason, null);

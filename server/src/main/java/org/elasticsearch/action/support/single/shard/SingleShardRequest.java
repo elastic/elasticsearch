@@ -44,7 +44,6 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
     @Nullable
     protected String index;
     ShardId internalShardId;
-    private boolean threadedOperation = true;
 
     public SingleShardRequest() {
     }

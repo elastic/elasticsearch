@@ -50,7 +50,7 @@ setup:
           - index: index_3
           - query:
               match_all: {}
-          - type: test
+          - {}
           - query:
               match_all: {}
 
@@ -66,9 +66,9 @@ setup:
 "Least impact smoke test":
 # only passing these parameters to make sure they are consumed
   - do:
-      max_concurrent_shard_requests: 1
-      max_concurrent_searches: 1
       msearch:
+        max_concurrent_shard_requests: 1
+        max_concurrent_searches: 1
         body:
           - index: index_*
           - query:
@@ -82,7 +82,7 @@ setup:
           - index: index_3
           - query:
               match_all: {}
-          - type: test
+          - {}
           - query:
               match_all: {}
 

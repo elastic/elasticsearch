@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.security;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import org.elasticsearch.action.search.SearchResponse;
+
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -125,6 +125,6 @@ public class MigrateToolIT extends MigrateToolTestCase {
                 .waitForEvents(Priority.LANGUID)
                 .waitForNoRelocatingShards(true))
                 .actionGet();
-        SearchResponse searchResp = client.filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("index1").get();
+        client.filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("index1").get();
     }
 }

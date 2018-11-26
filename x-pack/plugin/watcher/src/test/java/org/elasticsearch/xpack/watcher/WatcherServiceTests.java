@@ -223,7 +223,7 @@ public class WatcherServiceTests extends ESTestCase {
         String engineType = "foo";
         TriggerEngine triggerEngine = mock(TriggerEngine.class);
         when(triggerEngine.type()).thenReturn(engineType);
-        TriggerService triggerService = new TriggerService(Settings.EMPTY, Collections.singleton(triggerEngine));
+        TriggerService triggerService = new TriggerService(Collections.singleton(triggerEngine));
 
         Trigger trigger = mock(Trigger.class);
         when(trigger.type()).thenReturn(engineType);
@@ -231,7 +231,7 @@ public class WatcherServiceTests extends ESTestCase {
         Watch watch = mock(Watch.class);
         when(watch.trigger()).thenReturn(trigger);
         when(watch.condition()).thenReturn(InternalAlwaysCondition.INSTANCE);
-        ExecutableNoneInput noneInput = new ExecutableNoneInput(logger);
+        ExecutableNoneInput noneInput = new ExecutableNoneInput();
         when(watch.input()).thenReturn(noneInput);
 
         triggerService.add(watch);

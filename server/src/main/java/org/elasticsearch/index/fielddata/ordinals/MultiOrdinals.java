@@ -46,7 +46,8 @@ public class MultiOrdinals extends Ordinals {
     /**
      * Return true if this impl is going to be smaller than {@link SinglePackedOrdinals} by at least 20%.
      */
-    public static boolean significantlySmallerThanSinglePackedOrdinals(int maxDoc, int numDocsWithValue, long numOrds, float acceptableOverheadRatio) {
+    public static boolean significantlySmallerThanSinglePackedOrdinals(int maxDoc, int numDocsWithValue, long numOrds,
+            float acceptableOverheadRatio) {
         int bitsPerOrd = PackedInts.bitsRequired(numOrds);
         bitsPerOrd = PackedInts.fastestFormatAndBits(numDocsWithValue, bitsPerOrd, acceptableOverheadRatio).bitsPerValue;
         // Compute the worst-case number of bits per value for offsets in the worst case, eg. if no docs have a value at the

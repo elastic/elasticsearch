@@ -136,7 +136,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
 
         IndexableField pointField = fields[1];
-        assertEquals(2, pointField.fieldType().pointDimensionCount());
+        assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
         assertFalse(pointField.fieldType().stored());
     }
 
@@ -188,7 +188,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(2, pointField.fieldType().pointDimensionCount());
+        assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
     }
 
     @Override
@@ -216,7 +216,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField dvField = fields[0];
         assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
         IndexableField pointField = fields[1];
-        assertEquals(2, pointField.fieldType().pointDimensionCount());
+        assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
         IndexableField storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
         String strVal = "5";
@@ -255,7 +255,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField dvField = fields[0];
         assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
         IndexableField pointField = fields[1];
-        assertEquals(2, pointField.fieldType().pointDimensionCount());
+        assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
 
         // date_range ignores the coerce parameter and epoch_millis date format truncates floats (see issue: #14641)
         if (type.equals("date_range") == false) {
@@ -353,7 +353,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField dvField = fields[0];
         assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
         IndexableField pointField = fields[1];
-        assertEquals(2, pointField.fieldType().pointDimensionCount());
+        assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
         assertFalse(pointField.fieldType().stored());
         storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
@@ -406,7 +406,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField dvField = fields[0];
         assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
         IndexableField pointField = fields[1];
-        assertEquals(2, pointField.fieldType().pointDimensionCount());
+        assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
         assertFalse(pointField.fieldType().stored());
         IndexableField storedField = fields[2];
         assertTrue(storedField.fieldType().stored());

@@ -275,7 +275,8 @@ public abstract class MapBinder<K, V> {
             private final Provider<Set<Entry<K, Provider<V>>>> provider;
 
             @SuppressWarnings("rawtypes") // code is silly stupid with generics
-            MapBinderProviderWithDependencies(RealMapBinder binder, Set<Dependency<?>> dependencies, Provider<Set<Entry<K, Provider<V>>>> provider) {
+            MapBinderProviderWithDependencies(RealMapBinder binder, Set<Dependency<?>> dependencies,
+                                              Provider<Set<Entry<K, Provider<V>>>> provider) {
                 this.binder = binder;
                 this.dependencies = dependencies;
                 this.provider = provider;
@@ -315,7 +316,8 @@ public abstract class MapBinder<K, V> {
             // binds a Map<K, Provider<V>> from a collection of Map<Entry<K, Provider<V>>
             final Provider<Set<Entry<K, Provider<V>>>> entrySetProvider = binder
                     .getProvider(entrySetBinder.getSetKey());
-            binder.bind(providerMapKey).toProvider(new MapBinderProviderWithDependencies(RealMapBinder.this, dependencies, entrySetProvider));
+            binder.bind(providerMapKey)
+                .toProvider(new MapBinderProviderWithDependencies(RealMapBinder.this, dependencies, entrySetProvider));
 
             final Provider<Map<K, Provider<V>>> mapProvider = binder.getProvider(providerMapKey);
             binder.bind(mapKey).toProvider(new ProviderWithDependencies<Map<K, V>>() {

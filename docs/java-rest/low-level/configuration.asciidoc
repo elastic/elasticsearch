@@ -1,3 +1,4 @@
+[[java-rest-low-config]]
 == Common configuration
 
 As explained in <<java-rest-low-usage-initialization>>, the `RestClientBuilder`

@@ -41,7 +41,7 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
 
     @Override
     protected DateHistogramAggregationBuilder createTestAggregatorBuilder() {
-        DateHistogramAggregationBuilder factory = new DateHistogramAggregationBuilder("foo");
+        DateHistogramAggregationBuilder factory = new DateHistogramAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         factory.field(INT_FIELD_NAME);
         if (randomBoolean()) {
             factory.interval(randomIntBetween(1, 100000));

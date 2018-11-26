@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.Snapshot;
 
 /**
@@ -34,16 +33,6 @@ import org.elasticsearch.snapshots.Snapshot;
 public class RestoreInProgressAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "restore_in_progress";
-
-    /**
-     * Creates a new {@link RestoreInProgressAllocationDecider} instance from
-     * given settings
-     *
-     * @param settings {@link Settings} to use
-     */
-    public RestoreInProgressAllocationDecider(Settings settings) {
-        super(settings);
-    }
 
     @Override
     public Decision canAllocate(final ShardRouting shardRouting, final RoutingNode node, final RoutingAllocation allocation) {

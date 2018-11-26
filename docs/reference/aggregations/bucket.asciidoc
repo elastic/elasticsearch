@@ -49,6 +49,8 @@ include::bucket/missing-aggregation.asciidoc[]
 
 include::bucket/nested-aggregation.asciidoc[]
 
+include::bucket/parent-aggregation.asciidoc[]
+
 include::bucket/range-aggregation.asciidoc[]
 
 include::bucket/reverse-nested-aggregation.asciidoc[]

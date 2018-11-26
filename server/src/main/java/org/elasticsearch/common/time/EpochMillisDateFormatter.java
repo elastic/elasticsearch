@@ -19,13 +19,16 @@
 
 package org.elasticsearch.common.time;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
+import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * This is a special formatter to parse the milliseconds since the epoch.
@@ -38,21 +41,55 @@ import java.util.Map;
  */
 class EpochMillisDateFormatter implements DateFormatter {
 
-    public static DateFormatter INSTANCE = new EpochMillisDateFormatter();
+    private static final Pattern SPLIT_BY_DOT_PATTERN = Pattern.compile("\\.");
+    static DateFormatter INSTANCE = new EpochMillisDateFormatter();
 
-    private EpochMillisDateFormatter() {}
+    private EpochMillisDateFormatter() {
+    }
 
     @Override
     public TemporalAccessor parse(String input) {
         try {
-            return Instant.ofEpochMilli(Long.valueOf(input)).atZone(ZoneOffset.UTC);
+            if (input.contains(".")) {
+                String[] inputs = SPLIT_BY_DOT_PATTERN.split(input, 2);
+                Long milliSeconds = Long.valueOf(inputs[0]);
+                if (inputs[1].length() == 0) {
+                    // this is BWC compatible to joda time, nothing after the dot is allowed
+                    return Instant.ofEpochMilli(milliSeconds).atZone(ZoneOffset.UTC);
+                }
+                // scientific notation it is!
+                if (inputs[1].contains("e")) {
+                    return Instant.ofEpochMilli(Double.valueOf(input).longValue()).atZone(ZoneOffset.UTC);
+                }
+
+                if (inputs[1].length() > 6) {
+                    throw new DateTimeParseException("too much granularity after dot [" + input + "]", input, 0);
+                }
+                Long nanos = new BigDecimal(inputs[1]).movePointRight(6 - inputs[1].length()).longValueExact();
+                if (milliSeconds < 0) {
+                    nanos = nanos * -1;
+                }
+                return Instant.ofEpochMilli(milliSeconds).plusNanos(nanos).atZone(ZoneOffset.UTC);
+            } else {
+                return Instant.ofEpochMilli(Long.valueOf(input)).atZone(ZoneOffset.UTC);
+            }
         } catch (NumberFormatException e) {
-            throw new DateTimeParseException("invalid number", input, 0, e);
+            throw new DateTimeParseException("invalid number [" + input + "]", input, 0, e);
         }
+    }
+    @Override
+    public DateFormatter withZone(ZoneId zoneId) {
+        if (ZoneOffset.UTC.equals(zoneId) == false) {
+            throw new IllegalArgumentException(pattern() + " date formatter can only be in zone offset UTC");
+        }
+        return INSTANCE;
     }
 
     @Override
-    public DateFormatter withZone(ZoneId zoneId) {
+    public DateFormatter withLocale(Locale locale) {
+        if (Locale.ROOT.equals(locale) == false) {
+            throw new IllegalArgumentException(pattern() + " date formatter can only be in locale ROOT");
+        }
         return this;
     }
 
@@ -69,5 +106,15 @@ class EpochMillisDateFormatter implements DateFormatter {
     @Override
     public DateFormatter parseDefaulting(Map<TemporalField, Long> fields) {
         return this;
+    }
+
+    @Override
+    public Locale getLocale() {
+        return Locale.ROOT;
+    }
+
+    @Override
+    public ZoneId getZone() {
+        return ZoneOffset.UTC;
     }
 }

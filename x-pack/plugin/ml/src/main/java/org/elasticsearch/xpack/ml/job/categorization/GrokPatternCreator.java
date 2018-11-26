@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.categorization;
 
-import org.elasticsearch.common.logging.Loggers;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.grok.Grok;
 
 import java.util.ArrayList;
@@ -112,7 +112,7 @@ public final class GrokPatternCreator {
                 // We should never get here.  If we do it implies a bug in the original categorization,
                 // as it's produced a regex that doesn't match the examples.
                 assert matcher.matches() : exampleProcessor.pattern() + " did not match " + example;
-                Loggers.getLogger(GrokPatternCreator.class).error("[{}] Pattern [{}] did not match example [{}]", jobId,
+                LogManager.getLogger(GrokPatternCreator.class).error("[{}] Pattern [{}] did not match example [{}]", jobId,
                         exampleProcessor.pattern(), example);
             }
         }

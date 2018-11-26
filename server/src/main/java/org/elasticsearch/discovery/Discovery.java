@@ -43,7 +43,8 @@ public interface Discovery extends LifecycleComponent {
      * The {@link AckListener} allows to keep track of the ack received from nodes, and verify whether
      * they updated their own cluster state or not.
      *
-     * The method is guaranteed to throw a {@link FailedToCommitClusterStateException} if the change is not committed and should be rejected.
+     * The method is guaranteed to throw a {@link FailedToCommitClusterStateException} if the change is not
+     * committed and should be rejected.
      * Any other exception signals the something wrong happened but the change is committed.
      */
     void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener);

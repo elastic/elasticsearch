@@ -34,10 +34,10 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RandomApproximationQuery;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -46,6 +46,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery.FilterScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery.ScoreMode;
 import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
@@ -71,7 +72,6 @@ import java.util.concurrent.ExecutionException;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.elasticsearch.common.lucene.search.function.FunctionScoreQuery.FilterScoreFunction;
 
 public class FunctionScoreTests extends ESTestCase {
 
@@ -138,7 +138,8 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
+        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode,
+                                        XFieldComparatorSource.Nested nested, boolean reverse) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
@@ -228,7 +229,8 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
+        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode,
+                                        XFieldComparatorSource.Nested nested, boolean reverse) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
@@ -246,11 +248,14 @@ public class FunctionScoreTests extends ESTestCase {
     private static final ScoreFunction RANDOM_SCORE_FUNCTION = new RandomScoreFunction(0, 0, new IndexFieldDataStub());
     private static final ScoreFunction FIELD_VALUE_FACTOR_FUNCTION = new FieldValueFactorFunction("test", 1,
             FieldValueFactorFunction.Modifier.LN, 1.0, null);
-    private static final ScoreFunction GAUSS_DECAY_FUNCTION = new DecayFunctionBuilder.NumericFieldDataScoreFunction(0, 1, 0.1, 0,
+    private static final ScoreFunction GAUSS_DECAY_FUNCTION =
+        new DecayFunctionBuilder.NumericFieldDataScoreFunction(0, 1, 0.1, 0,
             GaussDecayFunctionBuilder.GAUSS_DECAY_FUNCTION, new IndexNumericFieldDataStub(), MultiValueMode.MAX);
-    private static final ScoreFunction EXP_DECAY_FUNCTION = new DecayFunctionBuilder.NumericFieldDataScoreFunction(0, 1, 0.1, 0,
+    private static final ScoreFunction EXP_DECAY_FUNCTION =
+        new DecayFunctionBuilder.NumericFieldDataScoreFunction(0, 1, 0.1, 0,
             ExponentialDecayFunctionBuilder.EXP_DECAY_FUNCTION, new IndexNumericFieldDataStub(), MultiValueMode.MAX);
-    private static final ScoreFunction LIN_DECAY_FUNCTION = new DecayFunctionBuilder.NumericFieldDataScoreFunction(0, 1, 0.1, 0,
+    private static final ScoreFunction LIN_DECAY_FUNCTION =
+        new DecayFunctionBuilder.NumericFieldDataScoreFunction(0, 1, 0.1, 0,
             LinearDecayFunctionBuilder.LINEAR_DECAY_FUNCTION, new IndexNumericFieldDataStub(), MultiValueMode.MAX);
     private static final ScoreFunction WEIGHT_FACTOR_FUNCTION = new WeightFactorFunction(4);
     private static final String TEXT = "The way out is through.";
@@ -319,7 +324,8 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public Explanation getFunctionScoreExplanation(IndexSearcher searcher, ScoreFunction scoreFunction) throws IOException {
-        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new TermQuery(TERM), scoreFunction, CombineFunction.AVG,0.0f, 100);
+        FunctionScoreQuery functionScoreQuery =
+            new FunctionScoreQuery(new TermQuery(TERM), scoreFunction, CombineFunction.AVG,0.0f, 100);
         Weight weight = searcher.createWeight(searcher.rewrite(functionScoreQuery), org.apache.lucene.search.ScoreMode.COMPLETE, 1f);
         Explanation explanation = weight.explain(searcher.getIndexReader().leaves().get(0), 0);
         return explanation.getDetails()[1];
@@ -370,7 +376,8 @@ public class FunctionScoreTests extends ESTestCase {
         checkFiltersFunctionScoreExplanation(functionExplanation, "random score function (seed: 0, field: test)", 0);
         assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails()[1].getDetails().length, equalTo(0));
 
-        checkFiltersFunctionScoreExplanation(functionExplanation, "field value function: ln(doc['test'].value?:1.0 * factor=1.0)", 1);
+        checkFiltersFunctionScoreExplanation(functionExplanation,
+            "field value function: ln(doc['test'].value?:1.0 * factor=1.0)", 1);
         assertThat(functionExplanation.getDetails()[0].getDetails()[1].getDetails()[1].getDetails().length, equalTo(0));
 
         checkFiltersFunctionScoreExplanation(functionExplanation, "Function for field test:", 2);
@@ -408,7 +415,8 @@ public class FunctionScoreTests extends ESTestCase {
             filterFunctions[i] = new FunctionScoreQuery.FilterScoreFunction(
                 new TermQuery(TERM), scoreFunctions[i]);
         }
-        return new FunctionScoreQuery(new TermQuery(TERM), scoreMode, filterFunctions, combineFunction,Float.MAX_VALUE * -1, Float.MAX_VALUE);
+        return new FunctionScoreQuery(new TermQuery(TERM),
+            scoreMode, filterFunctions, combineFunction,Float.MAX_VALUE * -1, Float.MAX_VALUE);
     }
 
     public void checkFiltersFunctionScoreExplanation(Explanation randomExplanation, String functionExpl, int whichFunction) {
@@ -627,15 +635,19 @@ public class FunctionScoreTests extends ESTestCase {
         float maxBoost = randomBoolean() ? Float.POSITIVE_INFINITY : randomFloat();
         ScoreFunction function = new DummyScoreFunction(combineFunction);
 
-        FunctionScoreQuery q = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, combineFunction, minScore, maxBoost);
-        FunctionScoreQuery q1 = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, combineFunction, minScore, maxBoost);
+        FunctionScoreQuery q =
+            new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, combineFunction, minScore, maxBoost);
+        FunctionScoreQuery q1 =
+            new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, combineFunction, minScore, maxBoost);
         assertEquals(q, q);
         assertEquals(q.hashCode(), q.hashCode());
         assertEquals(q, q1);
         assertEquals(q.hashCode(), q1.hashCode());
 
-        FunctionScoreQuery diffQuery = new FunctionScoreQuery(new TermQuery(new Term("foo", "baz")), function, combineFunction, minScore, maxBoost);
-        FunctionScoreQuery diffMinScore = new FunctionScoreQuery(q.getSubQuery(), function, combineFunction, minScore == null ? 1.0f : null, maxBoost);
+        FunctionScoreQuery diffQuery =
+            new FunctionScoreQuery(new TermQuery(new Term("foo", "baz")), function, combineFunction, minScore, maxBoost);
+        FunctionScoreQuery diffMinScore =
+            new FunctionScoreQuery(q.getSubQuery(), function, combineFunction, minScore == null ? 1.0f : null, maxBoost);
         ScoreFunction otherFunction = new DummyScoreFunction(combineFunction);
         FunctionScoreQuery diffFunction = new FunctionScoreQuery(q.getSubQuery(), otherFunction, combineFunction, minScore, maxBoost);
         FunctionScoreQuery diffMaxBoost = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")),
@@ -666,10 +678,12 @@ public class FunctionScoreTests extends ESTestCase {
         Float minScore = randomBoolean() ? null : 1.0f;
         Float maxBoost = randomBoolean() ? Float.POSITIVE_INFINITY : randomFloat();
 
-        FilterScoreFunction function = new FilterScoreFunction(new TermQuery(new Term("filter", "query")), scoreFunction);
+        FilterScoreFunction function =
+            new FilterScoreFunction(new TermQuery(new Term("filter", "query")), scoreFunction);
         FunctionScoreQuery q = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")),
                 function, combineFunction, minScore, maxBoost);
-        FunctionScoreQuery q1 = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, combineFunction, minScore, maxBoost);
+        FunctionScoreQuery q1 =
+            new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, combineFunction, minScore, maxBoost);
         assertEquals(q, q);
         assertEquals(q.hashCode(), q.hashCode());
         assertEquals(q, q1);
@@ -684,7 +698,8 @@ public class FunctionScoreTests extends ESTestCase {
             function, combineFunction, minScore == null ? 0.9f : null, maxBoost);
         FilterScoreFunction otherFunc = new FilterScoreFunction(new TermQuery(new Term("filter", "other_query")), scoreFunction);
         FunctionScoreQuery diffFunc = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), randomFrom(ScoreMode.values()),
-            randomBoolean() ? new ScoreFunction[] { function, otherFunc } : new ScoreFunction[] { otherFunc }, combineFunction, minScore, maxBoost);
+            randomBoolean() ? new ScoreFunction[] { function, otherFunc } :
+                new ScoreFunction[] { otherFunc }, combineFunction, minScore, maxBoost);
 
         FunctionScoreQuery[] queries = new FunctionScoreQuery[] {
             diffQuery,
@@ -709,13 +724,11 @@ public class FunctionScoreTests extends ESTestCase {
 
     public void testExplanationAndScoreEqualsEvenIfNoFunctionMatches() throws IOException {
         IndexSearcher localSearcher = newSearcher(reader);
-        ScoreMode scoreMode = randomFrom(new
-            ScoreMode[]{ScoreMode.SUM, ScoreMode.AVG, ScoreMode.FIRST, ScoreMode.MIN, ScoreMode.MAX, ScoreMode.MULTIPLY});
         CombineFunction combineFunction = randomFrom(new
             CombineFunction[]{CombineFunction.SUM, CombineFunction.AVG, CombineFunction.MIN, CombineFunction.MAX,
             CombineFunction.MULTIPLY, CombineFunction.REPLACE});
 
-        // check for document that has no macthing function
+        // check for document that has no matching function
         FunctionScoreQuery query = new FunctionScoreQuery(new TermQuery(new Term(FIELD, "out")),
             new FilterScoreFunction(new TermQuery(new Term("_uid", "2")), new WeightFactorFunction(10)),
             combineFunction, Float.NEGATIVE_INFINITY, Float.MAX_VALUE);
@@ -809,6 +822,20 @@ public class FunctionScoreTests extends ESTestCase {
             new ConstantScoreFunction(Float.NEGATIVE_INFINITY), CombineFunction.REPLACE, null, Float.POSITIVE_INFINITY);
         exc = expectThrows(ElasticsearchException.class, () -> localSearcher.search(query2, 1));
         assertThat(exc.getMessage(), containsString("function score query returned an invalid score: " + Float.NEGATIVE_INFINITY));
+    }
+
+
+    public void testExceptionOnNegativeScores() {
+        IndexSearcher localSearcher = new IndexSearcher(reader);
+        TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
+
+        // test that field_value_factor function throws an exception on negative scores
+        FieldValueFactorFunction.Modifier modifier = FieldValueFactorFunction.Modifier.NONE;
+        final ScoreFunction fvfFunction = new FieldValueFactorFunction(FIELD, -10,  modifier, 1.0, new IndexNumericFieldDataStub());
+        FunctionScoreQuery fsQuery1 =
+            new FunctionScoreQuery(termQuery, fvfFunction, CombineFunction.REPLACE, null, Float.POSITIVE_INFINITY);
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> localSearcher.search(fsQuery1, 1));
+        assertThat(exc.getMessage(), containsString("field value function must not produce negative scores"));
     }
 
     private static class DummyScoreFunction extends ScoreFunction {

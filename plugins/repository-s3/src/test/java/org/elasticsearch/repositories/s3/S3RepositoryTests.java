@@ -42,21 +42,12 @@ public class S3RepositoryTests extends ESTestCase {
     private static class DummyS3Client extends AbstractAmazonS3 {
 
         @Override
-        public boolean doesBucketExist(String bucketName) {
-            return true;
-        }
-
-        @Override
         public void shutdown() {
             // TODO check is closed
         }
     }
 
     private static class DummyS3Service extends S3Service {
-        DummyS3Service() {
-            super(Settings.EMPTY);
-        }
-
         @Override
         public AmazonS3Reference client(String clientName) {
             return new AmazonS3Reference(new DummyS3Client());

@@ -163,6 +163,8 @@
 
 ---
 "Using a script to write to an index to which you don't have access is forbidden even if you read as a superuser":
+  - skip:
+      features: headers
   - do:
       index:
         index:        source

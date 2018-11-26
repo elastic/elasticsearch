@@ -152,7 +152,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     public static void initDefaultSettings() {
         if (SECURITY_DEFAULT_SETTINGS == null) {
             SECURITY_DEFAULT_SETTINGS =
-                    new SecuritySettingsSource(defaultMaxNumberOfNodes(), randomBoolean(), createTempDir(), Scope.SUITE);
+                    new SecuritySettingsSource(randomBoolean(), createTempDir(), Scope.SUITE);
         }
     }
 
@@ -367,7 +367,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     private class CustomSecuritySettingsSource extends SecuritySettingsSource {
 
         private CustomSecuritySettingsSource(boolean sslEnabled, Path configDir, Scope scope) {
-            super(maxNumberOfNodes(), sslEnabled, configDir, scope);
+            super(sslEnabled, configDir, scope);
         }
 
         @Override

@@ -23,7 +23,7 @@ public class MaxTests extends AbstractNumericMetricTestCase<MaxAggregationBuilde
 
     @Override
     protected MaxAggregationBuilder doCreateTestAggregatorFactory() {
-        return new MaxAggregationBuilder("foo");
+        return new MaxAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
     }
 
 }

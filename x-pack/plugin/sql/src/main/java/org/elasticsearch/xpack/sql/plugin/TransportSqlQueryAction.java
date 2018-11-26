@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
@@ -20,27 +19,27 @@ import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.stats.QueryMetric;
 import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.xpack.sql.proto.Mode.JDBC;
 
 public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse> {
     private final PlanExecutor planExecutor;
     private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
-    public TransportSqlQueryAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+    public TransportSqlQueryAction(TransportService transportService, ActionFilters actionFilters,
                                    PlanExecutor planExecutor, SqlLicenseChecker sqlLicenseChecker) {
-        super(settings, SqlQueryAction.NAME, transportService, actionFilters,
-            (Writeable.Reader<SqlQueryRequest>) SqlQueryRequest::new);
+        super(SqlQueryAction.NAME, transportService, actionFilters, (Writeable.Reader<SqlQueryRequest>) SqlQueryRequest::new);
 
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
@@ -60,21 +59,34 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         // the rest having default values (since the query is already created)
         Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
                 request.filter());
+        
+        // mode() shouldn't be null
+        QueryMetric metric = QueryMetric.from(request.mode(), request.clientId());
+        planExecutor.metrics().total(metric);
 
         if (Strings.hasText(request.cursor()) == false) {
             planExecutor.sql(cfg, request.query(), request.params(),
-                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)), listener::onFailure));
+                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)),
+                            e -> {
+                                planExecutor.metrics().failed(metric);
+                                listener.onFailure(e);
+                            }));
         } else {
+            planExecutor.metrics().paging(metric);
             planExecutor.nextPage(cfg, Cursors.decodeFromString(request.cursor()),
-                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet, null)), listener::onFailure));
+                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet, null)),
+                            e -> {
+                                planExecutor.metrics().failed(metric);
+                                listener.onFailure(e);
+                            }));
         }
     }
 
     static SqlQueryResponse createResponse(SqlQueryRequest request, SchemaRowSet rowSet) {
         List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
         for (Schema.Entry entry : rowSet.schema()) {
-            if (request.mode() == JDBC) {
-                columns.add(new ColumnInfo("", entry.name(), entry.type().esType, entry.type().jdbcType,
+            if (Mode.isDriver(request.mode())) {
+                columns.add(new ColumnInfo("", entry.name(), entry.type().esType, entry.type().sqlType.getVendorTypeNumber(),
                         entry.type().displaySize));
             } else {
                 columns.add(new ColumnInfo("", entry.name(), entry.type().esType));

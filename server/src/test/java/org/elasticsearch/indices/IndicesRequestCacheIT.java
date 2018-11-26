@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.joda.time.DateTimeZone;
 
 import java.time.ZoneOffset;
@@ -49,6 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@TestLogging(value = "org.elasticsearch.indices.IndicesRequestCache:TRACE")
 public class IndicesRequestCacheIT extends ESIntegTestCase {
 
     // One of the primary purposes of the query cache is to cache aggs results
@@ -417,8 +419,8 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .getRequestCache();
         // Check the hit count and miss count together so if they are not
         // correct we can see both values
-        assertEquals(Arrays.asList(expectedHits, expectedMisses),
-                Arrays.asList(requestCacheStats.getHitCount(), requestCacheStats.getMissCount()));
+        assertEquals(Arrays.asList(expectedHits, expectedMisses, 0L),
+                Arrays.asList(requestCacheStats.getHitCount(), requestCacheStats.getMissCount(), requestCacheStats.getEvictions()));
     }
 
 }

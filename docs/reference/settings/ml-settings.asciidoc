@@ -1,15 +1,22 @@
 [role="xpack"]
 [[ml-settings]]
-=== Machine Learning Settings in Elasticsearch
+=== Machine learning settings in Elasticsearch
 ++++
-<titleabbrev>Machine Learning Settings</titleabbrev>
+<titleabbrev>Machine learning settings</titleabbrev>
 ++++
 
 You do not need to configure any settings to use {ml}. It is enabled by default.
 
+All of these settings can be added to the `elasticsearch.yml` configuration file. 
+The dynamic settings can also be updated across a cluster with the 
+<<cluster-update-settings,cluster update settings API>>.
+
+TIP: Dynamic settings take precedence over settings in the `elasticsearch.yml` 
+file.
+
 [float]
 [[general-ml-settings]]
-==== General Machine Learning Settings
+==== General machine learning settings
 
 `node.ml`::
 Set to `true` (default) to identify the node as a _machine learning node_. +
@@ -37,12 +44,6 @@ IMPORTANT: If you want to use {ml} features in your cluster, you must have
 `xpack.ml.enabled` set to `true` on all master-eligible nodes. This is the
 default behavior.
 
-`xpack.ml.max_open_jobs`::
-The maximum number of jobs that can run on a node. Defaults to `20`.
-The maximum number of jobs is also constrained by memory usage, so fewer
-jobs than specified by this setting will run on a node if the estimated
-memory use of the jobs would be higher than allowed.
-
 `xpack.ml.max_machine_memory_percent`::
 The maximum percentage of the machine's memory that {ml} may use for running
 analytics processes. (These processes are separate to the {es} JVM.) Defaults to
@@ -57,8 +58,40 @@ that is greater than this setting value, an error occurs. Existing jobs are not
 affected when you update this setting. For more information about the
 `model_memory_limit` property, see <<ml-apilimits>>.
 
+`xpack.ml.max_open_jobs`::
+The maximum number of jobs that can run on a node. Defaults to `20`.
+The maximum number of jobs is also constrained by memory usage, so fewer
+jobs than specified by this setting will run on a node if the estimated
+memory use of the jobs would be higher than allowed.
+
 `xpack.ml.node_concurrent_job_allocations`::
 The maximum number of jobs that can concurrently be in the `opening` state on
 each node. Typically, jobs spend a small amount of time in this state before
 they move to `open` state. Jobs that must restore large models when they are
 opening spend more time in the `opening` state. Defaults to `2`.
+
+[float]
+[[advanced-ml-settings]]
+==== Advanced machine learning settings
+
+These settings are for advanced use cases; the default values are generally 
+sufficient:
+
+`xpack.ml.max_anomaly_records` (<<cluster-update-settings,Dynamic>>)::
+The maximum number of records that are output per bucket. The default value is 
+`500`.
+
+`xpack.ml.max_lazy_ml_nodes` (<<cluster-update-settings,Dynamic>>)::
+The number of lazily spun up Machine Learning nodes. Useful in situations
+where ML nodes are not desired until the first Machine Learning Job
+is opened. It defaults to `0` and has a maximum acceptable value of `3`.
+If the current number of ML nodes is `>=` than this setting, then it is
+assumed that there are no more lazy nodes available as the desired number
+of nodes have already been provisioned. When a job is opened with this
+setting set at `>0` and there are no nodes that can accept the job, then
+the job will stay in the `OPENING` state until a new ML node is added to the
+cluster and the job is assigned to run on that node.
++
+IMPORTANT: This setting assumes some external process is capable of adding ML nodes
+to the cluster. This setting is only useful when used in conjunction with
+such an external process.

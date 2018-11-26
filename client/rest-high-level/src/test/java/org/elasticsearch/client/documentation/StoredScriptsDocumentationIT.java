@@ -66,6 +66,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase {
 
+    @SuppressWarnings("unused")
     public void testGetStoredScript() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -128,6 +129,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
 
     }
 
+    @SuppressWarnings("unused")
     public void testDeleteStoredScript() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -305,7 +307,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
 
     private void putStoredScript(String id, StoredScriptSource scriptSource) throws IOException {
         PutStoredScriptRequest request =
-            new PutStoredScriptRequest(id, "search", new BytesArray("{}"), XContentType.JSON, scriptSource);
+            new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
     }
 }

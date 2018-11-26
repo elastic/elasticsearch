@@ -1,22 +1,27 @@
-[[java-rest-high-x-pack-ml-put-datafeed]]
+--
+:api: put-datafeed
+:request: PutDatafeedRequest
+:response: PutDatafeedResponse
+--
+[id="{upid}-{api}"]
 === Put Datafeed API
 
 The Put Datafeed API can be used to create a new {ml} datafeed
-in the cluster. The API accepts a `PutDatafeedRequest` object
-as a request and returns a `PutDatafeedResponse`.
+in the cluster. The API accepts a +{request}+ object
+as a request and returns a +{response}+.
 
-[[java-rest-high-x-pack-ml-put-datafeed-request]]
+[id="{upid}-{api}-request"]
 ==== Put Datafeed Request
 
-A `PutDatafeedRequest` requires the following argument:
+A +{request}+ requires the following argument:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-datafeed-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The configuration of the {ml} datafeed to create
 
-[[java-rest-high-x-pack-ml-put-datafeed-config]]
+[id="{upid}-{api}-config"]
 ==== Datafeed Configuration
 
 The `DatafeedConfig` object contains all the details about the {ml} datafeed
@@ -26,7 +31,7 @@ A `DatafeedConfig` requires the following arguments:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-create-datafeed-config]
+include-tagged::{doc-tests-file}[{api}-config]
 --------------------------------------------------
 <1> The datafeed ID and the job ID
 <2> The indices that contain the data to retrieve and feed into the job
@@ -36,89 +41,64 @@ The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-create-datafeed-config-set-chunking-config]
+include-tagged::{doc-tests-file}[{api}-config-set-chunking-config]
 --------------------------------------------------
 <1> Specifies how data searches are split into time chunks.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-create-datafeed-config-set-frequency]
+include-tagged::{doc-tests-file}[{api}-config-set-frequency]
 --------------------------------------------------
 <1> The interval at which scheduled queries are made while the datafeed runs in real time.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-create-datafeed-config-set-query]
+include-tagged::{doc-tests-file}[{api}-config-set-query]
 --------------------------------------------------
 <1> A query to filter the search results by. Defaults to the `match_all` query.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-create-datafeed-config-set-query-delay]
+include-tagged::{doc-tests-file}[{api}-config-set-query-delay]
 --------------------------------------------------
 <1> The time interval behind real time that data is queried.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-create-datafeed-config-set-script-fields]
+include-tagged::{doc-tests-file}[{api}-config-set-delayed-data-check-config]
+--------------------------------------------------
+<1> Sets the delayed data check configuration.
+The window must be larger than the Job's bucket size, but smaller than 24 hours,
+and span less than 10,000 buckets.
+Defaults to `null`, which causes an appropriate window span to be calculated when
+the datafeed runs.
+The default `check_window` span calculation is the max between `2h` or `8 * bucket_span`.
+To explicitly disable, pass `DelayedDataCheckConfig.disabledDelayedDataCheckConfig()`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-script-fields]
 --------------------------------------------------
 <1> Allows the use of script fields.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-create-datafeed-config-set-scroll-size]
+include-tagged::{doc-tests-file}[{api}-config-set-scroll-size]
 --------------------------------------------------
 <1> The `size` parameter used in the searches.
 
-[[java-rest-high-x-pack-ml-put-datafeed-execution]]
-==== Execution
+include::../execution.asciidoc[]
 
-The Put Datafeed API can be executed through a `MachineLearningClient`
-instance. Such an instance can be retrieved from a `RestHighLevelClient`
-using the `machineLearning()` method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-datafeed-execute]
---------------------------------------------------
-
-[[java-rest-high-x-pack-ml-put-datafeed-response]]
+[id="{upid}-{api}-response"]
 ==== Response
 
-The returned `PutDatafeedResponse` returns the full representation of
+The returned +{response}+ returns the full representation of
 the new {ml} datafeed if it has been successfully created. This will
 contain the creation time and other fields initialized using
 default values:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-datafeed-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> The created datafeed
-
-[[java-rest-high-x-pack-ml-put-datafeed-async]]
-==== Asynchronous Execution
-
-This request can be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-datafeed-execute-async]
---------------------------------------------------
-<1> The `PutDatafeedRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `PutDatafeedResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-datafeed-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument

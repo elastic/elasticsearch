@@ -737,9 +737,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         private final Script script;
         private final Map<String, Object> params;
 
-        private UpdateScript executable;
-        private Map<String, Object> context;
-
         public ScriptApplier(WorkerBulkByScrollTaskState taskWorker,
                              ScriptService scriptService,
                              Script script,
@@ -756,16 +753,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             if (script == null) {
                 return request;
             }
-            if (executable == null) {
-                UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
-                executable = factory.newInstance(params);
-            }
-            if (context == null) {
-                context = new HashMap<>();
-            } else {
-                context.clear();
-            }
 
+            Map<String, Object> context = new HashMap<>();
             context.put(IndexFieldMapper.NAME, doc.getIndex());
             context.put(TypeFieldMapper.NAME, doc.getType());
             context.put(IdFieldMapper.NAME, doc.getId());
@@ -778,7 +767,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             OpType oldOpType = OpType.INDEX;
             context.put("op", oldOpType.toString());
 
-            executable.execute(context);
+            UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
+            UpdateScript updateScript = factory.newInstance(params, context);
+            updateScript.execute();
 
             String newOp = (String) context.remove("op");
             if (newOp == null) {

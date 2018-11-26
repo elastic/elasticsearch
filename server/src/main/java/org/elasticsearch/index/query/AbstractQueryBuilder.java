@@ -159,6 +159,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     @SuppressWarnings("unchecked")
     @Override
     public final QB boost(float boost) {
+        if (Float.compare(boost, 0f) < 0) {
+            throw new IllegalArgumentException("negative [boost] are not allowed in [" + toString() + "], " +
+                "use a value between 0 and 1 to deboost");
+        }
         this.boost = boost;
         return (QB) this;
     }

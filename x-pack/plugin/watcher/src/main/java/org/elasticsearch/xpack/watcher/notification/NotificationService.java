@@ -28,15 +28,14 @@ public abstract class NotificationService<Account> extends AbstractComponent {
     private Map<String, Account> accounts;
     private Account defaultAccount;
 
-    public NotificationService(Settings settings, String type,
+    public NotificationService(String type,
                                ClusterSettings clusterSettings, List<Setting<?>> pluginSettings) {
-        this(settings, type);
+        this(type);
         clusterSettings.addSettingsUpdateConsumer(this::reload, pluginSettings);
     }
 
     // Used for testing only
-    NotificationService(Settings settings, String type) {
-        super(settings);
+    NotificationService(String type) {
         this.type = type;
     }
 

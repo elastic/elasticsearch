@@ -11,6 +11,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -35,7 +36,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     public static final Set<String> HEADER_FILTERS =
         Collections.unmodifiableSet(new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication")));
 
-    static final ParseField LEADER_CLUSTER_ALIAS_FIELD = new ParseField("leader_cluster_alias");
+    static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
     static final ParseField FOLLOW_SHARD_INDEX_FIELD = new ParseField("follow_shard_index");
     static final ParseField FOLLOW_SHARD_INDEX_UUID_FIELD = new ParseField("follow_shard_index_uuid");
     static final ParseField FOLLOW_SHARD_SHARDID_FIELD = new ParseField("follow_shard_shard");
@@ -43,101 +44,126 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     static final ParseField LEADER_SHARD_INDEX_UUID_FIELD = new ParseField("leader_shard_index_uuid");
     static final ParseField LEADER_SHARD_SHARDID_FIELD = new ParseField("leader_shard_shard");
     static final ParseField HEADERS = new ParseField("headers");
-    public static final ParseField MAX_BATCH_OPERATION_COUNT = new ParseField("max_batch_operation_count");
-    public static final ParseField MAX_CONCURRENT_READ_BATCHES = new ParseField("max_concurrent_read_batches");
-    public static final ParseField MAX_BATCH_SIZE_IN_BYTES = new ParseField("max_batch_size_in_bytes");
-    public static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
+    public static final ParseField MAX_READ_REQUEST_OPERATION_COUNT = new ParseField("max_read_request_operation_count");
+    public static final ParseField MAX_READ_REQUEST_SIZE = new ParseField("max_read_request_size");
+    public static final ParseField MAX_OUTSTANDING_READ_REQUESTS = new ParseField("max_outstanding_read_requests");
+    public static final ParseField MAX_WRITE_REQUEST_OPERATION_COUNT = new ParseField("max_write_request_operation_count");
+    public static final ParseField MAX_WRITE_REQUEST_SIZE = new ParseField("max_write_request_size");
+    public static final ParseField MAX_OUTSTANDING_WRITE_REQUESTS = new ParseField("max_outstanding_write_requests");
+    public static final ParseField MAX_WRITE_BUFFER_COUNT = new ParseField("max_write_buffer_count");
     public static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
     public static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
-    public static final ParseField POLL_TIMEOUT = new ParseField("poll_timeout");
-    public static final ParseField RECORDED_HISTORY_UUID = new ParseField("recorded_history_uuid");
+    public static final ParseField READ_POLL_TIMEOUT = new ParseField("read_poll_timeout");
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<ShardFollowTask, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            (a) -> new ShardFollowTask((String) a[0], new ShardId((String) a[1], (String) a[2], (int) a[3]),
-                    new ShardId((String) a[4], (String) a[5], (int) a[6]), (int) a[7], (int) a[8], (long) a[9],
-                (int) a[10], (int) a[11], (TimeValue) a[12], (TimeValue) a[13], (String) a[14], (Map<String, String>) a[15]));
+            (a) -> new ShardFollowTask((String) a[0],
+                new ShardId((String) a[1], (String) a[2], (int) a[3]), new ShardId((String) a[4], (String) a[5], (int) a[6]),
+                (int) a[7], (ByteSizeValue) a[8], (int) a[9], (int) a[10], (ByteSizeValue) a[11], (int) a[12],
+                (int) a[13], (ByteSizeValue) a[14], (TimeValue) a[15], (TimeValue) a[16], (Map<String, String>) a[17]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), LEADER_CLUSTER_ALIAS_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REMOTE_CLUSTER_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FOLLOW_SHARD_INDEX_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FOLLOW_SHARD_INDEX_UUID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), FOLLOW_SHARD_SHARDID_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_SHARD_INDEX_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_SHARD_INDEX_UUID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), LEADER_SHARD_SHARDID_FIELD);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_BATCH_OPERATION_COUNT);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_CONCURRENT_READ_BATCHES);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAX_BATCH_SIZE_IN_BYTES);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_CONCURRENT_WRITE_BATCHES);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_WRITE_BUFFER_SIZE);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_READ_REQUEST_OPERATION_COUNT);
+        PARSER.declareField(
+                ConstructingObjectParser.constructorArg(),
+                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_READ_REQUEST_SIZE.getPreferredName()),
+                MAX_READ_REQUEST_SIZE,
+                ObjectParser.ValueType.STRING);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_OUTSTANDING_READ_REQUESTS);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_WRITE_REQUEST_OPERATION_COUNT);
+        PARSER.declareField(
+                ConstructingObjectParser.constructorArg(),
+                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_REQUEST_SIZE.getPreferredName()),
+                MAX_WRITE_REQUEST_SIZE,
+                ObjectParser.ValueType.STRING);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_OUTSTANDING_WRITE_REQUESTS);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_WRITE_BUFFER_COUNT);
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_BUFFER_SIZE.getPreferredName()),
+            MAX_WRITE_BUFFER_SIZE,
+            ObjectParser.ValueType.STRING);
         PARSER.declareField(ConstructingObjectParser.constructorArg(),
             (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY.getPreferredName()),
             MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
         PARSER.declareField(ConstructingObjectParser.constructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), POLL_TIMEOUT.getPreferredName()),
-                POLL_TIMEOUT, ObjectParser.ValueType.STRING);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), RECORDED_HISTORY_UUID);
+            (p, c) -> TimeValue.parseTimeValue(p.text(), READ_POLL_TIMEOUT.getPreferredName()),
+            READ_POLL_TIMEOUT, ObjectParser.ValueType.STRING);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HEADERS);
     }
 
-    private final String leaderClusterAlias;
+    private final String remoteCluster;
     private final ShardId followShardId;
     private final ShardId leaderShardId;
-    private final int maxBatchOperationCount;
-    private final int maxConcurrentReadBatches;
-    private final long maxBatchSizeInBytes;
-    private final int maxConcurrentWriteBatches;
-    private final int maxWriteBufferSize;
+    private final int maxReadRequestOperationCount;
+    private final ByteSizeValue maxReadRequestSize;
+    private final int maxOutstandingReadRequests;
+    private final int maxWriteRequestOperationCount;
+    private final ByteSizeValue maxWriteRequestSize;
+    private final int maxOutstandingWriteRequests;
+    private final int maxWriteBufferCount;
+    private final ByteSizeValue maxWriteBufferSize;
     private final TimeValue maxRetryDelay;
-    private final TimeValue pollTimeout;
-    private final String recordedLeaderIndexHistoryUUID;
+    private final TimeValue readPollTimeout;
     private final Map<String, String> headers;
 
     ShardFollowTask(
-            final String leaderClusterAlias,
+            final String remoteCluster,
             final ShardId followShardId,
             final ShardId leaderShardId,
-            final int maxBatchOperationCount,
-            final int maxConcurrentReadBatches,
-            final long maxBatchSizeInBytes,
-            final int maxConcurrentWriteBatches,
-            final int maxWriteBufferSize,
+            final int maxReadRequestOperationCount,
+            final ByteSizeValue maxReadRequestSize,
+            final int maxOutstandingReadRequests,
+            final int maxWriteRequestOperationCount,
+            final ByteSizeValue maxWriteRequestSize,
+            final int maxOutstandingWriteRequests,
+            final int maxWriteBufferCount,
+            final ByteSizeValue maxWriteBufferSize,
             final TimeValue maxRetryDelay,
-            final TimeValue pollTimeout,
-            final String recordedLeaderIndexHistoryUUID,
+            final TimeValue readPollTimeout,
             final Map<String, String> headers) {
-        this.leaderClusterAlias = leaderClusterAlias;
+        this.remoteCluster = remoteCluster;
         this.followShardId = followShardId;
         this.leaderShardId = leaderShardId;
-        this.maxBatchOperationCount = maxBatchOperationCount;
-        this.maxConcurrentReadBatches = maxConcurrentReadBatches;
-        this.maxBatchSizeInBytes = maxBatchSizeInBytes;
-        this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
+        this.maxReadRequestOperationCount = maxReadRequestOperationCount;
+        this.maxReadRequestSize = maxReadRequestSize;
+        this.maxOutstandingReadRequests = maxOutstandingReadRequests;
+        this.maxWriteRequestOperationCount = maxWriteRequestOperationCount;
+        this.maxWriteRequestSize = maxWriteRequestSize;
+        this.maxOutstandingWriteRequests = maxOutstandingWriteRequests;
+        this.maxWriteBufferCount = maxWriteBufferCount;
         this.maxWriteBufferSize = maxWriteBufferSize;
         this.maxRetryDelay = maxRetryDelay;
-        this.pollTimeout = pollTimeout;
-        this.recordedLeaderIndexHistoryUUID = recordedLeaderIndexHistoryUUID;
+        this.readPollTimeout = readPollTimeout;
         this.headers = headers != null ? Collections.unmodifiableMap(headers) : Collections.emptyMap();
     }
 
     public ShardFollowTask(StreamInput in) throws IOException {
-        this.leaderClusterAlias = in.readOptionalString();
+        this.remoteCluster = in.readString();
         this.followShardId = ShardId.readShardId(in);
         this.leaderShardId = ShardId.readShardId(in);
-        this.maxBatchOperationCount = in.readVInt();
-        this.maxConcurrentReadBatches = in.readVInt();
-        this.maxBatchSizeInBytes = in.readVLong();
-        this.maxConcurrentWriteBatches = in.readVInt();
-        this.maxWriteBufferSize = in.readVInt();
+        this.maxReadRequestOperationCount = in.readVInt();
+        this.maxReadRequestSize = new ByteSizeValue(in);
+        this.maxOutstandingReadRequests = in.readVInt();
+        this.maxWriteRequestOperationCount = in.readVInt();
+        this.maxWriteRequestSize = new ByteSizeValue(in);
+        this.maxOutstandingWriteRequests = in.readVInt();
+        this.maxWriteBufferCount = in.readVInt();
+        this.maxWriteBufferSize = new ByteSizeValue(in);
         this.maxRetryDelay = in.readTimeValue();
-        this.pollTimeout = in.readTimeValue();
-        this.recordedLeaderIndexHistoryUUID = in.readString();
+        this.readPollTimeout = in.readTimeValue();
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
     }
 
-    public String getLeaderClusterAlias() {
-        return leaderClusterAlias;
+    public String getRemoteCluster() {
+        return remoteCluster;
     }
 
     public ShardId getFollowShardId() {
@@ -148,40 +174,48 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         return leaderShardId;
     }
 
-    public int getMaxBatchOperationCount() {
-        return maxBatchOperationCount;
+    public int getMaxReadRequestOperationCount() {
+        return maxReadRequestOperationCount;
     }
 
-    public int getMaxConcurrentReadBatches() {
-        return maxConcurrentReadBatches;
+    public int getMaxOutstandingReadRequests() {
+        return maxOutstandingReadRequests;
     }
 
-    public int getMaxConcurrentWriteBatches() {
-        return maxConcurrentWriteBatches;
+    public int getMaxWriteRequestOperationCount() {
+        return maxWriteRequestOperationCount;
     }
 
-    public int getMaxWriteBufferSize() {
+    public ByteSizeValue getMaxWriteRequestSize() {
+        return maxWriteRequestSize;
+    }
+
+    public int getMaxOutstandingWriteRequests() {
+        return maxOutstandingWriteRequests;
+    }
+
+    public int getMaxWriteBufferCount() {
+        return maxWriteBufferCount;
+    }
+
+    public ByteSizeValue getMaxWriteBufferSize() {
         return maxWriteBufferSize;
     }
 
-    public long getMaxBatchSizeInBytes() {
-        return maxBatchSizeInBytes;
+    public ByteSizeValue getMaxReadRequestSize() {
+        return maxReadRequestSize;
     }
 
     public TimeValue getMaxRetryDelay() {
         return maxRetryDelay;
     }
 
-    public TimeValue getPollTimeout() {
-        return pollTimeout;
+    public TimeValue getReadPollTimeout() {
+        return readPollTimeout;
     }
 
     public String getTaskId() {
         return followShardId.getIndex().getUUID() + "-" + followShardId.getId();
-    }
-
-    public String getRecordedLeaderIndexHistoryUUID() {
-        return recordedLeaderIndexHistoryUUID;
     }
 
     public Map<String, String> getHeaders() {
@@ -195,17 +229,19 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(leaderClusterAlias);
+        out.writeString(remoteCluster);
         followShardId.writeTo(out);
         leaderShardId.writeTo(out);
-        out.writeVLong(maxBatchOperationCount);
-        out.writeVInt(maxConcurrentReadBatches);
-        out.writeVLong(maxBatchSizeInBytes);
-        out.writeVInt(maxConcurrentWriteBatches);
-        out.writeVInt(maxWriteBufferSize);
+        out.writeVLong(maxReadRequestOperationCount);
+        maxReadRequestSize.writeTo(out);
+        out.writeVInt(maxOutstandingReadRequests);
+        out.writeVLong(maxWriteRequestOperationCount);
+        maxWriteRequestSize.writeTo(out);
+        out.writeVInt(maxOutstandingWriteRequests);
+        out.writeVInt(maxWriteBufferCount);
+        maxWriteBufferSize.writeTo(out);
         out.writeTimeValue(maxRetryDelay);
-        out.writeTimeValue(pollTimeout);
-        out.writeString(recordedLeaderIndexHistoryUUID);
+        out.writeTimeValue(readPollTimeout);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 
@@ -216,23 +252,23 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (leaderClusterAlias != null) {
-            builder.field(LEADER_CLUSTER_ALIAS_FIELD.getPreferredName(), leaderClusterAlias);
-        }
+        builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
         builder.field(FOLLOW_SHARD_INDEX_FIELD.getPreferredName(), followShardId.getIndex().getName());
         builder.field(FOLLOW_SHARD_INDEX_UUID_FIELD.getPreferredName(), followShardId.getIndex().getUUID());
         builder.field(FOLLOW_SHARD_SHARDID_FIELD.getPreferredName(), followShardId.id());
         builder.field(LEADER_SHARD_INDEX_FIELD.getPreferredName(), leaderShardId.getIndex().getName());
         builder.field(LEADER_SHARD_INDEX_UUID_FIELD.getPreferredName(), leaderShardId.getIndex().getUUID());
         builder.field(LEADER_SHARD_SHARDID_FIELD.getPreferredName(), leaderShardId.id());
-        builder.field(MAX_BATCH_OPERATION_COUNT.getPreferredName(), maxBatchOperationCount);
-        builder.field(MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
-        builder.field(MAX_BATCH_SIZE_IN_BYTES.getPreferredName(), maxBatchSizeInBytes);
-        builder.field(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
-        builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
+        builder.field(MAX_READ_REQUEST_OPERATION_COUNT.getPreferredName(), maxReadRequestOperationCount);
+        builder.field(MAX_READ_REQUEST_SIZE.getPreferredName(), maxReadRequestSize.getStringRep());
+        builder.field(MAX_OUTSTANDING_READ_REQUESTS.getPreferredName(), maxOutstandingReadRequests);
+        builder.field(MAX_WRITE_REQUEST_OPERATION_COUNT.getPreferredName(), maxWriteRequestOperationCount);
+        builder.field(MAX_WRITE_REQUEST_SIZE.getPreferredName(), maxWriteRequestSize.getStringRep());
+        builder.field(MAX_OUTSTANDING_WRITE_REQUESTS.getPreferredName(), maxOutstandingWriteRequests);
+        builder.field(MAX_WRITE_BUFFER_COUNT.getPreferredName(), maxWriteBufferCount);
+        builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize.getStringRep());
         builder.field(MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
-        builder.field(POLL_TIMEOUT.getPreferredName(), pollTimeout.getStringRep());
-        builder.field(RECORDED_HISTORY_UUID.getPreferredName(), recordedLeaderIndexHistoryUUID);
+        builder.field(READ_POLL_TIMEOUT.getPreferredName(), readPollTimeout.getStringRep());
         builder.field(HEADERS.getPreferredName(), headers);
         return builder.endObject();
     }
@@ -242,35 +278,39 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ShardFollowTask that = (ShardFollowTask) o;
-        return Objects.equals(leaderClusterAlias, that.leaderClusterAlias) &&
+        return Objects.equals(remoteCluster, that.remoteCluster) &&
                 Objects.equals(followShardId, that.followShardId) &&
                 Objects.equals(leaderShardId, that.leaderShardId) &&
-                maxBatchOperationCount == that.maxBatchOperationCount &&
-                maxConcurrentReadBatches == that.maxConcurrentReadBatches &&
-                maxConcurrentWriteBatches == that.maxConcurrentWriteBatches &&
-                maxBatchSizeInBytes == that.maxBatchSizeInBytes &&
-                maxWriteBufferSize == that.maxWriteBufferSize &&
+                maxReadRequestOperationCount == that.maxReadRequestOperationCount &&
+                maxReadRequestSize.equals(that.maxReadRequestSize) &&
+                maxOutstandingReadRequests == that.maxOutstandingReadRequests &&
+                maxWriteRequestOperationCount == that.maxWriteRequestOperationCount &&
+                maxWriteRequestSize.equals(that.maxWriteRequestSize) &&
+                maxOutstandingWriteRequests == that.maxOutstandingWriteRequests &&
+                maxWriteBufferCount == that.maxWriteBufferCount &&
+                maxWriteBufferSize.equals(that.maxWriteBufferSize) &&
                 Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
-                Objects.equals(pollTimeout, that.pollTimeout) &&
-                Objects.equals(recordedLeaderIndexHistoryUUID, that.recordedLeaderIndexHistoryUUID) &&
+                Objects.equals(readPollTimeout, that.readPollTimeout) &&
                 Objects.equals(headers, that.headers);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-            leaderClusterAlias,
-            followShardId,
-            leaderShardId,
-            maxBatchOperationCount,
-            maxConcurrentReadBatches,
-            maxConcurrentWriteBatches,
-            maxBatchSizeInBytes,
-            maxWriteBufferSize,
-            maxRetryDelay,
-            pollTimeout,
-            recordedLeaderIndexHistoryUUID,
-            headers
+                remoteCluster,
+                followShardId,
+                leaderShardId,
+                maxReadRequestOperationCount,
+                maxReadRequestSize,
+                maxOutstandingReadRequests,
+                maxWriteRequestOperationCount,
+                maxWriteRequestSize,
+                maxOutstandingWriteRequests,
+                maxWriteBufferCount,
+                maxWriteBufferSize,
+                maxRetryDelay,
+                readPollTimeout,
+                headers
         );
     }
 
@@ -280,6 +320,6 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_6_4_0;
+        return Version.V_6_5_0;
     }
 }

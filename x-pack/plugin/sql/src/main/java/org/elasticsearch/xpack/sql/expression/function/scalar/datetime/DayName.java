@@ -16,10 +16,9 @@ import java.util.TimeZone;
  * Extract the day of the week from a datetime in text format (Monday, Tuesday etc.)
  */
 public class DayName extends NamedDateTimeFunction {
-    protected static final String DAY_NAME_FORMAT = "EEEE";
     
     public DayName(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+        super(location, field, timeZone, NameExtractor.DAY_NAME);
     }
 
     @Override
@@ -30,20 +29,5 @@ public class DayName extends NamedDateTimeFunction {
     @Override
     protected DayName replaceChild(Expression newChild) {
         return new DayName(location(), newChild, timeZone());
-    }
-
-    @Override
-    protected String dateTimeFormat() {
-        return DAY_NAME_FORMAT;
-    }
-
-    @Override
-    protected NameExtractor nameExtractor() {
-        return NameExtractor.DAY_NAME;
-    }
-
-    @Override
-    public String extractName(long millis, String tzId) {
-        return nameExtractor().extract(millis, tzId);
     }
 }

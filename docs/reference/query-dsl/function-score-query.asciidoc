@@ -153,6 +153,9 @@ GET /_search
 // CONSOLE
 // TEST[setup:twitter]
 
+NOTE: Scores produced by the `script_score` function must be non-negative,
+otherwise an error will be thrown.
+
 On top of the different scripting field values and expression, the
 `_score` script parameter can be used to retrieve the score based on the
 wrapped query.
@@ -208,10 +211,10 @@ not. The number value is of type float.
 [[function-random]]
 ==== Random
 
-The `random_score` generates scores that are uniformly distributed in [0, 1[.
-By default, it uses the internal Lucene doc ids as a source of randomness,
-which is very efficient but unfortunately not reproducible since documents might
-be renumbered by merges.
+The `random_score` generates scores that are uniformly distributed from 0 up to
+but not including 1. By default, it uses the internal Lucene doc ids as a
+source of randomness, which is very efficient but unfortunately not
+reproducible since documents might be renumbered by merges.
 
 In case you want scores to be reproducible, it is possible to provide a `seed`
 and `field`. The final score will then be computed based on this seed, the
@@ -323,6 +326,9 @@ There are a number of options for the `field_value_factor` function:
  is an illegal operation, and an exception will be thrown. Be sure to limit the
  values of the field with a range filter to avoid this, or use `log1p` and
  `ln1p`.
+
+ NOTE: Scores produced by the `field_value_score` function must be non-negative,
+ otherwise an error will be thrown.
 
 [[function-decay]]
 ==== Decay functions

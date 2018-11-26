@@ -102,8 +102,8 @@ public class RelocationIT extends ESIntegTestCase {
     @Override
     protected void beforeIndexDeletion() throws Exception {
         super.beforeIndexDeletion();
-        assertSeqNos();
-        assertSameDocIdsOnShards();
+        internalCluster().assertSeqNos();
+        internalCluster().assertSameDocIdsOnShards();
     }
 
     public void testSimpleRelocationNoIndexing() {

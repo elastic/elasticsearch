@@ -25,7 +25,7 @@ public class ValueCountTests extends BaseAggregationTestCase<ValueCountAggregati
 
     @Override
     protected final ValueCountAggregationBuilder createTestAggregatorBuilder() {
-        ValueCountAggregationBuilder factory = new ValueCountAggregationBuilder("foo", null);
+        ValueCountAggregationBuilder factory = new ValueCountAggregationBuilder(randomAlphaOfLengthBetween(3, 10), null);
         String field = randomNumericField();
         randomFieldOrScript(factory, field);
         if (randomBoolean()) {

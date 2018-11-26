@@ -445,7 +445,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         client().prepareDelete("test", "type", "1").get(); // sets version to 4
         Thread.sleep(300); // wait for cache time to change TODO: this needs to be solved better. To be discussed.
         // delete is should not be in cache
-        assertThrows(client().prepareIndex("test", "type", "1").setSource("f", 3).setVersion(4), VersionConflictEngineException.class);
+        assertThrows(client().prepareIndex("test", "type", "1").setSource("f", 3)
+            .setVersion(4), VersionConflictEngineException.class);
 
     }
 
@@ -473,6 +474,156 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 disableIndexBlock("test", blockSetting);
             }
         }
+    }
+
+    public void testSettingsVersion() {
+        createIndex("test");
+        ensureGreen("test");
+
+        {
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.refresh_interval", "500ms"))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
+        }
+
+        {
+            final boolean block = randomBoolean();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block))
+                    .get());
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block == false))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
+
+            // if the read-only block is present, remove it
+            if (block == false) {
+                assertAcked(client()
+                        .admin()
+                        .indices()
+                        .prepareUpdateSettings("test")
+                        .setSettings(Settings.builder().put("index.blocks.read_only", false))
+                        .get());
+            }
+        }
+    }
+
+    public void testSettingsVersionUnchanged() {
+        createIndex("test");
+        ensureGreen("test");
+
+        {
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            final String refreshInterval =
+                    client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.refresh_interval");
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.refresh_interval", refreshInterval))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(settingsVersion));
+        }
+
+        {
+            final boolean block = randomBoolean();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block))
+                    .get());
+            // now put the same block again
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(settingsVersion));
+
+            // if the read-only block is present, remove it
+            if (block) {
+                assertAcked(client()
+                        .admin()
+                        .indices()
+                        .prepareUpdateSettings("test")
+                        .setSettings(Settings.builder().put("index.blocks.read_only", false))
+                        .get());
+            }
+        }
+    }
+
+    /**
+     * The setting {@link IndexMetaData#SETTING_NUMBER_OF_REPLICAS} is special due to handling in
+     * {@link IndexMetaData.Builder#numberOfReplicas(int)}. Therefore we have a dedicated test that this setting is handled properly with
+     * respect to settings version when applying a settings change that does not change the number of replicas.
+     */
+    public void testNumberOfReplicasSettingsVersionUnchanged() {
+        createIndex("test");
+
+        final long settingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        final int numberOfReplicas = Integer.valueOf(
+                client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas"));
+        assertAcked(client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.number_of_replicas", numberOfReplicas))
+                .get());
+        final long newSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(newSettingsVersion, equalTo(settingsVersion));
+    }
+
+    /**
+     * The setting {@link IndexMetaData#SETTING_NUMBER_OF_REPLICAS} is special due to handling in
+     * {@link IndexMetaData.Builder#numberOfReplicas(int)}. Therefore we have a dedicated test that this setting is handled properly with
+     * respect to settings version when changing the number of replicas.
+     */
+    public void testNumberOfReplicasSettingsVersion() {
+        createIndex("test");
+
+        final long settingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        final int numberOfReplicas =
+                Integer.valueOf(
+                        client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas"));
+        assertAcked(client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.number_of_replicas", 1 + numberOfReplicas))
+                .get());
+        final long newSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
     }
 
 }

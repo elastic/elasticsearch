@@ -226,7 +226,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
-            auditTrail, new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings));
+            auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings));
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
@@ -240,22 +240,23 @@ public class AuthorizationServiceTests extends ESTestCase {
         future.actionGet();
     }
 
-    public void testActionsSystemUserIsAuthorized() {
-        TransportRequest request = mock(TransportRequest.class);
+    public void testActionsForSystemUserIsAuthorized() {
+        final TransportRequest request = mock(TransportRequest.class);
 
         // A failure would throw an exception
-        Authentication authentication = createAuthentication(SystemUser.INSTANCE);
-        authorize(authentication, "indices:monitor/whatever", request);
-        verify(auditTrail).accessGranted(authentication, "indices:monitor/whatever", request,
-            new String[]{SystemUser.ROLE_NAME});
+        final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
+        final String[] actions = { "indices:monitor/whatever", "internal:whatever", "cluster:monitor/whatever", "cluster:admin/reroute",
+                "indices:admin/mapping/put", "indices:admin/template/put", "indices:admin/seq_no/global_checkpoint_sync",
+                "indices:admin/settings/update" };
+        for (String action : actions) {
+            authorize(authentication, action, request);
+            verify(auditTrail).accessGranted(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
+        }
 
-        authentication = createAuthentication(SystemUser.INSTANCE);
-        authorize(authentication, "internal:whatever", request);
-        verify(auditTrail).accessGranted(authentication, "internal:whatever", request, new String[]{SystemUser.ROLE_NAME});
         verifyNoMoreInteractions(auditTrail);
     }
 
-    public void testIndicesActionsAreNotAuthorized() {
+    public void testIndicesActionsForSystemUserWhichAreNotAuthorized() {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
         assertThrowsAuthorizationException(
@@ -265,25 +266,23 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
-    public void testClusterAdminActionsAreNotAuthorized() {
+    public void testClusterAdminActionsForSystemUserWhichAreNotAuthorized() {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
         assertThrowsAuthorizationException(
             () -> authorize(authentication, "cluster:admin/whatever", request),
             "cluster:admin/whatever", SystemUser.INSTANCE.principal());
-        verify(auditTrail).accessDenied(authentication, "cluster:admin/whatever", request,
-            new String[]{SystemUser.ROLE_NAME});
+        verify(auditTrail).accessDenied(authentication, "cluster:admin/whatever", request, new String[] { SystemUser.ROLE_NAME });
         verifyNoMoreInteractions(auditTrail);
     }
 
-    public void testClusterAdminSnapshotStatusActionIsNotAuthorized() {
+    public void testClusterAdminSnapshotStatusActionForSystemUserWhichIsNotAuthorized() {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
         assertThrowsAuthorizationException(
             () -> authorize(authentication, "cluster:admin/snapshot/status", request),
             "cluster:admin/snapshot/status", SystemUser.INSTANCE.principal());
-        verify(auditTrail).accessDenied(authentication, "cluster:admin/snapshot/status", request,
-            new String[]{SystemUser.ROLE_NAME});
+        verify(auditTrail).accessDenied(authentication, "cluster:admin/snapshot/status", request, new String[] { SystemUser.ROLE_NAME });
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -596,7 +595,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser);
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser);
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() }, null);
@@ -621,7 +620,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             .build();
         final Authentication authentication = createAuthentication(new AnonymousUser(settings));
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings));
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings));
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
@@ -819,7 +818,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final SearchRequest searchRequest = new SearchRequest("_all");
         authorize(authentication, SearchAction.NAME, searchRequest);
         assertEquals(2, searchRequest.indices().length);
-        assertEquals(IndicesAndAliasesResolver.NO_INDICES_LIST, Arrays.asList(searchRequest.indices()));
+        assertEquals(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_LIST, Arrays.asList(searchRequest.indices()));
     }
 
     public void testGrantedNonXPackUserCanExecuteMonitoringOperationsAgainstSecurityIndex() {
@@ -920,7 +919,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous_user_role").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser);
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser);
         roleMap.put("anonymous_user_role", new RoleDescriptor("anonymous_user_role", new String[]{"all"},
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null));
         mockEmptyMetaData();
@@ -946,7 +945,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous_user_role").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser);
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser);
         roleMap.put("anonymous_user_role", new RoleDescriptor("anonymous_user_role", new String[]{"all"},
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null));
         mockEmptyMetaData();

@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -17,7 +15,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
@@ -93,7 +91,6 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
     }
 
     public void testThatSSLConfigurationReloadsOnModification() throws Exception {
-        assumeTrue("test fails on JDK 11 currently", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
         Path keyPath = createTempDir().resolve("testnode_updated.pem");
         Path certPath = createTempDir().resolve("testnode_updated.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.pem"), keyPath);
@@ -119,7 +116,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             assertThat(socket.isConnected(), is(true));
             socket.startHandshake();
             fail("handshake should not have been successful!");
-        } catch (SSLHandshakeException | SocketException expected) {
+        } catch (SSLException | SocketException expected) {
             logger.trace("expected exception", expected);
         }
         // Copy testnode_updated.crt to the placeholder updateable.crt so that the nodes will start trusting it now

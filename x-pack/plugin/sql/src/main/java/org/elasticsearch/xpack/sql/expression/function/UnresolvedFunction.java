@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -141,6 +142,11 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     @Override
     public Attribute toAttribute() {
         throw new UnresolvedException("attribute", this);
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        throw new UnresolvedException("script", this);
     }
 
     @Override

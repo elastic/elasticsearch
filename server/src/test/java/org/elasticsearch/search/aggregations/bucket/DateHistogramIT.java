@@ -23,9 +23,9 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -1120,7 +1120,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .execute().actionGet();
 
-        DateMathParser parser = new DateMathParser(Joda.getStrictStandardDateFormatter());
+        DateMathParser parser = Joda.getStrictStandardDateFormatter().toDateMathParser();
 
         // we pick a random timezone offset of +12/-12 hours and insert two documents
         // one at 00:00 in that time zone and one at 12:00
@@ -1339,6 +1339,31 @@ public class DateHistogramIT extends ESIntegTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.toString(), containsString("[interval] must be 1 or greater for histogram aggregation [histo]"));
         }
+    }
+
+    /**
+     * https://github.com/elastic/elasticsearch/issues/31760 shows an edge case where an unmapped "date" field in two indices
+     * that are queried simultaneously can lead to the "format" parameter in the aggregation not being preserved correctly.
+     *
+     * The error happens when the bucket from the "unmapped" index is received first in the reduce phase, however the case can
+     * be recreated when aggregating about a single index with an unmapped date field and also getting "empty" buckets.
+     */
+    public void testFormatIndexUnmapped() throws InterruptedException, ExecutionException {
+        String indexDateUnmapped = "test31760";
+        indexRandom(true, client().prepareIndex(indexDateUnmapped, "_doc").setSource("foo", "bar"));
+        ensureSearchable(indexDateUnmapped);
+
+        SearchResponse response = client().prepareSearch(indexDateUnmapped)
+                .addAggregation(
+                        dateHistogram("histo").field("dateField").dateHistogramInterval(DateHistogramInterval.MONTH).format("YYYY-MM")
+                                .minDocCount(0).extendedBounds(new ExtendedBounds("2018-01", "2018-01")))
+                .execute().actionGet();
+        assertSearchResponse(response);
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo.getBuckets().size(), equalTo(1));
+        assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("2018-01"));
+        assertThat(histo.getBuckets().get(0).getDocCount(), equalTo(0L));
+        internalCluster().wipeIndices(indexDateUnmapped);
     }
 
     /**

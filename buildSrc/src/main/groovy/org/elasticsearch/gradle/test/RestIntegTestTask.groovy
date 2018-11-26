@@ -64,8 +64,6 @@ public class RestIntegTestTask extends DefaultTask {
         runner.testClassesDirs = project.sourceSets.test.output.classesDirs
         clusterConfig = project.extensions.create("${name}Cluster", ClusterConfiguration.class, project)
 
-        // start with the common test configuration
-        runner.configure(BuildPlugin.commonTestConfig(project))
         // override/add more for rest tests
         runner.parallelism = '1'
         runner.include('**/*IT.class')

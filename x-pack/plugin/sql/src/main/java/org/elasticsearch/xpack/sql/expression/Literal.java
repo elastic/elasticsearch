@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.gen.script.Params;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -24,6 +26,7 @@ public class Literal extends NamedExpression {
 
     public static final Literal TRUE = Literal.of(Location.EMPTY, Boolean.TRUE);
     public static final Literal FALSE = Literal.of(Location.EMPTY, Boolean.FALSE);
+    public static final Literal NULL = Literal.of(Location.EMPTY, null);
 
     private final Object value;
     private final DataType dataType;
@@ -39,7 +42,7 @@ public class Literal extends NamedExpression {
     }
 
     @Override
-    protected NodeInfo<Literal> info() {
+    protected NodeInfo<? extends Literal> info() {
         return NodeInfo.create(this, Literal::new, value, dataType);
     }
 
@@ -78,6 +81,11 @@ public class Literal extends NamedExpression {
     }
 
     @Override
+    public ScriptTemplate asScript() {
+        return new ScriptTemplate(String.valueOf(value), Params.EMPTY, dataType);
+    }
+
+    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
@@ -88,8 +96,14 @@ public class Literal extends NamedExpression {
     }
 
     @Override
+    protected Expression canonicalize() {
+        String s = String.valueOf(value);
+        return name().equals(s) ? this : Literal.of(location(), value);
+    }
+
+    @Override
     public int hashCode() {
-        return Objects.hash(name(), value, dataType);
+        return Objects.hash(value, dataType);
     }
 
     @Override
@@ -102,8 +116,7 @@ public class Literal extends NamedExpression {
         }
 
         Literal other = (Literal) obj;
-        return Objects.equals(name(), other.name())
-                && Objects.equals(value, other.value)
+        return Objects.equals(value, other.value)
                 && Objects.equals(dataType, other.dataType);
     }
 
@@ -148,7 +161,11 @@ public class Literal extends NamedExpression {
         if (name == null) {
             name = foldable instanceof NamedExpression ? ((NamedExpression) foldable).name() : String.valueOf(fold);
         }
-
         return new Literal(foldable.location(), name, fold, foldable.dataType());
+    }
+
+    public static Literal of(Expression source, Object value) {
+        String name = source instanceof NamedExpression ? ((NamedExpression) source).name() : String.valueOf(value);
+        return new Literal(source.location(), name, value, source.dataType());
     }
 }

@@ -145,3 +145,17 @@ Password to the PKCS#12 file.
 
 +{ssl-prefix}.ssl.truststore.secure_password+ (<<secure-settings,Secure>>)::
 Password to the PKCS#12 file.
+
+===== PKCS#11 Tokens
+
+{security} can be configured to use a PKCS#11 token that contains the private key,
+certificate and certificates that should be trusted.
+
+PKCS#11 token require additional configuration on the JVM level and can be enabled
+via the following settings:
+
++{ssl-prefix}.keystore.type+::
+Set this to `PKCS11` to indicate that the PKCS#11 token should be used as a keystore.
+
++{ssl-prefix}.truststore.type+::
+Set this to `PKCS11` to indicate that the PKCS#11 token should be used as a truststore.

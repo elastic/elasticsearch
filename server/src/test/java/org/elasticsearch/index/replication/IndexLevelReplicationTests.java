@@ -338,7 +338,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     barrier.await();
                     indexOnReplica(replicationRequest, shards, replica2, newReplica1Term);
                 } catch (IllegalStateException ise) {
-                    assertThat(ise.getMessage(), either(containsString("is too old")).or(containsString("cannot be a replication target")));
+                    assertThat(ise.getMessage(), either(containsString("is too old"))
+                        .or(containsString("cannot be a replication target")).or(containsString("engine is closed")));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -380,7 +381,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     indexOnReplica(replicationRequest, shards, replica, primaryPrimaryTerm);
                     successFullyIndexed.set(true);
                 } catch (IllegalStateException ise) {
-                    assertThat(ise.getMessage(), either(containsString("is too old")).or(containsString("cannot be a replication target")));
+                    assertThat(ise.getMessage(), either(containsString("is too old"))
+                        .or(containsString("cannot be a replication target")).or(containsString("engine is closed")));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

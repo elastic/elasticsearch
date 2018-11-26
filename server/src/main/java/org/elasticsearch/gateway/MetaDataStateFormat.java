@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
@@ -30,7 +31,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -73,7 +73,7 @@ public abstract class MetaDataStateFormat<T> {
     private final String prefix;
     private final Pattern stateFilePattern;
 
-    private static final Logger logger = Loggers.getLogger(MetaDataStateFormat.class);
+    private static final Logger logger = LogManager.getLogger(MetaDataStateFormat.class);
 
     /**
      * Creates a new {@link MetaDataStateFormat} instance

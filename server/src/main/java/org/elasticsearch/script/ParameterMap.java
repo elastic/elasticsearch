@@ -19,22 +19,23 @@
 
 package org.elasticsearch.script;
 
-import java.util.Collection;
-import java.util.Map;
-import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 
+import java.util.Collection;
+import java.util.Map;
+import java.util.Set;
+
 public final class ParameterMap implements Map<String, Object> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =
+    private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(ParameterMap.class));
 
     private final Map<String, Object> params;
 
     private final Map<String, String> deprecations;
 
-    ParameterMap(Map<String, Object> params, Map<String, String> deprecations) {
+    public ParameterMap(Map<String, Object> params, Map<String, String> deprecations) {
         this.params = params;
         this.deprecations = deprecations;
     }
@@ -63,7 +64,7 @@ public final class ParameterMap implements Map<String, Object> {
     public Object get(final Object key) {
         String deprecationMessage = deprecations.get(key);
         if (deprecationMessage != null) {
-            DEPRECATION_LOGGER.deprecated(deprecationMessage);
+            deprecationLogger.deprecated(deprecationMessage);
         }
         return params.get(key);
     }

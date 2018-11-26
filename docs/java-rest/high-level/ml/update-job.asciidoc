@@ -1,18 +1,23 @@
-[[java-rest-high-x-pack-ml-update-job]]
+--
+:api: update-job
+:request: UpdateJobRequest
+:response: PutJobResponse
+--
+[id="{upid}-{api}"]
 === Update Job API
 
 The Update Job API provides the ability to update a {ml} job.
-It accepts a `UpdateJobRequest` object and responds
-with a `PutJobResponse` object.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
 
-[[java-rest-high-x-pack-ml-update-job-request]]
+[id="{upid}-{api}-request"]
 ==== Update Job Request
 
-An `UpdateJobRequest` object gets created with a `JobUpdate` object.
+An +{request}+ object gets created with a `JobUpdate` object.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-update-job-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new request referencing a `JobUpdate` object
 
@@ -23,7 +28,7 @@ job. An existing, non-null `jobId` must be referenced in its creation.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-update-job-options]
+include-tagged::{doc-tests-file}[{api}-options]
 --------------------------------------------------
 <1> Mandatory, non-null `jobId` referencing an existing {ml} job
 <2> Updated description
@@ -41,53 +46,21 @@ include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-update-job-op
 Included with these options are specific optional `JobUpdate.DetectorUpdate` updates.
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-update-job-detector-options]
+include-tagged::{doc-tests-file}[{api}-detector-options]
 --------------------------------------------------
 <1> The index of the detector. `O` means unknown
 <2> The optional description of the detector
 <3> The `DetectionRule` rules that apply to this detector
 
-[[java-rest-high-x-pack-ml-update-job-execution]]
-==== Execution
+include::../execution.asciidoc[]
 
-The request can be executed through the `MachineLearningClient` contained
-in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-update-job-execute]
---------------------------------------------------
-
-[[java-rest-high-x-pack-ml-update-job-execution-async]]
-==== Asynchronous Execution
-
-The request can also be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-update-job-execute-async]
---------------------------------------------------
-<1> The `UpdateJobRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The method does not block and returns immediately. The passed `ActionListener` is used
-to notify the caller of completion. A typical `ActionListener` for `PutJobResponse` may
-look like
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-update-job-listener]
---------------------------------------------------
-<1> `onResponse` is called back when the action is completed successfully
-<2> `onFailure` is called back when some unexpected error occurs
-
-[[java-rest-high-x-pack-ml-update-job-response]]
+[id="{upid}-{api}-response"]
 ==== Update Job Response
 
-A `PutJobResponse` contains the updated `Job` object
+A +{response}+ contains the updated `Job` object
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-update-job-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> `getResponse()` returns the updated `Job` object

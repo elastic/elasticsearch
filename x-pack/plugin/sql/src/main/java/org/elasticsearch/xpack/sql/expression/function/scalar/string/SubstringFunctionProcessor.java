@@ -8,15 +8,16 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class SubstringFunctionProcessor implements Processor {
 
+    public static final String NAME = "ssub";
+
     private final Processor source, start, length;
-    public static final String NAME = "sb";
 
     public SubstringFunctionProcessor(Processor source, Processor start, Processor length) {
         this.source = source;
@@ -62,7 +63,7 @@ public class SubstringFunctionProcessor implements Processor {
             throw new SqlIllegalArgumentException("A positive number is required for [length]; received [{}]", length);
         }
 
-        return StringFunctionUtils.substring(source instanceof Character ? source.toString() : (String) source, 
+        return StringFunctionUtils.substring(source instanceof Character ? source.toString() : (String) source,
                 ((Number) start).intValue() - 1, // SQL is 1-based when it comes to string manipulation
                 ((Number) length).intValue());
     }

@@ -224,6 +224,68 @@
     - match:  { tokens.1.token: Bar! }
 
 ---
+"synonym":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_synonym:
+                    type: synonym
+                    synonyms: ["car,auto"]
+
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: what car magazine
+            tokenizer: whitespace
+            filter: [ my_synonym ]
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: what }
+    - match:  { tokens.0.position: 0 }
+    - match:  { tokens.1.token: car }
+    - match:  { tokens.1.position: 1 }
+    - match:  { tokens.2.token: auto }
+    - match:  { tokens.2.position: 1 }
+    - match:  { tokens.3.token: magazine }
+    - match:  { tokens.3.position: 2 }
+
+---
+"synonym_graph":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_graph_synonym:
+                    type: synonym_graph
+                    synonyms: [ "guinea pig,cavy" ]
+
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: my guinea pig snores
+            tokenizer: whitespace
+            filter: [ my_graph_synonym ]
+    - length: { tokens: 5 }
+    - match:  { tokens.0.token: my }
+    - match:  { tokens.1.token: cavy }
+    - match:  { tokens.1.position: 1 }
+    - match:  { tokens.1.positionLength: 2 }
+    - match:  { tokens.2.token: guinea }
+    - match:  { tokens.2.position: 1 }
+    - match:  { tokens.3.token: pig }
+    - match:  { tokens.3.position: 2 }
+    - match:  { tokens.4.token: snores }
+    - match:  { tokens.4.position: 3 }
+
+---
 "synonym_graph and flatten_graph":
     - do:
         indices.create:

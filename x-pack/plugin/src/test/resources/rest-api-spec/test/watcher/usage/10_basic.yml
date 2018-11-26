@@ -1,8 +1,5 @@
 ---
 "Test watcher usage stats output":
-  - skip:
-      version: "all"
-      reason: AwaitsFix at https://github.com/elastic/elasticsearch/issues/33326
   - do:
       catch: missing
       xpack.watcher.delete_watch:

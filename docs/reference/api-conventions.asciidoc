@@ -1,5 +1,5 @@
 [[api-conventions]]
-= API Conventions
+= API conventions
 
 [partintro]
 --

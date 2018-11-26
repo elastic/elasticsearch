@@ -22,10 +22,6 @@
         }
       },
       "params": {
-        "include_type_name": {
-          "type" : "string",
-          "description" : "Whether to add the type name to the response"
-        },
         "stored_fields": {
           "type": "list",
           "description" : "A comma-separated list of stored fields to return in the response"
@@ -53,6 +49,14 @@
         "_source": {
           "type" : "list",
           "description" : "True or false to return the _source field or not, or a list of fields to return"
+        },
+        "_source_excludes": {
+          "type" : "list",
+          "description" : "A list of fields to exclude from the returned _source field"
+        },
+        "_source_includes": {
+          "type" : "list",
+          "description" : "A list of fields to extract and return from the _source field"
         },
         "_source_exclude": {
           "type" : "list",

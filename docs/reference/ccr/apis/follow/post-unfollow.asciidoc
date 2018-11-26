@@ -1,0 +1,83 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-post-unfollow]]
+=== Unfollow API
+++++
+<titleabbrev>Unfollow</titleabbrev>
+++++
+
+beta[]
+
+Converts a follower index to a regular index.
+
+==== Description
+
+This API stops the following task associated with a follower index and removes
+index metadata and settings associated with {ccr}. This enables the index to
+treated as a regular index. The follower index must be paused and closed before
+invoking the unfollow API.
+
+NOTE: Currently {ccr} does not support converting an existing regular index to a
+follower index. Converting a follower index to a regular index is an
+irreversible operation.
+
+==== Request
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /follower_index/_ccr/follow
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index" : "leader_index"
+}
+
+POST /follower_index/_ccr/pause_follow
+
+POST /follower_index/_close
+--------------------------------------------------
+// CONSOLE
+// TESTSETUP
+// TEST[setup:remote_cluster_and_leader_index]
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+POST /<follower_index>/_ccr/unfollow
+--------------------------------------------------
+// CONSOLE
+// TEST[s/<follower_index>/follower_index/]
+
+==== Path Parmeters
+
+`follower_index` (required)::
+  (string) the name of the follower index
+  
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have `manage_follow_index` 
+index privileges for the follower index. For more information, see
+{stack-ov}/security-privileges.html[Security privileges].  
+
+==== Example
+
+This example converts `follower_index` from a follower index to a regular index:
+
+[source,js]
+--------------------------------------------------
+POST /follower_index/_ccr/unfollow
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+The API returns the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "acknowledged" : true
+}
+--------------------------------------------------
+// TESTRESPONSE

@@ -19,42 +19,79 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Uid;
+import org.apache.lucene.util.BytesRef;
 
-import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 
-public class SingleFieldsVisitor extends FieldsVisitor {
+/**
+ * {@linkplain StoredFieldVisitor} that loads a single field value.
+ */
+public final class SingleFieldsVisitor extends StoredFieldVisitor {
+    private final MappedFieldType field;
+    private final List<Object> destination;
 
-    private String field;
-
-    public SingleFieldsVisitor(String field) {
-        super(false);
+    /**
+     * Build the field visitor;
+     * @param field the name of the field to load
+     * @param destination where to put the field's values
+     */
+    public SingleFieldsVisitor(MappedFieldType field, List<Object> destination) {
         this.field = field;
+        this.destination = destination;
     }
 
     @Override
-    public Status needsField(FieldInfo fieldInfo) throws IOException {
-        if (fieldInfo.name.equals(field)) {
+    public Status needsField(FieldInfo fieldInfo) {
+        if (fieldInfo.name.equals(field.name())) {
             return Status.YES;
         }
+        /*
+         * We can't return Status.STOP here because we could be loading
+         * multi-valued fields.
+         */
         return Status.NO;
     }
 
-    public void reset(String field) {
-        this.field = field;
-        super.reset();
+    private void addValue(Object value) {
+        destination.add(field.valueForDisplay(value));
     }
 
     @Override
-    public void postProcess(MapperService mapperService) {
-        super.postProcess(mapperService);
-        if (id != null) {
-            addValue(IdFieldMapper.NAME, id);
+    public void binaryField(FieldInfo fieldInfo, byte[] value) {
+        if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
+            addValue(Uid.decodeId(value));
+        } else {
+            addValue(new BytesRef(value));
         }
-        if (type != null) {
-            addValue(TypeFieldMapper.NAME, type);
-        }
+    }
+
+    @Override
+    public void stringField(FieldInfo fieldInfo, byte[] bytes) {
+        addValue(new String(bytes, StandardCharsets.UTF_8));
+    }
+
+    @Override
+    public void intField(FieldInfo fieldInfo, int value) {
+        addValue(value);
+    }
+
+    @Override
+    public void longField(FieldInfo fieldInfo, long value) {
+        addValue(value);
+    }
+
+    @Override
+    public void floatField(FieldInfo fieldInfo, float value) {
+        addValue(value);
+    }
+
+    @Override
+    public void doubleField(FieldInfo fieldInfo, double value) {
+        addValue(value);
     }
 }

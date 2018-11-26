@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionAction;
@@ -47,9 +46,9 @@ public final class TransportSamlInvalidateSessionAction
     private final Realms realms;
 
     @Inject
-    public TransportSamlInvalidateSessionAction(Settings settings, TransportService transportService,
-                                                ActionFilters actionFilters, TokenService tokenService, Realms realms) {
-        super(settings, SamlInvalidateSessionAction.NAME, transportService, actionFilters, SamlInvalidateSessionRequest::new);
+    public TransportSamlInvalidateSessionAction(TransportService transportService, ActionFilters actionFilters, TokenService tokenService,
+                                                Realms realms) {
+        super(SamlInvalidateSessionAction.NAME, transportService, actionFilters, SamlInvalidateSessionRequest::new);
         this.tokenService = tokenService;
         this.realms = realms;
     }

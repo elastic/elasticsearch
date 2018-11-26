@@ -104,6 +104,7 @@ public final class RestGetTokenAction extends SecurityBaseRestHandler {
 
         @Override
         public void onFailure(Exception e) {
+            logger.debug("Failed to create token", e);
             if (e instanceof ActionRequestValidationException) {
                 ActionRequestValidationException validationException = (ActionRequestValidationException) e;
                 final TokenRequestError error;

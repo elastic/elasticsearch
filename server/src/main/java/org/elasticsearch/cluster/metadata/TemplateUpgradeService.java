@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -34,8 +36,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -62,7 +62,10 @@ import static java.util.Collections.singletonMap;
 /**
  * Upgrades Templates on behalf of installed {@link Plugin}s when a node joins the cluster
  */
-public class TemplateUpgradeService extends AbstractComponent implements ClusterStateListener {
+public class TemplateUpgradeService implements ClusterStateListener {
+
+    private static final Logger logger = LogManager.getLogger(TemplateUpgradeService.class);
+
     private final UnaryOperator<Map<String, IndexTemplateMetaData>> indexTemplateMetaDataUpgraders;
 
     public final ClusterService clusterService;
@@ -75,9 +78,8 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
 
     private ImmutableOpenMap<String, IndexTemplateMetaData> lastTemplateMetaData;
 
-    public TemplateUpgradeService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool,
+    public TemplateUpgradeService(Client client, ClusterService clusterService, ThreadPool threadPool,
                                   Collection<UnaryOperator<Map<String, IndexTemplateMetaData>>> indexTemplateMetaDataUpgraders) {
-        super(settings);
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -200,7 +202,7 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
                 if (anyUpgradeFailed.get()) {
                     logger.info("Templates were partially upgraded to version {}", Version.CURRENT);
                 } else {
-                    logger.info("Templates were upgraded successfuly to version {}", Version.CURRENT);
+                    logger.info("Templates were upgraded successfully to version {}", Version.CURRENT);
                 }
                 // Check upgraders are satisfied after the update completed. If they still
                 // report that changes are required, this might indicate a bug or that something

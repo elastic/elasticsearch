@@ -15,10 +15,9 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -45,9 +44,9 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         super();
     }
 
-    public AbstractSqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
-                                   int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-        super(mode);
+    public AbstractSqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
+                                   int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
+        super(requestInfo);
         this.query = query;
         this.params = params;
         this.timeZone = timeZone;
@@ -188,12 +187,12 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     }
 
     public static void writeSqlTypedParamValue(StreamOutput out, SqlTypedParamValue value) throws IOException {
-        out.writeEnum(value.dataType);
+        out.writeString(value.type);
         out.writeGenericValue(value.value);
     }
 
     public static SqlTypedParamValue readSqlTypedParamValue(StreamInput in) throws IOException {
-        return new SqlTypedParamValue(in.readEnum(DataType.class), in.readGenericValue());
+        return new SqlTypedParamValue(in.readString(), in.readGenericValue());
     }
 
     @Override
@@ -213,9 +212,15 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (!super.equals(o)) {
+            return false;
+        }
         AbstractSqlQueryRequest that = (AbstractSqlQueryRequest) o;
         return fetchSize == that.fetchSize &&
                 Objects.equals(query, that.query) &&

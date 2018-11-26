@@ -25,6 +25,7 @@ import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -32,6 +33,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to get a document (its source) from an index based on its type (optional) and id. Best created using
@@ -91,15 +94,15 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
-        if (type == null) {
-            validationException = ValidateActions.addValidationError("type is missing", validationException);
+        if (Strings.isEmpty(type)) {
+            validationException = addValidationError("type is missing", validationException);
         }
-        if (id == null) {
-            validationException = ValidateActions.addValidationError("id is missing", validationException);
+        if (Strings.isEmpty(id)) {
+            validationException = addValidationError("id is missing", validationException);
         }
-        if (!versionType.validateVersionForReads(version)) {
-            validationException = ValidateActions.addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]",
-                    validationException);
+        if (versionType.validateVersionForReads(version) == false) {
+            validationException = ValidateActions.addValidationError("illegal version value [" + version + "] for version type ["
+                    + versionType.name() + "]", validationException);
         }
         if (versionType == VersionType.FORCE) {
             validationException = ValidateActions.addValidationError("version type [force] may no longer be used", validationException);
@@ -245,7 +248,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readOptionalString();
         }
         preference = in.readOptionalString();
@@ -264,7 +267,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalString(null);
         }
         out.writeOptionalString(preference);

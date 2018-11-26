@@ -9,41 +9,41 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.TimeZone;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
     
     public enum NameExtractor {
         // for the moment we'll use no specific Locale, but we might consider introducing a Locale parameter, just like the timeZone one
-        DAY_NAME((Long millis, String tzId) -> {
-            ZonedDateTime time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId));
-            return time.format(DateTimeFormatter.ofPattern(DayName.DAY_NAME_FORMAT, Locale.ROOT));
-        }),
-        MONTH_NAME((Long millis, String tzId) -> {
-            ZonedDateTime time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId));
-            return time.format(DateTimeFormatter.ofPattern(MonthName.MONTH_NAME_FORMAT, Locale.ROOT));
-        });
+        DAY_NAME(time -> time.format(DAY_NAME_FORMATTER)),
+        MONTH_NAME(time -> time.format(MONTH_NAME_FORMATTER));
 
-        private final BiFunction<Long,String,String> apply;
-        
-        NameExtractor(BiFunction<Long,String,String> apply) {
+        private final Function<ZonedDateTime, String> apply;
+
+        NameExtractor(Function<ZonedDateTime, String> apply) {
             this.apply = apply;
         }
 
-        public final String extract(Long millis, String tzId) {
-            return apply.apply(millis, tzId);
+        public final String extract(ZonedDateTime dateTime) {
+            return apply.apply(dateTime);
+        }
+
+        public final String extract(ZonedDateTime millis, String tzId) {
+            return apply.apply(millis.withZoneSameInstant(ZoneId.of(tzId)));
         }
     }
     
     public static final String NAME = "ndt";
-    
+    private static final DateTimeFormatter DAY_NAME_FORMATTER = DateTimeFormatter.ofPattern("EEEE", Locale.ROOT);
+    private static final DateTimeFormatter MONTH_NAME_FORMATTER = DateTimeFormatter.ofPattern("MMMM", Locale.ROOT);
+
+
     private final NameExtractor extractor;
 
     public NamedDateTimeProcessor(NameExtractor extractor, TimeZone timeZone) {
@@ -72,8 +72,8 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
     }
 
     @Override
-    public Object doProcess(long millis) {
-        return extractor.extract(millis, timeZone().getID());
+    public Object doProcess(ZonedDateTime dateTime) {
+        return extractor.extract(dateTime);
     }
 
     @Override

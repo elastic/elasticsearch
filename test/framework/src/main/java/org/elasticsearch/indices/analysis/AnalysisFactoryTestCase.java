@@ -19,26 +19,17 @@
 
 package org.elasticsearch.indices.analysis;
 
-import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
-import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
-import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
-import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
-import org.elasticsearch.index.analysis.SynonymGraphTokenFilterFactory;
-import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -48,9 +39,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.typeCompatibleWith;
 
 /**
  * Alerts us if new analysis components are added to Lucene, so we don't miss them.
@@ -79,7 +67,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("edgengram", MovedToAnalysisCommon.class)
         .put("keyword", MovedToAnalysisCommon.class)
         .put("letter", MovedToAnalysisCommon.class)
-        .put("lowercase", MovedToAnalysisCommon.class)
         .put("ngram", MovedToAnalysisCommon.class)
         .put("pathhierarchy", MovedToAnalysisCommon.class)
         .put("pattern", MovedToAnalysisCommon.class)
@@ -169,8 +156,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("stemmeroverride",           MovedToAnalysisCommon.class)
         .put("stop",                      StopTokenFilterFactory.class)
         .put("swedishlightstem",          MovedToAnalysisCommon.class)
-        .put("synonym",                   SynonymTokenFilterFactory.class)
-        .put("synonymgraph",              SynonymGraphTokenFilterFactory.class)
+        .put("synonym",                   MovedToAnalysisCommon.class)
+        .put("synonymgraph",              MovedToAnalysisCommon.class)
         .put("trim",                      MovedToAnalysisCommon.class)
         .put("truncate",                  MovedToAnalysisCommon.class)
         .put("turkishlowercase",          MovedToAnalysisCommon.class)
@@ -309,142 +296,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         Set<String> missing = new TreeSet<String>(org.apache.lucene.analysis.util.TokenFilterFactory.availableTokenFilters());
         missing.removeAll(getTokenFilters().keySet());
         assertTrue("new tokenfilters found, please update KNOWN_TOKENFILTERS: " + missing.toString(), missing.isEmpty());
-    }
-
-    public void testMultiTermAware() {
-        Collection<Class<?>> expected = new HashSet<>();
-        for (Map.Entry<String, Class<?>> entry : getTokenizers().entrySet()) {
-            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(
-                    org.apache.lucene.analysis.util.TokenizerFactory.lookupClass(entry.getKey()))) {
-                expected.add(entry.getValue());
-            }
-        }
-        for (Map.Entry<String, Class<?>> entry : getTokenFilters().entrySet()) {
-            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(
-                    org.apache.lucene.analysis.util.TokenFilterFactory.lookupClass(entry.getKey()))) {
-                expected.add(entry.getValue());
-            }
-        }
-        for (Map.Entry<String, Class<?>> entry : getCharFilters().entrySet()) {
-            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(
-                    org.apache.lucene.analysis.util.CharFilterFactory.lookupClass(entry.getKey()))) {
-                expected.add(entry.getValue());
-            }
-        }
-        expected.remove(Void.class);
-        expected.remove(MovedToAnalysisCommon.class);
-        expected.remove(Deprecated.class);
-
-        Collection<Class<?>> actual = new HashSet<>();
-        for (Class<?> clazz : getTokenizers().values()) {
-            if (MultiTermAwareComponent.class.isAssignableFrom(clazz)) {
-                actual.add(clazz);
-            }
-        }
-        for (Class<?> clazz : getTokenFilters().values()) {
-            if (MultiTermAwareComponent.class.isAssignableFrom(clazz)) {
-                actual.add(clazz);
-            }
-        }
-        for (Class<?> clazz : getCharFilters().values()) {
-            if (MultiTermAwareComponent.class.isAssignableFrom(clazz)) {
-                actual.add(clazz);
-            }
-        }
-
-        Set<Class<?>> classesMissingMultiTermSupport = new HashSet<>(expected);
-        classesMissingMultiTermSupport.removeAll(actual);
-        assertTrue("Classes are missing multi-term support: " + classesMissingMultiTermSupport,
-                classesMissingMultiTermSupport.isEmpty());
-
-        Set<Class<?>> classesThatShouldNotHaveMultiTermSupport = new HashSet<>(actual);
-        classesThatShouldNotHaveMultiTermSupport.removeAll(expected);
-        assertTrue("Classes should not have multi-term support: " + classesThatShouldNotHaveMultiTermSupport,
-                classesThatShouldNotHaveMultiTermSupport.isEmpty());
-    }
-
-    public void testPreBuiltMultiTermAware() {
-        Collection<Object> expected = new HashSet<>();
-        Collection<Object> actual = new HashSet<>();
-
-        Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters =
-                new HashMap<>(AnalysisModule.setupPreConfiguredTokenFilters(singletonList(plugin)));
-        for (Map.Entry<String, Class<?>> entry : getPreConfiguredTokenFilters().entrySet()) {
-            String name = entry.getKey();
-            Class<?> luceneFactory = entry.getValue();
-            PreConfiguredTokenFilter filter = preConfiguredTokenFilters.remove(name);
-            assertNotNull("test claims pre built token filter [" + name + "] should be available but it wasn't", filter);
-            if (luceneFactory == Void.class) {
-                continue;
-            }
-            if (luceneFactory == null) {
-                luceneFactory = TokenFilterFactory.lookupClass(toCamelCase(name));
-            }
-            assertThat(luceneFactory, typeCompatibleWith(TokenFilterFactory.class));
-            if (filter.shouldUseFilterForMultitermQueries()) {
-                actual.add("token filter [" + name + "]");
-            }
-            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(luceneFactory)) {
-                expected.add("token filter [" + name + "]");
-            }
-        }
-        assertThat("pre configured token filter not registered with test", preConfiguredTokenFilters.keySet(), empty());
-
-        Map<String, PreConfiguredTokenizer> preConfiguredTokenizers = new HashMap<>(
-                AnalysisModule.setupPreConfiguredTokenizers(singletonList(plugin)));
-        for (Map.Entry<String, Class<?>> entry : getPreConfiguredTokenizers().entrySet()) {
-            String name = entry.getKey();
-            Class<?> luceneFactory = entry.getValue();
-            PreConfiguredTokenizer tokenizer = preConfiguredTokenizers.remove(name);
-            assertNotNull("test claims pre built tokenizer [" + name + "] should be available but it wasn't", tokenizer);
-            if (luceneFactory == Void.class) {
-                continue;
-            }
-            if (luceneFactory == null) {
-                luceneFactory = TokenizerFactory.lookupClass(toCamelCase(name));
-            }
-            assertThat(luceneFactory, typeCompatibleWith(TokenizerFactory.class));
-            if (tokenizer.hasMultiTermComponent()) {
-                actual.add(tokenizer);
-            }
-            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(luceneFactory)) {
-                expected.add(tokenizer);
-            }
-        }
-        assertThat("pre configured tokenizer not registered with test", preConfiguredTokenizers.keySet(), empty());
-
-        Map<String, PreConfiguredCharFilter> preConfiguredCharFilters = new HashMap<>(
-                AnalysisModule.setupPreConfiguredCharFilters(singletonList(plugin)));
-        for (Map.Entry<String, Class<?>> entry : getPreConfiguredCharFilters().entrySet()) {
-            String name = entry.getKey();
-            Class<?> luceneFactory = entry.getValue();
-            PreConfiguredCharFilter filter = preConfiguredCharFilters.remove(name);
-            assertNotNull("test claims pre built char filter [" + name + "] should be available but it wasn't", filter);
-            if (luceneFactory == Void.class) {
-                continue;
-            }
-            if (luceneFactory == null) {
-                luceneFactory = TokenFilterFactory.lookupClass(toCamelCase(name));
-            }
-            assertThat(luceneFactory, typeCompatibleWith(CharFilterFactory.class));
-            if (filter.shouldUseFilterForMultitermQueries()) {
-                actual.add(filter);
-            }
-            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(luceneFactory)) {
-                expected.add("token filter [" + name + "]");
-            }
-        }
-        assertThat("pre configured char filter not registered with test", preConfiguredCharFilters.keySet(), empty());
-
-        Set<Object> classesMissingMultiTermSupport = new HashSet<>(expected);
-        classesMissingMultiTermSupport.removeAll(actual);
-        assertTrue("Pre-built components are missing multi-term support: " + classesMissingMultiTermSupport,
-                classesMissingMultiTermSupport.isEmpty());
-
-        Set<Object> classesThatShouldNotHaveMultiTermSupport = new HashSet<>(actual);
-        classesThatShouldNotHaveMultiTermSupport.removeAll(expected);
-        assertTrue("Pre-built components should not have multi-term support: " + classesThatShouldNotHaveMultiTermSupport,
-                classesThatShouldNotHaveMultiTermSupport.isEmpty());
     }
 
     /**

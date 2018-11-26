@@ -15,8 +15,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -144,7 +143,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         DocumentField field = new DocumentField("my_date_field", documentFieldValues);
         hit.fields(singletonMap("my_date_field", field));
         FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DataType.DATE, true);
-        assertEquals(new DateTime(millis, DateTimeZone.UTC), extractor.extract(hit));
+        assertEquals(DateUtils.of(millis), extractor.extract(hit));
     }
 
     public void testGetSource() throws IOException {

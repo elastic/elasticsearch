@@ -281,8 +281,7 @@ public class EmailActionTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
 
-        ExecutableEmailAction executable = new EmailActionFactory(Settings.EMPTY, emailService, engine,
-                emailAttachmentParser)
+        ExecutableEmailAction executable = new EmailActionFactory(Settings.EMPTY, emailService, engine, emailAttachmentParser)
                 .parseExecutable(randomAlphaOfLength(8), randomAlphaOfLength(3), parser);
 
         assertThat(executable, notNullValue());
@@ -530,8 +529,8 @@ public class EmailActionTests extends ESTestCase {
 
         parser.nextToken();
 
-        ExecutableEmailAction executableEmailAction = new EmailActionFactory(Settings.EMPTY, emailService, engine,
-                emailAttachmentsParser).parseExecutable(randomAlphaOfLength(3), randomAlphaOfLength(7), parser);
+        ExecutableEmailAction executableEmailAction = new EmailActionFactory(Settings.EMPTY, emailService, engine, emailAttachmentsParser)
+                .parseExecutable(randomAlphaOfLength(3), randomAlphaOfLength(7), parser);
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
         Wid wid = new Wid(randomAlphaOfLength(5), now);

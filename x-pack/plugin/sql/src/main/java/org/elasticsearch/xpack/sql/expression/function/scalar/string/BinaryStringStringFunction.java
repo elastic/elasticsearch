@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -19,10 +20,8 @@ public abstract class BinaryStringStringFunction extends BinaryStringFunction<St
     }
 
     @Override
-    protected TypeResolution resolveSecondParameterInputType(DataType inputType) {
-        return inputType.isString() ? 
-                TypeResolution.TYPE_RESOLVED : 
-                new TypeResolution("'%s' requires second parameter to be a string type, received %s", functionName(), inputType);
+    protected TypeResolution resolveSecondParameterInputType(Expression e) {
+        return Expressions.typeMustBeString(e, functionName(), Expressions.ParamOrdinal.SECOND);
     }
 
     @Override

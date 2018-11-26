@@ -389,6 +389,18 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param listeners new listerns to use for the newly created shard
      */
     protected IndexShard reinitShard(IndexShard current, ShardRouting routing, IndexingOperationListener... listeners) throws IOException {
+        return reinitShard(current, routing, current.engineFactory, listeners);
+    }
+
+    /**
+     * Takes an existing shard, closes it and starts a new initialing shard at the same location
+     *
+     * @param routing   the shard routing to use for the newly created shard.
+     * @param listeners new listerns to use for the newly created shard
+     * @param engineFactory the engine factory for the new shard
+     */
+    protected IndexShard reinitShard(IndexShard current, ShardRouting routing, EngineFactory engineFactory,
+                                     IndexingOperationListener... listeners) throws IOException {
         closeShards(current);
         return newShard(
                 routing,
@@ -396,7 +408,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 current.indexSettings().getIndexMetaData(),
                 null,
                 null,
-                current.engineFactory,
+                engineFactory,
                 current.getGlobalCheckpointSyncer(),
             EMPTY_EVENT_LISTENER, listeners);
     }
@@ -699,8 +711,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
             shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(),
                 shard.getLocalCheckpoint());
         } else {
-            result = shard.applyIndexOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0,
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+            final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
+            shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
+            result = shard.applyIndexOperationOnReplica(seqNo, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 throw new TransportReplicationAction.RetryOnReplicaException(shard.shardId,
                     "Mappings are not available on the replica yet, triggered update: " + result.getRequiredMappingUpdate());
@@ -720,7 +733,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
             result = shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, type, id, VersionType.INTERNAL);
             shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(), shard.getEngine().getLocalCheckpoint());
         } else {
-            result = shard.applyDeleteOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0L, type, id);
+            final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
+            shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
+            result = shard.applyDeleteOperationOnReplica(seqNo, 0L, type, id);
         }
         return result;
     }

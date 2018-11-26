@@ -63,11 +63,11 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         settings = Settings.builder()
-                .put("xpack.security.audit.logfile.prefix.emit_node_host_address", randomBoolean())
-                .put("xpack.security.audit.logfile.prefix.emit_node_host_name", randomBoolean())
-                .put("xpack.security.audit.logfile.prefix.emit_node_name", randomBoolean())
-                .put("xpack.security.audit.logfile.events.emit_request_body", randomBoolean())
-                .put("xpack.security.audit.logfile.events.include", "_all")
+                .put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.INCLUDE_EVENT_SETTINGS.getKey(), "_all")
                 .build();
         localNode = mock(DiscoveryNode.class);
         when(localNode.getHostAddress()).thenReturn(buildNewFakeTransportAddress().toString());

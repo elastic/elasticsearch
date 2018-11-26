@@ -6,13 +6,9 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-
-import java.util.function.BiFunction;
 
 /**
  * Creates a string composed of a string repeated count times.
@@ -24,7 +20,7 @@ public class Repeat extends BinaryStringNumericFunction {
     }
 
     @Override
-    protected BiFunction<String, Number, String> operation() {
+    protected BinaryStringNumericOperation operation() {
         return BinaryStringNumericOperation.REPEAT;
     }
 
@@ -34,16 +30,7 @@ public class Repeat extends BinaryStringNumericFunction {
     }
 
     @Override
-    protected ProcessorDefinition makeProcessorDefinition() {
-        return new BinaryStringNumericProcessorDefinition(location(), this,
-                ProcessorDefinitions.toProcessorDefinition(left()),
-                ProcessorDefinitions.toProcessorDefinition(right()),
-                BinaryStringNumericOperation.REPEAT);
-    }
-
-    @Override
     protected NodeInfo<Repeat> info() {
         return NodeInfo.create(this, Repeat::new, left(), right());
     }
-
 }

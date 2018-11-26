@@ -3,7 +3,7 @@
 [[sql-operators]]
 === Comparison Operators
 
-Boolean operator for comparing one or two expressions.
+Boolean operator for comparing against one or multiple expressions.
 
 * Equality (`=`)
 
@@ -38,6 +38,13 @@ include-tagged::{sql-specs}/filter.sql-spec[whereBetween]
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereIsNotNullAndIsNull]
+--------------------------------------------------
+
+* `IN (<value1>, <value2>, ...)`
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/filter.sql-spec[whereWithInAndMultipleValues]
 --------------------------------------------------
 
 [[sql-operators-logical]]

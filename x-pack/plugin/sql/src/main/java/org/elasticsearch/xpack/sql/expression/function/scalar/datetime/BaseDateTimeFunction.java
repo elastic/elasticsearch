@@ -8,23 +8,26 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Objects;
 import java.util.TimeZone;
 
 abstract class BaseDateTimeFunction extends UnaryScalarFunction {
     
     private final TimeZone timeZone;
+    private final ZoneId zoneId;
     private final String name;
 
     BaseDateTimeFunction(Location location, Expression field, TimeZone timeZone) {
         super(location, field);
         this.timeZone = timeZone;
+        this.zoneId = timeZone != null ? timeZone.toZoneId() : null;
 
         StringBuilder sb = new StringBuilder(super.name());
         // add timezone as last argument
@@ -42,11 +45,7 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (field().dataType() == DataType.DATE) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-        return new TypeResolution("Function [" + functionName() + "] cannot be applied on a non-date expression (["
-                + Expressions.name(field()) + "] of type [" + field().dataType().esType + "])");
+        return Expressions.typeMustBeDate(field(), functionName(), ParamOrdinal.DEFAULT);
     }
 
     public TimeZone timeZone() {
@@ -62,9 +61,32 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
     public boolean foldable() {
         return field().foldable();
     }
-    
+
     @Override
-    protected ScriptTemplate asScriptFrom(AggregateFunctionAttribute aggregate) {
-        throw new UnsupportedOperationException();
+    public Object fold() {
+        ZonedDateTime folded = (ZonedDateTime) field().fold();
+        if (folded == null) {
+            return null;
+        }
+
+        return doFold(folded.withZoneSameInstant(zoneId));
+    }
+
+    protected abstract Object doFold(ZonedDateTime dateTime);
+    
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        BaseDateTimeFunction other = (BaseDateTimeFunction) obj;
+        return Objects.equals(other.field(), field())
+            && Objects.equals(other.timeZone(), timeZone());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(field(), timeZone());
     }
 }

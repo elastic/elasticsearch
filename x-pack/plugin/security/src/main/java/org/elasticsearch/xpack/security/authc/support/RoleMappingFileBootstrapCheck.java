@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import java.nio.file.Path;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -28,7 +29,7 @@ public class RoleMappingFileBootstrapCheck implements BootstrapCheck {
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
         try {
-            DnRoleMapper.parseFile(path, realmConfig.logger(getClass()), realmConfig.type(), realmConfig.name(), true);
+            DnRoleMapper.parseFile(path, LogManager.getLogger(getClass()), realmConfig.type(), realmConfig.name(), true);
             return BootstrapCheckResult.success();
         } catch (Exception e) {
             return BootstrapCheckResult.failure(e.getMessage());
@@ -42,8 +43,8 @@ public class RoleMappingFileBootstrapCheck implements BootstrapCheck {
     }
 
     public static BootstrapCheck create(RealmConfig realmConfig) {
-        if (realmConfig.enabled() && DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING.exists(realmConfig.settings())) {
-            Path file = DnRoleMapper.resolveFile(realmConfig.settings(), realmConfig.env());
+        if (realmConfig.enabled() && realmConfig.hasSetting(DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING)) {
+            Path file = DnRoleMapper.resolveFile(realmConfig);
             return new RoleMappingFileBootstrapCheck(realmConfig, file);
         }
         return null;

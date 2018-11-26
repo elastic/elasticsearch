@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
- * Returns returns the number of bits contained within the value expression.
+ * Returns the number of bits contained within the value expression.
  */
 public class BitLength extends UnaryStringFunction {
 

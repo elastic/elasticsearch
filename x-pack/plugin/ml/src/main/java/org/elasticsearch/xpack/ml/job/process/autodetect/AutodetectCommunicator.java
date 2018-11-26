@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -58,7 +58,7 @@ import java.util.function.Consumer;
 
 public class AutodetectCommunicator implements Closeable {
 
-    private static final Logger LOGGER = Loggers.getLogger(AutodetectCommunicator.class);
+    private static final Logger LOGGER = LogManager.getLogger(AutodetectCommunicator.class);
     private static final Duration FLUSH_PROCESS_CHECK_FREQUENCY = Duration.ofSeconds(1);
 
     private final Job job;
@@ -264,7 +264,7 @@ public class AutodetectCommunicator implements Closeable {
 
     public void persistJob(BiConsumer<Void, Exception> handler) {
         submitOperation(() -> {
-            autodetectProcess.persistJob();
+            autodetectProcess.persistState();
             return null;
         }, handler);
     }

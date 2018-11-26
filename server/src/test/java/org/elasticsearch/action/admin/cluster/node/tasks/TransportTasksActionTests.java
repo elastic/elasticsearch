@@ -152,9 +152,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
      */
     abstract class TestNodesAction extends AbstractTestNodesAction<NodesRequest, NodeRequest> {
 
-        TestNodesAction(Settings settings, String actionName, ThreadPool threadPool,
-                        ClusterService clusterService, TransportService transportService) {
-            super(settings, actionName, threadPool, clusterService, transportService, NodesRequest::new, NodeRequest::new);
+        TestNodesAction(String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
+            super(actionName, threadPool, clusterService, transportService, NodesRequest::new, NodeRequest::new);
         }
 
         @Override
@@ -234,9 +233,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
      */
     abstract static class TestTasksAction extends TransportTasksAction<Task, TestTasksRequest, TestTasksResponse, TestTaskResponse> {
 
-        protected TestTasksAction(Settings settings, String actionName,
+        protected TestTasksAction(String actionName,
                 ClusterService clusterService, TransportService transportService) {
-            super(settings, actionName, clusterService, transportService, new ActionFilters(new HashSet<>()),
+            super(actionName, clusterService, transportService, new ActionFilters(new HashSet<>()),
                 TestTasksRequest::new, TestTasksResponse::new,
                     ThreadPool.Names.MANAGEMENT);
         }
@@ -276,7 +275,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         TestNodesAction[] actions = new TestNodesAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
-            actions[i] = new TestNodesAction(CLUSTER_SETTINGS, "internal:testAction", threadPool, testNodes[i].clusterService,
+            actions[i] = new TestNodesAction("internal:testAction", threadPool, testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request) {
@@ -541,7 +540,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         RecordingTaskManagerListener[] listeners = setupListeners(testNodes, "internal:testAction*");
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
-            actions[i] = new TestNodesAction(CLUSTER_SETTINGS, "internal:testAction", threadPool, testNodes[i].clusterService,
+            actions[i] = new TestNodesAction("internal:testAction", threadPool, testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request) {
@@ -581,7 +580,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
             // Simulate task action that fails on one of the tasks on one of the nodes
-            tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "internal:testTasksAction", testNodes[i].clusterService,
+            tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
                 protected void taskOperation(TestTasksRequest request, Task task, ActionListener<TestTaskResponse> listener) {
@@ -660,7 +659,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             final int node = i;
             // Simulate a task action that works on all nodes except nodes listed in filterNodes.
             // We are testing that it works.
-            tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "internal:testTasksAction",
+            tasksActions[i] = new TestTasksAction("internal:testTasksAction",
                 testNodes[i].clusterService, testNodes[i].transportService) {
 
                 @Override

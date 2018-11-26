@@ -32,8 +32,8 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ChildMemoryCircuitBreaker implements CircuitBreaker {
 
     private final long memoryBytesLimit;
-    private final BreakerSettings settings;
     private final double overheadConstant;
+    private final Durability durability;
     private final AtomicLong used;
     private final AtomicLong trippedCount;
     private final Logger logger;
@@ -66,9 +66,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     public ChildMemoryCircuitBreaker(BreakerSettings settings, ChildMemoryCircuitBreaker oldBreaker,
                                      Logger logger, HierarchyCircuitBreakerService parent, String name) {
         this.name = name;
-        this.settings = settings;
         this.memoryBytesLimit = settings.getLimit();
         this.overheadConstant = settings.getOverhead();
+        this.durability = settings.getDurability();
         if (oldBreaker == null) {
             this.used = new AtomicLong(0);
             this.trippedCount = new AtomicLong(0);
@@ -78,7 +78,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         }
         this.logger = logger;
         if (logger.isTraceEnabled()) {
-            logger.trace("creating ChildCircuitBreaker with settings {}", this.settings);
+            logger.trace("creating ChildCircuitBreaker with settings {}", settings);
         }
         this.parent = parent;
     }
@@ -95,7 +95,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
                 ", which is larger than the limit of [" +
                 memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]";
         logger.debug("{}", message);
-        throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit);
+        throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit, durability);
     }
 
     /**
@@ -233,5 +233,13 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     @Override
     public String getName() {
         return this.name;
+    }
+
+    /**
+     * @return whether a tripped circuit breaker will reset itself (transient) or requires manual intervention (permanent).
+     */
+    @Override
+    public Durability getDurability() {
+        return this.durability;
     }
 }

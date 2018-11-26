@@ -40,7 +40,7 @@ public class ExecutableLoggingAction extends ExecutableAction<LoggingAction> {
 
     @Override
     public  Action.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
-        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
 
         String loggedText = templateEngine.render(action.text, model);
         if (ctx.simulateAction(actionId)) {

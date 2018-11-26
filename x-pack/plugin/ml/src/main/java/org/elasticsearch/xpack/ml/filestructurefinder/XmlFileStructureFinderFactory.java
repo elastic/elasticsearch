@@ -122,8 +122,9 @@ public class XmlFileStructureFinderFactory implements FileStructureFinderFactory
 
     @Override
     public FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
-                                                FileStructureOverrides overrides)
+                                                FileStructureOverrides overrides, TimeoutChecker timeoutChecker)
         throws IOException, ParserConfigurationException, SAXException {
-        return XmlFileStructureFinder.makeXmlFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker, overrides);
+        return XmlFileStructureFinder.makeXmlFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker, overrides,
+            timeoutChecker);
     }
 }

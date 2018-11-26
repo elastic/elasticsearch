@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -61,6 +62,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -405,6 +407,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(task.getResyncedOperations(), greaterThanOrEqualTo(extraDocs));
             }
             shards.assertAllEqual(initialDocs + extraDocs);
+            for (IndexShard replica : shards.getReplicas()) {
+                assertThat(replica.getMaxSeqNoOfUpdatesOrDeletes(),
+                    greaterThanOrEqualTo(shards.getPrimary().getMaxSeqNoOfUpdatesOrDeletes()));
+            }
 
             // check translog on replica is trimmed
             int translogOperations = 0;
@@ -490,9 +496,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 }) {
                     @Override
                     public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                                        long maxSeenAutoIdTimestampOnPrimary) throws IOException {
+                                                        long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdates) throws IOException {
                         opsSent.set(true);
-                        return super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestampOnPrimary);
+                        return super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp, maxSeqNoOfUpdates);
                     }
                 };
             });
@@ -560,7 +566,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener, l -> {}) {
                         @Override
                         public long indexTranslogOperations(final List<Translog.Operation> operations, final int totalTranslogOps,
-                                                            final long maxAutoIdTimestamp)
+                                                            final long maxAutoIdTimestamp, long maxSeqNoOfUpdates)
                              throws IOException {
                             // index a doc which is not part of the snapshot, but also does not complete on replica
                             replicaEngineFactory.latchIndexers(1);
@@ -588,7 +594,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                             } catch (InterruptedException e) {
                                 throw new AssertionError(e);
                             }
-                            return super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp);
+                            return super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdates);
                         }
                     });
             pendingDocActiveWithExtraDocIndexed.await();
@@ -677,6 +683,50 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
     }
 
+    public void testAddNewReplicas() throws Exception {
+        try (ReplicationGroup shards = createGroup(between(0, 1))) {
+            shards.startAll();
+            Thread[] threads = new Thread[between(1, 3)];
+            AtomicBoolean isStopped = new AtomicBoolean();
+            boolean appendOnly = randomBoolean();
+            AtomicInteger docId = new AtomicInteger();
+            for (int i = 0; i < threads.length; i++) {
+                threads[i] = new Thread(() -> {
+                    while (isStopped.get() == false) {
+                        try {
+                            if (appendOnly) {
+                                String id = randomBoolean() ? Integer.toString(docId.incrementAndGet()) : null;
+                                shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                            } else if (frequently()) {
+                                String id = Integer.toString(frequently() ? docId.incrementAndGet() : between(0, 10));
+                                shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                            } else {
+                                String id = Integer.toString(between(0, docId.get()));
+                                shards.delete(new DeleteRequest(index.getName(), "type", id));
+                            }
+                            if (randomInt(100) < 10) {
+                                shards.getPrimary().flush(new FlushRequest());
+                            }
+                        } catch (Exception ex) {
+                            throw new AssertionError(ex);
+                        }
+                    }
+                });
+                threads[i].start();
+            }
+            assertBusy(() -> assertThat(docId.get(), greaterThanOrEqualTo(50)));
+            shards.getPrimary().sync();
+            IndexShard newReplica = shards.addReplica();
+            shards.recoverReplica(newReplica);
+            assertBusy(() -> assertThat(docId.get(), greaterThanOrEqualTo(100)));
+            isStopped.set(true);
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            assertBusy(() -> assertThat(getDocIdAndSeqNos(newReplica), equalTo(getDocIdAndSeqNos(shards.getPrimary()))));
+        }
+    }
+
     public static class BlockingTarget extends RecoveryTarget {
 
         private final CountDownLatch recoveryBlocked;
@@ -718,11 +768,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
         @Override
         public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                            long maxAutoIdTimestamp) throws IOException {
+                                            long maxAutoIdTimestamp, long maxSeqNoOfUpdates) throws IOException {
             if (hasBlocked() == false) {
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }
-            return super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp);
+            return super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdates);
         }
 
         @Override

@@ -37,13 +37,14 @@ public class MultiFieldCopyToMapperTests extends ESTestCase {
     public void testExceptionForCopyToInMultiFields() throws IOException {
         XContentBuilder mapping = createMappinmgWithCopyToInMultiField();
 
-        // first check that for newer versions we throw exception if copy_to is found withing multi field
+        // first check that for newer versions we throw exception if copy_to is found within multi field
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "test");
         try {
             mapperService.parse("type", new CompressedXContent(Strings.toString(mapping)), true);
             fail("Parsing should throw an exception because the mapping contains a copy_to in a multi field");
         } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), equalTo("copy_to in multi fields is not allowed. Found the copy_to in field [c] which is within a multi field."));
+            assertThat(e.getMessage(), equalTo("copy_to in multi fields is not allowed. Found the copy_to in field [c]"
+                + " which is within a multi field."));
         }
     }
 

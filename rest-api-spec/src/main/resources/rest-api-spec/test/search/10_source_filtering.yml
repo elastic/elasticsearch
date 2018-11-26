@@ -49,20 +49,20 @@ setup:
   - is_false: hits.hits.0._source.include.field2
 
 ---
-"_source include and _source in body":
-  - do: { search: { _source_include: include.field1, body: { _source: include.field2, query: { match_all: {} } } } }
+"_source_includes and _source in body":
+  - do: { search: { _source_includes: include.field1, body: { _source: include.field2, query: { match_all: {} } } } }
   - match:  { hits.hits.0._source.include.field1: v1 }
   - is_false: hits.hits.0._source.include.field2
 
 ---
-"_source_include":
-  - do: { search: { _source_include: include.field1, body: { query: { match_all: {} } } } }
+"_source_includes":
+  - do: { search: { _source_includes: include.field1, body: { query: { match_all: {} } } } }
   - match:  { hits.hits.0._source.include.field1: v1 }
   - is_false: hits.hits.0._source.include.field2
 
 ---
-"_source_exclude":
-  - do: { search: { _source_exclude: count, body: { query: { match_all: {} } } } }
+"_source_excludes":
+  - do: { search: { _source_excludes: count, body: { query: { match_all: {} } } } }
   - match:  { hits.hits.0._source.include: { field1 : v1 , field2: v2 }}
   - is_false: hits.hits.0._source.count
 
@@ -111,6 +111,16 @@ setup:
           query: { match_all: {} }
   - match:  { hits.hits.0._source.bigint: 72057594037927936 }
   - is_false:  hits.hits.0._source.include.field2
+
+
+---
+"_source filtering on bigint":
+- do:
+    search:
+      body:
+        _source: ["bigint"]
+        query: { match_all: {} }
+- match:  { hits.hits.0._source.bigint: 72057594037927936 }
 
 ---
 "fields in body":

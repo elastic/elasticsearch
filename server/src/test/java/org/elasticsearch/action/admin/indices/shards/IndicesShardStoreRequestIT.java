@@ -117,7 +117,8 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         assertThat(shardStoresStatuses.size(), equalTo(unassignedShards.size()));
         for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> storesStatus : shardStoresStatuses) {
             assertThat("must report for one store", storesStatus.value.size(), equalTo(1));
-            assertThat("reported store should be primary", storesStatus.value.get(0).getAllocationStatus(), equalTo(IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY));
+            assertThat("reported store should be primary", storesStatus.value.get(0).getAllocationStatus(),
+                equalTo(IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY));
         }
         logger.info("--> enable allocation");
         enableAllocation(index);
@@ -136,8 +137,10 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         indexRandomData(index1);
         indexRandomData(index2);
         ensureGreen();
-        IndicesShardStoresResponse response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest().shardStatuses("all")).get();
-        ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> shardStatuses = response.getStoreStatuses();
+        IndicesShardStoresResponse response = client().admin().indices()
+            .shardStores(Requests.indicesShardStoresRequest().shardStatuses("all")).get();
+        ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>>
+            shardStatuses = response.getStoreStatuses();
         assertThat(shardStatuses.containsKey(index1), equalTo(true));
         assertThat(shardStatuses.containsKey(index2), equalTo(true));
         assertThat(shardStatuses.get(index1).size(), equalTo(2));

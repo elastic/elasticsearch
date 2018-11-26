@@ -76,7 +76,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         MultiTermVectorsResponse response = mtvBuilder.execute().actionGet();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getFailure().getCause(), instanceOf(IndexNotFoundException.class));
-        assertThat(response.getResponses()[0].getFailure().getCause().getMessage(), equalTo("no such index"));
+        assertThat(response.getResponses()[0].getFailure().getCause().getMessage(), equalTo("no such index [testX]"));
     }
 
     public void testMultiTermVectorsWithVersion() throws Exception {
@@ -118,7 +118,8 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         //Version from Lucene index
         refresh();
         response = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(Versions.MATCH_ANY).realtime(false))
+                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field")
+                    .version(Versions.MATCH_ANY).realtime(false))
                 .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(1).realtime(false))
                 .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(2).realtime(false))
                 .get();

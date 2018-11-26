@@ -1,0 +1,24 @@
+[[executable-jna-tmpdir]]
+=== JNA temporary directory not mounted with `noexec`
+
+[NOTE]
+This is only relevant for Linux.
+
+Elasticsearch uses the Java Native Access (JNA) library for executing some
+platform-dependent native code. On Linux, the native code backing this library
+is extracted at runtime from the JNA archive. By default, this code is extracted
+to the Elasticsearch temporary directory which defaults to a sub-directory of
+`/tmp`. Alternatively, this location can be controlled with the JVM flag
+`-Djna.tmpdir=<path>`. As the native library is mapped into the JVM virtual
+address space as executable, the underlying mount point of the location that
+this code is extracted to must *not* be mounted with `noexec` as this prevents
+the JVM process from being able to map this code as executable. On some hardened
+Linux installations this is a default mount option for `/tmp`. One indication
+that the underlying mount is mounted with `noexec` is that at startup JNA will
+fail to load with a `java.lang.UnsatisfiedLinkerError` exception with a message
+along the lines of `failed to map segment from shared object`.  Note that the
+exception message can differ amongst JVM versions. Additionally, the components
+of Elasticsearch that rely on execution of native code via JNA will fail with
+messages indicating that it is `because JNA is not available`. If you are seeing
+such error messages, you must remount the temporary directory used for JNA to
+not be mounted with `noexec`.

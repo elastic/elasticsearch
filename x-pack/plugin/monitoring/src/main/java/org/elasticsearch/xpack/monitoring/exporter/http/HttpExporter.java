@@ -13,6 +13,7 @@ import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
@@ -24,7 +25,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -69,7 +69,7 @@ import java.util.stream.Collectors;
  */
 public class HttpExporter extends Exporter {
 
-    private static final Logger logger = Loggers.getLogger(HttpExporter.class);
+    private static final Logger logger = LogManager.getLogger(HttpExporter.class);
 
     public static final String TYPE = "http";
 
@@ -164,7 +164,7 @@ public class HttpExporter extends Exporter {
     /**
      * Minimum supported version of the remote monitoring cluster (same major).
      */
-    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_7_0_0_alpha1;
+    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_7_0_0;
 
     /**
      * The {@link RestClient} automatically pools connections and keeps them alive as necessary.

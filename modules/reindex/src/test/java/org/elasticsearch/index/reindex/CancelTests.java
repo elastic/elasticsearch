@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -26,7 +27,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
@@ -122,7 +122,7 @@ public class CancelTests extends ReindexTestCase {
         logger.debug("waiting for updates to be blocked");
         boolean blocked = awaitBusy(
             () -> ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0,
-            1, TimeUnit.MINUTES); // 10 seconds is usually fine but on heavilly loaded machines this can wake a while
+            1, TimeUnit.MINUTES); // 10 seconds is usually fine but on heavily loaded machines this can take a while
         assertTrue("updates blocked", blocked);
 
         // Status should show the task running
@@ -195,7 +195,7 @@ public class CancelTests extends ReindexTestCase {
         assertion.assertThat(response, numDocs, numModifiedDocs);
     }
 
-    private TaskInfo findTaskToCancel(String actionName, int workerCount) {
+    public static TaskInfo findTaskToCancel(String actionName, int workerCount) {
         ListTasksResponse tasks;
         long start = System.nanoTime();
         do {
@@ -298,7 +298,7 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public static class BlockingOperationListener implements IndexingOperationListener {
-        private static final Logger log = Loggers.getLogger(CancelTests.class);
+        private static final Logger log = LogManager.getLogger(CancelTests.class);
 
         @Override
         public Engine.Index preIndex(ShardId shardId, Engine.Index index) {

@@ -51,7 +51,7 @@ import java.util.function.Supplier;
 
 public final class SimilarityService extends AbstractIndexComponent {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(SimilarityService.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SimilarityService.class));
     public static final String DEFAULT_SIMILARITY = "BM25";
     private static final String CLASSIC_SIMILARITY = "classic";
     private static final Map<String, Function<Version, Supplier<Similarity>>> DEFAULTS;
@@ -59,7 +59,7 @@ public final class SimilarityService extends AbstractIndexComponent {
     static {
         Map<String, Function<Version, Supplier<Similarity>>> defaults = new HashMap<>();
         defaults.put(CLASSIC_SIMILARITY, version -> {
-            if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (version.onOrAfter(Version.V_7_0_0)) {
                 return () -> {
                     throw new IllegalArgumentException("The [classic] similarity may not be used anymore. Please use the [BM25] "
                             + "similarity or build a custom [scripted] similarity instead.");
@@ -67,7 +67,7 @@ public final class SimilarityService extends AbstractIndexComponent {
             } else {
                 final ClassicSimilarity similarity = SimilarityProviders.createClassicSimilarity(Settings.EMPTY, version);
                 return () -> {
-                    DEPRECATION_LOGGER.deprecated("The [classic] similarity is now deprecated in favour of BM25, which is generally "
+                    deprecationLogger.deprecated("The [classic] similarity is now deprecated in favour of BM25, which is generally "
                             + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
                             + "instead.");
                     return similarity;
@@ -86,11 +86,11 @@ public final class SimilarityService extends AbstractIndexComponent {
         Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> builtIn = new HashMap<>();
         builtIn.put(CLASSIC_SIMILARITY,
                 (settings, version, script) -> {
-                    if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
+                    if (version.onOrAfter(Version.V_7_0_0)) {
                         throw new IllegalArgumentException("The [classic] similarity may not be used anymore. Please use the [BM25] "
                                 + "similarity or build a custom [scripted] similarity instead.");
                     } else {
-                        DEPRECATION_LOGGER.deprecated("The [classic] similarity is now deprecated in favour of BM25, which is generally "
+                        deprecationLogger.deprecated("The [classic] similarity is now deprecated in favour of BM25, which is generally "
                                 + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
                                 + "instead.");
                         return SimilarityProviders.createClassicSimilarity(settings, version);
@@ -154,7 +154,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
                                                               : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
         if (providers.get("base") != null) {
-            DEPRECATION_LOGGER.deprecated("The [base] similarity is ignored since query normalization and coords have been removed");
+            deprecationLogger.deprecated("The [base] similarity is ignored since query normalization and coords have been removed");
         }
     }
 
@@ -206,7 +206,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         CollectionStatistics collectionStats = new CollectionStatistics("some_field", 1200, 1100, 3000, 2000);
         TermStatistics termStats = new TermStatistics(new BytesRef("some_value"), 100, 130);
         SimScorer scorer = similarity.scorer(2f, collectionStats, termStats);
-        FieldInvertState state = new FieldInvertState(indexCreatedVersion.major, "some_field",
+        FieldInvertState state = new FieldInvertState(indexCreatedVersion.luceneVersion.major, "some_field",
                 IndexOptions.DOCS_AND_FREQS, 20, 20, 0, 50, 10, 3); // length = 20, no overlap
         final long norm = similarity.computeNorm(state);
         for (int freq = 1; freq <= 10; ++freq) {
@@ -214,6 +214,7 @@ public final class SimilarityService extends AbstractIndexComponent {
             if (score < 0) {
                 fail(indexCreatedVersion, "Similarities should not return negative scores:\n" +
                         scorer.explain(Explanation.match(freq, "term freq"), norm));
+                break;
             }
         }
     }
@@ -222,7 +223,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         CollectionStatistics collectionStats = new CollectionStatistics("some_field", 1200, 1100, 3000, 2000);
         TermStatistics termStats = new TermStatistics(new BytesRef("some_value"), 100, 130);
         SimScorer scorer = similarity.scorer(2f, collectionStats, termStats);
-        FieldInvertState state = new FieldInvertState(indexCreatedVersion.major, "some_field",
+        FieldInvertState state = new FieldInvertState(indexCreatedVersion.luceneVersion.major, "some_field",
                 IndexOptions.DOCS_AND_FREQS, 20, 20, 0, 50, 10, 3); // length = 20, no overlap
         final long norm = similarity.computeNorm(state);
         float previousScore = 0;
@@ -232,6 +233,7 @@ public final class SimilarityService extends AbstractIndexComponent {
                 fail(indexCreatedVersion, "Similarity scores should not decrease when term frequency increases:\n" +
                         scorer.explain(Explanation.match(freq - 1, "term freq"), norm) + "\n" +
                         scorer.explain(Explanation.match(freq, "term freq"), norm));
+                break;
             }
             previousScore = score;
         }
@@ -245,7 +247,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         long previousNorm = 0;
         float previousScore = Float.MAX_VALUE;
         for (int length = 1; length <= 10; ++length) {
-            FieldInvertState state = new FieldInvertState(indexCreatedVersion.major, "some_field",
+            FieldInvertState state = new FieldInvertState(indexCreatedVersion.luceneVersion.major, "some_field",
                     IndexOptions.DOCS_AND_FREQS, length, length, 0, 50, 10, 3); // length = 20, no overlap
             final long norm = similarity.computeNorm(state);
             if (Long.compareUnsigned(previousNorm, norm) > 0) {
@@ -257,6 +259,7 @@ public final class SimilarityService extends AbstractIndexComponent {
                 fail(indexCreatedVersion, "Similarity scores should not increase when norm increases:\n" +
                         scorer.explain(Explanation.match(1, "term freq"), norm - 1) + "\n" +
                         scorer.explain(Explanation.match(1, "term freq"), norm));
+                break;
             }
             previousScore = score;
             previousNorm = norm;
@@ -264,10 +267,10 @@ public final class SimilarityService extends AbstractIndexComponent {
     }
 
     private static void fail(Version indexCreatedVersion, String message) {
-        if (indexCreatedVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
             throw new IllegalArgumentException(message);
         } else if (indexCreatedVersion.onOrAfter(Version.V_6_5_0)) {
-            DEPRECATION_LOGGER.deprecated(message);
+            deprecationLogger.deprecated(message);
         }
     }
 

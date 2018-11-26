@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
-import org.elasticsearch.common.logging.Loggers;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -27,7 +27,7 @@ public abstract class FileStructureTestCase extends ESTestCase {
         "2018-05-17T16:23:40,key1,42.0\n" +
         "2018-05-17T16:24:11,\"key with spaces\",42.0\n";
 
-    protected static final String JSON_SAMPLE = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\"," +
+    protected static final String NDJSON_SAMPLE = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\"," +
             "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\"," +
             "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n" +
         "{\"logger\":\"controller\",\"timestamp\":1478261151445," +
@@ -68,6 +68,9 @@ public abstract class FileStructureTestCase extends ESTestCase {
         "</log4j:event>\n" +
         "\n";
 
+    // This doesn't need closing because it has an infinite timeout
+    protected static final TimeoutChecker NOOP_TIMEOUT_CHECKER = new TimeoutChecker("unit test", null, null);
+
     protected List<String> explanation;
 
     @Before
@@ -77,7 +80,7 @@ public abstract class FileStructureTestCase extends ESTestCase {
 
     @After
     public void printExplanation() {
-        Loggers.getLogger(getClass()).info("Explanation:\n" + String.join("\n", explanation));
+        LogManager.getLogger(getClass()).info("Explanation:\n" + String.join("\n", explanation));
     }
 
     protected Boolean randomHasByteOrderMarker(String charset) {

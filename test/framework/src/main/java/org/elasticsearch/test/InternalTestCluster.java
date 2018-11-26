@@ -105,7 +105,6 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.MockTransportClient;
@@ -1924,8 +1923,7 @@ public final class InternalTestCluster extends TestCluster {
         final int prevMasterCount = getMasterNodesCount();
         for (Settings nodeSettings : settings) {
             final Settings nodeSettingsIncludingBootstrap;
-            if (prevMasterCount == 0 && autoManageMinMasterNodes && Arrays.stream(settings)
-                .allMatch(s -> Node.NODE_MASTER_SETTING.get(s) == false || TestZenDiscovery.USE_ZEN2.get(s) == true)) {
+            if (prevMasterCount == 0 && autoManageMinMasterNodes) {
                 nodeSettingsIncludingBootstrap = Settings.builder()
                     .put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(),
                         (int) Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count())

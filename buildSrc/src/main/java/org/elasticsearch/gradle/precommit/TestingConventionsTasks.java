@@ -20,15 +20,19 @@ package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.tool.Boilerplate;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.Task;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.util.PatternFilterable;
 
 import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
@@ -40,8 +44,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -57,7 +63,7 @@ public class TestingConventionsTasks extends DefaultTask {
      */
     private Boolean activeTestsExists;
 
-    private List<String> testClassNames;
+    private Map<String, File> testClassNames;
 
     public TestingConventionsTasks() {
         setDescription("Tests various testing conventions");
@@ -68,56 +74,113 @@ public class TestingConventionsTasks extends DefaultTask {
     @TaskAction
     public void doCheck() throws IOException {
         activeTestsExists = false;
-        final List<String> problems;
+        final Optional<String> problems;
 
         try (URLClassLoader isolatedClassLoader = new URLClassLoader(
             getTestsClassPath().getFiles().stream().map(this::fileToUrl).toArray(URL[]::new)
         )) {
-            List<? extends Class<?>> classes = getTestClassNames().stream()
-                .map(name -> loadClassWithoutInitializing(name, isolatedClassLoader))
-                .collect(Collectors.toList());
-
             Predicate<Class<?>> isStaticClass = clazz -> Modifier.isStatic(clazz.getModifiers());
             Predicate<Class<?>> isPublicClass = clazz -> Modifier.isPublic(clazz.getModifiers());
-            Predicate<Class<?>> implementsNamingConvention = clazz -> clazz.getName().endsWith(TEST_CLASS_SUFIX) ||
-                clazz.getName().endsWith(INTEG_TEST_CLASS_SUFIX);
+            Predicate<Class<?>> implementsNamingConvention = clazz ->
+                clazz.getName().endsWith(TEST_CLASS_SUFIX) ||
+                    clazz.getName().endsWith(INTEG_TEST_CLASS_SUFIX);
 
-            problems = Stream.concat(
+            Map<File, ? extends Class<?>> classes = getTestClassNames().entrySet().stream()
+                .collect(Collectors.toMap(
+                    Map.Entry::getValue,
+                    entry -> loadClassWithoutInitializing(entry.getKey(), isolatedClassLoader))
+                );
+
+            FileTree allClassFiles = getProject().files(
+                classes.values().stream()
+                    .filter(isStaticClass.negate())
+                    .filter(isPublicClass)
+                    .filter(implementsNamingConvention)
+                    .map(clazz -> testClassNames.get(clazz.getName()))
+                    .collect(Collectors.toList())
+            ).getAsFileTree();
+
+            final Map<String, Set<File>> filesPerTask = getProject().getTasks().withType(getRandomizedTestingTask()).stream()
+                .map(each -> (Task) each)
+                .collect(Collectors.toMap(
+                    Task::getName,
+                    task -> allClassFiles.matching(getRandomizedTestingPatternSet(task)).getFiles()
+                ));
+            
+            problems = collectProblems(
                 checkNoneExists(
                     "Test classes implemented by inner classes will not run",
-                    classes.stream()
+                    classes.values().stream()
                         .filter(isStaticClass)
                         .filter(implementsNamingConvention.or(this::seemsLikeATest))
-                ).stream(),
+                ),
                 checkNoneExists(
                     "Seem like test classes but don't match naming convention",
-                    classes.stream()
+                    classes.values().stream()
                         .filter(isStaticClass.negate())
                         .filter(isPublicClass)
                         .filter(this::seemsLikeATest)
                         .filter(implementsNamingConvention.negate())
-                ).stream()
-            ).collect(Collectors.toList());
+                ),
+                checkNoneExists(
+                    "Test classes are not included in any task",
+                    allClassFiles.getFiles().stream()
+                        .filter(testFile ->
+                            filesPerTask.values().stream()
+                                .anyMatch(fileSet -> fileSet.contains(testFile)) == false
+                        )
+                        .map(classes::get)
+                )
+            );
         }
 
-        if (problems.isEmpty()) {
+        if (problems.isPresent()) {
+            throw new IllegalStateException("Testing conventions are not honored:\n" + problems.get());
+        } else {
             getSuccessMarker().getParentFile().mkdirs();
             Files.write(getSuccessMarker().toPath(), new byte[]{}, StandardOpenOption.CREATE);
-        } else {
-            problems.forEach(getProject().getLogger()::error);
-            throw new IllegalStateException("Testing conventions are not honored");
+        }
+    }
+
+    private Optional<String> collectProblems(String... problems) {
+        return Stream.of(problems)
+            .filter(String::isBlank)
+            .map(each -> each + "\n")
+            .reduce(String::concat)
+            .map(String::trim);
+    }
+
+    private PatternFilterable getRandomizedTestingPatternSet(Task task) {
+        try {
+            if (getRandomizedTestingTask().isAssignableFrom(task.getClass()) == false) {
+                throw new IllegalStateException("Expected " + task + " to be RandomizedTestingTask but it was " + task.getClass());
+            }
+            Method getPatternSet = task.getClass().getMethod("getPatternSet");
+            return (PatternFilterable) getPatternSet.invoke(task);
+        } catch (NoSuchMethodException e) {
+            throw new IllegalStateException("Expecte task to have a `patternSet` " + task, e);
+        } catch (IllegalAccessException|InvocationTargetException e) {
+            throw new IllegalStateException("Failed to get pattern set from task" + task, e);
+        }
+    }
+
+    private Class<? extends Task> getRandomizedTestingTask() {
+        try {
+            return (Class<? extends Task>) Class.forName("com.carrotsearch.gradle.junit4.RandomizedTestingTask");
+        } catch (ClassNotFoundException|ClassCastException e) {
+            throw new IllegalStateException("Failed to load randomized testing class", e);
         }
     }
 
     @Input
     @SkipWhenEmpty
-    public List<String> getTestClassNames() {
+    public Map<String, File> getTestClassNames() {
         if (testClassNames == null) {
             testClassNames = Boilerplate.getJavaSourceSets(getProject()).getByName("test").getOutput().getClassesDirs()
                 .getFiles().stream()
                 .filter(File::exists)
-                .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).stream())
-                .collect(Collectors.toList());
+                .flatMap(testRoot -> walkPathAndLoadClasses(testRoot).entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
         return testClassNames;
     }
@@ -127,16 +190,15 @@ public class TestingConventionsTasks extends DefaultTask {
         return new File(getProject().getBuildDir(), "markers/" + getName());
     }
 
-    private List<String> checkNoneExists(String message, Stream<? extends Class<?>> stream) {
-        List<String> problems = new ArrayList<>();
-        List<Class<?>> entries = stream.collect(Collectors.toList());
-        if (entries.isEmpty() == false) {
-            problems.add(message + ":");
-            entries.stream()
-                .map(each -> "  * " + each.getName())
-            .forEach(problems::add);
+    private String checkNoneExists(String message, Stream<? extends Class<?>> stream) {
+        String problem = stream
+            .map(each -> "  * " + each.getName())
+            .collect(Collectors.joining("\n"));
+        if (problem.isEmpty() == false) {
+            return message + ":\n" + problem;
+        } else{
+            return "";
         }
-        return problems;
     }
 
     private boolean seemsLikeATest(Class<?> clazz) {
@@ -197,8 +259,8 @@ public class TestingConventionsTasks extends DefaultTask {
         );
     }
 
-    private List<String> walkPathAndLoadClasses(File testRoot) {
-        List<String> classes = new ArrayList<>();
+    private Map<String, File> walkPathAndLoadClasses(File testRoot) {
+        Map<String, File> classes = new HashMap<>();
         try {
             Files.walkFileTree(testRoot.toPath(), new FileVisitor<Path>() {
                 private String packageName;
@@ -227,7 +289,7 @@ public class TestingConventionsTasks extends DefaultTask {
                     String filename = file.getFileName().toString();
                     if (filename.endsWith(".class")) {
                         String className = filename.substring(0, filename.length() - ".class".length());
-                        classes.add(packageName + className);
+                        classes.put(packageName + className, file.toFile());
                     }
                     return FileVisitResult.CONTINUE;
                 }

@@ -338,6 +338,10 @@ public class SecurityClient {
         return new CreateApiKeyRequestBuilder(client);
     }
 
+    public CreateApiKeyRequestBuilder prepareCreateApiKey(BytesReference bytesReference, XContentType xContentType) throws IOException {
+        return new CreateApiKeyRequestBuilder(client).source(bytesReference, xContentType);
+    }
+
     public void createApiKey(CreateApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
         client.execute(CreateApiKeyAction.INSTANCE, request, listener);
     }

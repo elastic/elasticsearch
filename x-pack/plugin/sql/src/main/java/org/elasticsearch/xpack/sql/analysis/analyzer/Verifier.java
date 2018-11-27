@@ -591,24 +591,19 @@ public final class Verifier {
     private static void validateConditional(LogicalPlan p, Set<Failure> localFailures) {
         p.forEachExpressions(e ->
             e.forEachUp((ConditionalFunction cf) -> {
-                    int idx = 0;
                     DataType dt = DataType.NULL;
 
-                    // Find the data type of the first non-null argument
-                    for (; idx < cf.children().size(); idx++) {
-                        DataType childDT = cf.children().get(idx).dataType();
-                        if (childDT != DataType.NULL) {
-                            dt = childDT;
-                            break;
-                        }
-                    }
-                    // Compare the data type of the rest of the arguments with the data type of first non-null argument
-                    for (; idx < cf.children().size(); idx++) {
-                        Expression value = cf.children().get(idx);
-                        if (areTypesCompatible(dt, value.dataType()) == false) {
-                            localFailures.add(fail(value, "expected data type [%s], value provided is of type [%s]",
-                                dt, value.dataType()));
-                            return;
+                    for (Expression child : cf.children()) {
+                        if (dt == DataType.NULL) {
+                            if (Expressions.isNull(child) == false) {
+                                dt = child.dataType();
+                            }
+                        } else {
+                            if (areTypesCompatible(dt, child.dataType()) == false) {
+                                localFailures.add(fail(child, "expected data type [%s], value provided is of type [%s]",
+                                    dt, child.dataType()));
+                                return;
+                            }
                         }
                     }
                 },

@@ -60,7 +60,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
     }
 
     public void testInvalidStepDetails() {
-        final int numNull = randomIntBetween(1, 6);
+        final int numNull = randomIntBetween(1, 3);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
             IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
@@ -69,9 +69,9 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                 (numNull == 2) ? null : randomAlphaOfLength(10),
                 (numNull == 3) ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : randomAlphaOfLength(10),
-                (numNull == 4) ? null : randomNonNegativeLong(),
-                (numNull == 5) ? null : randomNonNegativeLong(),
-                (numNull == 6) ? null : randomNonNegativeLong(),
+                randomBoolean() ? null : randomNonNegativeLong(),
+                randomBoolean() ? null : randomNonNegativeLong(),
+                randomBoolean() ? null : randomNonNegativeLong(),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
                 randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")));
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
@@ -109,7 +109,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         BytesReference stepInfo = instance.getStepInfo();
         PhaseExecutionInfo phaseExecutionInfo = instance.getPhaseExecutionInfo();
         if (managed) {
-            switch (between(0, 7)) {
+            switch (between(0, 10)) {
             case 0:
                 index = index + randomAlphaOfLengthBetween(1, 5);
                 break;
@@ -120,11 +120,17 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                 phase = randomAlphaOfLengthBetween(1, 5);
                 action = randomAlphaOfLengthBetween(1, 5);
                 step = randomAlphaOfLengthBetween(1, 5);
-                phaseTime = randomValueOtherThan(phaseTime, () -> randomLongBetween(0, 100000));
-                actionTime = randomValueOtherThan(actionTime, () -> randomLongBetween(0, 100000));
-                stepTime = randomValueOtherThan(stepTime, () -> randomLongBetween(0, 100000));
                 break;
             case 3:
+                phaseTime = randomValueOtherThan(phaseTime, () -> randomLongBetween(0, 100000));
+                break;
+            case 4:
+                actionTime = randomValueOtherThan(actionTime, () -> randomLongBetween(0, 100000));
+                break;
+            case 5:
+                stepTime = randomValueOtherThan(stepTime, () -> randomLongBetween(0, 100000));
+                break;
+            case 6:
                 if (Strings.hasLength(failedStep) == false) {
                     failedStep = randomAlphaOfLength(10);
                 } else if (randomBoolean()) {
@@ -133,10 +139,10 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                     failedStep = null;
                 }
                 break;
-            case 4:
+            case 7:
                 policyTime = randomValueOtherThan(policyTime, () -> randomLongBetween(0, 100000));
                 break;
-            case 5:
+            case 8:
                 if (Strings.hasLength(stepInfo) == false) {
                     stepInfo = new BytesArray(randomByteArrayOfLength(100));
                 } else if (randomBoolean()) {
@@ -146,10 +152,10 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                     stepInfo = null;
                 }
                 break;
-            case 6:
+            case 9:
                 phaseExecutionInfo = randomValueOtherThan(phaseExecutionInfo, () -> PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
                 break;
-            case 7:
+            case 10:
                 return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
             default:
                 throw new AssertionError("Illegal randomisation branch");

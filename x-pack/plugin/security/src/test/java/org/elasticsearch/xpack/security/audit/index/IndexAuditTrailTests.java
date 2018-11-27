@@ -81,7 +81,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
@@ -187,7 +186,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                 Settings.Builder builder = Settings.builder()
                         .put(super.nodeSettings(nodeOrdinal))
                         .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
-                        .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), emptyList())
+                        .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                         .put("xpack.security.audit.index.settings.index.number_of_shards", numShards)
                         .put("xpack.security.audit.index.settings.index.number_of_replicas", numReplicas)
                         // Disable native ML autodetect_process as the c++ controller won't be available

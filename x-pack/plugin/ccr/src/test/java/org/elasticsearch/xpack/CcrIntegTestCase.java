@@ -39,7 +39,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
@@ -93,7 +92,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
@@ -176,7 +174,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
         builder.putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
         builder.putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file");
-        builder.putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), emptyList());
         builder.put(TestZenDiscovery.USE_ZEN2.getKey(), false); // some tests do full cluster restarts
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);

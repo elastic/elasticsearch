@@ -987,7 +987,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private void startElectionScheduler() {
         assert electionScheduler == null : electionScheduler;
 
-        if (DiscoveryNode.isMasterNode(settings) == false) {
+        if (getLocalNode().isMasterNode() == false) {
             return;
         }
 

@@ -25,6 +25,8 @@ import java.io.IOException;
 
 public class Zen2IT extends ESIntegTestCase {
     public void testNonMasterNodeDoesNotDisruptElections() throws IOException {
+        // Non-master nodes cannot publish cluster states (they have no STATE channels) but can theoretically win elections, which disrupts
+        // the cluster and prevents master-eligible nodes from winning their elections, repeatedly.
         internalCluster().startNodes(2);
         internalCluster().startDataOnlyNode();
         internalCluster().stopCurrentMasterNode();

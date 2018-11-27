@@ -197,10 +197,12 @@ STDDEV_POP      |AGGREGATE
 SUM_OF_SQUARES  |AGGREGATE      
 VAR_POP         |AGGREGATE      
 COALESCE        |CONDITIONAL
+GREATEST        |CONDITIONAL
 IFNULL          |CONDITIONAL
 ISNULL          |CONDITIONAL
-NVL             |CONDITIONAL
+LEAST           |CONDITIONAL
 NULLIF          |CONDITIONAL
+NVL             |CONDITIONAL
 DAY             |SCALAR
 DAYNAME         |SCALAR
 DAYOFMONTH      |SCALAR         
@@ -1618,6 +1620,48 @@ SELECT NULLIF('elastic', 'elastic') AS "nullif";
 ---------------
 null
 // end::nullIfReturnNull
+;
+
+greatestReturnNonNull
+// tag::greatestReturnNonNull
+SELECT GREATEST(null, 1, 2) AS "greatest";
+
+    greatest
+---------------
+2
+// end::greatestReturnNonNull
+;
+
+
+greatestReturnNull
+// tag::greatestReturnNull
+SELECT GREATEST(null, null, null, null) AS "greatest";
+
+    greatest
+---------------
+null
+// end::greatestReturnNull
+;
+
+leastReturnNonNull
+// tag::leastReturnNonNull
+SELECT LEAST(null, 2, 1) AS "least";
+
+    least
+---------------
+1
+// end::leastReturnNonNull
+;
+
+
+leastReturnNull
+// tag::leastReturnNull
+SELECT LEAST(null, null, null, null) AS "least";
+
+    least
+---------------
+null
+// end::leastReturnNull
 ;
 
 nullEqualsCompareWithNull

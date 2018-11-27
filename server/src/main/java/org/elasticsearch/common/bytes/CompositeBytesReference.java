@@ -81,7 +81,7 @@ public final class CompositeBytesReference extends BytesReference {
         FutureObjects.checkFromIndexSize(from, length, this.length);
 
         if (length == 0) {
-            return new BytesArray(BytesRef.EMPTY_BYTES);
+            return BytesArray.EMPTY;
         }
 
         // for slices we only need to find the start and the end reference

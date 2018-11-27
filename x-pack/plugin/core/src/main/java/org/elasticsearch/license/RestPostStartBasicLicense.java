@@ -27,7 +27,7 @@ public class RestPostStartBasicLicense extends XPackRestHandler {
         super(settings);
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
-                POST, "/_license/start_basis", this,
+                POST, "/_license/start_basic", this,
                 POST, URI_BASE + "/license/start_basic", deprecationLogger);
     }
 

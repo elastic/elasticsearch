@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -105,12 +106,13 @@ public class AuthorizationService {
     private final ThreadContext threadContext;
     private final AnonymousUser anonymousUser;
     private final FieldPermissionsCache fieldPermissionsCache;
+    private final ApiKeyService apiKeyService;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
     public AuthorizationService(Settings settings, CompositeRolesStore rolesStore, ClusterService clusterService,
                                 AuditTrailService auditTrail, AuthenticationFailureHandler authcFailureHandler,
-                                ThreadPool threadPool, AnonymousUser anonymousUser) {
+                                ThreadPool threadPool, AnonymousUser anonymousUser, ApiKeyService apiKeyService) {
         this.rolesStore = rolesStore;
         this.clusterService = clusterService;
         this.auditTrail = auditTrail;
@@ -121,6 +123,7 @@ public class AuthorizationService {
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
         this.fieldPermissionsCache = new FieldPermissionsCache(settings);
+        this.apiKeyService = apiKeyService;
     }
 
     /**
@@ -475,21 +478,28 @@ public class AuthorizationService {
             return;
         }
 
-        Set<String> roleNames = new HashSet<>();
-        Collections.addAll(roleNames, user.roles());
-        if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
-            if (anonymousUser.roles().length == 0) {
-                throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
-            }
-            Collections.addAll(roleNames, anonymousUser.roles());
-        }
-
-        if (roleNames.isEmpty()) {
-            roleActionListener.onResponse(Role.EMPTY);
-        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
-            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+        // TODO don't look Authentication up from the context. This can be cleaned up with authz engine work!
+        final Authentication authentication = Authentication.getAuthentication(threadContext);
+        final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
+        if (authType == Authentication.AuthenticationType.API_KEY) {
+            apiKeyService.getRoleForApiKey(authentication, threadContext, rolesStore, fieldPermissionsCache, roleActionListener);
         } else {
-            rolesStore.roles(roleNames, fieldPermissionsCache, roleActionListener);
+            Set<String> roleNames = new HashSet<>();
+            Collections.addAll(roleNames, user.roles());
+            if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
+                if (anonymousUser.roles().length == 0) {
+                    throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+                }
+                Collections.addAll(roleNames, anonymousUser.roles());
+            }
+
+            if (roleNames.isEmpty()) {
+                roleActionListener.onResponse(Role.EMPTY);
+            } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+                roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+            } else {
+                rolesStore.roles(roleNames, fieldPermissionsCache, roleActionListener);
+            }
         }
     }
 

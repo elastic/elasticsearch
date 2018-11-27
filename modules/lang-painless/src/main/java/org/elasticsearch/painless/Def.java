@@ -619,18 +619,17 @@ public final class Def {
         }
     }
 
+    // Conversion methods for def to primitive types.
 
-    // Conversion methods for Def to primitive types.
-
-    public static boolean DefToboolean(final Object value) {
+    public static boolean defToboolean(final Object value) {
         return (boolean)value;
     }
 
-    public static byte DefTobyteImplicit(final Object value) {
+    public static byte defTobyteImplicit(final Object value) {
         return (byte)value;
     }
 
-    public static short DefToshortImplicit(final Object value) {
+    public static short defToshortImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else {
@@ -638,15 +637,11 @@ public final class Def {
         }
     }
 
-    public static char DefTocharImplicit(final Object value) {
-        if (value instanceof Byte) {
-            return (char)(byte)value;
-        } else {
-            return (char)value;
-        }
+    public static char defTocharImplicit(final Object value) {
+        return (char)value;
     }
 
-    public static int DefTointImplicit(final Object value) {
+    public static int defTointImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else if (value instanceof Short) {
@@ -658,7 +653,7 @@ public final class Def {
         }
     }
 
-    public static long DefTolongImplicit(final Object value) {
+    public static long defTolongImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else if (value instanceof Short) {
@@ -672,7 +667,7 @@ public final class Def {
         }
     }
 
-    public static float DefTofloatImplicit(final Object value) {
+    public static float defTofloatImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else if (value instanceof Short) {
@@ -688,7 +683,7 @@ public final class Def {
         }
     }
 
-    public static double DefTodoubleImplicit(final Object value) {
+    public static double defTodoubleImplicit(final Object value) {
         if (value instanceof Byte) {
             return (byte)value;
         } else if (value instanceof Short) {
@@ -706,7 +701,7 @@ public final class Def {
         }
     }
 
-    public static byte DefTobyteExplicit(final Object value) {
+    public static byte defTobyteExplicit(final Object value) {
         if (value instanceof Character) {
             return (byte)(char)value;
         } else {
@@ -714,7 +709,7 @@ public final class Def {
         }
     }
 
-    public static short DefToshortExplicit(final Object value) {
+    public static short defToshortExplicit(final Object value) {
         if (value instanceof Character) {
             return (short)(char)value;
         } else {
@@ -722,15 +717,15 @@ public final class Def {
         }
     }
 
-    public static char DefTocharExplicit(final Object value) {
+    public static char defTocharExplicit(final Object value) {
         if (value instanceof Character) {
-            return ((Character)value);
+            return (char)value;
         } else {
             return (char)((Number)value).intValue();
         }
     }
 
-    public static int DefTointExplicit(final Object value) {
+    public static int defTointExplicit(final Object value) {
         if (value instanceof Character) {
             return (char)value;
         } else {
@@ -738,7 +733,7 @@ public final class Def {
         }
     }
 
-    public static long DefTolongExplicit(final Object value) {
+    public static long defTolongExplicit(final Object value) {
         if (value instanceof Character) {
             return (char)value;
         } else {
@@ -746,7 +741,7 @@ public final class Def {
         }
     }
 
-    public static float DefTofloatExplicit(final Object value) {
+    public static float defTofloatExplicit(final Object value) {
         if (value instanceof Character) {
             return (char)value;
         } else {
@@ -754,9 +749,167 @@ public final class Def {
         }
     }
 
-    public static double DefTodoubleExplicit(final Object value) {
+    public static double defTodoubleExplicit(final Object value) {
         if (value instanceof Character) {
             return (char)value;
+        } else {
+            return ((Number)value).doubleValue();
+        }
+    }
+
+    // Conversion methods for def to boxed types.
+
+    public static Short defToShortImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (short)(byte)value;
+        } else {
+            return (Short)value;
+        }
+    }
+
+    public static Character defToCharacterImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else {
+            return (Character)value;
+        }
+    }
+
+    public static Integer defToIntegerImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (int)(byte)value;
+        } else if (value instanceof Short) {
+            return (int)(short)value;
+        } else if (value instanceof Character) {
+            return (int)(char)value;
+        } else {
+            return (Integer)value;
+        }
+    }
+
+    public static Long defToLongImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (long)(byte)value;
+        } else if (value instanceof Short) {
+            return (long)(short)value;
+        } else if (value instanceof Character) {
+            return (long)(char)value;
+        } else if (value instanceof Integer) {
+            return (long)(int)value;
+        } else {
+            return (Long)value;
+        }
+    }
+
+    public static Float defToFloatImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (float)(byte)value;
+        } else if (value instanceof Short) {
+            return (float)(short)value;
+        } else if (value instanceof Character) {
+            return (float)(char)value;
+        } else if (value instanceof Integer) {
+            return (float)(int)value;
+        } else if (value instanceof Long) {
+            return (float)(long)value;
+        } else {
+            return (Float)value;
+        }
+    }
+
+    public static Double defToDoubleImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (double)(byte)value;
+        } else if (value instanceof Short) {
+            return (double)(short)value;
+        } else if (value instanceof Character) {
+            return (double)(char)value;
+        } else if (value instanceof Integer) {
+            return (double)(int)value;
+        } else if (value instanceof Long) {
+            return (double)(long)value;
+        } else if (value instanceof Float) {
+            return (double)(float)value;
+        } else {
+            return (Double)value;
+        }
+    }
+
+    public static Byte defToByteExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (byte)(char)value;
+        } else {
+            return ((Number)value).byteValue();
+        }
+    }
+
+    public static Short defToShortExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (short)(char)value;
+        } else {
+            return ((Number)value).shortValue();
+        }
+    }
+
+    public static Character defToCharacterExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (Character)value;
+        } else {
+            return (char)((Number)value).intValue();
+        }
+    }
+
+    public static Integer defToIntegerExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (int)(char)value;
+        } else {
+            return ((Number)value).intValue();
+        }
+    }
+
+    public static Long defToLongExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (long)(char)value;
+        } else {
+            return ((Number)value).longValue();
+        }
+    }
+
+    public static Float defToFloatExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (float)(char)value;
+        } else {
+            return ((Number)value).floatValue();
+        }
+    }
+
+    public static Double defToDoubleExplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Character) {
+            return (double)(char)value;
         } else {
             return ((Number)value).doubleValue();
         }

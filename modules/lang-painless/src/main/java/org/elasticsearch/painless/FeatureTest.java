@@ -39,6 +39,11 @@ public class FeatureTest {
         return x + y;
     }
 
+    /** static method with a type parameter Number */
+    public static int staticNumberTest(Number number) {
+        return number.intValue();
+    }
+
     private int x;
     private int y;
     public int z;

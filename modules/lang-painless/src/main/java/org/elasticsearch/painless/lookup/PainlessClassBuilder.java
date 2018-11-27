@@ -19,7 +19,14 @@
 
 package org.elasticsearch.painless.lookup;
 
+import org.elasticsearch.bootstrap.BootstrapInfo;
+
 import java.lang.invoke.MethodHandle;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.security.CodeSource;
+import java.security.SecureClassLoader;
+import java.security.cert.Certificate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -37,6 +44,8 @@ final class PainlessClassBuilder {
     final Map<String, MethodHandle> getterMethodHandles;
     final Map<String, MethodHandle> setterMethodHandles;
 
+    final Map<String, MethodHandle> bridgeMethodHandles;
+
     PainlessMethod functionalInterfaceMethod;
 
     PainlessClassBuilder() {
@@ -51,12 +60,14 @@ final class PainlessClassBuilder {
         getterMethodHandles = new HashMap<>();
         setterMethodHandles = new HashMap<>();
 
+        bridgeMethodHandles = new HashMap<>();
+
         functionalInterfaceMethod = null;
     }
 
     PainlessClass build() {
         return new PainlessClass(constructors, staticMethods, methods, staticFields, fields,
-                getterMethodHandles, setterMethodHandles, functionalInterfaceMethod);
+                getterMethodHandles, setterMethodHandles, bridgeMethodHandles, functionalInterfaceMethod);
     }
 
     @Override

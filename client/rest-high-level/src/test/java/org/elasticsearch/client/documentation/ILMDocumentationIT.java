@@ -168,19 +168,19 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(putResponse.isAcknowledged());
         }
 
-        // tag::ilm-remove-lifecycle-policy-request
+        // tag::ilm-delete-lifecycle-policy-request
         DeleteLifecyclePolicyRequest request =
             new DeleteLifecyclePolicyRequest("my_policy"); // <1>
-        // end::ilm-remove-lifecycle-policy-request
+        // end::ilm-delete-lifecycle-policy-request
 
-        // tag::ilm-remove-lifecycle-policy-execute
+        // tag::ilm-delete-lifecycle-policy-execute
         AcknowledgedResponse response = client.indexLifecycle()
             .deleteLifecyclePolicy(request, RequestOptions.DEFAULT);
-        // end::ilm-remove-lifecycle-policy-execute
+        // end::ilm-delete-lifecycle-policy-execute
 
-        // tag::ilm-remove-lifecycle-policy-response
+        // tag::ilm-delete-lifecycle-policy-response
         boolean acknowledged = response.isAcknowledged(); // <1>
-        // end::ilm-remove-lifecycle-policy-response
+        // end::ilm-delete-lifecycle-policy-response
 
         assertTrue(acknowledged);
 
@@ -191,7 +191,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(putResponse.isAcknowledged());
         }
 
-        // tag::ilm-remove-lifecycle-policy-execute-listener
+        // tag::ilm-delete-lifecycle-policy-execute-listener
         ActionListener<AcknowledgedResponse> listener =
             new ActionListener<AcknowledgedResponse>() {
                 @Override
@@ -204,16 +204,16 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-        // end::ilm-remove-lifecycle-policy-execute-listener
+        // end::ilm-delete-lifecycle-policy-execute-listener
 
         // Replace the empty listener by a blocking listener in test
         final CountDownLatch latch = new CountDownLatch(1);
         listener = new LatchedActionListener<>(listener, latch);
 
-        // tag::ilm-remove-lifecycle-policy-execute-async
+        // tag::ilm-delete-lifecycle-policy-execute-async
         client.indexLifecycle().deleteLifecyclePolicyAsync(request,
             RequestOptions.DEFAULT, listener); // <1>
-        // end::ilm-remove-lifecycle-policy-execute-async
+        // end::ilm-delete-lifecycle-policy-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
@@ -648,7 +648,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
-    public void testDeletePolicyFromIndex() throws Exception {
+    public void testRemovePolicyFromIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         // setup policy for index

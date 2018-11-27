@@ -1,6 +1,6 @@
 --
 :api: ilm-remove-lifecycle-policy-from-index
-:request:
+:request: RemoveIndexLifecyclePolicyRequest
 :response: AcknowledgedResponse
 --
 

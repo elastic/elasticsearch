@@ -140,9 +140,11 @@ public class MetaDataIndexStateService {
 
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
+                    final MetaData.Builder metadata = MetaData.builder(currentState.metaData());
+
                     final Set<IndexMetaData> indicesToClose = new HashSet<>();
                     for (Index index : concreteIndices) {
-                        final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
+                        final IndexMetaData indexMetaData = metadata.getSafe(index);
                         if (indexMetaData.getState() != IndexMetaData.State.CLOSE) {
                             indicesToClose.add(indexMetaData);
                         } else {
@@ -160,17 +162,25 @@ public class MetaDataIndexStateService {
                     SnapshotsService.checkIndexClosing(currentState, indicesToClose);
 
                     final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+                    final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
+
                     for (IndexMetaData indexToClose : indicesToClose) {
                         final Index index = indexToClose.getIndex();
                         if (currentState.blocks().hasIndexBlock(index.getName(), INDEX_CLOSED_BLOCK) == false) {
                             blocks.addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
+                        }
+                        final IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
+                        if (indexRoutingTable != null && indexRoutingTable.allPrimaryShardsUnassigned()) {
+                            logger.debug("fast closing index {} as it is unassigned", index);
+                            metadata.put(IndexMetaData.builder(indexToClose).state(IndexMetaData.State.CLOSE));
+                            routingTable.remove(index.getName());
                         }
                         indices.add(index);
                     }
 
                     logger.debug(() -> new ParameterizedMessage("adding block to indices {}",
                         indices.stream().map(Object::toString).collect(Collectors.joining(","))));
-                    return ClusterState.builder(currentState).blocks(blocks).build();
+                    return ClusterState.builder(currentState).blocks(blocks).metaData(metadata).routingTable(routingTable.build()).build();
                 }
 
                 @Override
@@ -247,18 +257,17 @@ public class MetaDataIndexStateService {
                                               @Nullable final Long taskId, @Nullable final TimeValue timeout,
                                               final ActionListener<CloseIndexResponse.IndexResult> listener) {
         final IndexMetaData indexMetaData = state.metaData().index(index);
+        if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+            logger.debug("index {} has been blocked before closing and is now closed, ignoring", index);
+            listener.onResponse(new CloseIndexResponse.IndexResult(index));
+            return;
+        }
         final IndexRoutingTable indexRoutingTable = state.routingTable().index(index);
         if (indexMetaData == null || indexRoutingTable == null) {
             logger.debug("index {} has been blocked before closing but is now deleted, ignoring", index);
             listener.onResponse(new CloseIndexResponse.IndexResult(index));
             return;
         }
-        if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-            logger.debug("index {} has been blocked before closing and is now closed, ignoring", index);
-            listener.onResponse(new CloseIndexResponse.IndexResult(index));
-            return;
-        }
-
         final ImmutableOpenIntMap<IndexShardRoutingTable> shards = indexRoutingTable.getShards();
         final AtomicArray<CloseIndexResponse.ShardResult> results = new AtomicArray<>(shards.size());
         final CountDown countDown = new CountDown(shards.size());

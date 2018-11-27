@@ -296,7 +296,7 @@ public class MaxIT extends AbstractNumericTestCase {
                 .addAggregation(
                         max("max")
                                 .script(new Script(ScriptType.INLINE,
-                                    AggregationTestScriptsPlugin.NAME, "doc['values'].values", Collections.emptyMap())))
+                                    AggregationTestScriptsPlugin.NAME, "doc['values']", Collections.emptyMap())))
                 .get();
 
         assertHitCount(searchResponse, 10);

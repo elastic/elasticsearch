@@ -87,6 +87,7 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
             bools.setNextDocId(d);
             assertEquals(false, bools.getValue());
         }
+        logger.error("ASDFAFD {}", warnings);
         assertThat(warnings, contains(equalTo(
             "returning default values for missing document values is deprecated. " +
             "Set system property '-Des.scripting.exception_for_missing_value=true' "  +

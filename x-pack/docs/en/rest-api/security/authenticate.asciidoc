@@ -42,10 +42,14 @@ The following example output provides information about the "rdeniro" user:
   "email":  null,
   "metadata": { },
   "enabled": true,
-  "authentication_realm_name" : "default_file",
-  "authentication_realm_type" : "file",
-  "lookup_realm_name" : "default_file",
-  "lookup_realm_type" : "file"
+  "authentication_realm": {
+    "name" : "default_file",
+    "type" : "file"
+  },
+  "lookup_realm": {
+    "name" : "default_file",
+    "type" : "file"
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"rdeniro"/"$body.username"/]

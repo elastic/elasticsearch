@@ -234,7 +234,11 @@ public class DatafeedConfigProvider {
             }
             @Override
             public void onFailure(Exception e) {
-                actionListener.onFailure(e);
+                if (e.getClass() == IndexNotFoundException.class) {
+                    actionListener.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
+                } else {
+                    actionListener.onFailure(e);
+                }
             }
         });
     }
@@ -303,7 +307,11 @@ public class DatafeedConfigProvider {
 
             @Override
             public void onFailure(Exception e) {
-                updatedConfigListener.onFailure(e);
+                if (e.getClass() == IndexNotFoundException.class) {
+                    updatedConfigListener.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
+                } else {
+                    updatedConfigListener.onFailure(e);
+                }
             }
         });
     }

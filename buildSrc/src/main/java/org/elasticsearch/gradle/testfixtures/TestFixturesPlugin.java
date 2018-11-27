@@ -31,7 +31,6 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskContainer;
 
 import java.lang.reflect.InvocationTargetException;
@@ -155,7 +154,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
         );
     }
 
-    @Input
     public boolean dockerComposeSupported(Project project) {
         if (OS.current().equals(OS.WINDOWS)) {
             return false;

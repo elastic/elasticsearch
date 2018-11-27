@@ -26,12 +26,10 @@ forbiddenPatterns {
 
 List<String> services = ["peppa", "hdfs"]
 
-composeUp {
-    doFirst {
-        // We need to create these up-front because if docker creates them they will be owned by root and we won't be
-        // able to clean them up
-        services.each { file("${buildDir}/shared/${it}").mkdirs() }
-    }
+preProcessFixture.doLast {
+  // We need to create these up-front because if docker creates them they will be owned by root and we won't be
+  // able to clean them up
+  services.each { file("${buildDir}/shared/${it}").mkdirs() }
 }
 
 postProcessFixture {

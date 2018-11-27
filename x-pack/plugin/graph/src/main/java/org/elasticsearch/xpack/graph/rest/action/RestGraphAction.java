@@ -40,7 +40,6 @@ import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTA
  */
 public class RestGraphAction extends XPackRestHandler {
     private static final Logger logger = LogManager.getLogger(RestGraphAction.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField SIGNIFICANCE_FIELD = new ParseField("use_significance");

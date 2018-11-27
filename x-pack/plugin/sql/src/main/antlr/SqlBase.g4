@@ -62,7 +62,7 @@ statement
     | SYS COLUMNS (CATALOG cluster=string)?
                   (TABLE tableLike=likePattern | tableIdent=tableIdentifier)?
                   (columnPattern=likePattern)?                                                            #sysColumns
-    | SYS TYPES                                                                                           #sysTypes
+    | SYS TYPES ((PLUS | MINUS)?  type=number)?                                                           #sysTypes
     | SYS TABLE TYPES                                                                                     #sysTableTypes  
     ;
     
@@ -277,7 +277,7 @@ constant
     ;
 
 comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
+    : EQ | NULLEQ | NEQ | LT | LTE | GT | GTE
     ;
 
 booleanValue
@@ -452,7 +452,8 @@ GUID_ESC: '{GUID';
 ESC_END: '}';
 
 EQ  : '=';
-NEQ : '<>' | '!=' | '<=>';
+NULLEQ: '<=>';
+NEQ : '<>' | '!=';
 LT  : '<';
 LTE : '<=';
 GT  : '>';

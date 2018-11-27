@@ -23,6 +23,9 @@ import org.elasticsearch.xpack.sql.action.SqlTranslateResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.Configuration;
 
+import static org.elasticsearch.xpack.sql.plugin.TransportSqlQueryAction.username;
+import static org.elasticsearch.xpack.sql.plugin.TransportSqlQueryAction.clusterName;
+
 /**
  * Transport action for translating SQL queries into ES requests
  */
@@ -52,13 +55,9 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
         planExecutor.metrics().translate();
         Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(),
                 request.requestTimeout(), request.pageTimeout(), request.filter(), request.mode(),
-                username(), clusterService.getClusterName().value());
+                username(securityContext), clusterName(clusterService));
 
         planExecutor.searchSource(cfg, request.query(), request.params(), ActionListener.wrap(
                 searchSourceBuilder -> listener.onResponse(new SqlTranslateResponse(searchSourceBuilder)), listener::onFailure));
-    }
-
-    private String username() {
-        return this.securityContext != null ? this.securityContext.getUser().principal() : null;
     }
 }

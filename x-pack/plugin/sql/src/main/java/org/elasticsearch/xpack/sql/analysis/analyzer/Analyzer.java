@@ -77,8 +77,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      */
     private final IndexResolution indexResolution;
     /**
-     * Per-request specific settings needed in some of the functions, to which it
-     * is attached. TimeZone, Username and Clustername are needed in some of the functions.
+     * Per-request specific settings needed in some of the functions (timezone, username and clustername),
+     * to which they are attached.
      */
     private final Configuration configuration;
     /**

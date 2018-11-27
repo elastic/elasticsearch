@@ -59,7 +59,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     @Override
     protected void doExecute(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
-        operation(planExecutor, request, listener, username(), clusterService.getClusterName().value());
+        operation(planExecutor, request, listener, username(securityContext), clusterName(clusterService));
     }
 
     /**
@@ -122,7 +122,11 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                 rows);
     }
     
-    private String username() {
-        return this.securityContext != null ? this.securityContext.getUser().principal() : null;
+    protected static String username(SecurityContext securityContext) {
+        return securityContext != null ? securityContext.getUser().principal() : null;
+    }
+    
+    protected static String clusterName(ClusterService clusterService) {
+        return clusterService.getClusterName().value();
     }
 }

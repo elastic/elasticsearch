@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
 public class UserFunctionIT extends ESRestTestCase {
 
     private static final String SQL = "SELECT USER()";
-    // defined in roles.yml
+    // role defined in roles.yml
     private static final String MINIMAL_ACCESS_ROLE = "rest_minimal";
     
     @Override
@@ -72,14 +72,14 @@ public class UserFunctionIT extends ESRestTestCase {
             createUser(randomUserName, MINIMAL_ACCESS_ROLE);
         }
         
-        // run 30 queries and pick each time one of the 5-15 users created previously
+        // run 30 queries and pick randomly each time one of the 5-15 users created previously
         for (int i = 0; i < 30; i++) {
             String mode = randomMode().toString();
             String randomlyPickedUsername = randomFrom(users);
             Map<String, Object> expected = new HashMap<>();
 
             expected.put("columns", Arrays.asList(
-                    columnInfo(mode, "USER", "keyword", JDBCType.VARCHAR, 0)));
+                         columnInfo(mode, "USER", "keyword", JDBCType.VARCHAR, 0)));
             expected.put("rows", Arrays.asList(Arrays.asList(randomlyPickedUsername)));
             Map<String, Object> actual = runSql(randomlyPickedUsername, mode, SQL);
             
@@ -98,8 +98,10 @@ public class UserFunctionIT extends ESRestTestCase {
         
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
-                columnInfo(mode, "USER", "keyword", JDBCType.VARCHAR, 0)));
-        expected.put("rows", Arrays.asList(Arrays.asList(randomUserName, randomUserName, randomUserName)));
+                     columnInfo(mode, "USER", "keyword", JDBCType.VARCHAR, 0)));
+        expected.put("rows", Arrays.asList(Arrays.asList(randomUserName),
+                                           Arrays.asList(randomUserName),
+                                           Arrays.asList(randomUserName)));
         Map<String, Object> actual = runSql(randomUserName, mode, "SELECT USER() FROM test");
         
         assertResponse(expected, actual);

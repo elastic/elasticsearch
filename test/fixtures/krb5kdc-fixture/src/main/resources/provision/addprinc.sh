@@ -21,9 +21,6 @@ set -e
 
 krb5kdc
 kadmind
-service krb5kdc start
-service kadmin start
-service krb524 start
 
 if [[ $# -lt 1 ]]; then
   echo 'Usage: addprinc.sh principalName [password]'
@@ -71,6 +68,8 @@ else
   fi
 fi
 
+echo "Copying conf to local"
+# make the configuration available externally
+cp -v $LOCALSTATEDIR/krb5.conf $BUILD_DIR/krb5.conf.template
 # We are running as root in the container, allow non root users running the container to be able to clean these up
-cp $LOCALSTATEDIR/krb5.conf $BUILD_DIR/krb5.conf.template
 chmod -R 777 $BUILD_DIR

@@ -7,10 +7,10 @@ services:
       dockerfile: Dockerfile
     command: "bash /fixture/src/main/resources/provision/peppa.sh"
     volumes:
-      - ./build/peppa:/fixture/build
+      - ./build/shared/peppa:/fixture/build
     ports:
-    - "60088:88"
-    - "60088:88/udp"
+      - "4444"
+      - "88/udp"
   hdfs:
     hostname: kerberos.build.elastic.co
     build:
@@ -18,7 +18,7 @@ services:
       dockerfile: Dockerfile
     command: "bash /fixture/src/main/resources/provision/hdfs.sh"
     volumes:
-      - ./build/hdfs:/fixture/build
+      - ./build/shared/hdfs:/fixture/build
     ports:
-    - "60089:88"
-    - "60089:88/udp"
+      - "4444"
+      - "88/udp"

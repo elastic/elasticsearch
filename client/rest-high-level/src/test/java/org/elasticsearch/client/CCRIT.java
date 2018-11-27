@@ -128,7 +128,6 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(unfollowResponse.isAcknowledged(), is(true));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35937")
     public void testAutoFollowing() throws Exception {
         CcrClient ccrClient = highLevelClient().ccr();
         PutAutoFollowPatternRequest putAutoFollowPatternRequest =

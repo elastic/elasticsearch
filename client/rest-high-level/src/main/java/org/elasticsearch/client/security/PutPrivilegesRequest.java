@@ -51,6 +51,10 @@ public final class PutPrivilegesRequest implements Validatable, ToXContentObject
         this.refreshPolicy = refreshPolicy == null ? RefreshPolicy.IMMEDIATE : refreshPolicy;
     }
 
+    /**
+     * @return a map of application name to list of
+     * {@link ApplicationPrivilege}s
+     */
     public Map<String, List<ApplicationPrivilege>> getPrivileges() {
         return privileges;
     }

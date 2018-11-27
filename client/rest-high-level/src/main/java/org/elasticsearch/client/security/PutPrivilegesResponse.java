@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.security;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -26,21 +27,21 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import java.util.Map.Entry;
 
 /**
  * Response when creating/updating one or more application privileges to the
  * security index.
  */
 public final class PutPrivilegesResponse {
-    public enum Status {
-        CREATED, UPDATED, UNKNOWN
-    }
 
-    private final Map<String, Map<String, Status>> applicationPrivilegesCreatedOrUpdated;
+    /*
+     * Map of application name to a map of privilege name to boolean denoting
+     * created or update status.
+     */
+    private final Map<String, Map<String, Boolean>> applicationPrivilegesCreatedOrUpdated;
 
-    public PutPrivilegesResponse(final Map<String, Map<String, Status>> applicationPrivilegesCreatedOrUpdated) {
+    public PutPrivilegesResponse(final Map<String, Map<String, Boolean>> applicationPrivilegesCreatedOrUpdated) {
         this.applicationPrivilegesCreatedOrUpdated = Collections.unmodifiableMap(applicationPrivilegesCreatedOrUpdated);
     }
 
@@ -50,51 +51,45 @@ public final class PutPrivilegesResponse {
      *
      * @param applicationName application name as specified in the request
      * @param privilegeName privilege name as specified in the request
-     * @return {@link Status#CREATED} if the privilege was created,
-     * {@link Status#UPDATED} if the privilege was updated and for unknown
-     * application name / privilege name the status is {@link Status#UNKNOWN}
+     * @return {@code true} if the privilege was created, {@code false} if the
+     * privilege was updated
+     * @throws IllegalArgumentException thrown for unknown application name or
+     * privilege name.
      */
-    public Status status(final String applicationName, final String privilegeName) {
+    public boolean wasCreated(final String applicationName, final String privilegeName) {
         if (Strings.hasText(applicationName) == false) {
             throw new IllegalArgumentException("application name is required");
         }
         if (Strings.hasText(privilegeName) == false) {
             throw new IllegalArgumentException("privilege name is required");
         }
-        return applicationPrivilegesCreatedOrUpdated.getOrDefault(applicationName, Collections.emptyMap())
-                .getOrDefault(privilegeName, Status.UNKNOWN);
+        if (applicationPrivilegesCreatedOrUpdated.get(applicationName) == null
+                || applicationPrivilegesCreatedOrUpdated.get(applicationName).get(privilegeName) == null) {
+            throw new IllegalArgumentException("application name or privilege name not found in the response");
+        }
+        return applicationPrivilegesCreatedOrUpdated.get(applicationName).get(privilegeName);
     }
 
+    @SuppressWarnings("unchecked")
     public static PutPrivilegesResponse fromXContent(final XContentParser parser) throws IOException {
-        final Map<String, Map<String, Status>> applicationPrivilegesCreatedOrUpdated = new HashMap<>();
+        final Map<String, Map<String, Boolean>> applicationPrivilegesCreatedOrUpdated = new HashMap<>();
         XContentParser.Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();
         }
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-            final String application = parser.currentName();
-            final Map<String, Status> privilegeToStatus = applicationPrivilegesCreatedOrUpdated.computeIfAbsent(application,
-                    (a) -> new HashMap<>());
-
-            token = parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-                final String privilege = parser.currentName();
-                token = parser.nextToken();
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
-                String currentFieldName = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                        if ("created".equals(currentFieldName)) {
-                            privilegeToStatus.put(privilege, (parser.booleanValue()) ? Status.CREATED : Status.UPDATED);
-                        }
-                    }
+        final Map<String, Object> appNameToPrivStatus = parser.map();
+        for (Entry<String, Object> entry : appNameToPrivStatus.entrySet()) {
+            if (entry.getValue() instanceof Map) {
+                final Map<String, Boolean> privilegeToStatus = applicationPrivilegesCreatedOrUpdated.computeIfAbsent(entry.getKey(),
+                        (a) -> new HashMap<>());
+                if (entry.getValue() instanceof Map) {
+                    Map<String, Object> createdOrUpdated = (Map<String, Object>) entry.getValue();
+                    createdOrUpdated.forEach((k, v) -> privilegeToStatus.put(k, ((Map<String, Boolean>) v).get("created")));
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "Failed to parse object, unexpected structure");
                 }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "Failed to parse object, unexpected structure");
             }
         }
         return new PutPrivilegesResponse(applicationPrivilegesCreatedOrUpdated);

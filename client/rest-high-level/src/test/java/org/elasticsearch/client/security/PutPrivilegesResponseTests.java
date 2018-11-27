@@ -19,9 +19,6 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.client.security.PutPrivilegesResponse.Status;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
@@ -51,32 +48,38 @@ public class PutPrivilegesResponseTests extends ESTestCase {
                 "  }\n" + 
                 "}";
 
-        final PutPrivilegesResponse putPrivilegesResponse = PutPrivilegesResponse.fromXContent(
-                XContentType.JSON.xContent().createParser(new NamedXContentRegistry(Collections.emptyList()), new DeprecationHandler() {
-                    @Override
-                    public void usedDeprecatedName(String usedName, String modernName) {
-                    }
+        final PutPrivilegesResponse putPrivilegesResponse = PutPrivilegesResponse
+                .fromXContent(createParser(XContentType.JSON.xContent(), json));
 
-                    @Override
-                    public void usedDeprecatedField(String usedName, String replacedWith) {
-                    }
-                }, json));
-
-        assertThat(putPrivilegesResponse.status("app02", "all"), is(Status.CREATED));
-        assertThat(putPrivilegesResponse.status("app01", "read"), is(Status.UPDATED));
-        assertThat(putPrivilegesResponse.status("app01", "write"), is(Status.CREATED));
-        assertThat(putPrivilegesResponse.status("unknown-app", "unknown-priv"), is(Status.UNKNOWN));
-        assertThat(putPrivilegesResponse.status("app01", "unknown-priv"), is(Status.UNKNOWN));
+        assertThat(putPrivilegesResponse.wasCreated("app02", "all"), is(true));
+        assertThat(putPrivilegesResponse.wasCreated("app01", "read"), is(false));
+        assertThat(putPrivilegesResponse.wasCreated("app01", "write"), is(true));
+        expectThrows(IllegalArgumentException.class, () -> putPrivilegesResponse.wasCreated("unknown-app", "unknown-priv"));
+        expectThrows(IllegalArgumentException.class, () -> putPrivilegesResponse.wasCreated("app01", "unknown-priv"));
     }
 
-    public void testGetStatusFailsForInvalidApplicationOrPrivilegeName() {
+    public void testGetStatusFailsForUnknownApplicationOrPrivilegeName() {
         final PutPrivilegesResponse putPrivilegesResponse = new PutPrivilegesResponse(
-                Collections.singletonMap("app-1", Collections.singletonMap("priv", Status.CREATED)));
+                Collections.singletonMap("app-1", Collections.singletonMap("priv", true)));
+
+        final boolean invalidAppName = randomBoolean();
+        final String applicationName = (invalidAppName) ? randomAlphaOfLength(4) : "app-1";
+        final String privilegeName = randomAlphaOfLength(4);
+
+        final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class,
+                () -> putPrivilegesResponse.wasCreated(applicationName, privilegeName));
+        assertThat(ile.getMessage(), equalTo("application name or privilege name not found in the response"));
+    }
+
+    public void testGetStatusFailsForNullOrEmptyApplicationOrPrivilegeName() {
+        final PutPrivilegesResponse putPrivilegesResponse = new PutPrivilegesResponse(
+                Collections.singletonMap("app-1", Collections.singletonMap("priv", true)));
+
         final boolean nullOrEmptyAppName = randomBoolean();
-        final String applicationName = nullOrEmptyAppName ? randomFrom(Arrays.asList("", "    ", null)) : randomAlphaOfLength(4);
-        final String privilegeName = nullOrEmptyAppName ? randomAlphaOfLength(4) : randomFrom(Arrays.asList("", "    ", null));
-        IllegalArgumentException ile = expectThrows(IllegalArgumentException.class,
-                () -> putPrivilegesResponse.status(applicationName, privilegeName));
+        final String applicationName = (nullOrEmptyAppName) ? randomFrom(Arrays.asList("", "    ", null)) : "app-1";
+        final String privilegeName = randomFrom(Arrays.asList("", "    ", null));
+        final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class,
+                () -> putPrivilegesResponse.wasCreated(applicationName, privilegeName));
         assertThat(ile.getMessage(),
                 (nullOrEmptyAppName ? equalTo("application name is required") : equalTo("privilege name is required")));
     }

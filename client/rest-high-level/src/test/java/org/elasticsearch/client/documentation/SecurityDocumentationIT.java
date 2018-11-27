@@ -58,7 +58,6 @@ import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutPrivilegesResponse;
-import org.elasticsearch.client.security.PutPrivilegesResponse.Status;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -1026,12 +1025,12 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             PutPrivilegesResponse putPrivilegesResponse = client.security().putPrivileges(putPrivilegesRequest, RequestOptions.DEFAULT);
 
             assertNotNull(putPrivilegesResponse);
-            assertThat(putPrivilegesResponse.status("testapp", "write"), is(Status.CREATED));
-            assertThat(putPrivilegesResponse.status("testapp", "read"), is(Status.CREATED));
-            assertThat(putPrivilegesResponse.status("testapp", "all"), is(Status.CREATED));
-            assertThat(putPrivilegesResponse.status("testapp2", "all"), is(Status.CREATED));
-            assertThat(putPrivilegesResponse.status("testapp2", "write"), is(Status.CREATED));
-            assertThat(putPrivilegesResponse.status("testapp2", "read"), is(Status.CREATED));
+            assertThat(putPrivilegesResponse.wasCreated("testapp", "write"), is(true));
+            assertThat(putPrivilegesResponse.wasCreated("testapp", "read"), is(true));
+            assertThat(putPrivilegesResponse.wasCreated("testapp", "all"), is(true));
+            assertThat(putPrivilegesResponse.wasCreated("testapp2", "all"), is(true));
+            assertThat(putPrivilegesResponse.wasCreated("testapp2", "write"), is(true));
+            assertThat(putPrivilegesResponse.wasCreated("testapp2", "read"), is(true));
         }
 
         {
@@ -1152,9 +1151,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final String applicationName = "app01";
             final String privilegeName = "all";
             // tag::put-privileges-response
-            final Status status = putPrivilegesResponse.status(applicationName, privilegeName); // <1>
+            final boolean status = putPrivilegesResponse.wasCreated(applicationName, privilegeName); // <1>
             // end::put-privileges-response
-            assertThat(status, is(Status.CREATED));
+            assertThat(status, is(true));
         }
 
         {
@@ -1193,7 +1192,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::put-privileges-execute-async
 
             assertNotNull(future.get(30, TimeUnit.SECONDS));
-            assertThat(future.get().status("app01", "all"), is(Status.UPDATED));
+            assertThat(future.get().wasCreated("app01", "all"), is(false));
         }
     }
 
@@ -1220,9 +1219,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             PutPrivilegesResponse putPrivilegesResponse = client.security().putPrivileges(putPrivilegesRequest, RequestOptions.DEFAULT);
 
             assertNotNull(putPrivilegesResponse);
-            assertThat(putPrivilegesResponse.status("testapp", "write"), is(Status.CREATED));
-            assertThat(putPrivilegesResponse.status("testapp", "read"), is(Status.CREATED));
-            assertThat(putPrivilegesResponse.status("testapp", "all"), is(Status.CREATED));
+            assertThat(putPrivilegesResponse.wasCreated("testapp", "write"), is(true));
+            assertThat(putPrivilegesResponse.wasCreated("testapp", "read"), is(true));
+            assertThat(putPrivilegesResponse.wasCreated("testapp", "all"), is(true));
         }
         {
             // tag::delete-privileges-request

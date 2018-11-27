@@ -458,11 +458,13 @@ The Java High Level REST Client supports the following CCR APIs:
 * <<{upid}-ccr-pause-follow>>
 * <<{upid}-ccr-resume-follow>>
 * <<{upid}-ccr-unfollow>>
+* <<{upid}-ccr-put-auto-follow-pattern>>
 
 include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]
 include::ccr/resume_follow.asciidoc[]
 include::ccr/unfollow.asciidoc[]
+include::ccr/put_auto_follow_pattern.asciidoc[]
 
 == Index Lifecycle Management APIs
 
@@ -475,6 +477,7 @@ Management APIs:
 * <<{upid}-ilm-put-lifecycle-policy>>
 * <<{upid}-ilm-delete-lifecycle-policy>>
 * <<{upid}-ilm-get-lifecycle-policy>>
+* <<{upid}-ilm-explain-lifecycle>>
 * <<{upid}-ilm-start-ilm>>
 * <<{upid}-ilm-stop-ilm>>
 * <<{upid}-ilm-status>>
@@ -484,6 +487,7 @@ Management APIs:
 include::ilm/put_lifecycle_policy.asciidoc[]
 include::ilm/delete_lifecycle_policy.asciidoc[]
 include::ilm/get_lifecycle_policy.asciidoc[]
+include::ilm/explain_lifecycle.asciidoc[]
 include::ilm/start_lifecycle_management.asciidoc[]
 include::ilm/stop_lifecycle_management.asciidoc[]
 include::ilm/lifecycle_management_status.asciidoc[]

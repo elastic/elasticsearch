@@ -20,7 +20,6 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.common.XContentSource;
 import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchResponse;
 import org.elasticsearch.client.watcher.ActionStatus;
@@ -29,8 +28,12 @@ import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.ActivateWatchResponse;
 import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.client.watcher.DeactivateWatchResponse;
+import org.elasticsearch.client.watcher.DeleteWatchRequest;
+import org.elasticsearch.client.watcher.DeleteWatchResponse;
 import org.elasticsearch.client.watcher.ExecuteWatchRequest;
 import org.elasticsearch.client.watcher.ExecuteWatchResponse;
+import org.elasticsearch.client.watcher.PutWatchRequest;
+import org.elasticsearch.client.watcher.PutWatchResponse;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.client.watcher.WatcherState;
@@ -40,12 +43,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.client.watcher.DeleteWatchRequest;
-import org.elasticsearch.client.watcher.DeleteWatchResponse;
-import org.elasticsearch.client.watcher.PutWatchRequest;
-import org.elasticsearch.client.watcher.PutWatchResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.hamcrest.Matchers;
 
 import java.util.Map;
 
@@ -54,7 +52,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.core.IsNull.notNullValue;
 
 public class WatcherIT extends ESRestHighLevelClientTestCase {
 

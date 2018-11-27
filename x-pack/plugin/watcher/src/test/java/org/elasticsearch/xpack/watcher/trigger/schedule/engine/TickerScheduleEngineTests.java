@@ -256,13 +256,6 @@ public class TickerScheduleEngineTests extends ESTestCase {
 
     public void testAddOnlyWithNewSchedule() {
         engine.start(Collections.emptySet());
-        final List<TriggerEvent> triggerEvents = new ArrayList<>();
-        engine.register(new Consumer<Iterable<TriggerEvent>>() {
-            @Override
-            public void accept(Iterable<TriggerEvent> events) {
-                events.forEach(triggerEvents::add);
-            }
-        });
 
         // add watch with schedule
         Watch oncePerSecondWatch = createWatch("_id", interval("1s"));

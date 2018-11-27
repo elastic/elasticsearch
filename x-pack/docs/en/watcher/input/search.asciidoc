@@ -76,7 +76,7 @@ watch payload:
       "request": {
         "indices": [ ".watcher-history*" ]
       },
-      "extract": [ "hits.total.value" ]
+      "extract": [ "hits.total" ]
     }
   },
 --------------------------------------------------

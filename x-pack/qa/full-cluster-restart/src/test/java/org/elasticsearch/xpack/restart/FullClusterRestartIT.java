@@ -428,7 +428,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(doc2);
             return;
         }
-        Request sqlRequest = new Request("POST", "/_xpack/sql");
+        final Request sqlRequest;
+        if (isRunningAgainstOldCluster()) {
+            sqlRequest = new Request("POST", "/_xpack/sql");
+        } else {
+            sqlRequest = new Request("POST", "/_sql");
+        }
         sqlRequest.setJsonEntity("{\"query\":\"SELECT * FROM testsqlfailsonindexwithtwotypes\"}");
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(sqlRequest));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());

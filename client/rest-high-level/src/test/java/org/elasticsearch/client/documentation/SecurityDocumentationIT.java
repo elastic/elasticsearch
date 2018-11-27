@@ -22,6 +22,7 @@ package org.elasticsearch.client.documentation;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -80,7 +81,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matchers;
 
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import java.io.IOException;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -93,6 +98,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -108,10 +114,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            //tag::put-user-execute
+            //tag::put-user-password-request
             char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
             User user = new User("example", Collections.singletonList("superuser"));
-            PutUserRequest request = new PutUserRequest(user, password, true, RefreshPolicy.NONE);
+            PutUserRequest request = PutUserRequest.withPassword(user, password, true, RefreshPolicy.NONE);
+            //end::put-user-password-request
+
+            //tag::put-user-execute
             PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
             //end::put-user-execute
 
@@ -121,11 +130,37 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(isCreated);
         }
+        {
+            byte[] salt = new byte[32];
+            SecureRandom.getInstanceStrong().nextBytes(salt);
+            char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+            User user = new User("example2", Collections.singletonList("superuser"));
+
+            //tag::put-user-hash-request
+            SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
+            PBEKeySpec keySpec = new PBEKeySpec(password, salt, 10000, 256);
+            final byte[] pbkdfEncoded = secretKeyFactory.generateSecret(keySpec).getEncoded();
+            char[] passwordHash = ("{PBKDF2}10000$" + Base64.getEncoder().encodeToString(salt)
+                + "$" + Base64.getEncoder().encodeToString(pbkdfEncoded)).toCharArray();
+
+            PutUserRequest request = PutUserRequest.withPasswordHash(user, passwordHash, true, RefreshPolicy.NONE);
+            //end::put-user-hash-request
+
+            try {
+                client.security().putUser(request, RequestOptions.DEFAULT);
+            } catch (ElasticsearchStatusException e) {
+                // This is expected to fail as the server will not be using PBKDF2, but that's easiest hasher to support
+                // in a standard JVM without introducing additional libraries.
+                assertThat(e.getDetailedMessage(), containsString("PBKDF2"));
+            }
+        }
 
         {
-            char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-            User user2 = new User("example2", Collections.singletonList("superuser"));
-            PutUserRequest request = new PutUserRequest(user2, password, true, RefreshPolicy.NONE);
+            User user = new User("example", Arrays.asList("superuser", "another-role"));
+            //tag::put-user-update-request
+            PutUserRequest request = PutUserRequest.updateUser(user, true, RefreshPolicy.NONE);
+            //end::put-user-update-request
+
             // tag::put-user-execute-listener
             ActionListener<PutUserResponse> listener = new ActionListener<PutUserResponse>() {
                 @Override

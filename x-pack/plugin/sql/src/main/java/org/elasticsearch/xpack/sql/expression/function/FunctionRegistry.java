@@ -83,7 +83,9 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
@@ -157,9 +159,11 @@ public class FunctionRegistry {
                 def(Kurtosis.class, Kurtosis::new));
         // Scalar functions
         // conditional
-        addToMap(def(Coalesce.class, Coalesce::new));
-        addToMap(def(IfNull.class, IfNull::new, "ISNULL", "NVL"));
-        addToMap(def(NullIf.class, NullIf::new));
+        addToMap(def(Coalesce.class, Coalesce::new),
+                 def(IfNull.class, IfNull::new, "ISNULL", "NVL"),
+                 def(NullIf.class, NullIf::new),
+                 def(Greatest.class, Greatest::new),
+                 def(Least.class, Least::new));
         // Date
         addToMap(def(DayName.class, DayName::new, "DAYNAME"),
                 def(DayOfMonth.class, DayOfMonth::new, "DAYOFMONTH", "DAY", "DOM"),

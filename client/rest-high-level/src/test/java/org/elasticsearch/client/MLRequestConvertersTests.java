@@ -28,6 +28,7 @@ import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
@@ -181,6 +182,14 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + ",otherjobs*/_close", request.getEndpoint());
         assertEquals("{\"job_id\":\"somejobid,otherjobs*\",\"timeout\":\"10m\",\"force\":true,\"allow_no_jobs\":false}",
             requestEntityToString(request));
+    }
+
+    public void testDeleteExpiredData() {
+        DeleteExpiredDataRequest deleteExpiredDataRequest = new DeleteExpiredDataRequest();
+
+        Request request = MLRequestConverters.deleteExpiredData(deleteExpiredDataRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/_delete_expired_data", request.getEndpoint());
     }
 
     public void testDeleteJob() {

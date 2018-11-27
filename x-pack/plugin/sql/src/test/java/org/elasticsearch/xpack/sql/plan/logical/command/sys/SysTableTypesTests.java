@@ -39,14 +39,15 @@ public class SysTableTypesTests extends ESTestCase {
         return new Tuple<>(cmd, session);
     }
 
-    public void testSysCatalogs() throws Exception {
+    public void testSysTableTypes() throws Exception {
         Tuple<Command, SqlSession> sql = sql("SYS TABLE TYPES");
 
         sql.v1().execute(sql.v2(), ActionListener.wrap(r -> {
             assertEquals(2, r.size());
             assertEquals("ALIAS", r.column(0));
-            r.advanceRow();
+            assertTrue(r.advanceRow());
             assertEquals("BASE TABLE", r.column(0));
         }, ex -> fail(ex.getMessage())));
     }
+
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
-evaluationDependsOn(":test:fixtures:krb5kdc-fixture")
 apply plugin: 'elasticsearch.test.fixtures'
 
 esplugin {
@@ -35,7 +34,6 @@ esplugin {
 versions << [
   'hadoop2': '2.8.1'
 ]
-
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture"
 

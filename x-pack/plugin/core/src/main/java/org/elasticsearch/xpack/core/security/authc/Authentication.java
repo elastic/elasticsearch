@@ -174,15 +174,19 @@ public class Authentication implements ToXContentObject {
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
         builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());
-        builder.field(User.Fields.AUTHENTICATION_REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
-        builder.field(User.Fields.AUTHENTICATION_REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+        builder.startObject(User.Fields.AUTHENTICATION_REALM.getPreferredName());
+        builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
+        builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+        builder.endObject();
+        builder.startObject(User.Fields.LOOKUP_REALM.getPreferredName());
         if (getLookedUpBy() != null) {
-            builder.field(User.Fields.LOOKUP_REALM_NAME.getPreferredName(), getLookedUpBy().getName());
-            builder.field(User.Fields.LOOKUP_REALM_TYPE.getPreferredName(), getLookedUpBy().getType());
+            builder.field(User.Fields.REALM_NAME.getPreferredName(), getLookedUpBy().getName());
+            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getLookedUpBy().getType());
         } else {
-            builder.field(User.Fields.LOOKUP_REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
-            builder.field(User.Fields.LOOKUP_REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+            builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
+            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
         }
+        builder.endObject();
         return builder.endObject();
     }
 

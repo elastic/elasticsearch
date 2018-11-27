@@ -7,7 +7,6 @@
 package org.elasticsearch.license;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;

@@ -50,6 +50,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestMultiSearchAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+        " Specifying types in multi search requests is deprecated.";
+
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
@@ -58,11 +63,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
         );
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestMultiSearchAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in multi search requests is deprecated.";
 
     private final boolean allowExplicitIndex;
 

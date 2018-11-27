@@ -69,7 +69,7 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSearchAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
         " Specifying types in search requests is deprecated.";
 
     public RestSearchAction(Settings settings, RestController controller) {

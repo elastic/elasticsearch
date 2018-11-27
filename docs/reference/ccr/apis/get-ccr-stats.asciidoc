@@ -105,7 +105,7 @@ The API returns the following results:
     "number_of_failed_follow_indices" : 0,
     "number_of_failed_remote_cluster_state_requests" : 0,
     "number_of_successful_follow_indices" : 1,
-    "recent_auto_follow_errors" : []
+    "recent_auto_follow_errors" : [],
     "tracking_remote_clusters" : []
   },
   "follow_stats" : {

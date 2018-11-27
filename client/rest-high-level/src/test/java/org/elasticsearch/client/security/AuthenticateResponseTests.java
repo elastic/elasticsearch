@@ -71,9 +71,9 @@ public class AuthenticateResponseTests extends ESTestCase {
         final String email = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 4));
         final boolean enabled = randomBoolean();
         final String authenticationRealmName = randomAlphaOfLength(5);
-        final String authenticationRealmType = randomFrom("file", "native", "ldap", "ad", "saml", "kerberos");
+        final String authenticationRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
         final String lookupRealmName = randomAlphaOfLength(5);
-        final String lookupRealmType = randomFrom("file", "native", "ldap", "ad", "saml", "kerberos");
+        final String lookupRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
         return new AuthenticateResponse(
             new User(username, roles, metadata, fullName, email), enabled,
             new AuthenticateResponse.RealmInfo(authenticationRealmName, authenticationRealmType),

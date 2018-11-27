@@ -113,15 +113,12 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 throw new IllegalArgumentException("[" + POLICY_NAME_FIELD.getPreferredName() + "] cannot be null for managed index");
             }
             // check to make sure that step details are either all null or all set.
-            long numNull = Stream.of(phase, action, step, phaseTime, actionTime, stepTime).filter(Objects::isNull).count();
-            if (numNull > 0 && numNull < 6) {
+            long numNull = Stream.of(phase, action, step).filter(Objects::isNull).count();
+            if (numNull > 0 && numNull < 3) {
                 throw new IllegalArgumentException("managed index response must have complete step details [" +
                     PHASE_FIELD.getPreferredName() + "=" + phase + ", " +
-                    PHASE_TIME_FIELD.getPreferredName() + "=" + phaseTime + ", " +
                     ACTION_FIELD.getPreferredName() + "=" + action + ", " +
-                    ACTION_TIME_FIELD.getPreferredName() + "=" + actionTime + ", " +
-                    STEP_FIELD.getPreferredName() + "=" + step + ", " +
-                    STEP_TIME_FIELD.getPreferredName() + "=" + stepTime + "]");
+                    STEP_FIELD.getPreferredName() + "=" + step + "]");
             }
         } else {
             if (policyName != null || lifecycleDate != null || phase != null || action != null || step != null || failedStep != null

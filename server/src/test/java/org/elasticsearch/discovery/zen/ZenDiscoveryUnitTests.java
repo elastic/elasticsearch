@@ -359,11 +359,6 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
                 listener.onSuccess(source);
             }
-
-            @Override
-            public void addLowPriorityApplier(ClusterStateApplier applier) {
-                
-            }
         };
         ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service,
             new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),

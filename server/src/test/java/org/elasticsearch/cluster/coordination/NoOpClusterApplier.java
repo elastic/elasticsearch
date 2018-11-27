@@ -34,9 +34,4 @@ public class NoOpClusterApplier implements ClusterApplier {
     public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
         listener.onSuccess(source);
     }
-
-    @Override
-    public void addLowPriorityApplier(ClusterStateApplier applier) {
-
-    }
 }

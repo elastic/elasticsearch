@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -229,7 +230,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         transportService.registerRequestHandler(
             DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
 
-        clusterApplier.addLowPriorityApplier(gatewayMetaState);
+        if (clusterApplier instanceof ClusterApplierService) {
+            ((ClusterApplierService) clusterApplier).addLowPriorityApplier(gatewayMetaState);
+        }
     }
 
     static Collection<BiConsumer<DiscoveryNode,ClusterState>> addBuiltInJoinValidators(

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -92,8 +93,10 @@ public class TestZenDiscovery extends ZenDiscovery {
                             return gatewayMetaState;
                         };
                     } else {
-                        //if InMemoryPersisted is used, we let GatewayMetaState receive all events
-                        clusterApplier.addLowPriorityApplier(gatewayMetaState);
+                        if (clusterApplier instanceof ClusterApplierService) {
+                            //if InMemoryPersisted is used, we let GatewayMetaState receive all events
+                            ((ClusterApplierService) clusterApplier).addLowPriorityApplier(gatewayMetaState);
+                        }
 
                         persistedStateSupplier =
                                 () -> new InMemoryPersistedState(0L, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))

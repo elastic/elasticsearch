@@ -1590,11 +1590,6 @@ public class CoordinatorTests extends ESTestCase {
                             break;
                     }
                 }
-
-                @Override
-                public void addLowPriorityApplier(ClusterStateApplier applier) {
-
-                }
             }
         }
 

@@ -70,10 +70,6 @@ public class SingleNodeDiscoveryTests extends ESTestCase {
                                 clusterState.set(clusterStateSupplier.get());
                                 listener.onSuccess(source);
                             }
-
-                            @Override
-                            public void addLowPriorityApplier(ClusterStateApplier applier) {
-                            }
                     });
             discovery.start();
             discovery.startInitialJoin();

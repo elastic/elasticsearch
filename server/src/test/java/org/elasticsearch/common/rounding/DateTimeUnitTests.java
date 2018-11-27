@@ -66,7 +66,6 @@ public class DateTimeUnitTests extends ESTestCase {
         assertEquals(SECOND_OF_MINUTE, DateTimeUnit.resolve((byte) 8));
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33749")
     public void testConversion() {
         long millis = randomLongBetween(0, Instant.now().toEpochMilli());
         DateTimeZone zone = randomDateTimeZone();

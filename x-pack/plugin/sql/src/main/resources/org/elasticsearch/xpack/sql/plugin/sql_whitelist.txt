@@ -6,6 +6,12 @@
 
 # This file contains a whitelist for SQL specific utilities available inside SQL scripting
 
+class org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime {
+}
+
+class org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth {
+}
+
 class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
 
 #
@@ -20,6 +26,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 # Comparison
 #
   Boolean eq(Object, Object)
+  Boolean nulleq(Object, Object)
   Boolean neq(Object, Object)
   Boolean lt(Object, Object)
   Boolean lte(Object, Object)
@@ -40,6 +47,9 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 # Null
 #
   Object coalesce(java.util.List)
+  Object greatest(java.util.List)
+  Object least(java.util.List)
+  Object nullif(Object, Object)
 
 #
 # Regex
@@ -49,12 +59,12 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 #
 # Math
 #
-  Number add(Number, Number)
-  Number div(Number, Number)
-  Number mod(Number, Number)
-  Number mul(Number, Number)
+  def add(Object, Object)
+  def sub(Object, Object)
+  def div(Object, Object)
+  def mod(Object, Object)
+  def mul(Object, Object)
   Number neg(Number)
-  Number sub(Number, Number)
   Number round(Number, Number)
   Number truncate(Number, Number)
   
@@ -90,6 +100,9 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String  dayName(Object, String)
   String  monthName(Object, String)
   Integer quarter(Object, String)
+  IntervalDayTime intervalDayTime(String, String)
+  IntervalYearMonth intervalYearMonth(String, String)
+  ZonedDateTime asDateTime(Object)
 
 #
 # ASCII Functions

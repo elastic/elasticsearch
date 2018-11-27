@@ -26,6 +26,10 @@ import org.elasticsearch.common.Strings;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * A request for retrieving upgrade information
+ * Part of Migration API
+ */
 public class IndexUpgradeInfoRequest extends TimedRequest implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;

@@ -20,6 +20,8 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,6 +50,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
+    private static final Logger logger = LogManager.getLogger(GatewayService.class);
 
     public static final Setting<Integer> EXPECTED_NODES_SETTING =
         Setting.intSetting("gateway.expected_nodes", -1, -1, Property.NodeScope);

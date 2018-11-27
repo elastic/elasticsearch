@@ -191,7 +191,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                             return 1000f;
                         }
                     };
-                    return new ConstantScoreScorer(this, score(), twoPhase);
+                    return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
                 }
 
                 @Override

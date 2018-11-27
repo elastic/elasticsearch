@@ -1,5 +1,5 @@
 [[index-phrases]]
-=== Index Phrases
+=== `index_phrases`
 
 If enabled, two-term word combinations ('shingles') are indexed into a separate
 field.  This allows exact phrase queries (no slop) to run more efficiently, at the expense

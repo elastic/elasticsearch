@@ -1,7 +1,7 @@
 --
 :api: ccr-resume-follow
 :request: ResumeFollowRequest
-:response: ResumeFollowResponse
+:response: AcknowledgedResponse
 --
 
 [id="{upid}-{api}"]

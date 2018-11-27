@@ -32,6 +32,7 @@ import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
+import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -204,6 +205,22 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/security/role_mapping/" + roleMappingName, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
+    }
+
+    public void testGetRoles() {
+        final String[] roles = randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5));
+        final GetRolesRequest getRolesRequest = new GetRolesRequest(roles);
+        final Request request = SecurityRequestConverters.getRoles(getRolesRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        if (roles.length == 0) {
+            assertEquals("/_xpack/security/role", request.getEndpoint());
+        } else {
+            assertEquals("/_xpack/security/role/" + Strings.collectionToCommaDelimitedString(getRolesRequest.getRoleNames()),
+                request.getEndpoint());
+        }
+        assertNull(request.getEntity());
+        assertEquals(Collections.emptyMap(), request.getParameters());
     }
 
     public void testDeleteRole() {

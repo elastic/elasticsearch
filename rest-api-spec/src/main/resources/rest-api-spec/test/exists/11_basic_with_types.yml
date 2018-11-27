@@ -1,12 +1,10 @@
 ---
 "Basic":
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
 
   - do:
       exists:
         index: test_1
+        type:  test
         id:    1
 
   - is_false: ''
@@ -14,7 +12,7 @@
   - do:
       index:
         index: test_1
-        type:  _doc
+        type:  test
         id:    1
         body:  { "foo": "bar" }
 
@@ -23,6 +21,7 @@
   - do:
       exists:
         index: test_1
+        type:  test
         id:    1
 
   - is_true: ''
@@ -30,6 +29,7 @@
   - do:
       exists:
         index: test_1
+        type: test
         id: 1
         version: 1
 

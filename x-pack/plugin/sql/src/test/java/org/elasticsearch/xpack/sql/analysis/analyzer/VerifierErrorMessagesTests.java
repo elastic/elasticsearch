@@ -9,9 +9,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
@@ -28,7 +30,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, TimeZone.getTimeZone("UTC"));
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, TimeZone.getTimeZone("UTC"), new Verifier(new Metrics()));
         AnalysisException e = expectThrows(AnalysisException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         assertTrue(e.getMessage().startsWith("Found "));
         String header = "Found 1 problem(s)\nline ";
@@ -42,10 +44,29 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), resolution, TimeZone.getTimeZone("UTC"));
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), resolution, TimeZone.getTimeZone("UTC"), new Verifier(new Metrics()));
         return analyzer.analyze(parser.createStatement(sql), true);
     }
 
+    private IndexResolution incompatible() {
+        Map<String, EsField> basicMapping = TypesTests.loadMapping("mapping-basic.json", true);
+        Map<String, EsField> incompatible = TypesTests.loadMapping("mapping-basic-incompatible.json");
+
+        assertNotEquals(basicMapping, incompatible);
+        IndexResolution resolution = IndexResolverTests.merge(new EsIndex("basic", basicMapping),
+                new EsIndex("incompatible", incompatible));
+        assertTrue(resolution.isValid());
+        return resolution;
+    }
+
+    private String incompatibleError(String sql) {
+        return error(incompatible(), sql);
+    }
+
+    private LogicalPlan incompatibleAccept(String sql) {
+        return accept(incompatible(), sql);
+    }
+    
     public void testMissingIndex() {
         assertEquals("1:17: Unknown index [missing]", error(IndexResolution.notFound("missing"), "SELECT foo FROM missing"));
     }
@@ -365,5 +386,41 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT INSERT('text', 1, 'bar', 'new')"));
         assertEquals("1:8: [INSERT] fourth argument must be [string], found value [3] type [integer]",
             error("SELECT INSERT('text', 1, 2, 3)"));
+    }
+    
+    public void testAllowCorrectFieldsInIncompatibleMappings() {
+        assertNotNull(incompatibleAccept("SELECT languages FROM \"*\""));
+    }
+
+    public void testWildcardInIncompatibleMappings() {
+        assertNotNull(incompatibleAccept("SELECT * FROM \"*\""));
+    }
+
+    public void testMismatchedFieldInIncompatibleMappings() {
+        assertEquals(
+                "1:8: Cannot use field [emp_no] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[integer] in [basic], [long] in [incompatible]",
+                incompatibleError("SELECT emp_no FROM \"*\""));
+    }
+
+    public void testMismatchedFieldStarInIncompatibleMappings() {
+        assertEquals(
+                "1:8: Cannot use field [emp_no] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[integer] in [basic], [long] in [incompatible]",
+                incompatibleError("SELECT emp_no.* FROM \"*\""));
+    }
+
+    public void testMismatchedFieldFilterInIncompatibleMappings() {
+        assertEquals(
+                "1:33: Cannot use field [emp_no] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[integer] in [basic], [long] in [incompatible]",
+                incompatibleError("SELECT languages FROM \"*\" WHERE emp_no > 1"));
+    }
+
+    public void testMismatchedFieldScalarInIncompatibleMappings() {
+        assertEquals(
+                "1:45: Cannot use field [emp_no] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[integer] in [basic], [long] in [incompatible]",
+                incompatibleError("SELECT languages FROM \"*\" ORDER BY SIGN(ABS(emp_no))"));
     }
 }

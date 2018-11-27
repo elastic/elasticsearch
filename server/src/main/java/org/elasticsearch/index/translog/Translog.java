@@ -213,9 +213,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private ArrayList<TranslogReader> recoverFromFiles(Checkpoint checkpoint) throws IOException {
         boolean success = false;
         ArrayList<TranslogReader> foundTranslogs = new ArrayList<>();
-        // a temp file to copy checkpoint to - note it must be in on the same FS otherwise atomic move won't work
-        final Path tempFile = Files.createTempFile(location, TRANSLOG_FILE_PREFIX, TRANSLOG_FILE_SUFFIX);
-        boolean tempFileRenamed = false;
         try (ReleasableLock lock = writeLock.acquire()) {
             logger.debug("open uncommitted translog checkpoint {}", checkpoint);
 
@@ -263,20 +260,32 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                         " already exists but has corrupted content expected: " + checkpoint + " but got: " + checkpointFromDisk);
                 }
             } else {
-                // we first copy this into the temp-file and then fsync it followed by an atomic move into the target file
-                // that way if we hit a disk-full here we are still in an consistent state.
-                Files.copy(location.resolve(CHECKPOINT_FILE_NAME), tempFile, StandardCopyOption.REPLACE_EXISTING);
-                IOUtils.fsync(tempFile, false);
-                Files.move(tempFile, commitCheckpoint, StandardCopyOption.ATOMIC_MOVE);
-                tempFileRenamed = true;
-                // we only fsync the directory the tempFile was already fsynced
-                IOUtils.fsync(commitCheckpoint.getParent(), true);
+                copyCheckpointTo(commitCheckpoint);
             }
             success = true;
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(foundTranslogs);
             }
+        }
+        return foundTranslogs;
+    }
+
+    private void copyCheckpointTo(Path targetPath) throws IOException {
+        // a temp file to copy checkpoint to - note it must be in on the same FS otherwise atomic move won't work
+        final Path tempFile = Files.createTempFile(location, TRANSLOG_FILE_PREFIX, CHECKPOINT_SUFFIX);
+        boolean tempFileRenamed = false;
+
+        try {
+            // we first copy this into the temp-file and then fsync it followed by an atomic move into the target file
+            // that way if we hit a disk-full here we are still in an consistent state.
+            Files.copy(location.resolve(CHECKPOINT_FILE_NAME), tempFile, StandardCopyOption.REPLACE_EXISTING);
+            IOUtils.fsync(tempFile, false);
+            Files.move(tempFile, targetPath, StandardCopyOption.ATOMIC_MOVE);
+            tempFileRenamed = true;
+            // we only fsync the directory the tempFile was already fsynced
+            IOUtils.fsync(targetPath.getParent(), true);
+        } finally {
             if (tempFileRenamed == false) {
                 try {
                     Files.delete(tempFile);
@@ -285,7 +294,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 }
             }
         }
-        return foundTranslogs;
     }
 
     TranslogReader openReader(Path path, Checkpoint checkpoint) throws IOException {
@@ -1643,13 +1651,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             try {
                 final TranslogReader reader = current.closeIntoReader();
                 readers.add(reader);
-                final Path checkpoint = location.resolve(CHECKPOINT_FILE_NAME);
-                assert Checkpoint.read(checkpoint).generation == current.getGeneration();
-                final Path generationCheckpoint =
-                    location.resolve(getCommitCheckpointFileName(current.getGeneration()));
-                Files.copy(checkpoint, generationCheckpoint);
-                IOUtils.fsync(generationCheckpoint, false);
-                IOUtils.fsync(generationCheckpoint.getParent(), true);
+                assert Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME)).generation == current.getGeneration();
+                copyCheckpointTo(location.resolve(getCommitCheckpointFileName(current.getGeneration())));
                 // create a new translog file; this will sync it and update the checkpoint data;
                 current = createWriter(current.getGeneration() + 1);
                 logger.trace("current translog set to [{}]", current.getGeneration());

@@ -421,7 +421,7 @@ public class MetaDataIndexStateService {
                     }
                 }
 
-                validateShardLimit(currentState, request.indices(), deprecationLogger);
+                validateShardLimit(currentState, request.indices());
 
                 if (indicesToOpen.isEmpty()) {
                     return currentState;
@@ -471,16 +471,15 @@ public class MetaDataIndexStateService {
      *
      * @param currentState The current cluster state.
      * @param indices The indices which are to be opened.
-     * @param deprecationLogger The logger to use to emit a deprecation warning, if appropriate.
      * @throws ValidationException If this operation would take the cluster over the limit and enforcement is enabled.
      */
-    static void validateShardLimit(ClusterState currentState, Index[] indices, DeprecationLogger deprecationLogger) {
+    static void validateShardLimit(ClusterState currentState, Index[] indices) {
         int shardsToOpen = Arrays.stream(indices)
             .filter(index -> currentState.metaData().index(index).getState().equals(IndexMetaData.State.CLOSE))
             .mapToInt(index -> getTotalShardCount(currentState, index))
             .sum();
 
-        Optional<String> error = IndicesService.checkShardLimit(shardsToOpen, currentState, deprecationLogger);
+        Optional<String> error = IndicesService.checkShardLimit(shardsToOpen, currentState);
         if (error.isPresent()) {
             ValidationException ex = new ValidationException();
             ex.addValidationError(error.get());

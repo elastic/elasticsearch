@@ -32,3 +32,9 @@ will be enforced with a hard error starting in 7.0 and is determined by the
 rest of Elasticsearc's APIs and Elasticsearch will raise a deprecation warning
 if those are used on any APIs. We plan to drop support for `_source_exclude` and
 `_source_include` in 7.0.
+
+
+[float]
+==== Boosts on inner span queries are not allowed.
+
+Attempts to set `boost` on inner span queries will now throw a parsing exception.

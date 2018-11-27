@@ -27,6 +27,6 @@ public class DataFrameAnalysis implements ToXContentObject {
         builder.startObject();
         builder.field(NAME.getPreferredName(), name);
         builder.endObject();
-        return null;
+        return builder;
     }
 }

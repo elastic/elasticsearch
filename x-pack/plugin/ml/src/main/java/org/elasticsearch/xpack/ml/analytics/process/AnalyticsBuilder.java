@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.ml.analytics.process;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 
@@ -65,7 +65,7 @@ public class AnalyticsBuilder {
         try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(configFile),StandardCharsets.UTF_8);
              XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
 
-            config.toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
+            config.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
             osw.write(Strings.toString(jsonBuilder));
         }
 

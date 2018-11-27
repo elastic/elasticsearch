@@ -45,6 +45,6 @@ public class AnalyticsProcessConfig implements ToXContentObject {
         builder.field(THREADS, threads);
         builder.field(ANALYSIS, analysis);
         builder.endObject();
-        return null;
+        return builder;
     }
 }

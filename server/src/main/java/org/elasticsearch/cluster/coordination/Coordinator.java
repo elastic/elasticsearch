@@ -982,6 +982,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private void startElectionScheduler() {
         assert electionScheduler == null : electionScheduler;
+
+        if (DiscoveryNode.isMasterNode(settings) == false) {
+            return;
+        }
+
         final TimeValue gracePeriod = TimeValue.ZERO; // TODO variable grace period
         electionScheduler = electionSchedulerFactory.startElectionScheduler(gracePeriod, new Runnable() {
             @Override

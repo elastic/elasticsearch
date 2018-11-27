@@ -388,22 +388,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * This setting is ignored
-     */
-    @Deprecated
-    public QueryStringQueryBuilder autoGeneratePhraseQueries(boolean autoGeneratePhraseQueries) {
-        return this;
-    }
-
-    /**
-     * This setting is ignored
-     */
-    @Deprecated
-    public boolean autoGeneratePhraseQueries() {
-        return false;
-    }
-
-    /**
      * Protects against too-difficult regular expression queries.
      */
     public QueryStringQueryBuilder maxDeterminizedStates(int maxDeterminizedStates) {
@@ -584,22 +568,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     public boolean escape() {
         return this.escape;
-    }
-
-    /**
-     * This setting is ignored, this query parser splits on operator only.
-     */
-    @Deprecated
-    public QueryStringQueryBuilder splitOnWhitespace(boolean value) {
-        return this;
-    }
-
-    /**
-     * This setting is ignored, this query parser splits on operator only.
-     */
-    @Deprecated
-    public boolean splitOnWhitespace() {
-        return false;
     }
 
     public QueryStringQueryBuilder autoGenerateSynonymsPhraseQuery(boolean value) {

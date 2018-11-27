@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -49,6 +51,7 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
@@ -64,6 +67,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 public class MockNioTransport extends TcpTransport {
+    private static final Logger logger = LogManager.getLogger(MockNioTransport.class);
 
     private final PageCacheRecycler pageCacheRecycler;
     private final ConcurrentMap<String, MockTcpChannelFactory> profileToChannelFactory = newConcurrentMap();
@@ -190,7 +194,17 @@ public class MockNioTransport extends TcpTransport {
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),
                 readWriteHandler, new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
-            nioChannel.setSoLinger(0);
+            nioChannel.addConnectListener((v, e) -> {
+                if (e == null) {
+                    if (channel.isConnected()) {
+                        try {
+                            channel.setOption(StandardSocketOptions.SO_LINGER, 0);
+                        } catch (IOException ex) {
+                            throw new UncheckedIOException(new IOException());
+                        }
+                    }
+                }
+            });
             return nioChannel;
         }
 
@@ -275,14 +289,6 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public void addConnectListener(ActionListener<Void> listener) {
             addConnectListener(ActionListener.toBiConsumer(listener));
-        }
-
-        @Override
-        public void setSoLinger(int value) throws IOException {
-            SocketChannel rawChannel = getRawChannel();
-            if (rawChannel.isConnected()) {
-                rawChannel.setOption(StandardSocketOptions.SO_LINGER, value);
-            }
         }
 
         @Override

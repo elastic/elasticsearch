@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ArbitraryConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
@@ -132,7 +133,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceFoldableAttributes(),
                 new FoldNull(),
                 new ConstantFolding(),
-                new SimplifyCoalesce(),
+                new SimplifyConditional(),
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
@@ -1202,34 +1203,35 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
     
-    static class SimplifyCoalesce extends OptimizerExpressionRule {
+    static class SimplifyConditional extends OptimizerExpressionRule {
 
-        SimplifyCoalesce() {
+        SimplifyConditional() {
             super(TransformDirection.DOWN);
         }
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof Coalesce) {
-                Coalesce c = (Coalesce) e;
+            if (e instanceof ArbitraryConditionalFunction) {
+                ArbitraryConditionalFunction c = (ArbitraryConditionalFunction) e;
 
-                // find the first non-null foldable child (if any) and remove the rest
-                // while at it, exclude any nulls found
+                // exclude any nulls found
                 List<Expression> newChildren = new ArrayList<>();
-
                 for (Expression child : c.children()) {
                     if (Expressions.isNull(child) == false) {
                         newChildren.add(child);
-                        if (child.foldable()) {
+
+                        // For Coalesce find the first non-null foldable child (if any) and break early
+                        if (e instanceof Coalesce && child.foldable()) {
                             break;
                         }
                     }
                 }
 
                 if (newChildren.size() < c.children().size()) {
-                    return new Coalesce(c.location(), newChildren);
+                    return c.replaceChildren(newChildren);
                 }
             }
+
             return e;
         }
     }

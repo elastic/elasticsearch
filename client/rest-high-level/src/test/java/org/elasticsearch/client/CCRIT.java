@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
+import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
@@ -125,6 +126,36 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         UnfollowRequest unfollowRequest = new UnfollowRequest("follower");
         AcknowledgedResponse unfollowResponse = execute(unfollowRequest, ccrClient::unfollow, ccrClient::unfollowAsync);
         assertThat(unfollowResponse.isAcknowledged(), is(true));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35937")
+    public void testAutoFollowing() throws Exception {
+        CcrClient ccrClient = highLevelClient().ccr();
+        PutAutoFollowPatternRequest putAutoFollowPatternRequest =
+            new PutAutoFollowPatternRequest("pattern1", "local", Collections.singletonList("logs-*"));
+        putAutoFollowPatternRequest.setFollowIndexNamePattern("copy-{{leader_index}}");
+        AcknowledgedResponse putAutoFollowPatternResponse =
+            execute(putAutoFollowPatternRequest, ccrClient::putAutoFollowPattern, ccrClient::putAutoFollowPatternAsync);
+        assertThat(putAutoFollowPatternResponse.isAcknowledged(), is(true));
+
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("logs-20200101");
+        createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
+        CreateIndexResponse response = highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        assertThat(response.isAcknowledged(), is(true));
+
+        assertBusy(() -> {
+            assertThat(indexExists("copy-logs-20200101"), is(true));
+        });
+
+        // Cleanup:
+        // TODO: replace with hlrc delete auto follow pattern when it is available:
+        final Request deleteAutoFollowPatternRequest = new Request("DELETE", "/_ccr/auto_follow/pattern1");
+        Map<?, ?> deleteAutoFollowPatternResponse = toMap(client().performRequest(deleteAutoFollowPatternRequest));
+        assertThat(deleteAutoFollowPatternResponse.get("acknowledged"), is(true));
+
+        PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("copy-logs-20200101");
+        AcknowledgedResponse pauseFollowResponse = ccrClient.pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+        assertThat(pauseFollowResponse.isAcknowledged(), is(true));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

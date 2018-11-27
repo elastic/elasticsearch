@@ -43,7 +43,7 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class Zen2GatewayMetaStateTests extends ESTestCase {
+public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     private class GatewayMetaStateUT extends GatewayMetaState {
         GatewayMetaStateUT(Settings settings, NodeEnvironment nodeEnvironment) throws IOException {
             super(settings, nodeEnvironment, new MetaStateService(nodeEnvironment, xContentRegistry()),

@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -28,6 +29,7 @@ import org.joda.time.DateTime;
 
 import java.time.Clock;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -84,7 +86,8 @@ public class WatcherUtilsTests extends ESTestCase {
             builder.endObject();
             return builder;
         };
-        Map<String, Object> result = WatcherUtils.responseToData(content);
+        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
+        Map<String, Object> result = WatcherUtils.responseToData(content, params);
         assertThat(result, equalTo(expected));
     }
 

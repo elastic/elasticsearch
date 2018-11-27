@@ -9,7 +9,9 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
 import java.time.Clock;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
@@ -46,7 +49,8 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
 
         CompareCondition condition = new CompareCondition("ctx.payload.aggregations.rate.buckets.0.doc_count", CompareCondition.Op.GTE, 5,
                 Clock.systemUTC());
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
+        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
+        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, params));
         CompareCondition.Result result = condition.execute(ctx);
         assertThat(result.met(), is(false));
         Map<String, Object> resolvedValues = result.getResolvedValues();
@@ -62,7 +66,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
                         .field("@timestamp").dateHistogramInterval(DateHistogramInterval.HOUR).order(BucketOrder.count(false)))
                 .get();
 
-        ctx = mockExecutionContext("_name", new Payload.XContent(response));
+        ctx = mockExecutionContext("_name", new Payload.XContent(response, params));
         result = condition.execute(ctx);
         assertThat(result.met(), is(true));
         resolvedValues = result.getResolvedValues();
@@ -84,10 +88,11 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 0,
             500L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
 
-        WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response));
+        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
+        WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response, params));
         assertThat(condition.execute(ctx).met(), is(true));
         hit.score(2f);
-        when(ctx.payload()).thenReturn(new Payload.XContent(response));
+        when(ctx.payload()).thenReturn(new Payload.XContent(response, params));
         CompareCondition.Result result = condition.execute(ctx);
         assertThat(result.met(), is(false));
         Map<String, Object> resolvedValues = result.getResolvedValues();

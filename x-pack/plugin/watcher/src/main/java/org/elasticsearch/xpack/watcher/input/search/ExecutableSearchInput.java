@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.input.search.SearchInput.TYPE;
@@ -85,8 +87,9 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
         }
 
         final Payload payload;
+        final Params params = new MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
         if (input.getExtractKeys() != null) {
-            BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, false);
+            BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, params, false);
             // EMPTY is safe here because we never use namedObject
             try (XContentParser parser = XContentHelper
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes)) {
@@ -94,7 +97,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
                 payload = new Payload.Simple(filteredKeys);
             }
         } else {
-            payload = new Payload.XContent(response);
+            payload = new Payload.XContent(response, params);
         }
 
         return new SearchInput.Result(request, payload);

@@ -6,7 +6,9 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -16,6 +18,7 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -52,7 +55,8 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.aggregations.top_tweeters.buckets" , "doc_count", op,
                         numberOfDocumentsWatchingFor, quantifier, Clock.systemUTC());
 
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
+        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
+        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, params));
         Condition.Result result = condition.execute(ctx);
 
         boolean met = quantifier.eval(Arrays.<Object>asList(numberOfDocuments, numberOfDocuments), numberOfDocumentsWatchingFor, op);
@@ -76,7 +80,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         response = client().prepareSearch(index)
                 .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3)).get();
 
-        ctx = mockExecutionContext("_name", new Payload.XContent(response));
+        ctx = mockExecutionContext("_name", new Payload.XContent(response, params));
         result = condition.execute(ctx);
 
         met = quantifier.eval(Arrays.<Object>asList(numberOfDocumentsWatchingFor, numberOfDocuments), numberOfDocumentsWatchingFor, op);

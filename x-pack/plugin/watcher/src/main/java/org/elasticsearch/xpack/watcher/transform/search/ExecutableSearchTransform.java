@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
+
+import java.util.Collections;
 
 import static org.elasticsearch.xpack.watcher.transform.search.SearchTransform.TYPE;
 
@@ -51,7 +54,8 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
             SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
             SearchResponse resp = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
                     () -> client.search(searchRequest).actionGet(timeout));
-            return new SearchTransform.Result(request, new Payload.XContent(resp));
+            Params params = new MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
+            return new SearchTransform.Result(request, new Payload.XContent(resp, params));
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}] transform for [{}]", TYPE, ctx.id()), e);
             return new SearchTransform.Result(request, e);

@@ -152,7 +152,7 @@ public final class WatcherTestUtils {
         HttpRequestTemplate.Builder httpRequest = HttpRequestTemplate.builder("localhost", 80);
         httpRequest.method(HttpMethod.POST);
         httpRequest.path(new TextTemplate("/foobarbaz/{{ctx.watch_id}}"));
-        httpRequest.body(new TextTemplate("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits.value}} hits"));
+        httpRequest.body(new TextTemplate("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits"));
         actions.add(new ActionWrapper("_webhook", null, null, null, new ExecutableWebhookAction(new WebhookAction(httpRequest.build()),
                 logger, httpClient, engine)));
 

@@ -88,6 +88,23 @@ public class UserFunctionIT extends ESRestTestCase {
         }
     }
     
+    public void testSelectUserFromIndex() throws IOException {
+        index("{\"test\":\"doc1\"}",
+              "{\"test\":\"doc2\"}",
+              "{\"test\":\"doc3\"}");
+        String randomUserName = randomAlphaOfLengthBetween(1, 15);
+        String mode = randomMode().toString();
+        createUser(randomUserName, MINIMAL_ACCESS_ROLE);
+        
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", Arrays.asList(
+                columnInfo(mode, "USER", "keyword", JDBCType.VARCHAR, 0)));
+        expected.put("rows", Arrays.asList(Arrays.asList(randomUserName, randomUserName, randomUserName)));
+        Map<String, Object> actual = runSql(randomUserName, mode, "SELECT USER() FROM test");
+        
+        assertResponse(expected, actual);
+    }
+    
     private void createUser(String name, String role) throws IOException {
         Request request = new Request("PUT", "/_xpack/security/user/" + name);
         XContentBuilder user = JsonXContent.contentBuilder().prettyPrint();
@@ -134,5 +151,17 @@ public class UserFunctionIT extends ESRestTestCase {
 
     private String randomMode() {
         return randomFrom("plain", "jdbc", "");
+    }
+    
+    private void index(String... docs) throws IOException {
+        Request request = new Request("POST", "/test/test/_bulk");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        for (String doc : docs) {
+            bulk.append("{\"index\":{}\n");
+            bulk.append(doc + "\n");
+        }
+        request.setJsonEntity(bulk.toString());
+        client().performRequest(request);
     }
 }

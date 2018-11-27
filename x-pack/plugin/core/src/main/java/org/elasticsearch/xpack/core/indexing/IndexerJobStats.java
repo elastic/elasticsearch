@@ -61,8 +61,7 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         this.numInputDocuments = in.readVLong();
         this.numOuputDocuments = in.readVLong();
         this.numInvocations = in.readVLong();
-        // TODO change this after backport
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
             this.indexTime = in.readVLong();
             this.searchTime = in.readVLong();
             this.indexTotal = in.readVLong();
@@ -164,8 +163,7 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         out.writeVLong(numInputDocuments);
         out.writeVLong(numOuputDocuments);
         out.writeVLong(numInvocations);
-        // TODO change after backport
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeVLong(indexTime);
             out.writeVLong(searchTime);
             out.writeVLong(indexTotal);

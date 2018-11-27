@@ -19,6 +19,8 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -39,6 +41,7 @@ import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.simpleString;
 
 class GoogleCloudStorageRepository extends BlobStoreRepository {
+    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageRepository.class);
 
     // package private for testing
     static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);

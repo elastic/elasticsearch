@@ -84,6 +84,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
      */
     public static MultiSearchRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
+        IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
+        multiRequest.indicesOptions(indicesOptions);
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }

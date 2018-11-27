@@ -10,6 +10,8 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -25,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
@@ -114,18 +117,23 @@ public class TransportRunAnalyticsAction extends HandledTransportAction<RunAnaly
     private void reindexDataframeAndStartAnalysis(String index, ActionListener<AcknowledgedResponse> listener) {
         final String destinationIndex = index + "_copy";
 
+        ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
+            bulkResponse -> {
+                client.execute(RefreshAction.INSTANCE, new RefreshRequest(destinationIndex), ActionListener.wrap(
+                    refreshResponse -> {
+                        runPipelineAnalytics(destinationIndex, listener);
+                    }, listener::onFailure
+                ));
+            }, listener::onFailure
+        );
+
         ActionListener<CreateIndexResponse> copyIndexCreatedListener = ActionListener.wrap(
             createIndexResponse -> {
                 ReindexRequest reindexRequest = new ReindexRequest();
                 reindexRequest.setSourceIndices(index);
                 reindexRequest.setDestIndex(destinationIndex);
                 reindexRequest.setScript(new Script("ctx._source." + DataFrameFields.ID + " = ctx._id"));
-                client.execute(ReindexAction.INSTANCE, reindexRequest, ActionListener.wrap(
-                    bulkResponse -> {
-                        runPipelineAnalytics(destinationIndex, listener);
-                    },
-                    listener::onFailure
-                ));
+                client.execute(ReindexAction.INSTANCE, reindexRequest, reindexCompletedListener);
             }, listener::onFailure
         );
 

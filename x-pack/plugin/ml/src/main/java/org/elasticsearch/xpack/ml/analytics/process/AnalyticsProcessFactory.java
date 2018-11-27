@@ -13,8 +13,9 @@ public interface AnalyticsProcessFactory {
      * Create an implementation of {@link AnalyticsProcess}
      *
      * @param jobId             The job id
+     * @param analyticsProcessConfig The process configuration
      * @param executorService   Executor service used to start the async tasks a job needs to operate the analytical process
      * @return The process
      */
-    AnalyticsProcess createAnalyticsProcess(String jobId, ExecutorService executorService);
+    AnalyticsProcess createAnalyticsProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig, ExecutorService executorService);
 }

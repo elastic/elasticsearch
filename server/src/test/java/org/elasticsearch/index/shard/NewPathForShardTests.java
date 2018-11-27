@@ -43,10 +43,7 @@ import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -192,7 +189,7 @@ public class NewPathForShardTests extends ESTestCase {
         bFileStore.usableSpace = 1000;
 
         ShardId shardId = new ShardId("index", "_na_", 0);
-        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100);
         assertTrue(result.getDataPath().toString().contains(aPathPart));
 
         // Test the reverse: b has lots of free space, but a has little, so new shard should go to b:
@@ -200,18 +197,16 @@ public class NewPathForShardTests extends ESTestCase {
         bFileStore.usableSpace = 100000;
 
         shardId = new ShardId("index", "_na_", 0);
-        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100);
         assertTrue(result.getDataPath().toString().contains(bPathPart));
 
         // Now a and be have equal usable space; we allocate two shards to the node, and each should go to different paths:
         aFileStore.usableSpace = 100000;
         bFileStore.usableSpace = 100000;
 
-        Map<Path,Integer> dataPathToShardCount = new HashMap<>();
-        ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, dataPathToShardCount);
+        ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100);
         createFakeShard(result1);
-        dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), 1);
-        ShardPath result2 = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, dataPathToShardCount);
+        ShardPath result2 = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100);
         createFakeShard(result2);
 
         // #11122: this was the original failure: on a node with 2 disks that have nearly equal
@@ -247,30 +242,27 @@ public class NewPathForShardTests extends ESTestCase {
         bFileStore.usableSpace = 10000;
 
         ShardId shardId = new ShardId("index", "uid1", 0);
-        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100);
         createFakeShard(result);
         // First shard should go to a
         assertThat(result.getDataPath().toString(), containsString(aPathPart));
 
         shardId = new ShardId("index", "uid1", 1);
-        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100);
         createFakeShard(result);
         // Second shard should go to b
         assertThat(result.getDataPath().toString(), containsString(bPathPart));
 
-        Map<Path,Integer> dataPathToShardCount = new HashMap<>();
         shardId = new ShardId("index2", "uid2", 0);
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index2",
                 Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3).build());
-        ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
+        ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100);
         createFakeShard(result1);
-        dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), 1);
         shardId = new ShardId("index2", "uid2", 1);
-        ShardPath result2 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
+        ShardPath result2 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100);
         createFakeShard(result2);
-        dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result2.getDataPath()), 1);
         shardId = new ShardId("index2", "uid2", 2);
-        ShardPath result3 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
+        ShardPath result3 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100);
         createFakeShard(result3);
         // 2 shards go to 'a' and 1 to 'b'
         assertThat(result1.getDataPath().toString(), containsString(aPathPart));
@@ -328,41 +320,34 @@ public class NewPathForShardTests extends ESTestCase {
         aFileStore.usableSpace = 100000;
         bFileStore.usableSpace = 10000;
 
-        Map<Path, Integer> dataPathToShardCount = new HashMap<>();
-
         ShardId shardId = new ShardId("index", "uid1", 0);
-        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, dataPathToShardCount);
+        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100);
         createFakeShard(result);
         // First shard should go to a
         assertThat(result.getDataPath().toString(), containsString(aPathPart));
-        dataPathToShardCount.compute(NodeEnvironment.shardStatePathToDataPath(result.getDataPath()), (k, v) -> v == null ? 1 : v + 1);
 
         shardId = new ShardId("index", "uid1", 1);
-        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, dataPathToShardCount);
+        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100);
         createFakeShard(result);
         // Second shard should go to b
         assertThat(result.getDataPath().toString(), containsString(bPathPart));
-        dataPathToShardCount.compute(NodeEnvironment.shardStatePathToDataPath(result.getDataPath()), (k, v) -> v == null ? 1 : v + 1);
 
         shardId = new ShardId("index2", "uid3", 0);
-        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, dataPathToShardCount);
+        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100);
         createFakeShard(result);
         // Shard for new index should go to a
         assertThat(result.getDataPath().toString(), containsString(aPathPart));
-        dataPathToShardCount.compute(NodeEnvironment.shardStatePathToDataPath(result.getDataPath()), (k, v) -> v == null ? 1 : v + 1);
 
         shardId = new ShardId("index2", "uid2", 0);
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index2",
                 Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3).build());
-        ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
+        ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100);
         createFakeShard(result1);
-        dataPathToShardCount.compute(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), (k, v) -> v == null ? 1 : v + 1);
         shardId = new ShardId("index2", "uid2", 1);
-        ShardPath result2 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
+        ShardPath result2 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100);
         createFakeShard(result2);
-        dataPathToShardCount.compute(NodeEnvironment.shardStatePathToDataPath(result2.getDataPath()), (k, v) -> v == null ? 1 : v + 1);
         shardId = new ShardId("index2", "uid2", 2);
-        ShardPath result3 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
+        ShardPath result3 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100);
         createFakeShard(result3);
         // 2 shards go to 'b' and 1 to 'a'
         assertThat(result1.getDataPath().toString(), containsString(bPathPart));

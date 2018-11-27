@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -189,7 +190,7 @@ public final class ShardPath {
     }
 
     public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, IndexSettings indexSettings,
-                                                  long avgShardSizeInBytes, Map<Path,Integer> dataPathToShardCount) throws IOException {
+                                                  long avgShardSizeInBytes) throws IOException {
 
         final Path dataPath;
         final Path statePath;
@@ -217,30 +218,56 @@ public final class ShardPath {
             NodeEnvironment.NodePath bestPath = getPathWithMostFreeSpace(env);
 
             if (paths.length != 1) {
-                Map<NodeEnvironment.NodePath, Long> pathToShardCount = env.shardCountPerPath(shardId.getIndex());
-
-                // Compute how much space there is on each path
-                final Map<NodeEnvironment.NodePath, BigInteger> pathsToSpace = new HashMap<>(paths.length);
-                for (NodeEnvironment.NodePath nodePath : paths) {
-                    FileStore fileStore = nodePath.fileStore;
+                // TODO: we should, instead, hold a "bytes reserved" of how large we anticipate this shard will be, e.g. for a shard
+                // that's being relocated/replicated we know how large it will become once it's done copying:
+                
+                final Map<NodeEnvironment.NodePath, Integer> pathToShardCount = new HashMap<>(paths.length); 
+                final Map<NodeEnvironment.NodePath, Integer> pathToCurIdxShardCount = new HashMap<>(paths.length); 
+                final Map<NodeEnvironment.NodePath, BigInteger> pathToSpace = new HashMap<>(paths.length);
+                for (NodeEnvironment.NodePath nodeDataPath : paths) {
+                    Integer shardCountPerPath = 0;
+                    Integer shardCountOfCurIdxPerPath = 0;
+                    if (Files.isDirectory(nodeDataPath.indicesPath)) {
+                        try (DirectoryStream<Path> indicesStream = Files.newDirectoryStream(nodeDataPath.indicesPath)) {
+                            for (Path indexPath : indicesStream) {
+                                try (DirectoryStream<Path> shardStream = Files.newDirectoryStream(indexPath)) {
+                                    for (Path shardPath : shardStream) {
+                                        String fileName = shardPath.getFileName().toString();
+                                        if (Files.isDirectory(shardPath) && fileName.chars().allMatch(Character::isDigit)) {
+                                            // total shards over all indices per path
+                                            shardCountPerPath++;
+                                            if (shardId.getIndex().getUUID().equals(indexPath.getFileName().toString())) {
+                                                // current index shard count per path
+                                                shardCountOfCurIdxPerPath++;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    pathToShardCount.put(nodeDataPath, shardCountPerPath);
+                    pathToCurIdxShardCount.put(nodeDataPath, shardCountOfCurIdxPerPath);
+                    
+                    // Compute how much space there is on each path
+                    FileStore fileStore = nodeDataPath.fileStore;
                     BigInteger usableBytes = BigInteger.valueOf(fileStore.getUsableSpace());
-                    pathsToSpace.put(nodePath, usableBytes);
+                    pathToSpace.put(nodeDataPath, usableBytes);
                 }
 
                 bestPath = Arrays.stream(paths)
                         // Filter out paths that have enough space
-                        .filter((path) -> pathsToSpace.get(path).subtract(estShardSizeInBytes).compareTo(BigInteger.ZERO) > 0)
+                        .filter((path) -> pathToSpace.get(path).subtract(estShardSizeInBytes).compareTo(BigInteger.ZERO) > 0)
                         // Sort by the number of shards for this index
                         .sorted((p1, p2) -> {
-                                int cmp = Long.compare(pathToShardCount.getOrDefault(p1, 0L),
-                                    pathToShardCount.getOrDefault(p2, 0L));
+                                int cmp = Long.compare(pathToCurIdxShardCount.getOrDefault(p1, 0), pathToCurIdxShardCount.getOrDefault(p2, 0));
                                 if (cmp == 0) {
                                     // if the number of shards is equal, tie-break with the number of total shards
-                                    cmp = Integer.compare(dataPathToShardCount.getOrDefault(p1.path, 0),
-                                            dataPathToShardCount.getOrDefault(p2.path, 0));
+                                    cmp = Integer.compare(pathToShardCount.getOrDefault(p1, 0),
+                                            pathToShardCount.getOrDefault(p2, 0));
                                     if (cmp == 0) {
                                         // if the number of shards is equal, tie-break with the usable bytes
-                                        cmp = pathsToSpace.get(p2).compareTo(pathsToSpace.get(p1));
+                                        cmp = pathToSpace.get(p2).compareTo(pathToSpace.get(p1));
                                     }
                                 }
                                 return cmp;

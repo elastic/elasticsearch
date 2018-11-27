@@ -334,15 +334,15 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
     public void testMultiGet() throws IOException {
         {
             MultiGetRequest multiGetRequest = new MultiGetRequest();
-            multiGetRequest.add("index", "_doc", "id1");
-            multiGetRequest.add("index", "_doc", "id2");
+            multiGetRequest.add("index", "id1");
+            multiGetRequest.add("index", "id2");
             MultiGetResponse response = execute(multiGetRequest, highLevelClient()::mget, highLevelClient()::mgetAsync);
             assertEquals(2, response.getResponses().length);
 
             assertTrue(response.getResponses()[0].isFailed());
             assertNull(response.getResponses()[0].getResponse());
             assertEquals("id1", response.getResponses()[0].getFailure().getId());
-            assertEquals("_doc", response.getResponses()[0].getFailure().getType());
+            assertNull(response.getResponses()[0].getFailure().getType());
             assertEquals("index", response.getResponses()[0].getFailure().getIndex());
             assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]",
                     response.getResponses()[0].getFailure().getFailure().getMessage());
@@ -350,7 +350,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertTrue(response.getResponses()[1].isFailed());
             assertNull(response.getResponses()[1].getResponse());
             assertEquals("id2", response.getResponses()[1].getId());
-            assertEquals("_doc", response.getResponses()[1].getType());
+            assertNull(response.getResponses()[1].getType());
             assertEquals("index", response.getResponses()[1].getIndex());
             assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]",
                     response.getResponses()[1].getFailure().getFailure().getMessage());
@@ -366,8 +366,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
         {
             MultiGetRequest multiGetRequest = new MultiGetRequest();
-            multiGetRequest.add("index", "_doc", "id1");
-            multiGetRequest.add("index", "_doc", "id2");
+            multiGetRequest.add("index", "id1");
+            multiGetRequest.add("index", "id2");
             MultiGetResponse response = execute(multiGetRequest, highLevelClient()::mget, highLevelClient()::mgetAsync);
             assertEquals(2, response.getResponses().length);
 

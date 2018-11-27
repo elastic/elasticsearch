@@ -216,10 +216,6 @@ public class JoinHelper {
         }
     }
 
-    public boolean joinInProgress() {
-        return pendingOutgoingJoins.isEmpty() == false;
-    }
-
     public void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
         transportService.sendRequest(destination, START_JOIN_ACTION_NAME,
             startJoinRequest, new TransportResponseHandler<Empty>() {

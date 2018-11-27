@@ -4,7 +4,6 @@ import java.nio.file.Files
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
-evaluationDependsOn(":test:fixtures:krb5kdc-fixture")
 apply plugin: 'elasticsearch.test.fixtures'
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture"
@@ -14,18 +13,6 @@ dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
-
-
-// lazily resolve to avoid any slowdowns from DNS lookups prior to when we need this value
-Object httpPrincipal = new Object() {
-    @Override
-    String toString() {
-        InetAddress resolvedAddress = InetAddress.getByName('127.0.0.1')
-        return "HTTP/" + resolvedAddress.getCanonicalHostName()
-    }
-}
-
-String realm = "BUILD.ELASTIC.CO"
 
 integTestCluster {
     // force localhost IPv4 otherwise it is a chicken and egg problem where we need the keytab for the hostname when starting the cluster
@@ -63,6 +50,7 @@ integTestCluster {
 
 }
 
+String realm = "BUILD.ELASTIC.CO"
 integTestRunner {
     Path peppaKeytab = Paths.get("${project.buildDir}", "generated-resources", "keytabs", "peppa.keytab")
     systemProperty 'test.userkt', "peppa@${realm}"
@@ -70,7 +58,6 @@ integTestRunner {
     systemProperty 'test.userpwd', "george@${realm}"
     systemProperty 'test.userpwd.password', "dino"
     systemProperty 'tests.security.manager', 'true'
-
     jvmArgs([
             "-Djava.security.krb5.conf=${project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("peppa")}",
             "-Dsun.security.krb5.debug=true"
@@ -82,11 +69,6 @@ task copyKeytabToGeneratedResources(type: Copy) {
     from project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("peppa", "peppa.keytab")
     into generatedResources
 }
+project.sourceSets.test.output.dir(generatedResources)
+integTestCluster.dependsOn copyKeytabToGeneratedResources
 
-if (project.rootProject.vagrantSupported == false) {
-    integTest.enabled = false
-    testingConventions.enabled = false
-} else {
-    project.sourceSets.test.output.dir(generatedResources)
-    integTestCluster.dependsOn copyKeytabToGeneratedResources
-}

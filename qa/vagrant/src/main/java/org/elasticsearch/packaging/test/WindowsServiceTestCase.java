@@ -32,9 +32,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Base64;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
 import static java.util.stream.Collectors.joining;
@@ -171,7 +169,10 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
 
         assertCommand(serviceScript + " stop");
         assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);
-        assertCommand(serviceScript + " remove");
+        Result result = sh.runIgnoreExitCode("sc.exe Delete \"elasticsearch-service-x64\"");
+        System.out.println("sc.exe\n" + "stdout: \n" + result.stdout);
+        System.out.println("stderr: \n" + result.stderr);
+        //assertCommand(serviceScript + " remove");
         assertCommand("$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
             "echo \"$p\";" +
             "if ($p -eq $Null) {" +
@@ -180,14 +181,14 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
             "  exit 1;" +
             "}");
 
-        Result result = sh.runIgnoreExitCode("& C:\\project\\procdump64.exe -accepteula -mp -l elasticsearch-service-x64 C:\\project\\es-service.dmp");
+        /*result = sh.runIgnoreExitCode("& C:\\project\\procdump64.exe -accepteula -mp -l elasticsearch-service-x64 C:\\project\\es-service.dmp");
         System.out.println("procdump\n" + "stdout: \n" + result.stdout);
         System.out.println("stderr: \n" + result.stderr);
 
         byte[] bytes = Files.readAllBytes(Paths.get("C:\\project\\es-service.dmp"));
         System.out.println("----------------- DUMP FILE ----------------");
         System.out.println(Base64.getEncoder().encodeToString(bytes));
-        System.out.println("---------------- END DUMP FILE ---------------");
+        System.out.println("---------------- END DUMP FILE ---------------");*/
     }
 
     public void test31StartNotInstalled() throws IOException {

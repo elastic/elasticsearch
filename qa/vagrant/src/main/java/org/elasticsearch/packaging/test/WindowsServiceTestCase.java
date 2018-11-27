@@ -169,7 +169,8 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
 
         assertCommand(serviceScript + " stop");
         assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);
-        Result result = sh.runIgnoreExitCode("sc.exe Delete \"elasticsearch-service-x64\"");
+        Result result = sh.run("sc.exe Delete \"elasticsearch-service-x64\"");
+        System.out.println("sc.exe\n" + "stdout: \n" + result.stdout); // double because first line is lost in output....
         System.out.println("sc.exe\n" + "stdout: \n" + result.stdout);
         System.out.println("stderr: \n" + result.stderr);
         //assertCommand(serviceScript + " remove");

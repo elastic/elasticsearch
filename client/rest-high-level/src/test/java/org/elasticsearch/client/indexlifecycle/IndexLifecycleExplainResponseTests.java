@@ -83,7 +83,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentTestCase
                 (numNull == 6) ? null : randomNonNegativeLong(),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
                 randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")));
-        assertThat(exception.getMessage(), startsWith("invalid step details in response"));
+        assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
         assertThat(exception.getMessage(), containsString("=null"));
     }
 

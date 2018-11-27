@@ -243,7 +243,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                         } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
                             ignoreThrottled = value;
                         } else {
-                            throw new IllegalStateException("key [" + entry.getKey() + "] is not supported in the metadata section");
+                            throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                         }
                     }
                     defaultOptions = IndicesOptions.fromParameters(expandWildcards, ignoreUnavailable, allowNoIndices, ignoreThrottled,

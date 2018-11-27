@@ -95,8 +95,9 @@ public class MultiSearchRequestTests extends ESTestCase {
             "{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(requestContent), XContentType.JSON).build();
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> RestMultiSearchAction.parseRequest(restRequest, true));
-        assertEquals("key [unknown_key] is not supported in the metadata section", ise.getMessage());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> RestMultiSearchAction.parseRequest(restRequest, true));
+        assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
     }
 
     public void testSimpleAddWithCarriageReturn() throws Exception {

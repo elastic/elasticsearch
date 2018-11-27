@@ -29,7 +29,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Index created before 6.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                "breaking-changes-7.0.html#breaking_70_packaging_changes",
+                "breaking-changes-7.0.html",
             "this index was created using version: " + createdWith);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
         assertEquals(singletonList(expected), issues);

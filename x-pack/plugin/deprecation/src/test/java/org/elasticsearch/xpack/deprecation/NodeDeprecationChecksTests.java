@@ -39,7 +39,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             new TransportAddress(TransportAddress.META_ADDRESS, 9200), "test");
         paths = new FsInfo.Path[] {};
         osInfo = new OsInfo(0L, 1, 1, randomAlphaOfLength(10),
-            "foo-64", randomAlphaOfLength(10));
+            "foo-64", randomAlphaOfLength(10), randomAlphaOfLength(10));
         pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
     }
 

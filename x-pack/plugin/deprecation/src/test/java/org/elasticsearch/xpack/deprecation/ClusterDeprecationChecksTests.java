@@ -30,7 +30,6 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         int maxShardsInCluster = shardsPerNode * nodeCount;
         int currentOpenShards = maxShardsInCluster + randomIntBetween(0, 100);
 
-
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < nodeCount; i++) {
             DiscoveryNode discoveryNode = DiscoveryNode.createLocal(Settings.builder().put("node.name", "node_check" + i).build(),

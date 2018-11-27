@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Index-specific deprecation checks
+ * Node-specific deprecation checks
  */
 public class NodeDeprecationChecks {
 

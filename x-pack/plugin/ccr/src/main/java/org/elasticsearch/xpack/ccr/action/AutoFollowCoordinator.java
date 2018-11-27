@@ -248,7 +248,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         private final Supplier<ClusterState> followerClusterStateSupplier;
 
         private volatile long lastAutoFollowTime = -1;
-        private volatile long metadataVersion = -1;
+        private volatile long metadataVersion = 0;
         private volatile CountDown autoFollowPatternsCountDown;
         private volatile AtomicArray<AutoFollowResult> autoFollowResults;
 

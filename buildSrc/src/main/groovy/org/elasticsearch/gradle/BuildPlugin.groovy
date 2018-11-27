@@ -66,7 +66,7 @@ class BuildPlugin implements Plugin<Project> {
     void apply(Project project) {
         if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
               throw new InvalidUserDataException('elasticsearch.standalone-test, '
-                + 'elasticearch.standalone-rest-test, and elasticsearch.build '
+                + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
         }
         final String minimumGradleVersion
@@ -215,6 +215,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.inFipsJvm = inFipsJvm
             project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
             project.rootProject.ext.java9Home = "${-> findJavaHome("9")}"
+            project.rootProject.ext.defaultParallel = findDefaultParallel(project.rootProject)
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -443,11 +444,11 @@ class BuildPlugin implements Plugin<Project> {
             // such that we don't have to pass hardcoded files to gradle
             repos.mavenLocal()
         }
-        repos.mavenCentral()
         repos.maven {
             name "elastic"
             url "https://artifacts.elastic.co/maven"
         }
+        repos.jcenter()
         String luceneVersion = VersionProperties.lucene
         if (luceneVersion.contains('-snapshot')) {
             // extract the revision number from the version with a regex matcher
@@ -776,7 +777,7 @@ class BuildPlugin implements Plugin<Project> {
     static void applyCommonTestConfig(Project project) {
         project.tasks.withType(RandomizedTestingTask) {
             jvm "${project.runtimeJavaHome}/bin/java"
-            parallelism System.getProperty('tests.jvms', 'auto')
+            parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
             ifNoTests System.getProperty('tests.ifNoTests', 'fail')
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
@@ -825,6 +826,9 @@ class BuildPlugin implements Plugin<Project> {
 
             // TODO: remove this once ctx isn't added to update script params in 7.0
             systemProperty 'es.scripting.update.ctx_in_params', 'false'
+
+            //TODO: remove this once the cname is prepended to the address by default in 7.0
+            systemProperty 'es.http.cname_in_publish_address', 'true'
 
             // Set the system keystore/truststore password if we're running tests in a FIPS-140 JVM
             if (project.inFipsJvm) {
@@ -880,6 +884,41 @@ class BuildPlugin implements Plugin<Project> {
                 dependsOn project.tasks.shadowJar
             }
         }
+    }
+
+    private static String findDefaultParallel(Project project) {
+        if (project.file("/proc/cpuinfo").exists()) {
+            // Count physical cores on any Linux distro ( don't count hyper-threading )
+            Map<String, Integer> socketToCore = [:]
+            String currentID = ""
+            project.file("/proc/cpuinfo").readLines().forEach({ line ->
+                if (line.contains(":")) {
+                    List<String> parts = line.split(":", 2).collect({it.trim()})
+                    String name = parts[0], value = parts[1]
+                    // the ID of the CPU socket
+                    if (name == "physical id") {
+                        currentID = value
+                    }
+                    // Number  of cores not including hyper-threading
+                    if (name == "cpu cores") {
+                        assert currentID.isEmpty() == false
+                        socketToCore[currentID] = Integer.valueOf(value)
+                        currentID = ""
+                    }
+                }
+            })
+            return socketToCore.values().sum().toString();
+        } else if ('Mac OS X'.equals(System.getProperty('os.name'))) {
+            // Ask macOS to count physical CPUs for us
+            ByteArrayOutputStream stdout = new ByteArrayOutputStream()
+            project.exec {
+                executable 'sysctl'
+                args '-n', 'hw.physicalcpu'
+                standardOutput = stdout
+            }
+            return stdout.toString('UTF-8').trim();
+        }
+        return 'auto';
     }
 
     /** Configures the test task */

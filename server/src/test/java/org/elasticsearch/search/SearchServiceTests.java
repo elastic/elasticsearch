@@ -533,7 +533,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         Index index = resolveIndex("throttled_threadpool_index");
         assertTrue(service.getIndicesService().indexServiceSafe(index).getIndexSettings().isSearchThrottled());
         client().prepareIndex("throttled_threadpool_index", "_doc", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        SearchResponse searchResponse = client().prepareSearch("throttled_threadpool_index").setSize(1).get();
+        SearchResponse searchResponse = client().prepareSearch("throttled_threadpool_index")
+            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED).setSize(1).get();
         assertSearchHits(searchResponse, "1");
         // we add a search action listener in a plugin above to assert that this is actually used
         client().execute(

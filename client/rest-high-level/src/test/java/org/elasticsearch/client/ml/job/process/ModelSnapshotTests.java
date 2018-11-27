@@ -156,6 +156,10 @@ public class ModelSnapshotTests extends AbstractXContentTestCase<ModelSnapshot> 
     }
 
     public static ModelSnapshot createRandomized() {
+        return createRandomizedBuilder().build();
+    }
+
+    public static ModelSnapshot.Builder createRandomizedBuilder() {
         ModelSnapshot.Builder modelSnapshot = new ModelSnapshot.Builder(randomAlphaOfLengthBetween(1, 20));
         modelSnapshot.setTimestamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
         modelSnapshot.setDescription(randomAlphaOfLengthBetween(1, 20));
@@ -168,7 +172,7 @@ public class ModelSnapshotTests extends AbstractXContentTestCase<ModelSnapshot> 
                 new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
         modelSnapshot.setQuantiles(QuantilesTests.createRandomized());
         modelSnapshot.setRetain(randomBoolean());
-        return modelSnapshot.build();
+        return modelSnapshot;
     }
 
     @Override

@@ -33,9 +33,9 @@ The `simple_query_string` top level parameters include:
 `*` extracts all fields in the mapping that are eligible to term queries
 and filters the metadata fields.
 
-WARNING The amount of fields being allowed to be queries at once will be limited
-to 1024 in the next major version or Elasticsearch. Currently this will be raised
-and logged as a Warning only.
+WARNING: In future versions (starting in 7.0), there will be a limit on the number of fields that can
+be queried at once. This limit will be determined by the `indices.query.bool.max_clause_count`
+setting which defaults to 1024. Currently this will be raised and logged as a Warning only.
 
 |`default_operator` |The default operator used if no explicit operator
 is specified. For example, with a default operator of `OR`, the query

@@ -56,7 +56,7 @@ Aggregations::
 * Check self references in metric agg after last doc collection (#33593) {pull}34001[#34001]
 
 Authentication::
-* ListenableFuture should preserve ThreadContext {pull}34394[#34394]
+* ListenableFuture should preserve ThreadContext (CVE-2018-17244) {pull}34394[#34394]
 * Allow an AuthenticationResult to return metadata {pull}34382[#34382] (issues: {issue}34290[#34290], {issue}34332[#34332])
 * Preserve thread context during authentication  {pull}34290[#34290]
 

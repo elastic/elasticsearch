@@ -25,9 +25,13 @@ import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+
+import java.util.function.Predicate
 
 plugins {
     id 'com.gradle.build-scan' version '1.13.2'
+    id 'base'
 }
 if (properties.get("org.elasticsearch.acceptScanTOS", "false") == "true") {
     buildScan {
@@ -37,7 +41,7 @@ if (properties.get("org.elasticsearch.acceptScanTOS", "false") == "true") {
 }
 
 // common maven publishing configuration
-subprojects {
+allprojects {
   group = 'org.elasticsearch'
   version = VersionProperties.elasticsearch
   description = "Elasticsearch subproject ${project.path}"
@@ -190,7 +194,7 @@ task branchConsistency {
   dependsOn verifyVersions, verifyBwcTestsEnabled
 }
 
-subprojects {
+allprojects {
   // ignore missing javadocs
   tasks.withType(Javadoc) { Javadoc javadoc ->
     // the -quiet here is because of a bug in gradle, in that adding a string option
@@ -292,7 +296,7 @@ subprojects {
         if (dep.group == null || false == dep.group.startsWith('org.elasticsearch')) {
           return
         }
-        Project upstreamProject = dependencyToProject(dep)
+        Project upstreamProject = project.ext.dependencyToProject(dep)
         if (upstreamProject == null) {
           return
         }
@@ -610,3 +614,19 @@ allprojects {
     }
   }
 }
+
+allprojects {
+  task checkPart1
+  task checkPart2 
+  tasks.matching { it.name == "check" }.all { check ->
+    if (check.path.startsWith(":x-pack:")) {
+      checkPart2.dependsOn check
+    } else {
+      checkPart1.dependsOn check
+    }
+  } 
+}
+
+
+
+

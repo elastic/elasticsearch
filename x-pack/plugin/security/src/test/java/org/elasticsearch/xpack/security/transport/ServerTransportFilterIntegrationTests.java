@@ -163,7 +163,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             node.start();
             TransportService instance = node.injector().getInstance(TransportService.class);
             try (Transport.Connection connection = instance.openConnection(new DiscoveryNode("theNode", transportAddress, Version.CURRENT),
-                    ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, null, null))) {
+                    ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG))) {
                 // handshake should be ok
                 final DiscoveryNode handshake = instance.handshake(connection, 10000);
                 assertEquals(transport.boundAddress().publishAddress(), handshake.getAddress());

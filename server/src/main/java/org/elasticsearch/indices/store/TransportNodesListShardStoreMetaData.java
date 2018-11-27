@@ -142,7 +142,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                 logger.trace("{} node doesn't have meta data for the requests index, responding with empty", shardId);
                 return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);
             }
-            final IndexSettings indexSettings = indexService != null ? indexService.getIndexSettings() : new IndexSettings(metaData, settings);
+            final IndexSettings indexSettings = indexService != null ? indexService.getIndexSettings() :
+                new IndexSettings(metaData, settings);
             final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
             if (shardPath == null) {
                 return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);

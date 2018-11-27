@@ -62,12 +62,10 @@ public class TasksRequestConvertersTests extends ESTestCase {
                     expectedParams.put("detailed", "true");
                 }
             }
-            if (randomBoolean()) {
-                request.setWaitForCompletion(randomBoolean());
-                if (request.getWaitForCompletion()) {
-                    expectedParams.put("wait_for_completion", "true");
-                }
-            }
+
+            request.setWaitForCompletion(randomBoolean());
+            expectedParams.put("wait_for_completion", Boolean.toString(request.getWaitForCompletion()));
+
             if (randomBoolean()) {
                 String timeout = randomTimeValue();
                 request.setTimeout(timeout);

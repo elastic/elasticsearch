@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -66,6 +68,7 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
  * Basic service for accessing remote clusters via gateway nodes
  */
 public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
+    private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
     public static final Setting<Integer> SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER =
             Setting.intSetting("search.remote.connections_per_cluster", 3, 1, Setting.Property.NodeScope, Setting.Property.Deprecated);
@@ -167,6 +170,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             "transport.ping_schedule",
             key -> timeSetting(key, TcpTransport.PING_SCHEDULE, Setting.Property.NodeScope),
             REMOTE_CLUSTERS_SEEDS);
+
+    public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
+        "cluster.remote.",
+        "transport.compress",
+        key -> boolSetting(key, Transport.TRANSPORT_TCP_COMPRESS, Setting.Property.NodeScope),
+        REMOTE_CLUSTERS_SEEDS);
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
             && (node.isMasterNode() == false  || node.isDataNode() || node.isIngestNode());

@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,7 +46,7 @@ public final class ResumeFollowAction extends Action<
         return new AcknowledgedResponse();
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
 
         static final ParseField FOLLOWER_INDEX_FIELD = new ParseField("follower_index");
         static final ParseField MAX_READ_REQUEST_OPERATION_COUNT = new ParseField("max_read_request_operation_count");

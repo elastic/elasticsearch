@@ -19,13 +19,13 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -170,10 +170,13 @@ public final class AnalysisRegistry implements Closeable {
          * instead of building the infrastructure for plugins we rather make it a real exception to not pollute the general interface and
          * hide internal data-structures as much as possible.
          */
-        tokenFilters.put("synonym", requiresAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings)));
-        tokenFilters.put("synonym_graph", requiresAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings)));
+        tokenFilters.put("synonym", requiresAnalysisSettings((is, env, name, settings) ->
+            new SynonymTokenFilterFactory(is, env, this, name, settings)));
+        tokenFilters.put("synonym_graph", requiresAnalysisSettings((is, env, name, settings) ->
+            new SynonymGraphTokenFilterFactory(is, env, this, name, settings)));
 
-        return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.preConfiguredTokenFilters);
+        return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings,
+            Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.preConfiguredTokenFilters);
     }
 
     public Map<String, TokenizerFactory> buildTokenizerFactories(IndexSettings indexSettings) throws IOException {
@@ -183,7 +186,8 @@ public final class AnalysisRegistry implements Closeable {
 
     public Map<String, CharFilterFactory> buildCharFilterFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> charFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_CHAR_FILTER);
-        return buildMapping(Component.CHAR_FILTER, indexSettings, charFiltersSettings, charFilters, prebuiltAnalysis.preConfiguredCharFilterFactories);
+        return buildMapping(Component.CHAR_FILTER, indexSettings, charFiltersSettings, charFilters,
+            prebuiltAnalysis.preConfiguredCharFilterFactories);
     }
 
     public Map<String, AnalyzerProvider<?>> buildAnalyzerFactories(IndexSettings indexSettings) throws IOException {
@@ -229,14 +233,16 @@ public final class AnalysisRegistry implements Closeable {
             Settings currentSettings = tokenFilterSettings.get(tokenFilter);
             String typeName = currentSettings.get("type");
             /*
-             * synonym and synonym_graph are different than everything else since they need access to the tokenizer factories for the index.
-             * instead of building the infrastructure for plugins we rather make it a real exception to not pollute the general interface and
-             * hide internal data-structures as much as possible.
+             * synonym and synonym_graph are different than everything else since they need access to the tokenizer factories for the
+             * index. instead of building the infrastructure for plugins we rather make it a real exception to not pollute the general
+             * interface and hide internal data-structures as much as possible.
              */
             if ("synonym".equals(typeName)) {
-                return requiresAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings));
+                return requiresAnalysisSettings((is, env, name, settings) ->
+                    new SynonymTokenFilterFactory(is, env, this, name, settings));
             } else if ("synonym_graph".equals(typeName)) {
-                return requiresAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings));
+                return requiresAnalysisSettings((is, env, name, settings) ->
+                    new SynonymGraphTokenFilterFactory(is, env, this, name, settings));
             } else {
                 return getAnalysisProvider(Component.FILTER, tokenFilters, tokenFilter, typeName);
             }
@@ -325,7 +331,8 @@ public final class AnalysisRegistry implements Closeable {
                     if (currentSettings.get("tokenizer") != null) {
                         factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings, environment);
                     } else {
-                        throw new IllegalArgumentException(component + " [" + name + "] must specify either an analyzer type, or a tokenizer");
+                        throw new IllegalArgumentException(component + " [" + name + "] " +
+                            "must specify either an analyzer type, or a tokenizer");
                     }
                 } else if (typeName.equals("custom")) {
                     factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings, environment);
@@ -455,7 +462,7 @@ public final class AnalysisRegistry implements Closeable {
 
         Index index = indexSettings.getIndex();
         analyzerProviders = new HashMap<>(analyzerProviders);
-        Logger logger = Loggers.getLogger(getClass());
+        Logger logger = LogManager.getLogger(getClass());
         DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
         Map<String, NamedAnalyzer> analyzerAliases = new HashMap<>();
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
@@ -466,8 +473,8 @@ public final class AnalysisRegistry implements Closeable {
                 tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
-            processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers,
-                    "keyword", tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
+            processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers, "keyword",
+                tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
             processNormalizerFactory(entry.getKey(), entry.getValue(), whitespaceNormalizers,
                     "whitespace", () -> new WhitespaceTokenizer(), tokenFilterFactoryFactories, charFilterFactoryFactories);
         }
@@ -483,7 +490,8 @@ public final class AnalysisRegistry implements Closeable {
         }
 
         if (!analyzers.containsKey("default")) {
-            processAnalyzerFactory(deprecationLogger, indexSettings, "default", new StandardAnalyzerProvider(indexSettings, null, "default", Settings.Builder.EMPTY_SETTINGS),
+            processAnalyzerFactory(deprecationLogger, indexSettings, "default",
+                new StandardAnalyzerProvider(indexSettings, null, "default", Settings.Builder.EMPTY_SETTINGS),
                 analyzerAliases, analyzers, tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
         }
         if (!analyzers.containsKey("default_search")) {
@@ -501,14 +509,17 @@ public final class AnalysisRegistry implements Closeable {
         if (analyzers.containsKey("default_index")) {
             final Version createdVersion = indexSettings.getIndexVersionCreated();
             if (createdVersion.onOrAfter(Version.V_5_0_0_alpha1)) {
-                throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
+                throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use " +
+                    "[index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
             } else {
-                deprecationLogger.deprecated("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] instead for index [{}]", index.getName());
+                deprecationLogger.deprecated("setting [index.analysis.analyzer.default_index] is deprecated, use " +
+                    "[index.analysis.analyzer.default] instead for index [{}]", index.getName());
             }
         }
         NamedAnalyzer defaultIndexAnalyzer = analyzers.containsKey("default_index") ? analyzers.get("default_index") : defaultAnalyzer;
         NamedAnalyzer defaultSearchAnalyzer = analyzers.containsKey("default_search") ? analyzers.get("default_search") : defaultAnalyzer;
-        NamedAnalyzer defaultSearchQuoteAnalyzer = analyzers.containsKey("default_search_quote") ? analyzers.get("default_search_quote") : defaultSearchAnalyzer;
+        NamedAnalyzer defaultSearchQuoteAnalyzer = analyzers.containsKey("default_search_quote") ?
+            analyzers.get("default_search_quote") : defaultSearchAnalyzer;
 
         for (Map.Entry<String, NamedAnalyzer> analyzer : analyzers.entrySet()) {
             if (analyzer.getKey().startsWith("_")) {

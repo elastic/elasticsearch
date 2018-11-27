@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequestBuilder;
@@ -27,7 +28,6 @@ import org.elasticsearch.action.support.single.instance.InstanceShardOperationRe
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -38,7 +38,7 @@ import java.util.Map;
 public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder>
         implements WriteRequestBuilder<UpdateRequestBuilder> {
     private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(Loggers.getLogger(UpdateRequestBuilder.class));
+        new DeprecationLogger(LogManager.getLogger(UpdateRequestBuilder.class));
 
     public UpdateRequestBuilder(ElasticsearchClient client, UpdateAction action) {
         super(client, action, new UpdateRequest());
@@ -263,8 +263,8 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
-     * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
-     * is thrown.
+     * Sets the index request to be used if the document does not exists. Otherwise, a
+     * {@link org.elasticsearch.index.engine.DocumentMissingException} is thrown.
      */
     public UpdateRequestBuilder setUpsert(IndexRequest indexRequest) {
         request.upsert(indexRequest);

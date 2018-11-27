@@ -206,7 +206,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (searchType != null) {
                 searchRequest.searchType(searchType);
             }
-            IndicesOptions defaultOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+            IndicesOptions defaultOptions = searchRequest.indicesOptions();
             // now parse the action
             if (nextMarker - from > 0) {
                 try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
@@ -231,7 +231,10 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             searchRequest.routing(nodeStringValue(value, null));
                         } else if ("allow_partial_search_results".equals(entry.getKey())) {
                             searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));
+                        } else {
+                            // TODO we should not be lenient here and fail if there is any unknown key in the source map
                         }
+
                     }
                     defaultOptions = IndicesOptions.fromMap(source, defaultOptions);
                 }

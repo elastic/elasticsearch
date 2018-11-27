@@ -54,7 +54,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -396,11 +395,6 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                     @Override
                     public void sendResponse(TransportResponse response) throws IOException {
                         sendResponse.set(true);
-                    }
-
-                    @Override
-                    public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
-
                     }
 
                     @Override

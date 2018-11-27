@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 
 import java.io.IOException;
-import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,7 +45,7 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
             columns = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
                 columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-                        randomFrom(JDBCType.values()), randomInt(25)));
+                        randomInt(), randomInt(25)));
             }
         }
 
@@ -95,7 +94,7 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
                 assertEquals(columnInfo.name(), columnMap.get("name"));
                 assertEquals(columnInfo.esType(), columnMap.get("type"));
                 assertEquals(columnInfo.displaySize(), columnMap.get("display_size"));
-                assertEquals(columnInfo.jdbcType().getVendorTypeNumber(), columnMap.get("jdbc_type"));
+                assertEquals(columnInfo.jdbcType(), columnMap.get("jdbc_type"));
             }
         } else {
             assertNull(rootMap.get("columns"));

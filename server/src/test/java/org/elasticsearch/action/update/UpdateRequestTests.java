@@ -61,6 +61,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -562,6 +564,25 @@ public class UpdateRequestTests extends ESTestCase {
         updateRequest.doc("{}", XContentType.JSON);
         updateRequest.upsert(new IndexRequest("index", "type", "1").version(1L));
         assertThat(updateRequest.validate().validationErrors(), contains("can't provide version in upsert request"));
+    }
+
+    public void testValidate() {
+        {
+            UpdateRequest request = new UpdateRequest("index", "type", "id");
+            request.doc("{}", XContentType.JSON);
+            ActionRequestValidationException validate = request.validate();
+
+            assertThat(validate, nullValue());
+        }
+
+        {
+            UpdateRequest request = new UpdateRequest("index", randomBoolean() ? "" : null, randomBoolean() ? "" : null);
+            request.doc("{}", XContentType.JSON);
+            ActionRequestValidationException validate = request.validate();
+
+            assertThat(validate, not(nullValue()));
+            assertThat(validate.validationErrors(), hasItems("type is missing", "id is missing"));
+        }
     }
 
     public void testParentAndRoutingExtraction() throws Exception {

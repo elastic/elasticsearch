@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -36,12 +37,14 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.StreamCorruptedException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 /** Unit tests for {@link TcpTransport} */
 public class TcpTransportTests extends ESTestCase {
@@ -175,8 +178,7 @@ public class TcpTransportTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool(TcpTransportTests.class.getName());
         AtomicReference<BytesReference> messageCaptor = new AtomicReference<>();
         try {
-            TcpTransport transport = new TcpTransport(
-                "test", Settings.builder().put("transport.tcp.compress", compressed).build(), threadPool,
+            TcpTransport transport = new TcpTransport("test", Settings.EMPTY, Version.CURRENT, threadPool,
                 new BigArrays(new PageCacheRecycler(Settings.EMPTY), null), null, null, null) {
 
                 @Override
@@ -185,7 +187,7 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected FakeChannel initiateChannel(DiscoveryNode node, ActionListener<Void> connectListener) throws IOException {
+                protected FakeChannel initiateChannel(DiscoveryNode node) throws IOException {
                     return new FakeChannel(messageCaptor);
                 }
 
@@ -195,17 +197,26 @@ public class TcpTransportTests extends ESTestCase {
 
                 @Override
                 public NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-                    int numConnections = MockTcpTransport.LIGHT_PROFILE.getNumConnections();
+                    if (compressed)  {
+                        assertTrue(connectionProfile.getCompressionEnabled());
+                    }
+                    int numConnections = connectionProfile.getNumConnections();
                     ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);
                     for (int i = 0; i < numConnections; ++i) {
                         fakeChannels.add(new FakeChannel(messageCaptor));
                     }
-                    return new NodeChannels(node, fakeChannels, MockTcpTransport.LIGHT_PROFILE, Version.CURRENT);
+                    return new NodeChannels(node, fakeChannels, connectionProfile, Version.CURRENT);
                 }
             };
 
             DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-            Transport.Connection connection = transport.openConnection(node, null);
+            ConnectionProfile.Builder profileBuilder = new ConnectionProfile.Builder(MockTcpTransport.LIGHT_PROFILE);
+            if (compressed) {
+                profileBuilder.setCompressionEnabled(true);
+            } else {
+                profileBuilder.setCompressionEnabled(false);
+            }
+            Transport.Connection connection = transport.openConnection(node, profileBuilder.build());
             connection.sendRequest(42, "foobar", request, TransportRequestOptions.EMPTY);
 
             BytesReference reference = messageCaptor.get();
@@ -237,7 +248,7 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
-    private static final class FakeChannel implements TcpChannel {
+    private static final class FakeChannel implements TcpChannel, TcpServerChannel {
 
         private final AtomicReference<BytesReference> messageCaptor;
 
@@ -250,11 +261,16 @@ public class TcpTransportTests extends ESTestCase {
         }
 
         @Override
+        public String getProfile() {
+            return null;
+        }
+
+        @Override
         public void addCloseListener(ActionListener<Void> listener) {
         }
 
         @Override
-        public void setSoLinger(int value) throws IOException {
+        public void addConnectListener(ActionListener<Void> listener) {
         }
 
         @Override
@@ -264,6 +280,11 @@ public class TcpTransportTests extends ESTestCase {
 
         @Override
         public InetSocketAddress getLocalAddress() {
+            return null;
+        }
+
+        @Override
+        public InetSocketAddress getRemoteAddress() {
             return null;
         }
 
@@ -288,6 +309,129 @@ public class TcpTransportTests extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(value);
+        }
+    }
+
+    public void testDecodeWithIncompleteHeader() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+        streamOutput.write('E');
+        streamOutput.write('S');
+        streamOutput.write(1);
+        streamOutput.write(1);
+
+        assertNull(TcpTransport.decodeFrame(streamOutput.bytes()));
+    }
+
+    public void testDecodePing() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+        streamOutput.write('E');
+        streamOutput.write('S');
+        streamOutput.writeInt(-1);
+
+        BytesReference message = TcpTransport.decodeFrame(streamOutput.bytes());
+
+        assertEquals(0, message.length());
+    }
+
+    public void testDecodePingWithStartOfSecondMessage() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+        streamOutput.write('E');
+        streamOutput.write('S');
+        streamOutput.writeInt(-1);
+        streamOutput.write('E');
+        streamOutput.write('S');
+
+        BytesReference message = TcpTransport.decodeFrame(streamOutput.bytes());
+
+        assertEquals(0, message.length());
+    }
+
+    public void testDecodeMessage() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+        streamOutput.write('E');
+        streamOutput.write('S');
+        streamOutput.writeInt(2);
+        streamOutput.write('M');
+        streamOutput.write('A');
+
+        BytesReference message = TcpTransport.decodeFrame(streamOutput.bytes());
+
+        assertEquals(streamOutput.bytes().slice(6, 2), message);
+    }
+
+    public void testDecodeIncompleteMessage() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+        streamOutput.write('E');
+        streamOutput.write('S');
+        streamOutput.writeInt(3);
+        streamOutput.write('M');
+        streamOutput.write('A');
+
+        BytesReference message = TcpTransport.decodeFrame(streamOutput.bytes());
+
+        assertNull(message);
+    }
+
+    public void testInvalidLength() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+        streamOutput.write('E');
+        streamOutput.write('S');
+        streamOutput.writeInt(-2);
+        streamOutput.write('M');
+        streamOutput.write('A');
+
+        try {
+            TcpTransport.decodeFrame(streamOutput.bytes());
+            fail("Expected exception");
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(StreamCorruptedException.class));
+            assertEquals("invalid data length: -2", ex.getMessage());
+        }
+    }
+
+    public void testInvalidHeader() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+        streamOutput.write('E');
+        streamOutput.write('C');
+        byte byte1 = randomByte();
+        byte byte2 = randomByte();
+        streamOutput.write(byte1);
+        streamOutput.write(byte2);
+        streamOutput.write(randomByte());
+        streamOutput.write(randomByte());
+        streamOutput.write(randomByte());
+
+        try {
+            TcpTransport.decodeFrame(streamOutput.bytes());
+            fail("Expected exception");
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(StreamCorruptedException.class));
+            String expected = "invalid internal transport message format, got (45,43,"
+                + Integer.toHexString(byte1 & 0xFF) + ","
+                + Integer.toHexString(byte2 & 0xFF) + ")";
+            assertEquals(expected, ex.getMessage());
+        }
+    }
+
+    public void testHTTPHeader() throws IOException {
+        String[] httpHeaders = {"GET", "POST", "PUT", "HEAD", "DELETE", "OPTIONS", "PATCH", "TRACE"};
+
+        for (String httpHeader : httpHeaders) {
+            BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+
+            for (char c : httpHeader.toCharArray()) {
+                streamOutput.write((byte) c);
+            }
+            streamOutput.write(new byte[6]);
+
+            try {
+                BytesReference bytes = streamOutput.bytes();
+                TcpTransport.decodeFrame(bytes);
+                fail("Expected exception");
+            } catch (Exception ex) {
+                assertThat(ex, instanceOf(TcpTransport.HttpOnTransportException.class));
+                assertEquals("This is not an HTTP port", ex.getMessage());
+            }
         }
     }
 }

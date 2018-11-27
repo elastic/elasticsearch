@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client.support;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -334,7 +336,6 @@ import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -343,7 +344,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
-public abstract class AbstractClient extends AbstractComponent implements Client {
+public abstract class AbstractClient implements Client {
+
+    protected final Logger logger;
 
     protected final Settings settings;
     private final ThreadPool threadPool;
@@ -354,6 +357,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         this.settings = settings;
         this.threadPool = threadPool;
         this.admin = new Admin(this);
+        this.logger =LogManager.getLogger(this.getClass());
         this.threadedWrapper = new ThreadedActionListener.Wrapper(logger, settings, threadPool);
     }
 
@@ -481,6 +485,11 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public BulkRequestBuilder prepareBulk() {
         return new BulkRequestBuilder(this, BulkAction.INSTANCE);
+    }
+
+    @Override
+    public BulkRequestBuilder prepareBulk(@Nullable String globalIndex, @Nullable String globalType) {
+        return new BulkRequestBuilder(this, BulkAction.INSTANCE, globalIndex, globalType);
     }
 
     @Override

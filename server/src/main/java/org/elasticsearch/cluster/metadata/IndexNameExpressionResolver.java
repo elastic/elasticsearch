@@ -151,7 +151,6 @@ public class IndexNameExpressionResolver {
         if (indexExpressions == null || indexExpressions.length == 0) {
             indexExpressions = new String[]{MetaData.ALL};
         }
-        Set<String> originalIndexExpression = Sets.newHashSet(indexExpressions);
         MetaData metaData = context.getState().metaData();
         IndicesOptions options = context.getOptions();
         final boolean failClosed = options.forbidClosedIndices() && options.ignoreUnavailable() == false;
@@ -201,7 +200,7 @@ public class IndexNameExpressionResolver {
                         " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
                         " indices without one being designated as a write index");
                 }
-                if (addIndex(writeIndex, context, originalIndexExpression)) {
+                if (addIndex(writeIndex, context)) {
                     concreteIndices.add(writeIndex.getIndex());
                 }
             } else {
@@ -220,12 +219,12 @@ public class IndexNameExpressionResolver {
                         if (failClosed) {
                             throw new IndexClosedException(index.getIndex());
                         } else {
-                            if (options.forbidClosedIndices() == false && addIndex(index, context, originalIndexExpression)) {
+                            if (options.forbidClosedIndices() == false && addIndex(index, context)) {
                                 concreteIndices.add(index.getIndex());
                             }
                         }
                     } else if (index.getState() == IndexMetaData.State.OPEN) {
-                        if (addIndex(index, context, originalIndexExpression)) {
+                        if (addIndex(index, context)) {
                             concreteIndices.add(index.getIndex());
                         }
                     } else {
@@ -243,13 +242,8 @@ public class IndexNameExpressionResolver {
         return concreteIndices.toArray(new Index[concreteIndices.size()]);
     }
 
-    private static boolean addIndex(IndexMetaData metaData, Context context, Set<String> originalIndices) {
-        if (context.options.ignoreThrottled()) {
-            if (originalIndices.contains(metaData.getIndex().getName()) == false) {
-                return IndexSettings.INDEX_SEARCH_THROTTLED.get(metaData.getSettings()) == false;
-            }
-        }
-        return true;
+    private static boolean addIndex(IndexMetaData metaData, Context context) {
+        return (context.options.ignoreThrottled() && IndexSettings.INDEX_SEARCH_THROTTLED.get(metaData.getSettings())) == false;
     }
 
     private static IllegalArgumentException aliasesNotSupportedException(String expression) {

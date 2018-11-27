@@ -149,6 +149,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35514")
     public void testCancelTasks() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {

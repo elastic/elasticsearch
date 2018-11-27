@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -22,7 +21,6 @@ import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
@@ -106,7 +104,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
     }
 
     @Override
-    public void testTcpHandshake() throws IOException, InterruptedException {
+    public void testTcpHandshake() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
 
@@ -115,9 +113,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
              TcpTransport.NodeChannels connection = originalTransport.openConnection(
                  new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
                  connectionProfile)) {
-            Version version = originalTransport.executeHandshake(connection.getNode(),
-                connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
-            assertEquals(version, Version.CURRENT);
+            assertEquals(connection.getVersion(), Version.CURRENT);
         }
     }
 

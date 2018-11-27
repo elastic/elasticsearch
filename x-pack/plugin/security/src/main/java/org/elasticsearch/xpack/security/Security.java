@@ -1002,8 +1002,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (transportClientMode || enabled == false) { // don't register anything if we are not enabled, or in transport client mode
             return Collections.emptyMap();
         }
-        return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4ServerTransport(settings, threadPool, networkService,
-                bigArrays, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
+        return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4ServerTransport(settings, Version.CURRENT, threadPool,
+            networkService, bigArrays, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
     }
 
     @Override

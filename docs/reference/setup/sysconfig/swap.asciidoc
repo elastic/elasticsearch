@@ -95,13 +95,14 @@ Systems using `systemd`::
 
   Set `LimitMEMLOCK` to `infinity` in the <<systemd,systemd configuration>>.
 
-Another possible reason why `mlockall` can fail is that the temporary directory
-(usually `/tmp`) is mounted with the `noexec` option. This can be solved by
-specifying a new temp directory using the `ES_JAVA_OPTS` environment variable:
+Another possible reason why `mlockall` can fail is that
+<<executable-jna-tmpdir,the JNA temporary directory (usually a sub-directory of
+`/tmp`) is mounted with the `noexec` option>>. This can be solved by specifying
+a new temporary directory for JNA using the `ES_JAVA_OPTS` environment variable:
 
 [source,sh]
 --------------
-export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
+export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djna.tmpdir=<path>"
 ./bin/elasticsearch
 --------------
 

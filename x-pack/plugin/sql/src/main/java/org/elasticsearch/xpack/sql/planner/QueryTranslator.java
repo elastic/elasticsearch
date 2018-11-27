@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -39,6 +38,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
@@ -93,6 +94,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.expression.Foldables.doubleValuesOf;
@@ -109,7 +111,8 @@ final class QueryTranslator {
             new Ranges(),
             new BinaryLogic(),
             new Nots(),
-            new Nulls(),
+            new IsNullTranslator(),
+            new IsNotNullTranslator(),
             new Likes(),
             new StringQueries(),
             new Matches(),
@@ -485,32 +488,44 @@ final class QueryTranslator {
             if (onAggs) {
                 aggFilter = new AggFilter(not.id().toString(), not.asScript());
             } else {
-                query = new NotQuery(not.location(), toQuery(not.field(), false).query);
-                // query directly on the field
-                if (not.field() instanceof FieldAttribute) {
-                    query = wrapIfNested(query, not.field());
-                }
+                query = handleQuery(not, not.field(),
+                    () -> new NotQuery(not.location(), toQuery(not.field(), false).query));
             }
 
             return new QueryTranslation(query, aggFilter);
         }
     }
 
-    static class Nulls extends ExpressionTranslator<IsNotNull> {
+    static class IsNotNullTranslator extends ExpressionTranslator<IsNotNull> {
 
         @Override
-        protected QueryTranslation asQuery(IsNotNull inn, boolean onAggs) {
+        protected QueryTranslation asQuery(IsNotNull isNotNull, boolean onAggs) {
             Query query = null;
             AggFilter aggFilter = null;
 
             if (onAggs) {
-                aggFilter = new AggFilter(inn.id().toString(), inn.asScript());
+                aggFilter = new AggFilter(isNotNull.id().toString(), isNotNull.asScript());
             } else {
-                query = new ExistsQuery(inn.location(), nameOf(inn.field()));
-                // query directly on the field
-                if (inn.field() instanceof NamedExpression) {
-                    query = wrapIfNested(query, inn.field());
-                }
+                query = handleQuery(isNotNull, isNotNull.field(),
+                    () -> new ExistsQuery(isNotNull.location(), nameOf(isNotNull.field())));
+            }
+
+            return new QueryTranslation(query, aggFilter);
+        }
+    }
+
+    static class IsNullTranslator extends ExpressionTranslator<IsNull> {
+
+        @Override
+        protected QueryTranslation asQuery(IsNull isNull, boolean onAggs) {
+            Query query = null;
+            AggFilter aggFilter = null;
+
+            if (onAggs) {
+                aggFilter = new AggFilter(isNull.id().toString(), isNull.asScript());
+            } else {
+                query = handleQuery(isNull, isNull.field(),
+                    () -> new NotQuery(isNull.location(), new ExistsQuery(isNull.location(), nameOf(isNull.field()))));
             }
 
             return new QueryTranslation(query, aggFilter);
@@ -541,12 +556,7 @@ final class QueryTranslator {
                     aggFilter = new AggFilter(at.id().toString(), bc.asScript());
                 }
                 else {
-                    // query directly on the field
-                    if (at instanceof FieldAttribute) {
-                        query = wrapIfNested(translateQuery(bc), ne);
-                    } else {
-                        query = new ScriptQuery(at.location(), bc.asScript());
-                    }
+                    query = handleQuery(bc, ne, () -> translateQuery(bc));
                 }
                 return new QueryTranslation(query, aggFilter);
             }
@@ -576,7 +586,7 @@ final class QueryTranslator {
             if (bc instanceof LessThanOrEqual) {
                 return new RangeQuery(loc, name, null, false, value, true, format);
             }
-            if (bc instanceof Equals || bc instanceof NotEquals) {
+            if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
                 if (bc.left() instanceof FieldAttribute) {
                     FieldAttribute fa = (FieldAttribute) bc.left();
                     // equality should always be against an exact match
@@ -623,17 +633,11 @@ final class QueryTranslator {
                 //
                 // Agg context means HAVING -> PipelineAggs
                 //
-                ScriptTemplate script = in.asScript();
                 if (onAggs) {
-                    aggFilter = new AggFilter(at.id().toString(), script);
+                    aggFilter = new AggFilter(at.id().toString(), in.asScript());
                 }
                 else {
-                    // query directly on the field
-                    if (at instanceof FieldAttribute) {
-                        query = wrapIfNested(new TermsQuery(in.location(), ne.name(), in.list()), ne);
-                    } else {
-                        query = new ScriptQuery(at.location(), script);
-                    }
+                    query = handleQuery(in, ne, () -> new TermsQuery(in.location(), ne.name(), in.list()));
                 }
                 return new QueryTranslation(query, aggFilter);
             }
@@ -664,16 +668,9 @@ final class QueryTranslator {
                 if (onAggs) {
                     aggFilter = new AggFilter(at.id().toString(), r.asScript());
                 } else {
-                    // typical range; no scripting involved
-                    if (at instanceof FieldAttribute) {
-                        RangeQuery rangeQuery = new RangeQuery(r.location(), nameOf(r.value()), valueOf(r.lower()), r.includeLower(),
-                                valueOf(r.upper()), r.includeUpper(), dateFormat(r.value()));
-                        query = wrapIfNested(rangeQuery, r.value());
-                    }
-                    // scripted query
-                    else {
-                        query = new ScriptQuery(at.location(), r.asScript());
-                    }
+                    query = handleQuery(r, r.value(),
+                        () -> new RangeQuery(r.location(), nameOf(r.value()), valueOf(r.lower()), r.includeLower(),
+                            valueOf(r.upper()), r.includeUpper(), dateFormat(r.value())));
                 }
                 return new QueryTranslation(query, aggFilter);
             } else {
@@ -821,6 +818,14 @@ final class QueryTranslator {
         }
 
         protected abstract QueryTranslation asQuery(E e, boolean onAggs);
+
+
+        protected static Query handleQuery(ScalarFunction sf, Expression field, Supplier<Query> query) {
+            if (field instanceof FieldAttribute) {
+                return wrapIfNested(query.get(), field);
+            }
+            return new ScriptQuery(sf.location(), sf.asScript());
+        }
 
         protected static Query wrapIfNested(Query query, Expression exp) {
             if (exp instanceof FieldAttribute) {

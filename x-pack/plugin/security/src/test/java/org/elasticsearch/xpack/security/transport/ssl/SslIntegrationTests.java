@@ -93,6 +93,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
     }
 
     // no SSL exception as this is the exception is returned when connecting
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35360")
     public void testThatTransportClientUsingSSLv3ProtocolIsRejected() {
         assumeFalse("Can't run in a FIPS JVM as SSLv3 SSLContext not available", inFipsJvm());
         try (TransportClient transportClient = new TestXPackTransportClient(Settings.builder()

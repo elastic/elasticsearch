@@ -19,6 +19,8 @@
 
 package org.elasticsearch.repositories;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -32,7 +34,6 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -53,7 +54,9 @@ import java.util.stream.Collectors;
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
  */
-public class RepositoriesService extends AbstractComponent implements ClusterStateApplier {
+public class RepositoriesService implements ClusterStateApplier {
+
+    private static final Logger logger = LogManager.getLogger(RepositoriesService.class);
 
     private final Map<String, Repository.Factory> typesRegistry;
 
@@ -211,13 +214,14 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     public void verifyRepository(final String repositoryName, final ActionListener<VerifyResponse> listener) {
         final Repository repository = repository(repositoryName);
+        final boolean readOnly = repository.isReadOnly();
         try {
             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                 try {
                     final String verificationToken = repository.startVerification();
                     if (verificationToken != null) {
                         try {
-                            verifyAction.verify(repositoryName, verificationToken, new ActionListener<VerifyResponse>() {
+                            verifyAction.verify(repositoryName, readOnly, verificationToken, new ActionListener<VerifyResponse>() {
                                 @Override
                                 public void onResponse(VerifyResponse verifyResponse) {
                                     threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {

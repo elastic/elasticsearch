@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -26,7 +27,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -50,7 +50,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestBulkAction extends BaseRestHandler {
     private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(Loggers.getLogger(RestBulkAction.class));
+        new DeprecationLogger(LogManager.getLogger(RestBulkAction.class));
 
     private final boolean allowExplicitIndex;
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.JaroWinklerDistance;
 import org.apache.lucene.search.spell.LevensteinDistance;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -49,7 +49,7 @@ import java.util.function.Consumer;
 public final class DirectCandidateGeneratorBuilder implements CandidateGenerator {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
-            Loggers.getLogger(DirectCandidateGeneratorBuilder.class));
+            LogManager.getLogger(DirectCandidateGeneratorBuilder.class));
 
     private static final String TYPE = "direct_generator";
 

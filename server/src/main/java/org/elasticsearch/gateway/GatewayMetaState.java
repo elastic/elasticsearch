@@ -107,9 +107,10 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
     }
 
     public void setLocalNode(DiscoveryNode localNode) {
-            previousClusterState = ClusterState.builder(previousClusterState)
-                    .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
-                    .build();
+        assert previousClusterState.nodes().getLocalNode() == null : "setLocalNode must only be called once";
+        previousClusterState = ClusterState.builder(previousClusterState)
+                .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
+                .build();
     }
 
     protected void upgradeMetaData(MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
@@ -195,7 +196,7 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
 
     @Override
     public ClusterState getLastAcceptedState() {
-        assert previousClusterState.nodes().getSize() > 0 : "Call setLocalNode before calling this method";
+        assert previousClusterState.nodes().getLocalNode() != null : "Call setLocalNode before calling this method";
         return previousClusterState;
     }
 

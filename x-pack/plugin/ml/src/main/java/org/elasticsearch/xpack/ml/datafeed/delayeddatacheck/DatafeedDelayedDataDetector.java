@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.joda.time.DateTime;
 
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -131,8 +132,8 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
     }
 
     private static long toHistogramKeyToEpoch(Object key) {
-        if (key instanceof DateTime) {
-            return ((DateTime)key).getMillis();
+        if (key instanceof ZonedDateTime) {
+            return ((ZonedDateTime)key).toInstant().toEpochMilli();
         } else if (key instanceof Double) {
             return ((Double)key).longValue();
         } else if (key instanceof Long){

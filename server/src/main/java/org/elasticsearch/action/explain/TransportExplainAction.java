@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexService;
@@ -109,7 +110,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws IOException {
         String[] types;
         if (MapperService.SINGLE_MAPPING_NAME.equals(request.type())) { // typeless explain call
-            types = null;
+            types = Strings.EMPTY_ARRAY;
         } else {
             types = new String[] { request.type() };
         }

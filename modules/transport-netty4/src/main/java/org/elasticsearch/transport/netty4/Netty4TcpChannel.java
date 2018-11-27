@@ -30,7 +30,6 @@ import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportException;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 
 public class Netty4TcpChannel implements TcpChannel {

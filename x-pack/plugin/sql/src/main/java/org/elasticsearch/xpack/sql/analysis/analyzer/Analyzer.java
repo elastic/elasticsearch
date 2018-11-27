@@ -77,11 +77,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      */
     private final IndexResolution indexResolution;
     /**
-     * Time zone in which we're executing this SQL. It is attached to functions
-     * that deal with date and time.
-     */
-    //private final TimeZone timeZone;
-    /**
      * Per-request specific settings needed in some of the functions, to which it
      * is attached. TimeZone, Username and Clustername are needed in some of the functions.
      */

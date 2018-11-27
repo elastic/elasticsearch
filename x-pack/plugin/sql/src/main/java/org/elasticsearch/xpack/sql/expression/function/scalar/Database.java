@@ -46,7 +46,6 @@ public class Database extends ScalarFunction {
         return configuration.clusterName();
     }
 
-
     @Override
     public boolean foldable() {
         return true;

@@ -45,10 +45,10 @@ import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
-import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.InvalidMappedField;
 import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
 
 import java.util.ArrayList;
@@ -65,18 +65,9 @@ import java.util.TimeZone;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
-    /**
-     * Verify a plan.
-     */
-    public static Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = Verifier.verify(plan);
-        return failures.stream().collect(toMap(Failure::source, Failure::message));
-    }
-
     /**
      * Valid functions.
      */
@@ -90,11 +81,16 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      * that deal with date and time.
      */
     private final TimeZone timeZone;
+    /**
+     * The verifier has the role of checking the analyzed tree for failures and build a list of failures.
+     */
+    private final Verifier verifier;
 
-    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, TimeZone timeZone) {
+    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, TimeZone timeZone, Verifier verifier) {
         this.functionRegistry = functionRegistry;
         this.indexResolution = results;
         this.timeZone = timeZone;
+        this.verifier = verifier;
     }
 
     @Override
@@ -131,7 +127,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     }
 
     public LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = Verifier.verify(plan);
+        Collection<Failure> failures = verifier.verify(plan);
         if (!failures.isEmpty()) {
             throw new VerificationException(failures);
         }
@@ -200,8 +196,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         // if it's a object/compound type, keep it unresolved with a nice error message
         if (named instanceof FieldAttribute) {
             FieldAttribute fa = (FieldAttribute) named;
+
+            // incompatible mappings
+            if (fa.field() instanceof InvalidMappedField) {
+                named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] due to ambiguities being "
+                        + ((InvalidMappedField) fa.field()).errorMessage());
+            }
             // unsupported types
-            if (DataTypes.isUnsupported(fa.dataType())) {
+            else if (DataTypes.isUnsupported(fa.dataType())) {
                 UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
                 named = u.withUnresolvedMessage(
                         "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() + "] as is unsupported");
@@ -231,7 +233,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     private static boolean containsAggregate(Expression exp) {
         return containsAggregate(singletonList(exp));
     }
-
 
     private static class CTESubstitution extends AnalyzeRule<With> {
 
@@ -569,7 +570,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         private Integer findOrdinal(Expression expression) {
             if (expression instanceof Literal) {
                 Literal l = (Literal) expression;
-                if (l.dataType().isInteger) {
+                if (l.dataType().isInteger()) {
                     Object v = l.value();
                     if (v instanceof Number) {
                         return Integer.valueOf(((Number) v).intValue());

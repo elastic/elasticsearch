@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -34,6 +35,9 @@ import java.sql.SQLException;
 import java.util.Collections;
 import java.util.TimeZone;
 import java.util.function.Function;
+
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
+import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.CLIENT_ID;
 
 /**
  * A specialized high-level REST client with support for SQL-related functions.
@@ -62,9 +66,10 @@ public class HttpClient {
 
     public SqlQueryResponse queryInit(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.PLAIN, query, Collections.emptyList(), null,
-            TimeZone.getTimeZone("UTC"), fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()),
-            TimeValue.timeValueMillis(cfg.pageTimeout()));
+        // method called only from CLI. "client.id" is set to "cli"
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), null, TimeZone.getTimeZone("UTC"),
+            fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()),
+            new RequestInfo(Mode.PLAIN, CLI));
         return query(sqlRequest);
     }
 
@@ -73,14 +78,15 @@ public class HttpClient {
     }
 
     public SqlQueryResponse nextPage(String cursor) throws SQLException {
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.PLAIN, cursor, TimeValue.timeValueMillis(cfg.queryTimeout()),
-            TimeValue.timeValueMillis(cfg.pageTimeout()));
+        // method called only from CLI. "client.id" is set to "cli"
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, TimeValue.timeValueMillis(cfg.queryTimeout()),
+                TimeValue.timeValueMillis(cfg.pageTimeout()), new RequestInfo(Mode.PLAIN, CLI));
         return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
     public boolean queryClose(String cursor) throws SQLException {
         SqlClearCursorResponse response = post(Protocol.CLEAR_CURSOR_REST_ENDPOINT,
-            new SqlClearCursorRequest(Mode.PLAIN, cursor),
+            new SqlClearCursorRequest(cursor, new RequestInfo(Mode.PLAIN)),
             SqlClearCursorResponse::fromXContent);
         return response.isSucceeded();
     }
@@ -89,7 +95,9 @@ public class HttpClient {
             CheckedFunction<XContentParser, Response, IOException> responseParser)
             throws SQLException {
         byte[] requestBytes = toXContent(request);
-        String query = "error_trace&mode=" + request.mode();
+        String query = "error_trace&mode=" +
+                        request.mode() +
+                        (request.clientId() != null ? "&" + CLIENT_ID + "=" + request.clientId() : "");
         Tuple<XContentType, byte[]> response =
             AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Tuple<XContentType, byte[]>>>) () ->
                 JreHttpUrlConnection.http(path, query, cfg, con ->

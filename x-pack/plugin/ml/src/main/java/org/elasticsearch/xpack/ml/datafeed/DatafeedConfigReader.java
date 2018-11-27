@@ -117,11 +117,10 @@ public class DatafeedConfigReader {
 
                     // Duplicate configs existing in both the clusterstate and index documents are ok
                     // this may occur during migration of configs.
-                    // Prefer the index configs and filter duplicates.
+                    // Prefer the index configs and filter duplicates from the clusterstate configs.
+                    Set<String> indexConfigIds = datafeedConfigs.stream().map(DatafeedConfig::getId).collect(Collectors.toSet());
                     for (String clusterStateDatafeedId : clusterStateConfigs.keySet()) {
-                        boolean isDuplicate = datafeedConfigs.stream()
-                                .anyMatch(datafeed -> datafeed.getId().equals(clusterStateDatafeedId));
-                        if (isDuplicate == false) {
+                        if (indexConfigIds.contains(clusterStateDatafeedId) == false) {
                             datafeedConfigs.add(clusterStateConfigs.get(clusterStateDatafeedId));
                         }
                     }

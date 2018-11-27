@@ -233,10 +233,10 @@ public class JobManager {
 
                     // Duplicate configs existing in both the clusterstate and index documents are ok
                     // this may occur during migration of configs.
-                    // Prefer the index configs and filter duplicates.
+                    // Prefer the index configs and filter duplicates from the clusterstate configs
                     Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, clusterService.state());
                     for (String clusterStateJobId : clusterStateJobs.keySet()) {
-                        boolean isDuplicate = jobs.stream().anyMatch(job -> job.getId().equals(clusterStateJobId));
+                        boolean isDuplicate = jobAndGroupIds.contains(clusterStateJobId);
                         if (isDuplicate == false) {
                             Job csJob = clusterStateJobs.get(clusterStateJobId);
                             jobs.add(csJob);

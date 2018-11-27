@@ -31,7 +31,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -49,6 +48,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRespon
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
+import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -138,11 +138,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     @Override
-    public LocalBulk openBulk() {
+    public void openBulk(final ActionListener<ExportBulk> listener) {
         if (state.get() != State.RUNNING) {
-            return null;
+            listener.onResponse(null);
+        } else {
+            listener.onResponse(resolveBulk(clusterService.state(), false));
         }
-        return resolveBulk(clusterService.state(), false);
     }
 
     @Override
@@ -158,13 +159,6 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     LocalBulk resolveBulk(ClusterState clusterState, boolean clusterStateChange) {
         if (clusterService.localNode() == null || clusterState == null) {
-            return null;
-        }
-
-        if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // wait until the gateway has recovered from disk, otherwise we think may not have .monitoring-es-
-            // indices but they may not have been restored from the cluster state on disk
-            logger.debug("waiting until gateway has recovered from disk");
             return null;
         }
 

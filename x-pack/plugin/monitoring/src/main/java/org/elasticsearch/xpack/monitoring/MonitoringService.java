@@ -21,7 +21,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
-import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 
 import java.io.Closeable;
@@ -204,14 +203,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
     protected void doClose() {
         logger.debug("monitoring service is closing");
         monitor.close();
-
-        for (Exporter exporter : exporters) {
-            try {
-                exporter.close();
-            } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to close exporter [{}]", exporter.name()), e);
-            }
-        }
+        exporters.close();
         logger.debug("monitoring service closed");
     }
 

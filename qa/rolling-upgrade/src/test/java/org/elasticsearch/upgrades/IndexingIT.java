@@ -161,7 +161,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         searchTestIndexRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals("{\"hits\":{\"total\":{\"value\":" + count + "}}",
+        assertEquals("{\"hits\":{\"total\":" + count + "}}",
                 EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
     }
 }

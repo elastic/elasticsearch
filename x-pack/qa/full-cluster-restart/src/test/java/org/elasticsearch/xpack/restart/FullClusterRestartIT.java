@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
@@ -494,8 +495,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(basic, hasEntry("username", "Aladdin"));
         // password doesn't come back because it is hidden
         assertThat(basic, hasEntry(is("password"), anyOf(startsWith("::es_encrypted::"), is("::es_redacted::"))));
-
-        Map<String, Object> history = entityAsMap(client().performRequest(new Request("GET", ".watcher-history*/_search")));
+        Request searchRequest = new Request("GET", ".watcher-history*/_search");
+        searchRequest.addParameter(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
+        Map<String, Object> history = entityAsMap(client().performRequest(searchRequest));
         Map<String, Object> hits = (Map<String, Object>) history.get("hits");
         assertThat((int) (hits.get("total")), greaterThanOrEqualTo(2));
     }

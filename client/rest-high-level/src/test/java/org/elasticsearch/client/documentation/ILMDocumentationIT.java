@@ -31,8 +31,10 @@ import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.indexlifecycle.DeleteAction;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
+import org.elasticsearch.client.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyResponse;
+import org.elasticsearch.client.indexlifecycle.IndexLifecycleExplainResponse;
 import org.elasticsearch.client.indexlifecycle.LifecycleAction;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
@@ -310,6 +312,117 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             RequestOptions.DEFAULT, listener); // <1>
         // end::ilm-get-lifecycle-policy-execute-async
 
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testExplainLifecycle() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        // create a policy & index
+        {
+            Map<String, Phase> phases = new HashMap<>();
+            Map<String, LifecycleAction> hotActions = new HashMap<>();
+            hotActions.put(RolloverAction.NAME, new RolloverAction(
+                new ByteSizeValue(50, ByteSizeUnit.GB), null, null));
+            phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
+
+            LifecyclePolicy policy = new LifecyclePolicy("my_policy",
+                phases);
+            PutLifecyclePolicyRequest putRequest =
+                new PutLifecyclePolicyRequest(policy);
+            client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
+
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index",
+                Settings.builder()
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put("index.lifecycle.name", "my_policy")
+                    .build());
+            client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+            CreateIndexRequest createOtherIndexRequest = new CreateIndexRequest("other_index",
+                Settings.builder()
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .build());
+            client.indices().create(createOtherIndexRequest, RequestOptions.DEFAULT);
+
+
+            // wait for the policy to become active
+            assertBusy(() -> assertNotNull(client.indexLifecycle()
+                .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
+                .getIndexResponses().get("my_index").getAction()));
+        }
+
+        // tag::ilm-explain-lifecycle-request
+        ExplainLifecycleRequest request =
+            new ExplainLifecycleRequest("my_index", "other_index"); // <1>
+        // end::ilm-explain-lifecycle-request
+
+        // tag::ilm-explain-lifecycle-execute
+        ExplainLifecycleResponse response = client.indexLifecycle()
+            .explainLifecycle(request, RequestOptions.DEFAULT);
+        // end::ilm-explain-lifecycle-execute
+        assertNotNull(response);
+
+        // tag::ilm-explain-lifecycle-response
+        Map<String, IndexLifecycleExplainResponse> indices =
+            response.getIndexResponses();
+        IndexLifecycleExplainResponse myIndex = indices.get("my_index");
+        String policyName = myIndex.getPolicyName(); // <1>
+        boolean isManaged = myIndex.managedByILM(); // <2>
+
+        String phase = myIndex.getPhase(); // <3>
+        long phaseTime = myIndex.getPhaseTime(); // <4>
+        String action = myIndex.getAction(); // <5>
+        long actionTime = myIndex.getActionTime();
+        String step = myIndex.getStep(); // <6>
+        long stepTime = myIndex.getStepTime();
+
+        String failedStep = myIndex.getFailedStep(); // <7>
+        // end::ilm-explain-lifecycle-response
+        assertEquals("my_policy", policyName);
+        assertTrue(isManaged);
+
+        assertEquals("hot", phase);
+        assertNotEquals(0, phaseTime);
+        assertEquals("rollover", action);
+        assertNotEquals(0, actionTime);
+        assertEquals("check-rollover-ready", step);
+        assertNotEquals(0, stepTime);
+
+        assertNull(failedStep);
+
+        IndexLifecycleExplainResponse otherIndex = indices.get("other_index");
+        assertFalse(otherIndex.managedByILM());
+        assertNull(otherIndex.getPolicyName());
+        assertNull(otherIndex.getPhase());
+        assertNull(otherIndex.getAction());
+        assertNull(otherIndex.getStep());
+        assertNull(otherIndex.getFailedStep());
+        assertNull(otherIndex.getPhaseExecutionInfo());
+        assertNull(otherIndex.getStepInfo());
+
+        // tag::ilm-explain-lifecycle-execute-listener
+        ActionListener<ExplainLifecycleResponse> listener =
+            new ActionListener<ExplainLifecycleResponse>() {
+                @Override
+                public void onResponse(ExplainLifecycleResponse response)
+                {
+                    Map<String, IndexLifecycleExplainResponse> indices =
+                        response.getIndexResponses(); // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ilm-explain-lifecycle-execute-listener
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ilm-explain-lifecycle-execute-async
+        client.indexLifecycle().explainLifecycleAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ilm-explain-lifecycle-execute-async
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 

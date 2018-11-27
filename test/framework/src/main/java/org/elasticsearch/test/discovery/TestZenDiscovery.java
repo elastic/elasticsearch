@@ -94,7 +94,8 @@ public class TestZenDiscovery extends ZenDiscovery {
                         };
                     } else {
                         if (clusterApplier instanceof ClusterApplierService) {
-                            //if InMemoryPersisted is used, we let GatewayMetaState receive all events
+                            //if InMemoryPersisted is used, we let GatewayMetaState receive all events,
+                            //because some tests rely on it due to dangling indices functionality.
                             ((ClusterApplierService) clusterApplier).addLowPriorityApplier(gatewayMetaState);
                         }
 

@@ -66,7 +66,7 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
         final AuthenticateRequest request = new AuthenticateRequest(avenger);
         final ActionFuture<AuthenticateResponse> future = runAsClient(avenger).execute(AuthenticateAction.INSTANCE, request);
         final AuthenticateResponse response = future.get(30, TimeUnit.SECONDS);
-        assertThat(response.user().principal(), Matchers.equalTo(avenger));
+        assertThat(response.authentication().getUser().principal(), Matchers.equalTo(avenger));
     }
 
     protected Client runAsClient(String user) {

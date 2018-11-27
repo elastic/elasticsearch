@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
@@ -336,15 +337,17 @@ public class JobManager {
      */
     public void deleteJob(DeleteJobAction.Request request, ActionListener<Boolean> listener) {
         jobConfigProvider.deleteJob(request.getJobId(), false, ActionListener.wrap(
-                deleteResponse -> listener.onResponse(Boolean.TRUE),
-                e -> {
-                    if (e.getClass() == ResourceNotFoundException.class) {
+                deleteResponse -> {
+                    if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
                         if (ClusterStateJobUpdate.jobIsInClusterState(clusterService.state(), request.getJobId())) {
                             ClusterStateJobUpdate.deleteJob(request, clusterService, listener);
                         }
+                    } else {
+                        listener.onResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
                     }
-                    listener.onFailure(e);
-                }));
+                },
+                listener::onFailure
+        ));
     }
 
     /**

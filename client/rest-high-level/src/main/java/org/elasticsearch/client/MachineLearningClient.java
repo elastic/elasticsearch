@@ -26,11 +26,15 @@ import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataResponse;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.FindFileStructureRequest;
+import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -223,6 +227,48 @@ public final class MachineLearningClient {
                 GetJobStatsResponse::fromXContent,
                 listener,
                 Collections.emptySet());
+    }
+
+    /**
+     * Deletes expired data from Machine Learning Jobs
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-expired-data.html">ML Delete Expired Data
+     * documentation</a>
+     *
+     * @param request The request to delete expired ML data
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The action response which contains the acknowledgement or the task id depending on whether the action was set to wait for
+     * completion
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public DeleteExpiredDataResponse deleteExpiredData(DeleteExpiredDataRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteExpiredData,
+            options,
+            DeleteExpiredDataResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes expired data from Machine Learning Jobs asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-expired-data.html">ML Delete Expired Data
+     * documentation</a>
+     *
+     * @param request  The request to delete expired ML data
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteExpiredDataAsync(DeleteExpiredDataRequest request, RequestOptions options,
+                               ActionListener<DeleteExpiredDataResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteExpiredData,
+            options,
+            DeleteExpiredDataResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 
     /**
@@ -1708,6 +1754,47 @@ public final class MachineLearningClient {
             MLRequestConverters::deleteFilter,
             options,
             AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Finds the structure of a file
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html">
+     *     ML Find File Structure documentation</a>
+     *
+     * @param request The find file structure request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response containing details of the file structure
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public FindFileStructureResponse findFileStructure(FindFileStructureRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::findFileStructure,
+            options,
+            FindFileStructureResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Finds the structure of a file asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html">
+     *         ML Find File Structure documentation</a>
+     *
+     * @param request The find file structure request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void findFileStructureAsync(FindFileStructureRequest request, RequestOptions options,
+                                       ActionListener<FindFileStructureResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::findFileStructure,
+            options,
+            FindFileStructureResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

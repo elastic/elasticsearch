@@ -252,7 +252,6 @@ public class QueryStringIT extends ESIntegTestCase {
     public void testBooleanStrictQuery() throws Exception {
         Exception e = expectThrows(Exception.class,
                 () -> client().prepareSearch("test").setQuery(queryStringQuery("foo").field("f_bool")).get());
-        System.out.println(e);
         assertThat(ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
                 containsString("Can't parse boolean value [foo], expected [true] or [false]"));
     }

@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.sql.jdbc.net.client;
 import java.sql.SQLException;
 import java.util.List;
 
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.JdbcColumnInfo;
 
 public interface Cursor {
 
-    List<ColumnInfo> columns();
+    List<JdbcColumnInfo> columns();
 
     default int columnSize() {
         return columns().size();

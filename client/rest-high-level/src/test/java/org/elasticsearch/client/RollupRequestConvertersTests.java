@@ -25,8 +25,10 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.rollup.GetRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.StartRollupJobRequest;
+import org.elasticsearch.client.rollup.StopRollupJobRequest;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfigTests;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -59,6 +61,32 @@ public class RollupRequestConvertersTests extends ESTestCase {
         assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(request.getParameters().keySet(), empty());
         assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testStopJob() throws IOException {
+        String jobId = randomAlphaOfLength(5);
+        StopRollupJobRequest stopJob = new StopRollupJobRequest(jobId);
+        String expectedTimeOutString = null;
+        String expectedWaitForCompletion = null;
+        int expectedParameters = 0;
+        if (randomBoolean()) {
+            stopJob.timeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
+            expectedTimeOutString = stopJob.timeout().getStringRep();
+            expectedParameters++;
+        }
+        if (randomBoolean()) {
+            stopJob.waitForCompletion(randomBoolean());
+            expectedWaitForCompletion = stopJob.waitForCompletion().toString();
+            expectedParameters++;
+        }
+
+        Request request = RollupRequestConverters.stopJob(stopJob);
+        assertThat(request.getEndpoint(), equalTo("/_xpack/rollup/job/" + jobId + "/_stop"));
+        assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(request.getParameters().keySet().size(), equalTo(expectedParameters));
+        assertThat(request.getParameters().get("timeout"), equalTo(expectedTimeOutString));
+        assertThat(request.getParameters().get("wait_for_completion"), equalTo(expectedWaitForCompletion));
+        assertNull(request.getEntity());
     }
 
     public void testGetJob() {

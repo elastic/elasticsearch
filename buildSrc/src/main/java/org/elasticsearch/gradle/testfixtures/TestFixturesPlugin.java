@@ -84,7 +84,11 @@ public class TestFixturesPlugin implements Plugin<Project> {
             });
 
             Task buildFixture = project.getTasks().create("buildFixture");
-            buildFixture.dependsOn(project.getTasks().getByName("composeUp"));
+            buildFixture.dependsOn(tasks.getByName("composeUp"));
+
+            Task preProcessFixture = project.getTasks().create("preProcessFixture");
+            buildFixture.dependsOn(preProcessFixture);
+            tasks.getByName("composeUp").mustRunAfter(preProcessFixture);
 
             Task postProcessFixture = project.getTasks().create("postProcessFixture");
             buildFixture.dependsOn(postProcessFixture);
@@ -96,10 +100,15 @@ public class TestFixturesPlugin implements Plugin<Project> {
                     .getByType(ExtraPropertiesExtension.class).set(name, port)
             );
         } else {
+            extension.fixtures.all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
             tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
                 extension.fixtures.all(fixtureProject -> {
-                    task.dependsOn(fixtureProject.getTasks().getByName("buildFixture"));
-                    task.finalizedBy(fixtureProject.getTasks().getByName("composeDown"));
+                    fixtureProject.getTasks().matching(it->it.getName().equals("buildFixture")).all(buildFixture ->
+                        task.dependsOn(buildFixture)
+                    );
+                    fixtureProject.getTasks().matching(it->it.getName().equals("composeDown")).all(composeDown ->
+                        task.finalizedBy(composeDown)
+                    );
                     configureServiceInforForTask(
                         task,
                         fixtureProject,

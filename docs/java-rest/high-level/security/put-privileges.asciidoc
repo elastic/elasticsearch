@@ -27,14 +27,13 @@ include::../execution.asciidoc[]
 ==== Put Privileges Response
 
 The returned +{response}+ contains the information about the status
-for each privilege present in the +{request}+ as `CREATED`, `UPDATED`
-or `UNKNOWN`.
+for each privilege present in the +{request}+. The status would be
+`true` if the privilege was created, `false` if the privilege was updated.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> The response contains the status for given application name and
-privilege name. If the specified application name or privilege name
-was not present in the +{request}+ then the status is `UNKNOWN` else
-it will either be `CREATED` or `UPDATED`.
+privilege name. The status would be `true` if the privilege was created,
+`false` if the privilege was updated.

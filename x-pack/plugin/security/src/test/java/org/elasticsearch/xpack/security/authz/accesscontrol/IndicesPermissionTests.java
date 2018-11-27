@@ -343,18 +343,56 @@ public class IndicesPermissionTests extends ESTestCase {
                 group(fieldPermissions(new String[] { "f1", "f2" }, null), Collections.singleton(new BytesArray("{foo}")),
                         IndexPrivilege.ALL, "index-1-*"),
                 group(fieldPermissions(new String[] { "f1", "f2" }, null),
-                        Sets.newHashSet(new BytesArray("{foo}"), new BytesArray("{bar}")), IndexPrivilege.READ, "index-2-*"));
+                        Sets.newHashSet(new BytesArray("{foo}"), new BytesArray("{bar}")),
+                        IndexPrivilege.READ, "index-2-*"));
 
-        final IndicesPermission permissionForSubsetSuccess_WhenQueryIsASubset = indicesPermission(group(
-                fieldPermissions(new String[] { "f1", "f2" }, null),
-                randomFrom(Collections.emptySet(), Collections.singleton(new BytesArray("{foo}"))), IndexPrivilege.READ, "index-2-*"));
+        final IndicesPermission permissionForSubsetSuccess_WhenQueryIsASubset = indicesPermission(
+                group(fieldPermissions(new String[] { "f1", "f2" }, null),
+                        randomFrom(Collections.emptySet(), Collections.singleton(new BytesArray("{foo}"))),
+                        IndexPrivilege.READ, "index-2-*"));
         assertThat(permissionForSubsetSuccess_WhenQueryIsASubset.isSubsetOf(permissionBase), equalTo(SubsetResult.isASubset()));
 
         final IndicesPermission permissionForSubsetSuccess_QueryIsNotASubset = indicesPermission(
-                group(fieldPermissions(new String[] { "f1", "f2" }, null), Collections.singleton(new BytesArray("{diff}")),
+                group(fieldPermissions(new String[] { "f1", "f2" }, null),
+                        Collections.singleton(new BytesArray("{diff}")),
                         IndexPrivilege.ALL, "index-1-*"));
         assertThat(permissionForSubsetSuccess_QueryIsNotASubset.isSubsetOf(permissionBase),
                 equalTo(SubsetResult.mayBeASubset(Collections.singleton(Sets.newHashSet("index-1-*")))));
+    }
+
+    public void testSubsetOf_WithQueryNullCases() {
+        final IndicesPermission permissionBase = indicesPermission(
+                group(fieldPermissions(new String[] { "f1", "f2" }, null), null,
+                        IndexPrivilege.ALL, "index-1-*"),
+                group(fieldPermissions(new String[] { "f1", "f2" }, null),
+                        Sets.newHashSet(new BytesArray("{foo}"), new BytesArray("{bar}")),
+                        IndexPrivilege.READ, "index-2-*"));
+
+        // this.query is null & other.query is null, so it is a subset
+        final IndicesPermission permissionForSubsetSuccess_WhenQueryIsASubset = indicesPermission(
+                group(fieldPermissions(new String[] { "f1", "f2" }, null), null,
+                        IndexPrivilege.READ, "index-1-*"));
+        assertThat(permissionForSubsetSuccess_WhenQueryIsASubset.isSubsetOf(permissionBase), equalTo(SubsetResult.isASubset()));
+
+        // this.query is null & other.query is non - null, so maybe a subset
+        final IndicesPermission permissionForSubsetSuccess_WhenQueryIsMayBeASubset = indicesPermission(
+                group(fieldPermissions(new String[] { "f1", "f2" }, null), null, IndexPrivilege.READ, "index-2-*"));
+        assertThat(permissionForSubsetSuccess_WhenQueryIsMayBeASubset.isSubsetOf(permissionBase),
+                equalTo(SubsetResult.mayBeASubset(Collections.singleton(Sets.newHashSet("index-2-*")))));
+
+        // this.query is non-null & other.query is null, so it is a subset
+        final IndicesPermission permissionForSubsetSuccess_WhenQueryIsASubset_NonNullQuery = indicesPermission(
+                group(fieldPermissions(new String[] { "f1", "f2" }, null), Collections.singleton(new BytesArray("{diff}")),
+                        IndexPrivilege.READ, "index-1-*"));
+        assertThat(permissionForSubsetSuccess_WhenQueryIsASubset_NonNullQuery.isSubsetOf(permissionBase),
+                equalTo(SubsetResult.isASubset()));
+
+        // this.query is non-null & other.query is non-null
+        final IndicesPermission permissionForSubsetSuccess_QueryIsNotASubset = indicesPermission(
+                group(fieldPermissions(new String[] { "f1", "f2" }, null), Collections.singleton(new BytesArray("{diff}")),
+                        IndexPrivilege.READ, "index-2-*"));
+        assertThat(permissionForSubsetSuccess_QueryIsNotASubset.isSubsetOf(permissionBase),
+                equalTo(SubsetResult.mayBeASubset(Collections.singleton(Sets.newHashSet("index-2-*")))));
     }
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {

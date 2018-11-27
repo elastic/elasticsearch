@@ -308,15 +308,18 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
 
         private SubsetResult isDlsASubset(Group other) {
             SubsetResult result;
-            if (this.getQuery() == null || other.getQuery() == null) {
+            if (this.getQuery() == other.getQuery()) {
+                result = SubsetResult.isASubset();
+            } else if (this.getQuery() != null && other.getQuery() == null) { 
+                result = SubsetResult.isASubset();
+            } else if (this.getQuery() == null && other.getQuery() != null) {
+                result = SubsetResult.mayBeASubset(Collections.singleton(Sets.newHashSet(this.indices())));
+            } else if (Sets.difference(this.getQuery(), other.getQuery()).isEmpty()) {
                 result = SubsetResult.isASubset();
             } else {
-                if (Sets.difference(this.getQuery(), other.getQuery()).isEmpty()) {
-                    result = SubsetResult.isASubset();
-                } else {
-                    result = SubsetResult.mayBeASubset(Collections.singleton(Sets.newHashSet(this.indices())));
-                }
+                result = SubsetResult.mayBeASubset(Collections.singleton(Sets.newHashSet(this.indices())));
             }
+
             return result;
         }
 

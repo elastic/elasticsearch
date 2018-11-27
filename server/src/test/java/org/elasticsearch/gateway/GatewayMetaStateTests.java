@@ -383,6 +383,8 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
             Manifest manifest = Manifest.empty();
             MetaData metaData = MetaData.EMPTY_META_DATA;
             metaStateService.writeManifestAndCleanup("startup", Manifest.empty());
+            long currentTerm = randomNonNegativeLong();
+            long clusterStateVersion = randomNonNegativeLong();
 
             metaStateService.failRandomly();
             Set<MetaData> possibleMetaData = new HashSet<>();
@@ -402,7 +404,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                         indexGenerations.put(indexMetaData.getIndex(), generation);
                     }
 
-                    Manifest newManifest = new Manifest(globalGeneration, indexGenerations);
+                    Manifest newManifest = new Manifest(currentTerm, clusterStateVersion, globalGeneration, indexGenerations);
                     writer.writeManifestAndCleanup("manifest", newManifest);
                     possibleMetaData.clear();
                     possibleMetaData.add(metaData);

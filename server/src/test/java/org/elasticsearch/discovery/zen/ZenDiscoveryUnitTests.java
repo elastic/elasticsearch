@@ -50,6 +50,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.discovery.zen.ZenDiscovery.ZenNodeRemovalClusterStateTaskExecutor;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -362,7 +363,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
             masterService, clusterApplier, clusterSettings, hostsResolver -> Collections.emptyList(),
             ESAllocationTestCase.createAllocationService(),
-            Collections.emptyList());
+            Collections.emptyList(), mock(GatewayMetaState.class));
         zenDiscovery.start();
         return zenDiscovery;
     }

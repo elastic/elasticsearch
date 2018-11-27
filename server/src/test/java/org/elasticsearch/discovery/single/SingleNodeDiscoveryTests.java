@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.single;
 
-import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;

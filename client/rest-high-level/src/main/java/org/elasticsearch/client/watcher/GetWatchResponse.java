@@ -37,6 +37,9 @@ public class GetWatchResponse {
     private final BytesReference source;
     private final XContentType xContentType;
 
+    /**
+     * Ctor for missing watch
+     */
     public GetWatchResponse(String id) {
         this(id, Versions.NOT_FOUND, null, null, null);
     }
@@ -101,8 +104,9 @@ public class GetWatchResponse {
             a -> {
                 boolean isFound = (boolean) a[1];
                 if (isFound) {
-                    XContentSource source = (XContentSource) a[4];
-                    return new GetWatchResponse((String) a[0], (long) a[2], (WatchStatus) a[3], source.source, source.contentType);
+                    XContentBuilder builder = (XContentBuilder) a[4];
+                    BytesReference source = BytesReference.bytes(builder);
+                    return new GetWatchResponse((String) a[0], (long) a[2], (WatchStatus) a[3], source, builder.contentType());
                 } else {
                     return new GetWatchResponse((String) a[0]);
                 }
@@ -118,23 +122,12 @@ public class GetWatchResponse {
             (parser, context) -> {
                 try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
                     builder.copyCurrentStructure(parser);
-                    BytesReference ref = BytesReference.bytes(builder);
-                    return new XContentSource(ref, parser.contentType());
+                    return builder;
                 }
             }, WATCH_FIELD);
     }
 
     public static GetWatchResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    private static class XContentSource {
-        final BytesReference source;
-        final XContentType contentType;
-
-        private XContentSource(BytesReference source, XContentType contentType) {
-            this.source = source;
-            this.contentType = contentType;
-        }
     }
 }

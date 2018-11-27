@@ -1,7 +1,13 @@
-[[java-rest-high-x-pack-watcher-get-watch]]
+--
+:api: get-watch
+:request: GetWatchRequest
+:response: GetWatchResponse
+--
+
+[id="{upid}-{api}"]
 === Get Watch API
 
-[[java-rest-high-x-pack-watcher-get-watch-execution]]
+[id="{upid}-{api}-request"]
 ==== Execution
 
 A watch can be retrieved as follows:
@@ -10,7 +16,6 @@ A watch can be retrieved as follows:
 --------------------------------------------------
 include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-get-watch-execute]
 --------------------------------------------------
-
 
 [[java-rest-high-x-pack-watcher-get-watch-response]]
 ==== Response

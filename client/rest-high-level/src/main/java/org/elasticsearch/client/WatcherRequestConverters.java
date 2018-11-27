@@ -84,8 +84,7 @@ final class WatcherRequestConverters {
             .addPathPart(getWatchRequest.getId())
             .build();
 
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        return request;
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     static Request deactivateWatch(DeactivateWatchRequest deactivateWatchRequest) {

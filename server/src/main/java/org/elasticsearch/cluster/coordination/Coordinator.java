@@ -376,7 +376,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             joinAccumulator = joinHelper.new CandidateJoinAccumulator();
 
             peerFinder.activate(coordinationState.get().getLastAcceptedState().nodes());
-            discoveryUpgradeService.activate(lastKnownLeader);
+            if (getCurrentTerm() == 0) {
+                discoveryUpgradeService.activate(lastKnownLeader);
+            }
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
             leaderChecker.updateLeader(null);
 

@@ -1258,8 +1258,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::get-request
             GetRequest getRequest = new GetRequest(
                     "posts", // <1>
-                    "_doc",  // <2>
-                    "1");   // <3>
+                    "1");   // <2>
             //end::get-request
 
             //tag::get-execute
@@ -1282,7 +1281,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::get-response
         }
         {
-            GetRequest request = new GetRequest("posts", "_doc", "1");
+            GetRequest request = new GetRequest("posts", "1");
             //tag::get-request-no-source
             request.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE); // <1>
             //end::get-request-no-source
@@ -1290,7 +1289,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNull(getResponse.getSourceInternal());
         }
         {
-            GetRequest request = new GetRequest("posts", "_doc", "1");
+            GetRequest request = new GetRequest("posts", "1");
             //tag::get-request-source-include
             String[] includes = new String[]{"message", "*Date"};
             String[] excludes = Strings.EMPTY_ARRAY;
@@ -1305,7 +1304,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(sourceAsMap.containsKey("postDate"));
         }
         {
-            GetRequest request = new GetRequest("posts", "_doc", "1");
+            GetRequest request = new GetRequest("posts", "1");
             //tag::get-request-source-exclude
             String[] includes = Strings.EMPTY_ARRAY;
             String[] excludes = new String[]{"message"};
@@ -1320,7 +1319,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(sourceAsMap.containsKey("postDate"));
         }
         {
-            GetRequest request = new GetRequest("posts", "_doc", "1");
+            GetRequest request = new GetRequest("posts", "1");
             //tag::get-request-stored
             request.storedFields("message"); // <1>
             GetResponse getResponse = client.get(request, RequestOptions.DEFAULT);
@@ -1331,7 +1330,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNull(getResponse.getSourceInternal());
         }
         {
-            GetRequest request = new GetRequest("posts", "_doc", "1");
+            GetRequest request = new GetRequest("posts", "1");
             //tag::get-request-routing
             request.routing("routing"); // <1>
             //end::get-request-routing
@@ -1352,7 +1351,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::get-request-version-type
         }
         {
-            GetRequest request = new GetRequest("posts", "_doc", "1");
+            GetRequest request = new GetRequest("posts", "1");
 
             // tag::get-execute-listener
             ActionListener<GetResponse> listener = new ActionListener<GetResponse>() {
@@ -1380,7 +1379,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             //tag::get-indexnotfound
-            GetRequest request = new GetRequest("does_not_exist", "_doc", "1");
+            GetRequest request = new GetRequest("does_not_exist", "1");
             try {
                 GetResponse getResponse = client.get(request, RequestOptions.DEFAULT);
             } catch (ElasticsearchException e) {
@@ -1393,7 +1392,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::get-conflict
             try {
-                GetRequest request = new GetRequest("posts", "_doc", "1").version(2);
+                GetRequest request = new GetRequest("posts", "1").version(2);
                 GetResponse getResponse = client.get(request, RequestOptions.DEFAULT);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.CONFLICT) {
@@ -1409,10 +1408,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         // tag::exists-request
         GetRequest getRequest = new GetRequest(
             "posts", // <1>
-            "_doc",   // <2>
-            "1");    // <3>
-        getRequest.fetchSourceContext(new FetchSourceContext(false)); // <4>
-        getRequest.storedFields("_none_");                            // <5>
+            "1");    // <2>
+        getRequest.fetchSourceContext(new FetchSourceContext(false)); // <3>
+        getRequest.storedFields("_none_");                            // <4>
         // end::exists-request
         {
             // tag::exists-execute

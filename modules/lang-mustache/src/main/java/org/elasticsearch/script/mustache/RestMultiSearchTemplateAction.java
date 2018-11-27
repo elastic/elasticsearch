@@ -62,8 +62,8 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        MultiSearchTemplateRequest multiRequest = parseRequest(restRequest, allowExplicitIndex);
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex);
         return channel -> client.execute(MultiSearchTemplateAction.INSTANCE, multiRequest, new RestToXContentListener<>(channel));
     }
 

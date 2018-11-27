@@ -22,6 +22,7 @@ package org.elasticsearch.client.documentation;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -52,6 +53,8 @@ import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetPrivilegesResponse;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
+import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
@@ -67,6 +70,7 @@ import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpress
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.common.Strings;
@@ -75,7 +79,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matchers;
 
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import java.io.IOException;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -88,6 +96,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -103,10 +112,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            //tag::put-user-execute
+            //tag::put-user-password-request
             char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
             User user = new User("example", Collections.singletonList("superuser"));
-            PutUserRequest request = new PutUserRequest(user, password, true, RefreshPolicy.NONE);
+            PutUserRequest request = PutUserRequest.withPassword(user, password, true, RefreshPolicy.NONE);
+            //end::put-user-password-request
+
+            //tag::put-user-execute
             PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
             //end::put-user-execute
 
@@ -116,11 +128,37 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(isCreated);
         }
+        {
+            byte[] salt = new byte[32];
+            SecureRandom.getInstanceStrong().nextBytes(salt);
+            char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+            User user = new User("example2", Collections.singletonList("superuser"));
+
+            //tag::put-user-hash-request
+            SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
+            PBEKeySpec keySpec = new PBEKeySpec(password, salt, 10000, 256);
+            final byte[] pbkdfEncoded = secretKeyFactory.generateSecret(keySpec).getEncoded();
+            char[] passwordHash = ("{PBKDF2}10000$" + Base64.getEncoder().encodeToString(salt)
+                + "$" + Base64.getEncoder().encodeToString(pbkdfEncoded)).toCharArray();
+
+            PutUserRequest request = PutUserRequest.withPasswordHash(user, passwordHash, true, RefreshPolicy.NONE);
+            //end::put-user-hash-request
+
+            try {
+                client.security().putUser(request, RequestOptions.DEFAULT);
+            } catch (ElasticsearchStatusException e) {
+                // This is expected to fail as the server will not be using PBKDF2, but that's easiest hasher to support
+                // in a standard JVM without introducing additional libraries.
+                assertThat(e.getDetailedMessage(), containsString("PBKDF2"));
+            }
+        }
 
         {
-            char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-            User user2 = new User("example2", Collections.singletonList("superuser"));
-            PutUserRequest request = new PutUserRequest(user2, password, true, RefreshPolicy.NONE);
+            User user = new User("example", Arrays.asList("superuser", "another-role"));
+            //tag::put-user-update-request
+            PutUserRequest request = PutUserRequest.updateUser(user, true, RefreshPolicy.NONE);
+            //end::put-user-update-request
+
             // tag::put-user-execute-listener
             ActionListener<PutUserResponse> listener = new ActionListener<PutUserResponse>() {
                 @Override
@@ -401,6 +439,89 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetRoles() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+        addRole("my_role");
+        addRole("my_role2");
+        addRole("my_role3");
+        {
+            //tag::get-roles-request
+            GetRolesRequest request = new GetRolesRequest("my_role");
+            //end::get-roles-request
+            //tag::get-roles-execute
+            GetRolesResponse response = client.security().getRoles(request, RequestOptions.DEFAULT);
+            //end::get-roles-execute
+            //tag::get-roles-response
+            List<Role> roles = response.getRoles();
+            //end::get-roles-response
+
+            assertNotNull(response);
+            assertThat(roles.size(), equalTo(1));
+            assertThat(roles.get(0).getName(), equalTo("my_role"));
+            assertThat(roles.get(0).getClusterPrivileges().contains("all"), equalTo(true));
+        }
+
+        {
+            //tag::get-roles-list-request
+            GetRolesRequest request = new GetRolesRequest("my_role", "my_role2");
+            GetRolesResponse response = client.security().getRoles(request, RequestOptions.DEFAULT);
+            //end::get-roles-list-request
+
+            List<Role> roles = response.getRoles();
+            assertNotNull(response);
+            assertThat(roles.size(), equalTo(2));
+            assertThat(roles.get(0).getClusterPrivileges().contains("all"), equalTo(true));
+            assertThat(roles.get(1).getClusterPrivileges().contains("all"), equalTo(true));
+        }
+
+        {
+            //tag::get-roles-all-request
+            GetRolesRequest request = new GetRolesRequest();
+            GetRolesResponse response = client.security().getRoles(request, RequestOptions.DEFAULT);
+            //end::get-roles-all-request
+
+            List<Role> roles = response.getRoles();
+            assertNotNull(response);
+            // 21 system roles plus the three we created
+            assertThat(roles.size(), equalTo(24));
+        }
+
+        {
+            GetRolesRequest request = new GetRolesRequest("my_role");
+            ActionListener<GetRolesResponse> listener;
+
+            //tag::get-roles-execute-listener
+            listener = new ActionListener<GetRolesResponse>() {
+                @Override
+                public void onResponse(GetRolesResponse getRolesResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::get-roles-execute-listener
+
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<GetRolesResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            //tag::get-roles-execute-async
+            client.security().getRolesAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            //end::get-roles-execute-async
+
+            final GetRolesResponse response = future.get(30, TimeUnit.SECONDS);
+            assertNotNull(response);
+            assertThat(response.getRoles().size(), equalTo(1));
+            assertThat(response.getRoles().get(0).getName(), equalTo("my_role"));
+            assertThat(response.getRoles().get(0).getClusterPrivileges().contains("all"), equalTo(true));
+        }
+    }
+
     public void testAuthenticate() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -414,7 +535,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::authenticate-response
 
             assertThat(user.getUsername(), is("test_user"));
-            assertThat(user.getRoles(), contains(new String[] {"superuser"}));
+            assertThat(user.getRoles(), contains(new String[]{"superuser"}));
             assertThat(user.getFullName(), nullValue());
             assertThat(user.getEmail(), nullValue());
             assertThat(user.getMetadata().isEmpty(), is(true));

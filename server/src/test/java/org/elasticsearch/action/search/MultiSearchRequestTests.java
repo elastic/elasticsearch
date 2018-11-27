@@ -41,6 +41,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
@@ -94,6 +95,21 @@ public class MultiSearchRequestTests extends ESTestCase {
             "{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(requestContent), XContentType.JSON).build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true);
+        assertThat(request.requests().size(), equalTo(1));
+        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
+        assertThat(request.requests().get(0).indicesOptions(),
+            equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
+        assertThat(request.requests().get(0).types().length, equalTo(0));
+    }
+
+    public void testDefaultIndicesOptions() throws IOException {
+        final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\"}}\r\n" +
+            "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(requestContent), XContentType.JSON)
+            .withParams(Collections.singletonMap("ignore_unavailable", "true"))
+            .build();
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true);
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));

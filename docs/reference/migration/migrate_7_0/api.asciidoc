@@ -107,3 +107,9 @@ object has been removed in favor of the top level `created` field.
 ==== Source filtering url parameters `_source_include` and `_source_exclude` have been removed
 
 The deprecated in 6.x url parameters are now removed. Use `_source_includes` and `_source_excludes` instead.
+
+[float]
+==== Multi Search Request metadata validation
+
+MultiSearchRequests issues through `_msearch` now validate all keys in the metadata section. Previously unknown keys were ignored
+while now an exception is thrown.

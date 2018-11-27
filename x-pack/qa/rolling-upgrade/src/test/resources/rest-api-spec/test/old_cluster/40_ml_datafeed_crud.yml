@@ -1,9 +1,4 @@
 ---
-setup:
-  - skip:
-     version: "all"
-     reason: "Temporarily disabled while backporting https://github.com/elastic/elasticsearch/pull/35645"
----
 "Put job and datafeed in old cluster":
 
   - do:

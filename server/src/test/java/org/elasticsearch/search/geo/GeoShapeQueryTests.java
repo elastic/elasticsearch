@@ -240,7 +240,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     private void assertUnmodified(ShapeBuilder builder) throws IOException {
         String before = Strings.toString(jsonBuilder().startObject().field("area", builder).endObject());
-        builder.build();
+        builder.buildS4J();
         String after = Strings.toString(jsonBuilder().startObject().field("area", builder).endObject());
         assertThat(before, equalTo(after));
     }

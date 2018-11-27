@@ -552,7 +552,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
                 .build());
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         assertBusy(() -> assertTrue(client.indexLifecycle()
-            .explainLifecycle(new ExplainLifecycleRequest().indices("my_index"), RequestOptions.DEFAULT)
+            .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
             .getIndexResponses().get("my_index").managedByILM()));
 
         // tag::ilm-remove-lifecycle-policy-from-index-request
@@ -583,7 +583,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // re-apply policy on index
         updateIndexSettings("my_index", Settings.builder().put("index.lifecycle.name", "my_policy"));
         assertBusy(() -> assertTrue(client.indexLifecycle()
-            .explainLifecycle(new ExplainLifecycleRequest().indices("my_index"), RequestOptions.DEFAULT)
+            .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
             .getIndexResponses().get("my_index").managedByILM()));
 
         // tag::ilm-remove-lifecycle-policy-from-index-execute-listener

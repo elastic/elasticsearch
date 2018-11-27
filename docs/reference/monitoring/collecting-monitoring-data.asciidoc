@@ -66,6 +66,10 @@ PUT _cluster/settings
 ----------------------------------
 // CONSOLE
 
+Alternatively, you can enable this setting in {kib}. In the side navigation, 
+click *Monitoring*. If data collection is disabled, you are prompted to turn it 
+on. 
+
 For more 
 information, see <<monitoring-settings>> and <<cluster-update-settings>>.
 --
@@ -192,10 +196,9 @@ xpack.monitoring.exporters:
 --
 
 . Configure your cluster to route monitoring data from sources such as {kib}, 
-Beats, and {ls} to the monitoring cluster. The 
-`xpack.monitoring.collection.enabled` setting must be `true` on each node in the 
-cluster. For information about configuring each product to collect and send 
-monitoring data, see {stack-ov}/xpack-monitoring.html[Monitoring the {stack}].
+Beats, and {ls} to the monitoring cluster. For information about configuring
+each product to collect and send monitoring data, see
+{stack-ov}/xpack-monitoring.html[Monitoring the {stack}].
 
 . If you updated settings in the `elasticsearch.yml` files on your production 
 cluster, restart {es}. See <<stopping-elasticsearch>> and <<starting-elasticsearch>>. 

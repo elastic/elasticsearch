@@ -667,7 +667,6 @@ public class IndexShardTests extends IndexShardTestCase {
                 } else {
                     indexShard.acquireAllPrimaryOperationsPermits(future, TimeValue.timeValueHours(1L));
                 }
-                assertEquals(0, indexShard.getActiveOperationsCount());
             });
             threads[threadId].start();
         }
@@ -733,6 +732,7 @@ public class IndexShardTests extends IndexShardTestCase {
         return fut.get();
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35850")
     public void testOperationPermitOnReplicaShards() throws Exception {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShard indexShard;
@@ -1023,6 +1023,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(replicaShard, primaryShard);
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35850")
     public void testRestoreLocalHistoryFromTranslogOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
@@ -1087,6 +1088,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShard(indexShard, false);
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35850")
     public void testRollbackReplicaEngineOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
 

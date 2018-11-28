@@ -16,6 +16,7 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
+import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.joda.time.format.DateTimeFormatter;
 
@@ -661,12 +663,8 @@ public class HttpExporter extends Exporter {
         }
     }
 
-    /**
-     * Determine if this {@link HttpExporter} is ready to use.
-     *
-     * @return {@code true} if it is ready. {@code false} if not.
-     */
-    boolean isExporterReady() {
+    @Override
+    public void openBulk(final ActionListener<ExportBulk> listener) {
         final boolean canUseClusterAlerts = config.licenseState().isMonitoringClusterAlertsAllowed();
 
         // if this changes between updates, then we need to add OR remove the watches
@@ -674,19 +672,16 @@ public class HttpExporter extends Exporter {
             resource.markDirty();
         }
 
-        // block until all resources are verified to exist
-        return resource.checkAndPublishIfDirty(client);
-    }
+        resource.checkAndPublishIfDirty(client, ActionListener.wrap((success) -> {
+            if (success) {
+                final String name = "xpack.monitoring.exporters." + config.name();
 
-    @Override
-    public HttpExportBulk openBulk() {
-        // block until all resources are verified to exist
-        if (isExporterReady()) {
-            String name = "xpack.monitoring.exporters." + config.name();
-            return new HttpExportBulk(name, client, defaultParams, dateTimeFormatter, threadContext);
-        }
-
-        return null;
+                listener.onResponse(new HttpExportBulk(name, client, defaultParams, dateTimeFormatter, threadContext));
+            } else {
+                // we're not ready yet, so keep waiting
+                listener.onResponse(null);
+            }
+        }, listener::onFailure));
     }
 
     @Override

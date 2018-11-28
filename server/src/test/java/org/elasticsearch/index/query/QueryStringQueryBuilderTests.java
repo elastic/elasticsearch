@@ -158,9 +158,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.minimumShouldMatch(randomMinimumShouldMatch());
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.useDisMax(randomBoolean());
-        }
-        if (randomBoolean()) {
             queryStringQueryBuilder.timeZone(randomDateTimeZone().getID());
         }
         if (randomBoolean()) {

@@ -177,7 +177,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         }
 
         private static Map<String, Object> runSql(@Nullable String asUser, String mode, HttpEntity entity) throws IOException {
-            Request request = new Request("POST", "/_xpack/sql");
+            Request request = new Request("POST", "/_sql");
             if (false == mode.isEmpty()) {
                 request.addParameter("mode", mode);
             }

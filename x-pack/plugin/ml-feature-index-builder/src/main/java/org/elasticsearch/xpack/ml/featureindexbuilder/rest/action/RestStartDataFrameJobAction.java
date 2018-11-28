@@ -18,9 +18,9 @@ import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartDataFrameJobAc
 
 import java.io.IOException;
 
-public class RestStartFeatureIndexBuilderJobAction extends BaseRestHandler {
+public class RestStartDataFrameJobAction extends BaseRestHandler {
     
-    public RestStartFeatureIndexBuilderJobAction(Settings settings, RestController controller) {
+    public RestStartDataFrameJobAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, DataFrame.BASE_PATH_JOBS_BY_ID + "_start", this);
     }
@@ -35,6 +35,6 @@ public class RestStartFeatureIndexBuilderJobAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "ml_feature_index_builder_start_job_action";
+        return "data_frame_start_job_action";
     }
 }

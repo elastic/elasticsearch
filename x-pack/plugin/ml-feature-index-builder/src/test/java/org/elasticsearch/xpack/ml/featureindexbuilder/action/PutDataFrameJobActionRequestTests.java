@@ -14,14 +14,14 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutDataFrameJobAction.Request;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobConfig;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfigTests;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobConfigTests;
 import org.junit.Before;
 
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
 
-public class PutFeatureIndexBuilderJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class PutDataFrameJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
     private String jobId;
 
@@ -68,7 +68,7 @@ public class PutFeatureIndexBuilderJobActionRequestTests extends AbstractStreama
 
     @Override
     protected Request createTestInstance() {
-        DataFrameJobConfig config = FeatureIndexBuilderJobConfigTests.randomFeatureIndexBuilderJobConfig();
+        DataFrameJobConfig config = DataFrameJobConfigTests.randomDataFrameJobConfig();
         return new Request(config);
     }
 

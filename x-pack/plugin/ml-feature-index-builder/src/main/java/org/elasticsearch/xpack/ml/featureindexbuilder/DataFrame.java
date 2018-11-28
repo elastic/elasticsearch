@@ -54,9 +54,9 @@ import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobState;
 import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestDeleteFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestGetDataFrameJobsAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestGetDataFrameJobsStatsAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestPutFeatureIndexBuilderJobAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestStartFeatureIndexBuilderJobAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestStopFeatureIndexBuilderJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestPutDataFrameJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestStartDataFrameJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestStopDataFrameJobAction;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -117,9 +117,9 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
 
         return Arrays.asList(
-                new RestPutFeatureIndexBuilderJobAction(settings, restController),
-                new RestStartFeatureIndexBuilderJobAction(settings, restController),
-                new RestStopFeatureIndexBuilderJobAction(settings, restController),
+                new RestPutDataFrameJobAction(settings, restController),
+                new RestStartDataFrameJobAction(settings, restController),
+                new RestStopDataFrameJobAction(settings, restController),
                 new RestDeleteFeatureIndexBuilderJobAction(settings, restController),
                 new RestGetDataFrameJobsAction(settings, restController),
                 new RestGetDataFrameJobsStatsAction(settings, restController)

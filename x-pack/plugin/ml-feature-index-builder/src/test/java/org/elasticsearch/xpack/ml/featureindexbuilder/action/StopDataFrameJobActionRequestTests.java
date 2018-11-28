@@ -11,7 +11,7 @@ import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.StopDataFrameJobAction.Request;
 import java.io.IOException;
 
-public class StopFeatureIndexBuilderJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class StopDataFrameJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.featureindexbuilder.action;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction.Request;
 
-public class StartFeatureIndexBuilderJobActionTests extends AbstractStreamableTestCase<Request> {
+public class StartDataFrameJobActionTests extends AbstractStreamableTestCase<Request> {
     @Override
     protected Request createTestInstance() {
         return new Request(randomAlphaOfLengthBetween(1, 20));

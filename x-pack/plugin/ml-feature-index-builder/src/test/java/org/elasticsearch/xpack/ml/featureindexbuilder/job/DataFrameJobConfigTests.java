@@ -12,11 +12,11 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-public class FeatureIndexBuilderJobConfigTests extends AbstractSerializingFeatureIndexBuilderTestCase<DataFrameJobConfig> {
+public class DataFrameJobConfigTests extends AbstractSerializingFeatureIndexBuilderTestCase<DataFrameJobConfig> {
 
     private String jobId;
 
-    public static DataFrameJobConfig randomFeatureIndexBuilderJobConfig() {
+    public static DataFrameJobConfig randomDataFrameJobConfig() {
         return new DataFrameJobConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
                 randomAlphaOfLengthBetween(1, 10), SourceConfigTests.randomSourceConfig(),
                 AggregationConfigTests.randomAggregationConfig());
@@ -38,7 +38,7 @@ public class FeatureIndexBuilderJobConfigTests extends AbstractSerializingFeatur
 
     @Override
     protected DataFrameJobConfig createTestInstance() {
-        return randomFeatureIndexBuilderJobConfig();
+        return randomDataFrameJobConfig();
     }
 
     @Override

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.featureindexbuilder.action;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.DeleteDataFrameJobAction.Request;
 
-public class DeleteFeatureIndexBuilderJobActionRequestTests extends AbstractStreamableTestCase<Request> {
+public class DeleteDataFrameJobActionRequestTests extends AbstractStreamableTestCase<Request> {
     @Override
     protected Request createTestInstance() {
         return new Request(randomAlphaOfLengthBetween(1, 20));

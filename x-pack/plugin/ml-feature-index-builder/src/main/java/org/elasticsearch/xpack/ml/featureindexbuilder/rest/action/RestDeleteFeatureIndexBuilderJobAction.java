@@ -35,6 +35,6 @@ public class RestDeleteFeatureIndexBuilderJobAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "feature_index_builder_delete_job_action";
+        return "data_frame_delete_job_action";
     }
 }

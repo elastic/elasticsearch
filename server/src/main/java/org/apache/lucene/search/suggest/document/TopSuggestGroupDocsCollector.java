@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.suggest.completion;
+package org.apache.lucene.search.suggest.document;
 
-import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.suggest.Lookup;
-import org.apache.lucene.search.suggest.document.TopSuggestDocs;
-import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 import org.apache.lucene.util.PriorityQueue;
 
 import java.io.IOException;
@@ -53,12 +50,12 @@ import java.util.Map;
  * that match the input. If more than N*num_contexts suggestions are duplicated with different contexts this collector
  * will not be able to return more than one suggestion even when N is greater than 1.
  **/
-class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
+public class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
     private final class SuggestScoreDocPriorityQueue extends PriorityQueue<TopSuggestDocs.SuggestScoreDoc> {
         /**
          * Creates a new priority queue of the specified size.
          */
-        private SuggestScoreDocPriorityQueue(int size) {
+        SuggestScoreDocPriorityQueue(int size) {
             super(size);
         }
 
@@ -93,9 +90,6 @@ class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
     /** Only set if we are deduplicating hits: holds all per-segment hits until the end, when we dedup them */
     private final List<TopSuggestDocs.SuggestScoreDoc> pendingResults;
 
-    /** Only set if we are deduplicating hits: holds all surface forms seen so far in the current segment */
-    final CharArraySet seenSurfaceForms;
-
     /** Document base offset for the current Leaf */
     protected int docBase;
 
@@ -107,20 +101,14 @@ class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
      * Collects at most <code>num</code> completions
      * with corresponding document and weight
      */
-    TopSuggestGroupDocsCollector(int num, boolean skipDuplicates) {
+    public TopSuggestGroupDocsCollector(int num, boolean skipDuplicates) {
         super(1, skipDuplicates);
         if (num <= 0) {
             throw new IllegalArgumentException("'num' must be > 0");
         }
         this.num = num;
         this.priorityQueue = new SuggestScoreDocPriorityQueue(num);
-        if (skipDuplicates) {
-            seenSurfaceForms = new CharArraySet(num, false);
-            pendingResults = new ArrayList<>();
-        } else {
-            seenSurfaceForms = null;
-            pendingResults = null;
-        }
+        this.pendingResults = skipDuplicates ? new ArrayList<>() : null;
     }
 
     /**
@@ -128,11 +116,6 @@ class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
      */
     public List<CharSequence> getContexts(int doc) {
         return docContexts.getOrDefault(doc, Collections.emptyList());
-    }
-
-    @Override
-    protected boolean doSkipDuplicates() {
-        return seenSurfaceForms != null;
     }
 
     @Override
@@ -155,12 +138,10 @@ class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
     @Override
     public void collect(int docID, CharSequence key, CharSequence context, float score) throws IOException {
         int globalDoc = docID + docBase;
-        boolean isDuplicate = docContexts.containsKey(globalDoc);
+        boolean isNewDoc = docContexts.containsKey(globalDoc);
         List<CharSequence> contexts = docContexts.computeIfAbsent(globalDoc, k -> new ArrayList<>());
-        if (context != null) {
-            contexts.add(context);
-        }
-        if (isDuplicate) {
+        contexts.add(context);
+        if (isNewDoc == false) {
             return;
         }
         TopSuggestDocs.SuggestScoreDoc current = new TopSuggestDocs.SuggestScoreDoc(globalDoc, key, context, score);
@@ -178,7 +159,7 @@ class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
 
         TopSuggestDocs.SuggestScoreDoc[] suggestScoreDocs;
 
-        if (seenSurfaceForms != null) {
+        if (doSkipDuplicates()) {
             // NOTE: this also clears the priorityQueue:
             for (TopSuggestDocs.SuggestScoreDoc hit : priorityQueue.getResults()) {
                 pendingResults.add(hit);
@@ -228,5 +209,4 @@ class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
             return TopSuggestDocs.EMPTY;
         }
     }
-
 }

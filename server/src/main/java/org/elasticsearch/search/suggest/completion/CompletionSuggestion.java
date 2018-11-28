@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.suggest.Lookup;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,13 +35,14 @@ import org.elasticsearch.search.suggest.Suggest.Suggestion;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.PriorityQueue;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -141,31 +141,29 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         return suggestion;
     }
 
-    private static final class OptionPriorityQueue extends org.apache.lucene.util.PriorityQueue<Entry.Option> {
+    private static class SuggestionRef implements Iterator<Entry.Option>, Comparable<SuggestionRef> {
+        final Iterator<Entry.Option> it;
+        Entry.Option current;
 
-        private final Comparator<Suggest.Suggestion.Entry.Option> comparator;
-
-        OptionPriorityQueue(int maxSize, Comparator<Suggest.Suggestion.Entry.Option> comparator) {
-            super(maxSize);
-            this.comparator = comparator;
+        private SuggestionRef(Iterator<Entry.Option> it) {
+            assert it.hasNext();
+            this.it = it;
+            this.current = it.next();
         }
 
         @Override
-        protected boolean lessThan(Entry.Option a, Entry.Option b) {
-            int cmp = comparator.compare(a, b);
-            if (cmp != 0) {
-                return cmp > 0;
-            }
-            return Lookup.CHARSEQUENCE_COMPARATOR.compare(a.getText().string(), b.getText().string()) > 0;
+        public int compareTo(SuggestionRef o) {
+            return COMPARATOR.compare(current, o.current);
         }
 
-        Entry.Option[] get() {
-            int size = size();
-            Entry.Option[] results = new Entry.Option[size];
-            for (int i = size - 1; i >= 0; i--) {
-                results[i] = pop();
-            }
-            return results;
+        @Override
+        public boolean hasNext() {
+            return it.hasNext();
+        }
+
+        @Override
+        public Entry.Option next() {
+            return current = it.next();
         }
     }
 
@@ -180,37 +178,43 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             final CompletionSuggestion leader = (CompletionSuggestion) toReduce.get(0);
             final Entry leaderEntry = leader.getEntries().get(0);
             final String name = leader.getName();
+            int size = leader.getSize();
             if (toReduce.size() == 1) {
                 return leader;
             } else {
                 // combine suggestion entries from participating shards on the coordinating node
                 // the global top <code>size</code> entries are collected from the shard results
                 // using a priority queue
-                OptionPriorityQueue priorityQueue = new OptionPriorityQueue(leader.getSize(), COMPARATOR);
-                // Dedup duplicate suggestions (based on the surface form) if skip duplicates is activated
-                final CharArraySet seenSurfaceForms = leader.skipDuplicates ? new CharArraySet(leader.getSize(), false) : null;
+                PriorityQueue<SuggestionRef> pq = new PriorityQueue(leader.getSize());
                 for (Suggest.Suggestion<Entry> suggestion : toReduce) {
                     assert suggestion.getName().equals(name) : "name should be identical across all suggestions";
-                    for (Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
-                        if (leader.skipDuplicates) {
-                            assert ((CompletionSuggestion) suggestion).skipDuplicates;
-                            String text = option.getText().string();
-                            if (seenSurfaceForms.contains(text)) {
-                                continue;
-                            }
-                            seenSurfaceForms.add(text);
-                        }
-                        if (option == priorityQueue.insertWithOverflow(option)) {
-                            // if the current option has overflown from pq,
-                            // we can assume all of the successive options
-                            // from this shard result will be overflown as well
-                            break;
-                        }
+                    Iterator<Entry.Option> it = ((CompletionSuggestion) suggestion).getOptions().iterator();
+                    if (it.hasNext()) {
+                        pq.add(new SuggestionRef(it));
+                    }
+
+                }
+                // Dedup duplicate suggestions (based on the surface form) if skip duplicates is activated
+                final CharArraySet seenSurfaceForms = leader.skipDuplicates ? new CharArraySet(leader.getSize(), false) : null;
+                final Entry entry = new Entry(leaderEntry.getText(), leaderEntry.getOffset(), leaderEntry.getLength());
+                final List<Entry.Option> options = entry.getOptions();
+                while (pq.isEmpty() == false) {
+                    final SuggestionRef ref = pq.poll();
+                    final Entry.Option current = ref.current;
+                    if (ref.hasNext()) {
+                        ref.next();
+                        pq.add(ref);
+                    }
+                    if (leader.skipDuplicates &&
+                            seenSurfaceForms.add(current.getText().toString()) == false) {
+                        continue;
+                    }
+                    options.add(current);
+                    if (options.size() >= size) {
+                        break;
                     }
                 }
                 final CompletionSuggestion suggestion = new CompletionSuggestion(leader.getName(), leader.getSize(), leader.skipDuplicates);
-                final Entry entry = new Entry(leaderEntry.getText(), leaderEntry.getOffset(), leaderEntry.getLength());
-                Collections.addAll(entry.getOptions(), priorityQueue.get());
                 suggestion.addTerm(entry);
                 return suggestion;
             }

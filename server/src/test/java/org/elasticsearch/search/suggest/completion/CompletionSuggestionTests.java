@@ -19,14 +19,31 @@
 
 package org.elasticsearch.search.suggest.completion;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.MockAnalyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
+import org.apache.lucene.search.suggest.document.SuggestField;
+import org.apache.lucene.search.suggest.document.SuggestIndexSearcher;
+import org.apache.lucene.search.suggest.document.TopSuggestDocs;
+import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -60,5 +77,42 @@ public class CompletionSuggestionTests extends ESTestCase {
             assertThat(option.getDoc().doc, equalTo(count));
             count++;
         }
+    }
+
+    public void testToReduceWithDuplicates() {
+        List<Suggest.Suggestion<CompletionSuggestion.Entry>> shardSuggestions = new ArrayList<>();
+        int nShards = randomIntBetween(2, 10);
+        String name = randomAlphaOfLength(10);
+        int size = randomIntBetween(10, 100);
+        int totalResults = size * nShards;
+        int numSurfaceForms = randomIntBetween(1, size);
+        String[] surfaceForms = new String[numSurfaceForms];
+        for (int i = 0; i < numSurfaceForms; i++) {
+            surfaceForms[i] = randomAlphaOfLength(20);
+        }
+        List<CompletionSuggestion.Entry.Option> options = new ArrayList<>();
+        for (int i = 0; i < nShards; i++) {
+            CompletionSuggestion suggestion = new CompletionSuggestion(name, size, true);
+            CompletionSuggestion.Entry entry = new CompletionSuggestion.Entry(new Text(""), 0, 0);
+            suggestion.addTerm(entry);
+            int maxScore = randomIntBetween(totalResults, totalResults*2);
+            for (int j = 0; j < size; j++) {
+                String surfaceForm = randomFrom(surfaceForms);
+                CompletionSuggestion.Entry.Option newOption =
+                    new CompletionSuggestion.Entry.Option(j, new Text(surfaceForm), maxScore - j, Collections.emptyMap());
+                entry.addOption(newOption);
+                options.add(newOption);
+            }
+            shardSuggestions.add(suggestion);
+        }
+        List<CompletionSuggestion.Entry.Option> expected = options.stream()
+            .sorted((o1, o2) -> COMPARATOR.compare(o1, o2))
+            .distinct()
+            .limit(size)
+            .collect(Collectors.toList());
+        CompletionSuggestion reducedSuggestion = CompletionSuggestion.reduceTo(shardSuggestions);
+        assertNotNull(reducedSuggestion);
+        assertThat(reducedSuggestion.getOptions().size(), lessThanOrEqualTo(size));
+        assertEquals(expected, reducedSuggestion.getOptions());
     }
 }

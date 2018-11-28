@@ -25,21 +25,19 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 /**
  * This service is used by persistent tasks and allocated persistent tasks to communicate changes
@@ -50,7 +48,6 @@ public class PersistentTasksService {
 
     private static final Logger logger = LogManager.getLogger(PersistentTasksService.class);
 
-    private static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
     private static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
 
     private final Client client;
@@ -58,7 +55,7 @@ public class PersistentTasksService {
     private final ThreadPool threadPool;
 
     public PersistentTasksService(ClusterService clusterService, ThreadPool threadPool, Client client) {
-        this.client = client;
+        this.client = new OriginSettingClient(client, PERSISTENT_TASK_ORIGIN);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
     }
@@ -98,12 +95,7 @@ public class PersistentTasksService {
         request.setTaskId(new TaskId(clusterService.localNode().getId(), taskId));
         request.setReason(reason);
         try {
-            final ThreadContext threadContext = client.threadPool().getThreadContext();
-            final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(threadContext, PERSISTENT_TASK_ORIGIN)) {
-                client.admin().cluster().cancelTasks(request, new ContextPreservingActionListener<>(supplier, listener));
-            }
+            client.admin().cluster().cancelTasks(request, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -140,14 +132,8 @@ public class PersistentTasksService {
     private <Req extends ActionRequest, Resp extends PersistentTaskResponse>
         void execute(final Req request, final Action<Resp> action, final ActionListener<PersistentTask<?>> listener) {
             try {
-                final ThreadContext threadContext = client.threadPool().getThreadContext();
-                final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-
-                try (ThreadContext.StoredContext ignore = stashWithOrigin(threadContext, PERSISTENT_TASK_ORIGIN)) {
-                    client.execute(action, request,
-                        new ContextPreservingActionListener<>(supplier,
-                            ActionListener.wrap(r -> listener.onResponse(r.getTask()), listener::onFailure)));
-                }
+                client.execute(action, request,
+                        ActionListener.wrap(r -> listener.onResponse(r.getTask()), listener::onFailure));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -232,11 +218,5 @@ public class PersistentTasksService {
         default void onTimeout(TimeValue timeout) {
             onFailure(new IllegalStateException("Timed out when waiting for persistent task after " + timeout));
         }
-    }
-
-    public static ThreadContext.StoredContext stashWithOrigin(ThreadContext threadContext, String origin) {
-        final ThreadContext.StoredContext storedContext = threadContext.stashContext();
-        threadContext.putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
-        return storedContext;
     }
 }

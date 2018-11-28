@@ -113,3 +113,9 @@ The deprecated in 6.x url parameters are now removed. Use `_source_includes` and
 
 MultiSearchRequests issued through `_msearch` now validate all keys in the metadata section. Previously unknown keys were ignored
 while now an exception is thrown.
+
+[float]
+==== Deprecated graph endpoints removed
+
+The deprecated graph endpoints (those with `/_graph/_explore`) have been
+removed.

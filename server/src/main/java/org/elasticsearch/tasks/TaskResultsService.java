@@ -32,6 +32,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -56,6 +57,7 @@ import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 
 /**
  * Service that can store task results.
@@ -89,7 +91,7 @@ public class TaskResultsService {
 
     @Inject
     public TaskResultsService(Client client, ClusterService clusterService, ThreadPool threadPool) {
-        this.client = client;
+        this.client = new OriginSettingClient(client, TASKS_ORIGIN);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
     }

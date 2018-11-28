@@ -40,7 +40,14 @@ public class DataFrameDataExtractorFactory {
     /**
      * The types supported by data frames
      */
-    private static final Set<String> COMPATIBLE_FIELD_TYPES = new HashSet<>(Arrays.asList(
+    private static final Set<String> COMPATIBLE_FIELD_TYPES;
+    static {
+        Set<String> types = Stream.of(NumberFieldMapper.NumberType.values())
+            .map(NumberFieldMapper.NumberType::typeName)
+            .collect(Collectors.toSet());
+        types.add("scaled_float"); // have to add manually since scaled_float is in a module
+        COMPATIBLE_FIELD_TYPES = types;
+    }
         "long", "integer", "short", "byte", "double", "float", "half_float", "scaled_float"));
 
     private final Client client;

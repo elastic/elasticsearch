@@ -9,12 +9,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-class MlInitializationService extends AbstractComponent implements ClusterStateListener {
+class MlInitializationService implements ClusterStateListener {
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;

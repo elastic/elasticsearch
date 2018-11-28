@@ -70,10 +70,14 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.GetAliasesResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.SyncedFlushResponse;
+import org.elasticsearch.client.indices.UnfreezeIndexRequest;
+import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -2513,5 +2517,161 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::analyze-field-request
         }
 
+    }
+
+    public void testFreezeIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"), RequestOptions.DEFAULT);
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::freeze-index-request
+            FreezeIndexRequest request = new FreezeIndexRequest("index"); // <1>
+            // end::freeze-index-request
+
+            // tag::freeze-index-request-timeout
+            request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
+            // end::freeze-index-request-timeout
+            // tag::freeze-index-request-masterTimeout
+            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            // end::freeze-index-request-masterTimeout
+            // tag::freeze-index-request-waitForActiveShards
+            request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <1>
+            // end::freeze-index-request-waitForActiveShards
+
+            // tag::freeze-index-request-indicesOptions
+            request.setIndicesOptions(IndicesOptions.strictExpandOpen()); // <1>
+            // end::freeze-index-request-indicesOptions
+
+            // tag::freeze-index-execute
+            ShardsAcknowledgedResponse openIndexResponse = client.indices().freeze(request, RequestOptions.DEFAULT);
+            // end::freeze-index-execute
+
+            // tag::freeze-index-response
+            boolean acknowledged = openIndexResponse.isAcknowledged(); // <1>
+            boolean shardsAcked = openIndexResponse.isShardsAcknowledged(); // <2>
+            // end::freeze-index-response
+            assertTrue(acknowledged);
+            assertTrue(shardsAcked);
+
+            // tag::freeze-index-execute-listener
+            ActionListener<ShardsAcknowledgedResponse> listener =
+                new ActionListener<ShardsAcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(ShardsAcknowledgedResponse freezeIndexResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::freeze-index-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::freeze-index-execute-async
+            client.indices().freezeAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::freeze-index-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::freeze-index-notfound
+            try {
+                FreezeIndexRequest request = new FreezeIndexRequest("does_not_exist");
+                client.indices().freeze(request, RequestOptions.DEFAULT);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.BAD_REQUEST) {
+                    // <1>
+                }
+            }
+            // end::freeze-index-notfound
+        }
+    }
+
+    public void testUnfreezeIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"), RequestOptions.DEFAULT);
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::unfreeze-index-request
+            UnfreezeIndexRequest request = new UnfreezeIndexRequest("index"); // <1>
+            // end::unfreeze-index-request
+
+            // tag::unfreeze-index-request-timeout
+            request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
+            // end::unfreeze-index-request-timeout
+            // tag::unfreeze-index-request-masterTimeout
+            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            // end::unfreeze-index-request-masterTimeout
+            // tag::unfreeze-index-request-waitForActiveShards
+            request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <1>
+            // end::unfreeze-index-request-waitForActiveShards
+
+            // tag::unfreeze-index-request-indicesOptions
+            request.setIndicesOptions(IndicesOptions.strictExpandOpen()); // <1>
+            // end::unfreeze-index-request-indicesOptions
+
+            // tag::unfreeze-index-execute
+            ShardsAcknowledgedResponse openIndexResponse = client.indices().unfreeze(request, RequestOptions.DEFAULT);
+            // end::unfreeze-index-execute
+
+            // tag::unfreeze-index-response
+            boolean acknowledged = openIndexResponse.isAcknowledged(); // <1>
+            boolean shardsAcked = openIndexResponse.isShardsAcknowledged(); // <2>
+            // end::unfreeze-index-response
+            assertTrue(acknowledged);
+            assertTrue(shardsAcked);
+
+            // tag::unfreeze-index-execute-listener
+            ActionListener<ShardsAcknowledgedResponse> listener =
+                new ActionListener<ShardsAcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(ShardsAcknowledgedResponse freezeIndexResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::unfreeze-index-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::unfreeze-index-execute-async
+            client.indices().unfreezeAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::unfreeze-index-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::unfreeze-index-notfound
+            try {
+                UnfreezeIndexRequest request = new UnfreezeIndexRequest("does_not_exist");
+                client.indices().unfreeze(request, RequestOptions.DEFAULT);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.BAD_REQUEST) {
+                    // <1>
+                }
+            }
+            // end::unfreeze-index-notfound
+        }
     }
 }

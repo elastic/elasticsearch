@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.client.Version;
 
 import java.io.PrintWriter;
 import java.sql.Connection;
+import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
@@ -16,7 +17,7 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 import java.util.logging.Logger;
 
-public class EsDriver implements java.sql.Driver {
+public class EsDriver implements Driver {
 
     private static final EsDriver INSTANCE = new EsDriver();
 

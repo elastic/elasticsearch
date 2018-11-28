@@ -178,7 +178,7 @@ public class UserFunctionIT extends ESRestTestCase {
     }
     
     private Map<String, Object> runSql(String asUser, String mode, HttpEntity entity) throws IOException {
-        Request request = new Request("POST", "/_xpack/sql");
+        Request request = new Request("POST", "/_sql");
         if (false == mode.isEmpty()) {
             request.addParameter("mode", mode);
         }

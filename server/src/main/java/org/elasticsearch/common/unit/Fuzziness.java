@@ -40,12 +40,14 @@ import java.util.Objects;
  */
 public final class Fuzziness implements ToXContentFragment, Writeable {
 
-    public static final String X_FIELD_NAME = "fuzziness";
+    static final String X_FIELD_NAME = "fuzziness";
+    public static final ParseField FIELD = new ParseField(X_FIELD_NAME);
+
     public static final Fuzziness ZERO = new Fuzziness("0");
     public static final Fuzziness ONE = new Fuzziness("1");
     public static final Fuzziness TWO = new Fuzziness("2");
     public static final Fuzziness AUTO = new Fuzziness("AUTO");
-    public static final ParseField FIELD = new ParseField(X_FIELD_NAME);
+
     static final int DEFAULT_LOW_DISTANCE = 3;
     static final int DEFAULT_HIGH_DISTANCE = 6;
 

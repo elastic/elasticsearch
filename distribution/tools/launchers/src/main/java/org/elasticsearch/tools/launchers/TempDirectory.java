@@ -26,8 +26,8 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 
 /**
- * Creates a temporary directory as a sub-directory of the default temporary directory. Note that this causes the created temporary
- * directory to be a private temporary directory.
+ * Provides a path for a temporary directory. On non-Windows OS, this will be created as a sub-directory of the default temporary directory.
+ * Note that this causes the created temporary directory to be a private temporary directory.
  */
 final class TempDirectory {
 

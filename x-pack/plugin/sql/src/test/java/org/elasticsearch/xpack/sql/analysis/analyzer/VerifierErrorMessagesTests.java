@@ -11,8 +11,14 @@ import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
@@ -29,7 +35,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, TimeZone.getTimeZone("UTC"));
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, TimeZone.getTimeZone("UTC"), new Verifier(new Metrics()));
         AnalysisException e = expectThrows(AnalysisException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         assertTrue(e.getMessage().startsWith("Found "));
         String header = "Found 1 problem(s)\nline ";
@@ -43,7 +49,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), resolution, TimeZone.getTimeZone("UTC"));
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), resolution, TimeZone.getTimeZone("UTC"), new Verifier(new Metrics()));
         return analyzer.analyze(parser.createStatement(sql), true);
     }
 
@@ -421,5 +427,33 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 "1:45: Cannot use field [emp_no] due to ambiguities being mapped as [2] incompatible types: "
                         + "[integer] in [basic], [long] in [incompatible]",
                 incompatibleError("SELECT languages FROM \"*\" ORDER BY SIGN(ABS(emp_no))"));
+    }
+
+    public void testConditionalWithDifferentDataTypes_SelectClause() {
+        @SuppressWarnings("unchecked")
+        String function = randomFrom(IfNull.class, NullIf.class).getSimpleName();
+        assertEquals("1:" + (22 + function.length()) +
+                ": expected data type [INTEGER], value provided is of type [KEYWORD]",
+            error("SELECT 1 = 1  OR " + function + "(3, '4') > 1"));
+
+        @SuppressWarnings("unchecked")
+        String arbirtraryArgsfunction = randomFrom(Coalesce.class, Greatest.class, Least.class).getSimpleName();
+        assertEquals("1:" + (34 + arbirtraryArgsfunction.length()) +
+                ": expected data type [INTEGER], value provided is of type [KEYWORD]",
+            error("SELECT 1 = 1  OR " + arbirtraryArgsfunction + "(null, null, 3, '4') > 1"));
+    }
+
+    public void testConditionalWithDifferentDataTypes_WhereClause() {
+        @SuppressWarnings("unchecked")
+        String function = randomFrom(IfNull.class, NullIf.class).getSimpleName();
+        assertEquals("1:" + (34 + function.length()) +
+                ": expected data type [KEYWORD], value provided is of type [INTEGER]",
+            error("SELECT * FROM test WHERE " + function + "('foo', 4) > 1"));
+
+        @SuppressWarnings("unchecked")
+        String arbirtraryArgsfunction = randomFrom(Coalesce.class, Greatest.class, Least.class).getSimpleName();
+        assertEquals("1:" + (46 + arbirtraryArgsfunction.length()) +
+                ": expected data type [KEYWORD], value provided is of type [INTEGER]",
+            error("SELECT * FROM test WHERE " + arbirtraryArgsfunction + "(null, null, 'foo', 4) > 1"));
     }
 }

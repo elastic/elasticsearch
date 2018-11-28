@@ -182,8 +182,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
         createIndex("squash", Settings.EMPTY);
 
-        ExplainLifecycleRequest req = new ExplainLifecycleRequest();
-        req.indices("foo-01", "baz-01", "squash");
+        ExplainLifecycleRequest req = new ExplainLifecycleRequest("foo-01", "baz-01", "squash");
         ExplainLifecycleResponse response = execute(req, highLevelClient().indexLifecycle()::explainLifecycle,
                 highLevelClient().indexLifecycle()::explainLifecycleAsync);
         Map<String, IndexLifecycleExplainResponse> indexResponses = response.getIndexResponses();

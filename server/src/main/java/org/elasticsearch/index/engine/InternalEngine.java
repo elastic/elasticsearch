@@ -59,6 +59,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -87,6 +88,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.sql.Time;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -96,6 +98,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1507,7 +1510,13 @@ public class InternalEngine extends Engine {
                     // the second refresh will only do the extra work we have to do for warming caches etc.
                     ReferenceManager<IndexSearcher> referenceManager = getReferenceManager(scope);
                     // it is intentional that we never refresh both internal / external together
+                    long l = System.nanoTime();
+                    logger.warn("calling refresh from [{}] with scope [{}] IW memory: [{}] bytes / [{}] bytes VersionMap: [{}] bytes / " +
+                            "[{}] bytes",
+                        source, scope, indexWriter.ramBytesUsed(), indexWriter.getFlushingBytes(), versionMap.ramBytesUsed(),
+                        versionMap.ramBytesUsedForRefresh());
                     referenceManager.maybeRefreshBlocking();
+                    logger.warn("refresh done after [{} ms]", TimeValue.timeValueNanos(System.nanoTime() - l).getMillis());
                 } finally {
                     store.decRef();
                 }

@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 
-class Transports {
+final class Transports {
+
+    private Transports() {}
+    
     static String username(SecurityContext securityContext) {
         return securityContext != null && securityContext.getUser() != null ? securityContext.getUser().principal() : null;
     }

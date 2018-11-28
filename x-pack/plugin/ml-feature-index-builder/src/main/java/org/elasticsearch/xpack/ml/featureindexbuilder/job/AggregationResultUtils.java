@@ -30,11 +30,15 @@ final class AggregationResultUtils {
      * @param agg The aggregation result
      * @param sources The original sources used for querying
      * @param aggregationBuilders the aggregation used for querying
+     * @param dataFrameIndexerJobStats stats collector
      * @return a map containing the results of the aggregation in a consumable way
      */
     public static Stream<Map<String, Object>> extractCompositeAggregationResults(CompositeAggregation agg,
-            List<CompositeValuesSourceBuilder<?>> sources, Collection<AggregationBuilder> aggregationBuilders) {
+            List<CompositeValuesSourceBuilder<?>> sources, Collection<AggregationBuilder> aggregationBuilders,
+            DataFrameIndexerJobStats dataFrameIndexerJobStats) {
         return agg.getBuckets().stream().map(bucket -> {
+            dataFrameIndexerJobStats.incrementNumDocuments(bucket.getDocCount());
+
             Map<String, Object> document = new HashMap<>();
             for (CompositeValuesSourceBuilder<?> source : sources) {
                 String destinationFieldName = source.name();

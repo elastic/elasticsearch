@@ -61,6 +61,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
     private final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(namedXContents);
 
     private final String KEY = Aggregation.CommonFields.KEY.getPreferredName();
+    private final String DOC_COUNT = Aggregation.CommonFields.DOC_COUNT.getPreferredName();
 
     // aggregations potentially useful for writing tests, to be expanded as necessary
     private static final List<NamedXContentRegistry.Entry> namedXContents;
@@ -107,17 +108,20 @@ public class AggregationResultUtilsTests extends ESTestCase {
                                   KEY, asMap(
                                           targetField, "ID1"),
                                   aggTypedName, asMap(
-                                          "value", 42.33)),
+                                          "value", 42.33),
+                                  DOC_COUNT, 8),
                             asMap(
                                   KEY, asMap(
                                           targetField, "ID2"),
                                   aggTypedName, asMap(
-                                          "value", 28.99)),
+                                          "value", 28.99),
+                                  DOC_COUNT, 3),
                             asMap(
                                   KEY, asMap(
                                           targetField, "ID3"),
                                   aggTypedName, asMap(
-                                          "value", 12.55))
+                                          "value", 12.55),
+                                  DOC_COUNT, 9)
                     ));
 
         List<Map<String, Object>> expected = asList(
@@ -135,7 +139,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                         )
                 );
 
-        executeTest(sources, aggregationBuilders, input, expected);
+        executeTest(sources, aggregationBuilders, input, expected, 20);
     }
 
     public void testExtractCompositeAggregationResultsMultiSources() throws IOException {
@@ -160,28 +164,32 @@ public class AggregationResultUtilsTests extends ESTestCase {
                                           targetField2, "ID1_2"
                                           ),
                                   aggTypedName, asMap(
-                                          "value", 42.33)),
+                                          "value", 42.33),
+                                  DOC_COUNT, 1),
                             asMap(
                                     KEY, asMap(
                                             targetField, "ID1",
                                             targetField2, "ID2_2"
                                             ),
                                     aggTypedName, asMap(
-                                            "value", 8.4)),
+                                            "value", 8.4),
+                                    DOC_COUNT, 2),
                             asMap(
                                   KEY, asMap(
                                           targetField, "ID2",
                                           targetField2, "ID1_2"
                                           ),
                                   aggTypedName, asMap(
-                                          "value", 28.99)),
+                                          "value", 28.99),
+                                  DOC_COUNT, 3),
                             asMap(
                                   KEY, asMap(
                                           targetField, "ID3",
                                           targetField2, "ID2_2"
                                           ),
                                   aggTypedName, asMap(
-                                          "value", 12.55))
+                                          "value", 12.55),
+                                  DOC_COUNT, 4)
                     ));
 
         List<Map<String, Object>> expected = asList(
@@ -206,7 +214,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                         aggName, 12.55
                         )
                 );
-        executeTest(sources, aggregationBuilders, input, expected);
+        executeTest(sources, aggregationBuilders, input, expected, 10);
     }
 
     public void testExtractCompositeAggregationResultsMultiAggregations() throws IOException {
@@ -232,21 +240,24 @@ public class AggregationResultUtilsTests extends ESTestCase {
                                   aggTypedName, asMap(
                                           "value", 42.33),
                                   aggTypedName2, asMap(
-                                          "value", 9.9)),
+                                          "value", 9.9),
+                                  DOC_COUNT, 111),
                             asMap(
                                   KEY, asMap(
                                           targetField, "ID2"),
                                   aggTypedName, asMap(
                                           "value", 28.99),
                                   aggTypedName2, asMap(
-                                          "value", 222.33)),
+                                          "value", 222.33),
+                                  DOC_COUNT, 88),
                             asMap(
                                   KEY, asMap(
                                           targetField, "ID3"),
                                   aggTypedName, asMap(
                                           "value", 12.55),
                                   aggTypedName2, asMap(
-                                          "value", -2.44))
+                                          "value", -2.44),
+                                  DOC_COUNT, 1)
                     ));
 
         List<Map<String, Object>> expected = asList(
@@ -266,20 +277,22 @@ public class AggregationResultUtilsTests extends ESTestCase {
                         aggName2, -2.44
                         )
                 );
-        executeTest(sources, aggregationBuilders, input, expected);
+        executeTest(sources, aggregationBuilders, input, expected, 200);
     }
 
     private void executeTest(List<CompositeValuesSourceBuilder<?>> sources, Collection<AggregationBuilder> aggregationBuilders,
-            Map<String, Object> input, List<Map<String, Object>> expected) throws IOException {
+            Map<String, Object> input, List<Map<String, Object>> expected, long expectedDocCounts) throws IOException {
+        DataFrameIndexerJobStats stats = new DataFrameIndexerJobStats();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);
 
         try (XContentParser parser = createParser(builder)) {
             CompositeAggregation agg = ParsedComposite.fromXContent(parser, "my_feature");
-            List<Map<String, Object>> result = AggregationResultUtils.extractCompositeAggregationResults(agg, sources, aggregationBuilders)
-                    .collect(Collectors.toList());
+            List<Map<String, Object>> result = AggregationResultUtils
+                    .extractCompositeAggregationResults(agg, sources, aggregationBuilders, stats).collect(Collectors.toList());
 
             assertEquals(expected, result);
+            assertEquals(expectedDocCounts, stats.getNumDocuments());
         }
     }
 

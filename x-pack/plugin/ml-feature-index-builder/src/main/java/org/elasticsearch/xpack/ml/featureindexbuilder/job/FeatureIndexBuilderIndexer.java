@@ -36,7 +36,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.ml.featureindexbuilder.persistence.DataframeIndex.DOC_TYPE;
 
-public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, FeatureIndexBuilderJobStats> {
+public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, DataFrameIndexerJobStats> {
 
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
     private static final Logger logger = LogManager.getLogger(FeatureIndexBuilderIndexer.class);
@@ -44,7 +44,7 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
 
     public FeatureIndexBuilderIndexer(Executor executor, FeatureIndexBuilderJob job, AtomicReference<IndexerState> initialState,
             Map<String, Object> initialPosition) {
-        super(executor, initialState, initialPosition, new FeatureIndexBuilderJobStats());
+        super(executor, initialState, initialPosition, new DataFrameIndexerJobStats());
 
         this.job = job;
     }
@@ -78,7 +78,7 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
         List<CompositeValuesSourceBuilder<?>> sources = job.getConfig().getSourceConfig().getSources();
         Collection<AggregationBuilder> aggregationBuilders = job.getConfig().getAggregationConfig().getAggregatorFactories();
 
-        return AggregationResultUtils.extractCompositeAggregationResults(agg, sources, aggregationBuilders).map(document -> {
+        return AggregationResultUtils.extractCompositeAggregationResults(agg, sources, aggregationBuilders, getStats()).map(document -> {
             XContentBuilder builder;
             try {
                 builder = jsonBuilder();

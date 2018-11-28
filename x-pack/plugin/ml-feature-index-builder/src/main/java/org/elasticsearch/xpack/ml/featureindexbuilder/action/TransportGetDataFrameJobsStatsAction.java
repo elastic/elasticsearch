@@ -22,9 +22,8 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsAction.Request;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsAction.Response;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfig;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsStatsAction.Request;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsStatsAction.Response;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobTask;
 import org.elasticsearch.xpack.ml.featureindexbuilder.persistence.DataFramePersistentTaskUtils;
 
@@ -34,24 +33,25 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class TransportGetDataFrameJobsAction extends
+public class TransportGetDataFrameJobsStatsAction extends
         TransportTasksAction<FeatureIndexBuilderJobTask,
-        GetDataFrameJobsAction.Request,
-        GetDataFrameJobsAction.Response,
-        GetDataFrameJobsAction.Response> {
+        GetDataFrameJobsStatsAction.Request,
+        GetDataFrameJobsStatsAction.Response,
+        GetDataFrameJobsStatsAction.Response> {
 
     @Inject
-    public TransportGetDataFrameJobsAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
-        super(GetDataFrameJobsAction.NAME, clusterService, transportService, actionFilters, GetDataFrameJobsAction.Request::new,
-                GetDataFrameJobsAction.Response::new, ThreadPool.Names.SAME);
+    public TransportGetDataFrameJobsStatsAction(TransportService transportService, ActionFilters actionFilters,
+            ClusterService clusterService) {
+        super(GetDataFrameJobsStatsAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
+                ThreadPool.Names.SAME);
     }
 
     @Override
     protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,
             List<FailedNodeException> failedNodeExceptions) {
-        List<FeatureIndexBuilderJobConfig> configs = tasks.stream().map(GetDataFrameJobsAction.Response::getJobConfigurations)
+        List<DataFrameJobStateAndStats> responses = tasks.stream().map(GetDataFrameJobsStatsAction.Response::getJobsStateAndStats)
                 .flatMap(Collection::stream).collect(Collectors.toList());
-        return new Response(configs, taskOperationFailures, failedNodeExceptions);
+        return new Response(responses, taskOperationFailures, failedNodeExceptions);
     }
 
     @Override
@@ -61,16 +61,18 @@ public class TransportGetDataFrameJobsAction extends
 
     @Override
     protected void taskOperation(Request request, FeatureIndexBuilderJobTask task, ActionListener<Response> listener) {
-        List<FeatureIndexBuilderJobConfig> configs = Collections.emptyList();
+        List<DataFrameJobStateAndStats> jobsStateAndStats = Collections.emptyList();
 
         assert task.getConfig().getId().equals(request.getId()) || request.getId().equals(MetaData.ALL);
 
         // Little extra insurance, make sure we only return jobs that aren't cancelled
         if (task.isCancelled() == false) {
-            configs = Collections.singletonList(task.getConfig());
+            DataFrameJobStateAndStats jobStateAndStats = new DataFrameJobStateAndStats(task.getConfig().getId(), task.getState(),
+                    task.getStats());
+            jobsStateAndStats = Collections.singletonList(jobStateAndStats);
         }
 
-        listener.onResponse(new Response(configs));
+        listener.onResponse(new Response(jobsStateAndStats));
     }
 
     @Override

@@ -412,7 +412,8 @@ public class ApiKeyService {
             // match and combine queries
             for (RoleDescriptor existingRD : existingRoleDescriptors) {
                 for (IndicesPrivileges indicesPriv : existingRD.getIndicesPrivileges()) {
-                    if (Operations.subsetOf(indexNamesAutomaton, Automatons.patterns(indicesPriv.getIndices()))) {
+                    if (Operations.subsetOf(indexNamesAutomaton, Automatons.patterns(indicesPriv.getIndices()))
+                            && indicesPriv.getQuery() != null) {
                         final String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(indicesPriv.getQuery().utf8ToString(),
                                 scriptService, user);
                         try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
@@ -430,7 +431,7 @@ public class ApiKeyService {
             // index name patterns match.
             for (RoleDescriptor subsetRD : subsetRoleDescriptors) {
                 for (IndicesPrivileges ip : subsetRD.getIndicesPrivileges()) {
-                    if (Sets.newHashSet(ip.getIndices()).equals(indexNamePattern)) {
+                    if (Sets.newHashSet(ip.getIndices()).equals(indexNamePattern) && ip.getQuery() != null) {
                         final String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(ip.getQuery().utf8ToString(),
                                 scriptService, user);
                         try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,

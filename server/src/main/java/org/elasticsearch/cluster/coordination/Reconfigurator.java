@@ -94,7 +94,6 @@ public class Reconfigurator {
      * @return An optimal configuration, or leave the current configuration unchanged if the optimal configuration has no live quorum.
      */
     public VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds, VotingConfiguration currentConfig) {
-        assert liveNodes.stream().noneMatch(Coordinator::isZen1Node) : liveNodes;
         logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}", this, currentConfig, liveNodes, retiredNodeIds);
 
         /*

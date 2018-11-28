@@ -137,9 +137,9 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
                     expectedCounts.put(expectedCounts.lastKey() + interval, 0L);
                 }
             }
+        } else {
+            expectedCounts.entrySet().removeIf(doubleLongEntry -> doubleLongEntry.getValue() < minDocCount);
         }
-
-        expectedCounts.entrySet().removeIf(doubleLongEntry -> doubleLongEntry.getValue() < minDocCount);
 
         Map<Double, Long> actualCounts = new TreeMap<>();
         for (Histogram.Bucket bucket : reduced.getBuckets()) {

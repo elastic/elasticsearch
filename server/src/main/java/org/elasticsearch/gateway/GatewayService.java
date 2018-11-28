@@ -74,8 +74,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
     public static final TimeValue DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET = TimeValue.timeValueMinutes(5);
 
-    private final Gateway gateway;
-
     private final ThreadPool threadPool;
 
     private final AllocationService allocationService;
@@ -101,8 +99,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                           TransportNodesListGatewayMetaState listGatewayMetaState,
                           IndicesService indicesService, Discovery discovery) {
         super(settings);
-        this.gateway = new Gateway(settings, clusterService, listGatewayMetaState,
-            indicesService);
         this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -132,6 +128,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             recoveryRunnable = () ->
                     clusterService.submitStateUpdateTask("local-gateway-elected-state", new RecoverStateUpdateTask());
         } else {
+            final Gateway gateway = new Gateway(settings, clusterService, listGatewayMetaState, indicesService);
             recoveryRunnable = () ->
                     gateway.performStateRecovery(new GatewayRecoveryListener());
         }

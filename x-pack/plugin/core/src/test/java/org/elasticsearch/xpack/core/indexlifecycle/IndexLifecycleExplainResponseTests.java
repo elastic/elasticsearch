@@ -26,7 +26,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class IndexExplainResponseTests extends AbstractSerializingTestCase<IndexLifecycleExplainResponse> {
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
+
+public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestCase<IndexLifecycleExplainResponse> {
 
     static IndexLifecycleExplainResponse randomIndexExplainResponse() {
         if (frequently()) {
@@ -41,11 +44,38 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
     }
 
     private static IndexLifecycleExplainResponse randomManagedIndexExplainResponse() {
-        return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10), randomAlphaOfLength(10),
-            randomNonNegativeLong(), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-            randomBoolean() ? null : randomAlphaOfLength(10), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+        boolean stepNull = randomBoolean();
+        return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : randomNonNegativeLong(),
+            stepNull ? null : randomAlphaOfLength(10),
+            stepNull ? null : randomAlphaOfLength(10),
+            stepNull ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            stepNull ? null : randomNonNegativeLong(),
+            stepNull ? null : randomNonNegativeLong(),
+            stepNull ? null : randomNonNegativeLong(),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
             randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
+    }
+
+    public void testInvalidStepDetails() {
+        final int numNull = randomIntBetween(1, 3);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
+            IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomBoolean() ? null : randomNonNegativeLong(),
+                (numNull == 1) ? null : randomAlphaOfLength(10),
+                (numNull == 2) ? null : randomAlphaOfLength(10),
+                (numNull == 3) ? null : randomAlphaOfLength(10),
+                randomBoolean() ? null : randomAlphaOfLength(10),
+                randomBoolean() ? null : randomNonNegativeLong(),
+                randomBoolean() ? null : randomNonNegativeLong(),
+                randomBoolean() ? null : randomNonNegativeLong(),
+                randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
+                randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")));
+        assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
+        assertThat(exception.getMessage(), containsString("=null"));
     }
 
     @Override
@@ -79,7 +109,7 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
         BytesReference stepInfo = instance.getStepInfo();
         PhaseExecutionInfo phaseExecutionInfo = instance.getPhaseExecutionInfo();
         if (managed) {
-            switch (between(0, 12)) {
+            switch (between(0, 10)) {
             case 0:
                 index = index + randomAlphaOfLengthBetween(1, 5);
                 break;
@@ -87,15 +117,20 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
                 policy = policy + randomAlphaOfLengthBetween(1, 5);
                 break;
             case 2:
-                phase = phase + randomAlphaOfLengthBetween(1, 5);
+                phase = randomAlphaOfLengthBetween(1, 5);
+                action = randomAlphaOfLengthBetween(1, 5);
+                step = randomAlphaOfLengthBetween(1, 5);
                 break;
             case 3:
-                action = action + randomAlphaOfLengthBetween(1, 5);
+                phaseTime = randomValueOtherThan(phaseTime, () -> randomLongBetween(0, 100000));
                 break;
             case 4:
-                step = step + randomAlphaOfLengthBetween(1, 5);
+                actionTime = randomValueOtherThan(actionTime, () -> randomLongBetween(0, 100000));
                 break;
             case 5:
+                stepTime = randomValueOtherThan(stepTime, () -> randomLongBetween(0, 100000));
+                break;
+            case 6:
                 if (Strings.hasLength(failedStep) == false) {
                     failedStep = randomAlphaOfLength(10);
                 } else if (randomBoolean()) {
@@ -104,19 +139,10 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
                     failedStep = null;
                 }
                 break;
-            case 6:
-                policyTime += randomLongBetween(0, 100000);
-                break;
             case 7:
-                phaseTime += randomLongBetween(0, 100000);
+                policyTime = randomValueOtherThan(policyTime, () -> randomLongBetween(0, 100000));
                 break;
             case 8:
-                actionTime += randomLongBetween(0, 100000);
-                break;
-            case 9:
-                stepTime += randomLongBetween(0, 100000);
-                break;
-            case 10:
                 if (Strings.hasLength(stepInfo) == false) {
                     stepInfo = new BytesArray(randomByteArrayOfLength(100));
                 } else if (randomBoolean()) {
@@ -126,10 +152,10 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
                     stepInfo = null;
                 }
                 break;
-            case 11:
+            case 9:
                 phaseExecutionInfo = randomValueOtherThan(phaseExecutionInfo, () -> PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
                 break;
-            case 12:
+            case 10:
                 return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
             default:
                 throw new AssertionError("Illegal randomisation branch");

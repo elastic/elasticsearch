@@ -42,7 +42,8 @@ public class JobWrapperSerializingTests extends AbstractSerializingTestCase<GetR
 
         return new GetRollupJobsAction.JobWrapper(ConfigTestHelpers.randomRollupJobConfig(random()),
                 new RollupIndexerJobStats(randomNonNegativeLong(), randomNonNegativeLong(),
-                    randomNonNegativeLong(), randomNonNegativeLong()),
+                    randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                    randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
                 new RollupJobStatus(state, Collections.emptyMap(), randomBoolean()));
     }
 }

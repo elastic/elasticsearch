@@ -221,7 +221,12 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     public void testMarkAcceptedConfigAsCommitted() throws IOException {
         GatewayMetaStateUT gateway = newGateway();
 
-        CoordinationMetaData coordinationMetaData = createCoordinationMetaData(randomNonNegativeLong());
+        //generate random coordinationMetaData with different lastAcceptedConfiguration and lastCommittedConfiguration
+        CoordinationMetaData coordinationMetaData;
+        do {
+            coordinationMetaData = createCoordinationMetaData(randomNonNegativeLong());
+        } while (coordinationMetaData.getLastAcceptedConfiguration().equals(coordinationMetaData.getLastCommittedConfiguration()));
+
         ClusterState state = createClusterState(randomNonNegativeLong(),
                 MetaData.builder().coordinationMetaData(coordinationMetaData).build());
         gateway.setLastAcceptedState(state);

@@ -112,6 +112,7 @@ public class MlConfigMigrator {
 
         if (migrationInProgress.compareAndSet(false, true) == false) {
             listener.onResponse(Boolean.FALSE);
+            return;
         }
 
         Collection<DatafeedConfig> datafeedsToMigrate = stoppedDatafeedConfigs(clusterState);
@@ -196,8 +197,14 @@ public class MlConfigMigrator {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                logger.info("ml job configurations migrated: {}", removedConfigs.get().removedJobIds);
-                logger.info("ml datafeed configurations migrated: {}", removedConfigs.get().removedDatafeedIds);
+                if (removedConfigs.get() != null) {
+                    if (removedConfigs.get().removedJobIds.isEmpty() == false) {
+                        logger.info("ml job configurations migrated: {}", removedConfigs.get().removedJobIds);
+                    }
+                    if (removedConfigs.get().removedDatafeedIds.isEmpty() == false) {
+                        logger.info("ml datafeed configurations migrated: {}", removedConfigs.get().removedDatafeedIds);
+                    }
+                }
                 listener.onResponse(Boolean.TRUE);
             }
         });

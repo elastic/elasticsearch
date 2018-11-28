@@ -60,6 +60,7 @@ public class RepositoriesService implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(RepositoriesService.class);
 
     private final Map<String, Repository.Factory> typesRegistry;
+    private final Map<String, Repository.Factory> internalTypesRegistry;
 
     private final ClusterService clusterService;
 
@@ -75,6 +76,7 @@ public class RepositoriesService implements ClusterStateApplier {
                                Map<String, Repository.Factory> typesRegistry,
                                ThreadPool threadPool) {
         this.typesRegistry = typesRegistry;
+        this.internalTypesRegistry = Collections.emptyMap();
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
@@ -358,6 +360,39 @@ public class RepositoriesService implements ClusterStateApplier {
             return repository;
         }
         throw new RepositoryMissingException(repositoryName);
+    }
+
+    public void registerInternalRepository(String name, String type) {
+        // TODO: Do we want settings to be empty
+        RepositoryMetaData metaData = new RepositoryMetaData(name, type, Settings.EMPTY);
+
+        logger.debug("creating repository [{}][{}]", metaData.type(), metaData.name());
+        Repository.Factory factory = internalTypesRegistry.get(metaData.type());
+        if (factory == null) {
+            throw new RepositoryException(metaData.name(), "repository type [" + metaData.type() + "] does not exist");
+        }
+
+        Repository repository;
+        try {
+            repository = factory.create(metaData, internalTypesRegistry::get);
+        } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("failed to create repository [{}][{}]", metaData.type(), metaData.name()), e);
+            throw new RepositoryException(metaData.name(), "failed to create repository", e);
+        }
+
+        Repository existingRepository = internalRepositories.putIfAbsent(name, repository);
+
+        if (existingRepository != null) {
+            logger.error(new ParameterizedMessage("Error registering internal [type={}] repository [name={}]. " +
+                "Internal repository with that name already registered.", metaData.type(), name));
+        }
+        if (repositories.containsKey(name)) {
+            logger.warn(new ParameterizedMessage("Non-internal repository [name={}] already registered. This repository will block the " +
+                "usage of internal [type={}] repository [name={}].", name, metaData.type(), name));
+        }
+
+        repository.start();
+
     }
 
     public void registerInternalRepository(String name, Repository repository) {

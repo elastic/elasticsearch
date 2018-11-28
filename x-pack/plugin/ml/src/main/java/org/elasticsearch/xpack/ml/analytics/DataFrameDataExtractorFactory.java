@@ -45,10 +45,12 @@ public class DataFrameDataExtractorFactory {
     private static final Set<String> COMPATIBLE_FIELD_TYPES;
 
     static {
-        COMPATIBLE_FIELD_TYPES = Stream.of(NumberFieldMapper.NumberType.values())
+        Set<String> compatibleTypes = Stream.of(NumberFieldMapper.NumberType.values())
             .map(NumberFieldMapper.NumberType::typeName)
             .collect(Collectors.toSet());
-        COMPATIBLE_FIELD_TYPES.add("scaled_float"); // have to add manually since scaled_float is in a module
+        compatibleTypes.add("scaled_float"); // have to add manually since scaled_float is in a module
+
+        COMPATIBLE_FIELD_TYPES = Collections.unmodifiableSet(compatibleTypes);
     }
 
     private final Client client;

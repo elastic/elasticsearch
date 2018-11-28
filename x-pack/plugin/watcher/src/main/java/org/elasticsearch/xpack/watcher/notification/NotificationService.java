@@ -177,8 +177,10 @@ public abstract class NotificationService<Account> {
         final SecureSettings sourceSecureSettings = Settings.builder().put(source, true).getSecureSettings();
         // cache them...
         final Map<String, SecureString> cache = new HashMap<>();
-        for (final String settingKey : sourceSecureSettings.getSettingNames()) {
-            cache.put(settingKey, sourceSecureSettings.getString(settingKey));
+        if (sourceSecureSettings != null) {
+            for (final String settingKey : sourceSecureSettings.getSettingNames()) {
+                cache.put(settingKey, sourceSecureSettings.getString(settingKey));
+            }
         }
         return new SecureSettings() {
 

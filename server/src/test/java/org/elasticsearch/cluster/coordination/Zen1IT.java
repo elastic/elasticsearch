@@ -18,6 +18,10 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingTombstonesAction;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingTombstonesRequest;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingTombstonesAction;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingTombstonesRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
@@ -69,7 +73,31 @@ public class Zen1IT extends ESIntegTestCase {
         final List<String> nodes = internalCluster().startNodes(IntStream.range(0, zen1NodeCount + zen2NodeCount)
             .mapToObj(i -> i < zen1NodeCount ? ZEN1_SETTINGS : ZEN2_SETTINGS).toArray(Settings[]::new));
 
+
+        createIndex("test",
+            Settings.builder()
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, zen1NodeCount + zen2NodeCount) // causes rebalancing
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build());
+        ensureGreen("test");
+
         for (final String node : nodes) {
+            final boolean addedVotingTombstone;
+            if (zen1NodeCount == 1 && zen2NodeCount < 3) {
+                final int nodeIndex = nodes.indexOf(node);
+                final int masterIndex = nodes.indexOf(internalCluster().getMasterName());
+                if (zen1NodeCount <= nodeIndex && zen1NodeCount <= masterIndex) {
+                    // restarting a Zen2 node following a Zen2 master, with < 3 Zen2 nodes, so it might be the only one with a vote.
+                    client().execute(AddVotingTombstonesAction.INSTANCE, new AddVotingTombstonesRequest(new String[]{node})).get();
+                    addedVotingTombstone = true;
+                } else {
+                    addedVotingTombstone = false;
+                }
+            } else {
+                addedVotingTombstone = false;
+            }
+
             internalCluster().restartNode(node, new RestartCallback() {
                 @Override
                 public Settings onNodeStopped(String restartingNode) {
@@ -84,6 +112,13 @@ public class Zen1IT extends ESIntegTestCase {
                 }
             });
             ensureStableCluster(zen1NodeCount + zen2NodeCount);
+            ensureGreen("test");
+
+            if (addedVotingTombstone) {
+                final ClearVotingTombstonesRequest clearVotingTombstonesRequest = new ClearVotingTombstonesRequest();
+                clearVotingTombstonesRequest.setWaitForRemoval(false);
+                client().execute(ClearVotingTombstonesAction.INSTANCE, clearVotingTombstonesRequest).get();
+            }
         }
     }
 

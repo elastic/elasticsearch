@@ -18,15 +18,21 @@
  */
 package org.elasticsearch.client.watcher;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.Map;
 import java.util.Objects;
 
 public class GetWatchResponse {
@@ -35,6 +41,7 @@ public class GetWatchResponse {
     private final WatchStatus status;
 
     private final BytesReference source;
+    private transient Map<String, Object> sourceAsMap;
 
     /**
      * Ctor for missing watch
@@ -66,12 +73,33 @@ public class GetWatchResponse {
         return status;
     }
 
+    /**
+     * Returns the {@link XContentType} of the source
+     */
+    public XContentType getContentType() {
+        return XContentType.JSON;
+    }
+
+    /**
+     * Returns the serialized watch
+     */
     public BytesReference getSource() {
         return source;
     }
 
-    public XContentType getContentType() {
-        return XContentType.JSON;
+    /**
+     * Returns the source as a map
+     */
+    public Map<String, Object> getSourceAsMap() throws IOException {
+        if (sourceAsMap == null) {
+            // EMPTY is safe here because we never use namedObject
+            try (InputStream stream = source.streamInput();
+                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                     LoggingDeprecationHandler.INSTANCE, stream)) {
+                sourceAsMap = (Map<String, Object>) XContentUtils.readValue(parser, parser.nextToken());
+            }
+        }
+        return sourceAsMap;
     }
 
     @Override

@@ -23,23 +23,23 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJob;
 
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-public class TransportDeleteFeatureIndexBuilderJobAction
-        extends TransportMasterNodeAction<DeleteFeatureIndexBuilderJobAction.Request, AcknowledgedResponse> {
+public class TransportDeleteDataFrameJobAction
+        extends TransportMasterNodeAction<DeleteDataFrameJobAction.Request, AcknowledgedResponse> {
 
     private final PersistentTasksService persistentTasksService;
-    private static final Logger logger = LogManager.getLogger(TransportDeleteFeatureIndexBuilderJobAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportDeleteDataFrameJobAction.class);
 
     @Inject
-    public TransportDeleteFeatureIndexBuilderJobAction(TransportService transportService, ThreadPool threadPool,
+    public TransportDeleteDataFrameJobAction(TransportService transportService, ThreadPool threadPool,
             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
             PersistentTasksService persistentTasksService, ClusterService clusterService) {
-        super(DeleteFeatureIndexBuilderJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, DeleteFeatureIndexBuilderJobAction.Request::new);
+        super(DeleteDataFrameJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                indexNameExpressionResolver, DeleteDataFrameJobAction.Request::new);
         this.persistentTasksService = persistentTasksService;
     }
 
@@ -54,7 +54,7 @@ public class TransportDeleteFeatureIndexBuilderJobAction
     }
 
     @Override
-    protected void masterOperation(DeleteFeatureIndexBuilderJobAction.Request request, ClusterState state,
+    protected void masterOperation(DeleteDataFrameJobAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
 
         String jobId = request.getId();
@@ -68,9 +68,9 @@ public class TransportDeleteFeatureIndexBuilderJobAction
 
                 // Step 2. Wait for the task to finish cancellation internally
                 persistentTasksService.waitForPersistentTaskCondition(jobId, Objects::isNull, timeout,
-                        new PersistentTasksService.WaitForPersistentTaskListener<FeatureIndexBuilderJob>() {
+                        new PersistentTasksService.WaitForPersistentTaskListener<DataFrameJob>() {
                             @Override
-                            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<FeatureIndexBuilderJob> task) {
+                            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<DataFrameJob> task) {
                                 logger.debug("Task for Feature Index Builder job [" + jobId + "] successfully canceled.");
                                 listener.onResponse(new AcknowledgedResponse(true));
                             }
@@ -101,7 +101,7 @@ public class TransportDeleteFeatureIndexBuilderJobAction
     }
 
     @Override
-    protected ClusterBlockException checkBlock(DeleteFeatureIndexBuilderJobAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(DeleteDataFrameJobAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

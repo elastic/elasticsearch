@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.featureindexbuilder.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.DeleteFeatureIndexBuilderJobAction.Request;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.DeleteDataFrameJobAction.Request;
 
 public class DeleteFeatureIndexBuilderJobActionRequestTests extends AbstractStreamableTestCase<Request> {
     @Override

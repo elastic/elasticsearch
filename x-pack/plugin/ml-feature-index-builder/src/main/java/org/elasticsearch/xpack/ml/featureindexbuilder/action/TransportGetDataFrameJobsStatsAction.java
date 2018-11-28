@@ -24,7 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsStatsAction.Request;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsStatsAction.Response;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobTask;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobTask;
 import org.elasticsearch.xpack.ml.featureindexbuilder.persistence.DataFramePersistentTaskUtils;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class TransportGetDataFrameJobsStatsAction extends
-        TransportTasksAction<FeatureIndexBuilderJobTask,
+        TransportTasksAction<DataFrameJobTask,
         GetDataFrameJobsStatsAction.Request,
         GetDataFrameJobsStatsAction.Response,
         GetDataFrameJobsStatsAction.Response> {
@@ -60,7 +60,7 @@ public class TransportGetDataFrameJobsStatsAction extends
     }
 
     @Override
-    protected void taskOperation(Request request, FeatureIndexBuilderJobTask task, ActionListener<Response> listener) {
+    protected void taskOperation(Request request, DataFrameJobTask task, ActionListener<Response> listener) {
         List<DataFrameJobStateAndStats> jobsStateAndStats = Collections.emptyList();
 
         assert task.getConfig().getId().equals(request.getId()) || request.getId().equals(MetaData.ALL);

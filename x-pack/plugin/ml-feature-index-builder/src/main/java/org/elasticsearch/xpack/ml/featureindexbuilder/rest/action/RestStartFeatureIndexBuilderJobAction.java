@@ -13,8 +13,8 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.ml.featureindexbuilder.FeatureIndexBuilder;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartFeatureIndexBuilderJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.DataFrame;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartDataFrameJobAction;
 
 import java.io.IOException;
 
@@ -22,15 +22,15 @@ public class RestStartFeatureIndexBuilderJobAction extends BaseRestHandler {
     
     public RestStartFeatureIndexBuilderJobAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, FeatureIndexBuilder.BASE_PATH_JOBS_BY_ID + "_start", this);
+        controller.registerHandler(RestRequest.Method.POST, DataFrame.BASE_PATH_JOBS_BY_ID + "_start", this);
     }
     
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String id = restRequest.param(RollupField.ID.getPreferredName());
-        StartFeatureIndexBuilderJobAction.Request request = new StartFeatureIndexBuilderJobAction.Request(id);
+        StartDataFrameJobAction.Request request = new StartDataFrameJobAction.Request(id);
 
-        return channel -> client.execute(StartFeatureIndexBuilderJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(StartDataFrameJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

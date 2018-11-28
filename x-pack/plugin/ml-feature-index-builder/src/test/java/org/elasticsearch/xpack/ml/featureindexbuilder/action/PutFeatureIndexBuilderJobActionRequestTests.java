@@ -12,8 +12,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutFeatureIndexBuilderJobAction.Request;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfig;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutDataFrameJobAction.Request;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobConfig;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfigTests;
 import org.junit.Before;
 
@@ -68,7 +68,7 @@ public class PutFeatureIndexBuilderJobActionRequestTests extends AbstractStreama
 
     @Override
     protected Request createTestInstance() {
-        FeatureIndexBuilderJobConfig config = FeatureIndexBuilderJobConfigTests.randomFeatureIndexBuilderJobConfig();
+        DataFrameJobConfig config = FeatureIndexBuilderJobConfigTests.randomFeatureIndexBuilderJobConfig();
         return new Request(config);
     }
 

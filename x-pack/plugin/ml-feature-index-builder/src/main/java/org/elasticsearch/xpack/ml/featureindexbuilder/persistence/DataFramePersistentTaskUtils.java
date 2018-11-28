@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.featureindexbuilder.persistence;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.ml.featureindexbuilder.FeatureIndexBuilder;
+import org.elasticsearch.xpack.ml.featureindexbuilder.DataFrame;
 
 public final class DataFramePersistentTaskUtils {
 
@@ -29,7 +29,7 @@ public final class DataFramePersistentTaskUtils {
             // persistent tasks and see if at least once has a DataFrameJob param
             if (id.equals(MetaData.ALL)) {
                 hasJobs = pTasksMeta.tasks().stream()
-                        .anyMatch(persistentTask -> persistentTask.getTaskName().equals(FeatureIndexBuilder.TASK_NAME));
+                        .anyMatch(persistentTask -> persistentTask.getTaskName().equals(DataFrame.TASK_NAME));
 
             } else if (pTasksMeta.getTask(id) != null) {
                 // If we're looking for a single job, we can just check directly

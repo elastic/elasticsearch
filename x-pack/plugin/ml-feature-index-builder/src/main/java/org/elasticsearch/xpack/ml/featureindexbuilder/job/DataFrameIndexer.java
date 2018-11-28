@@ -36,13 +36,13 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.ml.featureindexbuilder.persistence.DataframeIndex.DOC_TYPE;
 
-public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, DataFrameIndexerJobStats> {
+public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, DataFrameIndexerJobStats> {
 
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
-    private static final Logger logger = LogManager.getLogger(FeatureIndexBuilderIndexer.class);
-    private FeatureIndexBuilderJob job;
+    private static final Logger logger = LogManager.getLogger(DataFrameIndexer.class);
+    private DataFrameJob job;
 
-    public FeatureIndexBuilderIndexer(Executor executor, FeatureIndexBuilderJob job, AtomicReference<IndexerState> initialState,
+    public DataFrameIndexer(Executor executor, DataFrameJob job, AtomicReference<IndexerState> initialState,
             Map<String, Object> initialPosition) {
         super(executor, initialState, initialPosition, new DataFrameIndexerJobStats());
 

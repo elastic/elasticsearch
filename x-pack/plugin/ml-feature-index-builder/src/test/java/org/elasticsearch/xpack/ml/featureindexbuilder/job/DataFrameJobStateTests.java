@@ -15,25 +15,25 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class FeatureIndexBuilderJobStateTests extends AbstractSerializingTestCase<FeatureIndexBuilderJobState> {
+public class DataFrameJobStateTests extends AbstractSerializingTestCase<DataFrameJobState> {
 
-    public static FeatureIndexBuilderJobState randomFeatureIndexBuilderJobState() {
-        return new FeatureIndexBuilderJobState(randomFrom(IndexerState.values()), randomPosition());
+    public static DataFrameJobState randomDataFrameJobState() {
+        return new DataFrameJobState(randomFrom(IndexerState.values()), randomPosition());
     }
 
     @Override
-    protected FeatureIndexBuilderJobState doParseInstance(XContentParser parser) throws IOException {
-        return FeatureIndexBuilderJobState.fromXContent(parser);
+    protected DataFrameJobState doParseInstance(XContentParser parser) throws IOException {
+        return DataFrameJobState.fromXContent(parser);
     }
 
     @Override
-    protected FeatureIndexBuilderJobState createTestInstance() {
-        return randomFeatureIndexBuilderJobState();
+    protected DataFrameJobState createTestInstance() {
+        return randomDataFrameJobState();
     }
 
     @Override
-    protected Reader<FeatureIndexBuilderJobState> instanceReader() {
-        return FeatureIndexBuilderJobState::new;
+    protected Reader<DataFrameJobState> instanceReader() {
+        return DataFrameJobState::new;
     }
 
     private static Map<String, Object> randomPosition() {

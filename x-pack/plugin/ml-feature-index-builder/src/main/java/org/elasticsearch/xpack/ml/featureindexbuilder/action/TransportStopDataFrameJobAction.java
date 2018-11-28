@@ -18,31 +18,31 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobTask;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobTask;
 
 import java.io.IOException;
 import java.util.List;
 
-public class TransportStopFeatureIndexBuilderJobAction extends
-        TransportTasksAction<FeatureIndexBuilderJobTask, StopFeatureIndexBuilderJobAction.Request,
-        StopFeatureIndexBuilderJobAction.Response, StopFeatureIndexBuilderJobAction.Response> {
+public class TransportStopDataFrameJobAction extends
+        TransportTasksAction<DataFrameJobTask, StopDataFrameJobAction.Request,
+        StopDataFrameJobAction.Response, StopDataFrameJobAction.Response> {
 
     @Inject
-    public TransportStopFeatureIndexBuilderJobAction(TransportService transportService, ActionFilters actionFilters,
+    public TransportStopDataFrameJobAction(TransportService transportService, ActionFilters actionFilters,
             ClusterService clusterService) {
-        super(StopFeatureIndexBuilderJobAction.NAME, clusterService, transportService, actionFilters,
-                StopFeatureIndexBuilderJobAction.Request::new, StopFeatureIndexBuilderJobAction.Response::new, ThreadPool.Names.SAME);
+        super(StopDataFrameJobAction.NAME, clusterService, transportService, actionFilters,
+                StopDataFrameJobAction.Request::new, StopDataFrameJobAction.Response::new, ThreadPool.Names.SAME);
     }
 
     @Override
-    protected void doExecute(Task task, StopFeatureIndexBuilderJobAction.Request request,
-            ActionListener<StopFeatureIndexBuilderJobAction.Response> listener) {
+    protected void doExecute(Task task, StopDataFrameJobAction.Request request,
+            ActionListener<StopDataFrameJobAction.Response> listener) {
         super.doExecute(task, request, listener);
     }
 
     @Override
-    protected void taskOperation(StopFeatureIndexBuilderJobAction.Request request, FeatureIndexBuilderJobTask jobTask,
-            ActionListener<StopFeatureIndexBuilderJobAction.Response> listener) {
+    protected void taskOperation(StopDataFrameJobAction.Request request, DataFrameJobTask jobTask,
+            ActionListener<StopDataFrameJobAction.Response> listener) {
         if (jobTask.getConfig().getId().equals(request.getId())) {
             jobTask.stop(listener);
         } else {
@@ -52,8 +52,8 @@ public class TransportStopFeatureIndexBuilderJobAction extends
     }
 
     @Override
-    protected StopFeatureIndexBuilderJobAction.Response newResponse(StopFeatureIndexBuilderJobAction.Request request,
-            List<StopFeatureIndexBuilderJobAction.Response> tasks, List<TaskOperationFailure> taskOperationFailures,
+    protected StopDataFrameJobAction.Response newResponse(StopDataFrameJobAction.Request request,
+            List<StopDataFrameJobAction.Response> tasks, List<TaskOperationFailure> taskOperationFailures,
             List<FailedNodeException> failedNodeExceptions) {
 
         if (taskOperationFailures.isEmpty() == false) {
@@ -71,12 +71,12 @@ public class TransportStopFeatureIndexBuilderJobAction extends
 
         assert tasks.size() == 1;
 
-        boolean allStopped = tasks.stream().allMatch(StopFeatureIndexBuilderJobAction.Response::isStopped);
-        return new StopFeatureIndexBuilderJobAction.Response(allStopped);
+        boolean allStopped = tasks.stream().allMatch(StopDataFrameJobAction.Response::isStopped);
+        return new StopDataFrameJobAction.Response(allStopped);
     }
 
     @Override
-    protected StopFeatureIndexBuilderJobAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new StopFeatureIndexBuilderJobAction.Response(in);
+    protected StopDataFrameJobAction.Response readTaskResponse(StreamInput in) throws IOException {
+        return new StopDataFrameJobAction.Response(in);
     }
 }

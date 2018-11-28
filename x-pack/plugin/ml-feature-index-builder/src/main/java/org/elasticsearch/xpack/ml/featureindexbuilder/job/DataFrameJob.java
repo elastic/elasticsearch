@@ -20,7 +20,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class FeatureIndexBuilderJob implements XPackPlugin.XPackPersistentTaskParams {
+public class DataFrameJob implements XPackPlugin.XPackPersistentTaskParams {
 
     public static final ParseField ID = new ParseField("id");
     public static final String NAME = "xpack/feature_index_builder/job";
@@ -28,24 +28,24 @@ public class FeatureIndexBuilderJob implements XPackPlugin.XPackPersistentTaskPa
     // note: this is used to match tasks
     public static final String PERSISTENT_TASK_DESCRIPTION_PREFIX = "feature_index_builder-";
 
-    private FeatureIndexBuilderJobConfig config;
+    private DataFrameJobConfig config;
 
     private static final ParseField CONFIG = new ParseField("config");
 
-    public static final ConstructingObjectParser<FeatureIndexBuilderJob, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> new FeatureIndexBuilderJob((FeatureIndexBuilderJobConfig) a[0]));
+    public static final ConstructingObjectParser<DataFrameJob, Void> PARSER = new ConstructingObjectParser<>(NAME,
+            a -> new DataFrameJob((DataFrameJobConfig) a[0]));
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> FeatureIndexBuilderJobConfig.fromXContent(p, null),
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DataFrameJobConfig.fromXContent(p, null),
                 CONFIG);
     }
 
-    public FeatureIndexBuilderJob(FeatureIndexBuilderJobConfig config) {
+    public DataFrameJob(DataFrameJobConfig config) {
         this.config = Objects.requireNonNull(config);
     }
 
-    public FeatureIndexBuilderJob(StreamInput in) throws IOException {
-        this.config = new FeatureIndexBuilderJobConfig(in);
+    public DataFrameJob(StreamInput in) throws IOException {
+        this.config = new DataFrameJobConfig(in);
     }
 
     @Override
@@ -72,11 +72,11 @@ public class FeatureIndexBuilderJob implements XPackPlugin.XPackPersistentTaskPa
         return builder;
     }
 
-    public FeatureIndexBuilderJobConfig getConfig() {
+    public DataFrameJobConfig getConfig() {
         return config;
     }
 
-    public static FeatureIndexBuilderJob fromXContent(XContentParser parser) throws IOException {
+    public static DataFrameJob fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -90,7 +90,7 @@ public class FeatureIndexBuilderJob implements XPackPlugin.XPackPersistentTaskPa
             return false;
         }
 
-        FeatureIndexBuilderJob that = (FeatureIndexBuilderJob) other;
+        DataFrameJob that = (DataFrameJob) other;
 
         return Objects.equals(this.config, that.config);
     }

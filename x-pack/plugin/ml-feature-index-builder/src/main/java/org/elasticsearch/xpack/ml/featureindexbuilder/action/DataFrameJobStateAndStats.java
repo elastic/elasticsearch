@@ -13,9 +13,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobState;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameIndexerJobStats;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJob;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobState;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -26,20 +26,20 @@ public class DataFrameJobStateAndStats implements Writeable, ToXContentObject {
     public static final ParseField STATS_FIELD = new ParseField("stats");
 
     private final String id;
-    private final FeatureIndexBuilderJobState jobState;
+    private final DataFrameJobState jobState;
     private final DataFrameIndexerJobStats jobStats;
 
     public static final ConstructingObjectParser<DataFrameJobStateAndStats, Void> PARSER = new ConstructingObjectParser<>(
             GetDataFrameJobsAction.NAME,
-            a -> new DataFrameJobStateAndStats((String) a[0], (FeatureIndexBuilderJobState) a[1], (DataFrameIndexerJobStats) a[2]));
+            a -> new DataFrameJobStateAndStats((String) a[0], (DataFrameJobState) a[1], (DataFrameIndexerJobStats) a[2]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), FeatureIndexBuilderJob.ID);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), FeatureIndexBuilderJobState.PARSER::apply, STATE_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameJob.ID);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), DataFrameJobState.PARSER::apply, STATE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DataFrameIndexerJobStats.fromXContent(p), STATS_FIELD);
     }
 
-    public DataFrameJobStateAndStats(String id, FeatureIndexBuilderJobState state, DataFrameIndexerJobStats stats) {
+    public DataFrameJobStateAndStats(String id, DataFrameJobState state, DataFrameIndexerJobStats stats) {
         this.id = Objects.requireNonNull(id);
         this.jobState = Objects.requireNonNull(state);
         this.jobStats = Objects.requireNonNull(stats);
@@ -47,14 +47,14 @@ public class DataFrameJobStateAndStats implements Writeable, ToXContentObject {
 
     public DataFrameJobStateAndStats(StreamInput in) throws IOException {
         this.id = in.readString();
-        this.jobState = new FeatureIndexBuilderJobState(in);
+        this.jobState = new DataFrameJobState(in);
         this.jobStats = new DataFrameIndexerJobStats(in);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FeatureIndexBuilderJob.ID.getPreferredName(), id);
+        builder.field(DataFrameJob.ID.getPreferredName(), id);
         builder.field(STATE_FIELD.getPreferredName(), jobState);
         builder.field(STATS_FIELD.getPreferredName(), jobStats);
         builder.endObject();
@@ -97,7 +97,7 @@ public class DataFrameJobStateAndStats implements Writeable, ToXContentObject {
         return jobStats;
     }
 
-    public FeatureIndexBuilderJobState getJobState() {
+    public DataFrameJobState getJobState() {
         return jobState;
     }
 }

@@ -12,20 +12,20 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.featureindexbuilder.FeatureIndexBuilder;
+import org.elasticsearch.xpack.ml.featureindexbuilder.DataFrame;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsStatsAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJob;
 
 public class RestGetDataFrameJobsStatsAction extends BaseRestHandler {
 
     public RestGetDataFrameJobsStatsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, FeatureIndexBuilder.BASE_PATH_JOBS_BY_ID + "_stats", this);
+        controller.registerHandler(RestRequest.Method.GET, DataFrame.BASE_PATH_JOBS_BY_ID + "_stats", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        String id = restRequest.param(FeatureIndexBuilderJob.ID.getPreferredName());
+        String id = restRequest.param(DataFrameJob.ID.getPreferredName());
         GetDataFrameJobsStatsAction.Request request = new GetDataFrameJobsStatsAction.Request(id);
         return channel -> client.execute(GetDataFrameJobsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

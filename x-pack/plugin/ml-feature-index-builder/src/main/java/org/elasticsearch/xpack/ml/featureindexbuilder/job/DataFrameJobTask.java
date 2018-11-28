@@ -23,27 +23,27 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartFeatureIndexBuilderJobAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartFeatureIndexBuilderJobAction.Response;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.StopFeatureIndexBuilderJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartDataFrameJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartDataFrameJobAction.Response;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.StopDataFrameJobAction;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
+public class DataFrameJobTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
 
-    private static final Logger logger = LogManager.getLogger(FeatureIndexBuilderJobTask.class);
+    private static final Logger logger = LogManager.getLogger(DataFrameJobTask.class);
 
-    private final FeatureIndexBuilderJob job;
+    private final DataFrameJob job;
     private final ThreadPool threadPool;
-    private final FeatureIndexBuilderIndexer indexer;
+    private final DataFrameIndexer indexer;
 
     static final String SCHEDULE_NAME = "xpack/feature_index_builder/job" + "/schedule";
 
-    public FeatureIndexBuilderJobTask(long id, String type, String action, TaskId parentTask, FeatureIndexBuilderJob job,
-            FeatureIndexBuilderJobState state, Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool,
+    public DataFrameJobTask(long id, String type, String action, TaskId parentTask, DataFrameJob job,
+            DataFrameJobState state, Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool,
             Map<String, String> headers) {
-        super(id, type, action, FeatureIndexBuilderJob.PERSISTENT_TASK_DESCRIPTION_PREFIX + job.getConfig().getId(), parentTask, headers);
+        super(id, type, action, DataFrameJob.PERSISTENT_TASK_DESCRIPTION_PREFIX + job.getConfig().getId(), parentTask, headers);
         this.job = job;
         this.threadPool = threadPool;
         logger.info("construct job task");
@@ -53,12 +53,12 @@ public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implemen
         this.indexer = new ClientFeatureIndexBuilderIndexer(job, new AtomicReference<>(initialState), initialPosition, client);
     }
 
-    public FeatureIndexBuilderJobConfig getConfig() {
+    public DataFrameJobConfig getConfig() {
         return job.getConfig();
     }
 
-    public FeatureIndexBuilderJobState getState() {
-        return new FeatureIndexBuilderJobState(indexer.getState(), indexer.getPosition());
+    public DataFrameJobState getState() {
+        return new DataFrameJobState(indexer.getState(), indexer.getPosition());
     }
 
     public DataFrameIndexerJobStats getStats() {
@@ -68,13 +68,13 @@ public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implemen
     public synchronized void start(ActionListener<Response> listener) {
         // TODO: safeguards missing, see rollup code
         indexer.start();
-        listener.onResponse(new StartFeatureIndexBuilderJobAction.Response(true));
+        listener.onResponse(new StartDataFrameJobAction.Response(true));
     }
 
-    public void stop(ActionListener<StopFeatureIndexBuilderJobAction.Response> listener) {
+    public void stop(ActionListener<StopDataFrameJobAction.Response> listener) {
         // TODO: safeguards missing, see rollup code
         indexer.stop();
-        listener.onResponse(new StopFeatureIndexBuilderJobAction.Response(true));
+        listener.onResponse(new StopDataFrameJobAction.Response(true));
     }
 
     @Override
@@ -86,10 +86,10 @@ public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implemen
         }
     }
 
-    protected class ClientFeatureIndexBuilderIndexer extends FeatureIndexBuilderIndexer {
+    protected class ClientFeatureIndexBuilderIndexer extends DataFrameIndexer {
         private final Client client;
 
-        public ClientFeatureIndexBuilderIndexer(FeatureIndexBuilderJob job, AtomicReference<IndexerState> initialState,
+        public ClientFeatureIndexBuilderIndexer(DataFrameJob job, AtomicReference<IndexerState> initialState,
                 Map<String, Object> initialPosition, Client client) {
             super(threadPool.executor(ThreadPool.Names.GENERIC), job, initialState, initialPosition);
             this.client = client;
@@ -112,7 +112,7 @@ public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implemen
                 // If we're aborting, just invoke `next` (which is likely an onFailure handler)
                 next.run();
             } else {
-                final FeatureIndexBuilderJobState state = new FeatureIndexBuilderJobState(indexerState, getPosition());
+                final DataFrameJobState state = new DataFrameJobState(indexerState, getPosition());
                 logger.info("Updating persistent state of job [" + job.getConfig().getId() + "] to [" + state.toString() + "]");
 
                 // TODO: we can not persist the state right now, need to be called from the task

@@ -21,39 +21,39 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobTask;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobTask;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class TransportStartFeatureIndexBuilderJobAction extends
-        TransportTasksAction<FeatureIndexBuilderJobTask, StartFeatureIndexBuilderJobAction.Request, 
-        StartFeatureIndexBuilderJobAction.Response, StartFeatureIndexBuilderJobAction.Response> {
+public class TransportStartDataFrameJobAction extends
+        TransportTasksAction<DataFrameJobTask, StartDataFrameJobAction.Request, 
+        StartDataFrameJobAction.Response, StartDataFrameJobAction.Response> {
 
     private final XPackLicenseState licenseState;
 
     @Inject
-    public TransportStartFeatureIndexBuilderJobAction(TransportService transportService, ActionFilters actionFilters,
+    public TransportStartDataFrameJobAction(TransportService transportService, ActionFilters actionFilters,
             ClusterService clusterService, XPackLicenseState licenseState) {
-        super(StartFeatureIndexBuilderJobAction.NAME, clusterService, transportService, actionFilters,
-                StartFeatureIndexBuilderJobAction.Request::new, StartFeatureIndexBuilderJobAction.Response::new, ThreadPool.Names.SAME);
+        super(StartDataFrameJobAction.NAME, clusterService, transportService, actionFilters,
+                StartDataFrameJobAction.Request::new, StartDataFrameJobAction.Response::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
     }
 
     @Override
-    protected void processTasks(StartFeatureIndexBuilderJobAction.Request request, Consumer<FeatureIndexBuilderJobTask> operation) {
-        FeatureIndexBuilderJobTask matchingTask = null;
+    protected void processTasks(StartDataFrameJobAction.Request request, Consumer<DataFrameJobTask> operation) {
+        DataFrameJobTask matchingTask = null;
 
         // todo: re-factor, see rollup TransportTaskHelper
         for (Task task : taskManager.getTasks().values()) {
-            if (task instanceof FeatureIndexBuilderJobTask
-                    && ((FeatureIndexBuilderJobTask) task).getConfig().getId().equals(request.getId())) {
+            if (task instanceof DataFrameJobTask
+                    && ((DataFrameJobTask) task).getConfig().getId().equals(request.getId())) {
                 if (matchingTask != null) {
                     throw new IllegalArgumentException("Found more than one matching task for feature index builder job [" + request.getId()
                             + "] when " + "there should only be one.");
                 }
-                matchingTask = (FeatureIndexBuilderJobTask) task;
+                matchingTask = (DataFrameJobTask) task;
             }
         }
 
@@ -63,8 +63,8 @@ public class TransportStartFeatureIndexBuilderJobAction extends
     }
 
     @Override
-    protected void doExecute(Task task, StartFeatureIndexBuilderJobAction.Request request,
-            ActionListener<StartFeatureIndexBuilderJobAction.Response> listener) {
+    protected void doExecute(Task task, StartDataFrameJobAction.Request request,
+            ActionListener<StartDataFrameJobAction.Response> listener) {
 
         if (!licenseState.isDataFrameAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.DATA_FRAME));
@@ -75,8 +75,8 @@ public class TransportStartFeatureIndexBuilderJobAction extends
     }
 
     @Override
-    protected void taskOperation(StartFeatureIndexBuilderJobAction.Request request, FeatureIndexBuilderJobTask jobTask,
-            ActionListener<StartFeatureIndexBuilderJobAction.Response> listener) {
+    protected void taskOperation(StartDataFrameJobAction.Request request, DataFrameJobTask jobTask,
+            ActionListener<StartDataFrameJobAction.Response> listener) {
         if (jobTask.getConfig().getId().equals(request.getId())) {
             jobTask.start(listener);
         } else {
@@ -86,8 +86,8 @@ public class TransportStartFeatureIndexBuilderJobAction extends
     }
 
     @Override
-    protected StartFeatureIndexBuilderJobAction.Response newResponse(StartFeatureIndexBuilderJobAction.Request request,
-            List<StartFeatureIndexBuilderJobAction.Response> tasks, List<TaskOperationFailure> taskOperationFailures,
+    protected StartDataFrameJobAction.Response newResponse(StartDataFrameJobAction.Request request,
+            List<StartDataFrameJobAction.Response> tasks, List<TaskOperationFailure> taskOperationFailures,
             List<FailedNodeException> failedNodeExceptions) {
 
         if (taskOperationFailures.isEmpty() == false) {
@@ -105,13 +105,13 @@ public class TransportStartFeatureIndexBuilderJobAction extends
 
         assert tasks.size() == 1;
 
-        boolean allStarted = tasks.stream().allMatch(StartFeatureIndexBuilderJobAction.Response::isStarted);
-        return new StartFeatureIndexBuilderJobAction.Response(allStarted);
+        boolean allStarted = tasks.stream().allMatch(StartDataFrameJobAction.Response::isStarted);
+        return new StartDataFrameJobAction.Response(allStarted);
     }
 
     @Override
-    protected StartFeatureIndexBuilderJobAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new StartFeatureIndexBuilderJobAction.Response(in);
+    protected StartDataFrameJobAction.Response readTaskResponse(StreamInput in) throws IOException {
+        return new StartDataFrameJobAction.Response(in);
     }
 
 }

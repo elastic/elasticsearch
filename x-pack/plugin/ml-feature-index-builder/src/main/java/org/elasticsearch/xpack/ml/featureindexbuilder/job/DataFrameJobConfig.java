@@ -26,7 +26,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * This class holds the configuration details of a feature index builder job
  */
-public class FeatureIndexBuilderJobConfig implements NamedWriteable, ToXContentObject {
+public class DataFrameJobConfig implements NamedWriteable, ToXContentObject {
 
     private static final String NAME = "xpack/feature_index_builder/jobconfig";
     private static final ParseField ID = new ParseField("id");
@@ -41,14 +41,14 @@ public class FeatureIndexBuilderJobConfig implements NamedWriteable, ToXContentO
     private final SourceConfig sourceConfig;
     private final AggregationConfig aggregationConfig;
 
-    public static final ConstructingObjectParser<FeatureIndexBuilderJobConfig, String> PARSER = new ConstructingObjectParser<>(NAME, false,
+    public static final ConstructingObjectParser<DataFrameJobConfig, String> PARSER = new ConstructingObjectParser<>(NAME, false,
             (args, optionalId) -> {
                 String id = args[0] != null ? (String) args[0] : optionalId;
                 String indexPattern = (String) args[1];
                 String destinationIndex = (String) args[2];
                 SourceConfig sourceConfig= (SourceConfig) args[3];
                 AggregationConfig aggregationConfig = (AggregationConfig) args[4];
-                return new FeatureIndexBuilderJobConfig(id, indexPattern, destinationIndex, sourceConfig, aggregationConfig);
+                return new DataFrameJobConfig(id, indexPattern, destinationIndex, sourceConfig, aggregationConfig);
             });
 
     static {
@@ -59,7 +59,7 @@ public class FeatureIndexBuilderJobConfig implements NamedWriteable, ToXContentO
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p), AGGREGATIONS);
     }
 
-    public FeatureIndexBuilderJobConfig(final String id,
+    public DataFrameJobConfig(final String id,
                                         final String indexPattern,
                                         final String destinationIndex,
                                         final SourceConfig sourceConfig,
@@ -73,7 +73,7 @@ public class FeatureIndexBuilderJobConfig implements NamedWriteable, ToXContentO
         this.aggregationConfig = aggregationConfig;
     }
 
-    public FeatureIndexBuilderJobConfig(final StreamInput in) throws IOException {
+    public DataFrameJobConfig(final StreamInput in) throws IOException {
         id = in.readString();
         indexPattern = in.readString();
         destinationIndex = in.readString();
@@ -143,7 +143,7 @@ public class FeatureIndexBuilderJobConfig implements NamedWriteable, ToXContentO
             return false;
         }
 
-        final FeatureIndexBuilderJobConfig that = (FeatureIndexBuilderJobConfig) other;
+        final DataFrameJobConfig that = (DataFrameJobConfig) other;
 
         return Objects.equals(this.id, that.id)
                 && Objects.equals(this.indexPattern, that.indexPattern)
@@ -162,7 +162,7 @@ public class FeatureIndexBuilderJobConfig implements NamedWriteable, ToXContentO
         return Strings.toString(this, true, true);
     }
 
-    public static FeatureIndexBuilderJobConfig fromXContent(final XContentParser parser, @Nullable final String optionalJobId)
+    public static DataFrameJobConfig fromXContent(final XContentParser parser, @Nullable final String optionalJobId)
             throws IOException {
         return PARSER.parse(parser, optionalJobId);
     }

@@ -24,8 +24,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsAction.Request;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsAction.Response;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfig;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobTask;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobConfig;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobTask;
 import org.elasticsearch.xpack.ml.featureindexbuilder.persistence.DataFramePersistentTaskUtils;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class TransportGetDataFrameJobsAction extends
-        TransportTasksAction<FeatureIndexBuilderJobTask,
+        TransportTasksAction<DataFrameJobTask,
         GetDataFrameJobsAction.Request,
         GetDataFrameJobsAction.Response,
         GetDataFrameJobsAction.Response> {
@@ -49,7 +49,7 @@ public class TransportGetDataFrameJobsAction extends
     @Override
     protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,
             List<FailedNodeException> failedNodeExceptions) {
-        List<FeatureIndexBuilderJobConfig> configs = tasks.stream().map(GetDataFrameJobsAction.Response::getJobConfigurations)
+        List<DataFrameJobConfig> configs = tasks.stream().map(GetDataFrameJobsAction.Response::getJobConfigurations)
                 .flatMap(Collection::stream).collect(Collectors.toList());
         return new Response(configs, taskOperationFailures, failedNodeExceptions);
     }
@@ -60,8 +60,8 @@ public class TransportGetDataFrameJobsAction extends
     }
 
     @Override
-    protected void taskOperation(Request request, FeatureIndexBuilderJobTask task, ActionListener<Response> listener) {
-        List<FeatureIndexBuilderJobConfig> configs = Collections.emptyList();
+    protected void taskOperation(Request request, DataFrameJobTask task, ActionListener<Response> listener) {
+        List<DataFrameJobConfig> configs = Collections.emptyList();
 
         assert task.getConfig().getId().equals(request.getId()) || request.getId().equals(MetaData.ALL);
 

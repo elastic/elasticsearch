@@ -23,7 +23,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfig;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobConfig;
 
 import java.util.HashMap;
 import java.util.List;
@@ -36,9 +36,9 @@ public class JobValidator {
     private static final Logger logger = LogManager.getLogger(JobValidator.class);
 
     private final Client client;
-    private final FeatureIndexBuilderJobConfig config;
+    private final DataFrameJobConfig config;
 
-    public JobValidator(FeatureIndexBuilderJobConfig config, Client client) {
+    public JobValidator(DataFrameJobConfig config, Client client) {
         this.client = Objects.requireNonNull(client);
         this.config = Objects.requireNonNull(config);
     }

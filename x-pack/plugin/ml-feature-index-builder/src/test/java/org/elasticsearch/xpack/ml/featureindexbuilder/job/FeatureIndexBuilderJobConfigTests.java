@@ -12,12 +12,12 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-public class FeatureIndexBuilderJobConfigTests extends AbstractSerializingFeatureIndexBuilderTestCase<FeatureIndexBuilderJobConfig> {
+public class FeatureIndexBuilderJobConfigTests extends AbstractSerializingFeatureIndexBuilderTestCase<DataFrameJobConfig> {
 
     private String jobId;
 
-    public static FeatureIndexBuilderJobConfig randomFeatureIndexBuilderJobConfig() {
-        return new FeatureIndexBuilderJobConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
+    public static DataFrameJobConfig randomFeatureIndexBuilderJobConfig() {
+        return new DataFrameJobConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
                 randomAlphaOfLengthBetween(1, 10), SourceConfigTests.randomSourceConfig(),
                 AggregationConfigTests.randomAggregationConfig());
     }
@@ -28,21 +28,21 @@ public class FeatureIndexBuilderJobConfigTests extends AbstractSerializingFeatur
     }
 
     @Override
-    protected FeatureIndexBuilderJobConfig doParseInstance(XContentParser parser) throws IOException {
+    protected DataFrameJobConfig doParseInstance(XContentParser parser) throws IOException {
         if (randomBoolean()) {
-            return FeatureIndexBuilderJobConfig.fromXContent(parser, jobId);
+            return DataFrameJobConfig.fromXContent(parser, jobId);
         } else {
-            return FeatureIndexBuilderJobConfig.fromXContent(parser, null);
+            return DataFrameJobConfig.fromXContent(parser, null);
         }
     }
 
     @Override
-    protected FeatureIndexBuilderJobConfig createTestInstance() {
+    protected DataFrameJobConfig createTestInstance() {
         return randomFeatureIndexBuilderJobConfig();
     }
 
     @Override
-    protected Reader<FeatureIndexBuilderJobConfig> instanceReader() {
-        return FeatureIndexBuilderJobConfig::new;
+    protected Reader<DataFrameJobConfig> instanceReader() {
+        return DataFrameJobConfig::new;
     }
 }

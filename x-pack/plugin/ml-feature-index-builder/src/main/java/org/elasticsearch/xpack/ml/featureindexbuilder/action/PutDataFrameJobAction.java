@@ -17,17 +17,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfig;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobConfig;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutFeatureIndexBuilderJobAction extends Action<PutFeatureIndexBuilderJobAction.Response> {
+public class PutDataFrameJobAction extends Action<PutDataFrameJobAction.Response> {
 
-    public static final PutFeatureIndexBuilderJobAction INSTANCE = new PutFeatureIndexBuilderJobAction();
-    public static final String NAME = "cluster:admin/xpack/feature_index_builder/put";
+    public static final PutDataFrameJobAction INSTANCE = new PutDataFrameJobAction();
+    public static final String NAME = "cluster:admin/data_frame/put";
 
-    private PutFeatureIndexBuilderJobAction() {
+    private PutDataFrameJobAction() {
         super(NAME);
     }
     
@@ -38,9 +38,9 @@ public class PutFeatureIndexBuilderJobAction extends Action<PutFeatureIndexBuild
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        private FeatureIndexBuilderJobConfig config;
+        private DataFrameJobConfig config;
 
-        public Request(FeatureIndexBuilderJobConfig config) {
+        public Request(DataFrameJobConfig config) {
             this.setConfig(config);
         }
 
@@ -49,7 +49,7 @@ public class PutFeatureIndexBuilderJobAction extends Action<PutFeatureIndexBuild
         }
 
         public static Request fromXContent(final XContentParser parser, final String id) throws IOException {
-            return new Request(FeatureIndexBuilderJobConfig.fromXContent(parser, id));
+            return new Request(DataFrameJobConfig.fromXContent(parser, id));
         }
 
         @Override
@@ -62,18 +62,18 @@ public class PutFeatureIndexBuilderJobAction extends Action<PutFeatureIndexBuild
             return this.config.toXContent(builder, params);
         }
 
-        public FeatureIndexBuilderJobConfig getConfig() {
+        public DataFrameJobConfig getConfig() {
             return config;
         }
 
-        public void setConfig(FeatureIndexBuilderJobConfig config) {
+        public void setConfig(DataFrameJobConfig config) {
             this.config = config;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            this.config = new FeatureIndexBuilderJobConfig(in);
+            this.config = new DataFrameJobConfig(in);
         }
 
         @Override
@@ -102,7 +102,7 @@ public class PutFeatureIndexBuilderJobAction extends Action<PutFeatureIndexBuild
 
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-        protected RequestBuilder(ElasticsearchClient client, PutFeatureIndexBuilderJobAction action) {
+        protected RequestBuilder(ElasticsearchClient client, PutDataFrameJobAction action) {
             super(client, action, new Request());
         }
     }

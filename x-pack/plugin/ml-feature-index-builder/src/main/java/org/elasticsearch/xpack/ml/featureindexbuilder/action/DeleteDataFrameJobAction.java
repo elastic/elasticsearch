@@ -16,17 +16,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJob;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteFeatureIndexBuilderJobAction extends Action<AcknowledgedResponse> {
+public class DeleteDataFrameJobAction extends Action<AcknowledgedResponse> {
 
-    public static final DeleteFeatureIndexBuilderJobAction INSTANCE = new DeleteFeatureIndexBuilderJobAction();
-    public static final String NAME = "cluster:admin/xpack/feature_index_builder/delete";
+    public static final DeleteDataFrameJobAction INSTANCE = new DeleteDataFrameJobAction();
+    public static final String NAME = "cluster:admin/data_frame/delete";
 
-    private DeleteFeatureIndexBuilderJobAction() {
+    private DeleteDataFrameJobAction() {
         super(NAME);
     }
 
@@ -39,7 +39,7 @@ public class DeleteFeatureIndexBuilderJobAction extends Action<AcknowledgedRespo
         private String id;
 
         public Request(String id) {
-            this.id = ExceptionsHelper.requireNonNull(id, FeatureIndexBuilderJob.ID.getPreferredName());
+            this.id = ExceptionsHelper.requireNonNull(id, DataFrameJob.ID.getPreferredName());
         }
 
         public Request() {
@@ -68,7 +68,7 @@ public class DeleteFeatureIndexBuilderJobAction extends Action<AcknowledgedRespo
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(FeatureIndexBuilderJob.ID.getPreferredName(), id);
+            builder.field(DataFrameJob.ID.getPreferredName(), id);
             return builder;
         }
 
@@ -93,7 +93,7 @@ public class DeleteFeatureIndexBuilderJobAction extends Action<AcknowledgedRespo
 
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
-        protected RequestBuilder(ElasticsearchClient client, DeleteFeatureIndexBuilderJobAction action) {
+        protected RequestBuilder(ElasticsearchClient client, DeleteDataFrameJobAction action) {
             super(client, action, new Request());
         }
     }

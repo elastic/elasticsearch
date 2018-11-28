@@ -13,9 +13,9 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.featureindexbuilder.FeatureIndexBuilder;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutFeatureIndexBuilderJobAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
+import org.elasticsearch.xpack.ml.featureindexbuilder.DataFrame;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutDataFrameJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJob;
 
 import java.io.IOException;
 
@@ -23,7 +23,7 @@ public class RestPutFeatureIndexBuilderJobAction extends BaseRestHandler {
     
     public RestPutFeatureIndexBuilderJobAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, FeatureIndexBuilder.BASE_PATH_JOBS_BY_ID, this);
+        controller.registerHandler(RestRequest.Method.PUT, DataFrame.BASE_PATH_JOBS_BY_ID, this);
     }
 
     @Override
@@ -33,11 +33,11 @@ public class RestPutFeatureIndexBuilderJobAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String id = restRequest.param(FeatureIndexBuilderJob.ID.getPreferredName());
+        String id = restRequest.param(DataFrameJob.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
 
-        PutFeatureIndexBuilderJobAction.Request request = PutFeatureIndexBuilderJobAction.Request.fromXContent(parser, id);
+        PutDataFrameJobAction.Request request = PutDataFrameJobAction.Request.fromXContent(parser, id);
 
-        return channel -> client.execute(PutFeatureIndexBuilderJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(PutDataFrameJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

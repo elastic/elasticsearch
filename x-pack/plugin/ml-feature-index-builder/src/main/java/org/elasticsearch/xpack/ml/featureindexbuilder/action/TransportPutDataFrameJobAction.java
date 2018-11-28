@@ -23,26 +23,26 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutFeatureIndexBuilderJobAction.Request;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutFeatureIndexBuilderJobAction.Response;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfig;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutDataFrameJobAction.Request;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutDataFrameJobAction.Response;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJob;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobConfig;
 import org.elasticsearch.xpack.ml.featureindexbuilder.persistence.DataframeIndex;
 import org.elasticsearch.xpack.ml.featureindexbuilder.support.JobValidator;
 
-public class TransportPutFeatureIndexBuilderJobAction
-        extends TransportMasterNodeAction<PutFeatureIndexBuilderJobAction.Request, PutFeatureIndexBuilderJobAction.Response> {
+public class TransportPutDataFrameJobAction
+        extends TransportMasterNodeAction<PutDataFrameJobAction.Request, PutDataFrameJobAction.Response> {
 
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
 
     @Inject
-    public TransportPutFeatureIndexBuilderJobAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportPutDataFrameJobAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, XPackLicenseState licenseState,
             PersistentTasksService persistentTasksService, Client client) {
-        super(PutFeatureIndexBuilderJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PutFeatureIndexBuilderJobAction.Request::new);
+        super(PutDataFrameJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                indexNameExpressionResolver, PutDataFrameJobAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
@@ -54,8 +54,8 @@ public class TransportPutFeatureIndexBuilderJobAction
     }
 
     @Override
-    protected PutFeatureIndexBuilderJobAction.Response newResponse() {
-        return new PutFeatureIndexBuilderJobAction.Response();
+    protected PutDataFrameJobAction.Response newResponse() {
+        return new PutDataFrameJobAction.Response();
     }
 
     @Override
@@ -72,7 +72,7 @@ public class TransportPutFeatureIndexBuilderJobAction
 
         jobCreator.validate(ActionListener.wrap(validationResult -> {
             jobCreator.deduceMappings(ActionListener.wrap(mappings -> {
-                FeatureIndexBuilderJob job = createFeatureIndexBuilderJob(request.getConfig(), threadPool);
+                DataFrameJob job = createDataFrameJob(request.getConfig(), threadPool);
                 DataframeIndex.createDestinationIndex(client, job, mappings, ActionListener.wrap(createIndexResult -> {
                     startPersistentTask(job, listener, persistentTasksService);
                 }, e3 -> {
@@ -86,23 +86,23 @@ public class TransportPutFeatureIndexBuilderJobAction
         }));
     }
 
-    private static FeatureIndexBuilderJob createFeatureIndexBuilderJob(FeatureIndexBuilderJobConfig config, ThreadPool threadPool) {
-        return new FeatureIndexBuilderJob(config);
+    private static DataFrameJob createDataFrameJob(DataFrameJobConfig config, ThreadPool threadPool) {
+        return new DataFrameJob(config);
     }
 
-    static void startPersistentTask(FeatureIndexBuilderJob job, ActionListener<PutFeatureIndexBuilderJobAction.Response> listener,
+    static void startPersistentTask(DataFrameJob job, ActionListener<PutDataFrameJobAction.Response> listener,
             PersistentTasksService persistentTasksService) {
 
-        persistentTasksService.sendStartRequest(job.getConfig().getId(), FeatureIndexBuilderJob.NAME, job,
+        persistentTasksService.sendStartRequest(job.getConfig().getId(), DataFrameJob.NAME, job,
                 ActionListener.wrap(persistentTask -> {
-                    listener.onResponse(new PutFeatureIndexBuilderJobAction.Response(true));
+                    listener.onResponse(new PutDataFrameJobAction.Response(true));
                 }, e -> {
                     listener.onFailure(e);
                 }));
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutFeatureIndexBuilderJobAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutDataFrameJobAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

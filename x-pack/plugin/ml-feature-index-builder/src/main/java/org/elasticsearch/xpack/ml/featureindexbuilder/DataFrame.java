@@ -36,21 +36,21 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.DeleteFeatureIndexBuilderJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.DeleteDataFrameJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.GetDataFrameJobsStatsAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutFeatureIndexBuilderJobAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartFeatureIndexBuilderJobAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.StopFeatureIndexBuilderJobAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportDeleteFeatureIndexBuilderJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutDataFrameJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartDataFrameJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.StopDataFrameJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportDeleteDataFrameJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportGetDataFrameJobsAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportGetDataFrameJobsStatsAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportPutFeatureIndexBuilderJobAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportStartFeatureIndexBuilderJobAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportStopFeatureIndexBuilderJobAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobPersistentTasksExecutor;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobState;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportPutDataFrameJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportStartDataFrameJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportStopDataFrameJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJob;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobPersistentTasksExecutor;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobState;
 import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestDeleteFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestGetDataFrameJobsAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestGetDataFrameJobsStatsAction;
@@ -70,13 +70,13 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 
-public class FeatureIndexBuilder extends Plugin implements ActionPlugin, PersistentTaskPlugin {
+public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
-    public static final String NAME = "feature_index_builder";
-    public static final String TASK_NAME = "xpack/feature_index_builder/job";
-    public static final String BASE_PATH = "/_xpack/feature_index_builder/";
+    public static final String NAME = "data_frame";
+    public static final String TASK_NAME = "data_frame/jobs";
+    public static final String BASE_PATH = "/_data_frame/";
     public static final String BASE_PATH_JOBS_BY_ID = BASE_PATH + "jobs/{id}/";
-    public static final String TASK_THREAD_POOL_NAME = "ml_feature_index_builder_indexing";
+    public static final String TASK_THREAD_POOL_NAME = "data_frame_indexing";
 
     // list of headers that will be stored when a job is created
     public static final Set<String> HEADER_FILTERS = new HashSet<>(
@@ -86,7 +86,7 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
     private final Settings settings;
     private final boolean transportClientMode;
 
-    public FeatureIndexBuilder(Settings settings) {
+    public DataFrame(Settings settings) {
         this.settings = settings;
 
         this.enabled = XPackSettings.DATA_FRAME_ENABLED.get(settings);
@@ -133,10 +133,10 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
         }
 
         return Arrays.asList(
-                new ActionHandler<>(PutFeatureIndexBuilderJobAction.INSTANCE, TransportPutFeatureIndexBuilderJobAction.class),
-                new ActionHandler<>(StartFeatureIndexBuilderJobAction.INSTANCE, TransportStartFeatureIndexBuilderJobAction.class),
-                new ActionHandler<>(StopFeatureIndexBuilderJobAction.INSTANCE, TransportStopFeatureIndexBuilderJobAction.class),
-                new ActionHandler<>(DeleteFeatureIndexBuilderJobAction.INSTANCE, TransportDeleteFeatureIndexBuilderJobAction.class),
+                new ActionHandler<>(PutDataFrameJobAction.INSTANCE, TransportPutDataFrameJobAction.class),
+                new ActionHandler<>(StartDataFrameJobAction.INSTANCE, TransportStartDataFrameJobAction.class),
+                new ActionHandler<>(StopDataFrameJobAction.INSTANCE, TransportStopDataFrameJobAction.class),
+                new ActionHandler<>(DeleteDataFrameJobAction.INSTANCE, TransportDeleteDataFrameJobAction.class),
                 new ActionHandler<>(GetDataFrameJobsAction.INSTANCE, TransportGetDataFrameJobsAction.class),
                 new ActionHandler<>(GetDataFrameJobsStatsAction.INSTANCE, TransportGetDataFrameJobsStatsAction.class)
                 );
@@ -149,7 +149,7 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
         }
 
         FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, TASK_THREAD_POOL_NAME, 4, 4,
-                "xpack.feature_index_builder.task_thread_pool");
+                "data_frame.task_thread_pool");
 
         return Collections.singletonList(indexing);
     }
@@ -162,7 +162,7 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
         }
 
         SchedulerEngine schedulerEngine = new SchedulerEngine(settings, Clock.systemUTC());
-        return Collections.singletonList(new FeatureIndexBuilderJobPersistentTasksExecutor(client,
+        return Collections.singletonList(new DataFrameJobPersistentTasksExecutor(client,
                 schedulerEngine, threadPool));
     }
 
@@ -173,11 +173,11 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
         }
         return  Arrays.asList(
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(TASK_NAME),
-                        FeatureIndexBuilderJob::fromXContent),
-                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(FeatureIndexBuilderJobState.NAME),
-                        FeatureIndexBuilderJobState::fromXContent),
-                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(FeatureIndexBuilderJobState.NAME),
-                        FeatureIndexBuilderJobState::fromXContent)
+                        DataFrameJob::fromXContent),
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(DataFrameJobState.NAME),
+                        DataFrameJobState::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DataFrameJobState.NAME),
+                        DataFrameJobState::fromXContent)
                 );
     }
 }

@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJob;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -64,10 +64,10 @@ public class GetDataFrameJobsStatsAction extends Action<GetDataFrameJobsStatsAct
         public boolean match(Task task) {
             // If we are retrieving all the jobs, the task description does not contain the id
             if (id.equals(MetaData.ALL)) {
-                return task.getDescription().startsWith(FeatureIndexBuilderJob.PERSISTENT_TASK_DESCRIPTION_PREFIX);
+                return task.getDescription().startsWith(DataFrameJob.PERSISTENT_TASK_DESCRIPTION_PREFIX);
             }
             // Otherwise find the task by ID
-            return task.getDescription().equals(FeatureIndexBuilderJob.PERSISTENT_TASK_DESCRIPTION_PREFIX + id);
+            return task.getDescription().equals(DataFrameJob.PERSISTENT_TASK_DESCRIPTION_PREFIX + id);
         }
 
         public String getId() {
@@ -93,7 +93,7 @@ public class GetDataFrameJobsStatsAction extends Action<GetDataFrameJobsStatsAct
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(FeatureIndexBuilderJob.ID.getPreferredName(), id);
+            builder.field(DataFrameJob.ID.getPreferredName(), id);
             return builder;
         }
 

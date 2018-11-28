@@ -11,9 +11,9 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.featureindexbuilder.FeatureIndexBuilder;
-import org.elasticsearch.xpack.ml.featureindexbuilder.action.StopFeatureIndexBuilderJobAction;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
+import org.elasticsearch.xpack.ml.featureindexbuilder.DataFrame;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.StopDataFrameJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJob;
 
 import java.io.IOException;
 
@@ -21,15 +21,15 @@ public class RestStopFeatureIndexBuilderJobAction extends BaseRestHandler {
 
     public RestStopFeatureIndexBuilderJobAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, FeatureIndexBuilder.BASE_PATH_JOBS_BY_ID + "_stop", this);
+        controller.registerHandler(RestRequest.Method.POST, DataFrame.BASE_PATH_JOBS_BY_ID + "_stop", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String id = restRequest.param(FeatureIndexBuilderJob.ID.getPreferredName());
-        StopFeatureIndexBuilderJobAction.Request request = new StopFeatureIndexBuilderJobAction.Request(id);
+        String id = restRequest.param(DataFrameJob.ID.getPreferredName());
+        StopDataFrameJobAction.Request request = new StopDataFrameJobAction.Request(id);
 
-        return channel -> client.execute(StopFeatureIndexBuilderJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(StopDataFrameJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJob;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,7 +32,7 @@ public final class DataframeIndex {
     private DataframeIndex() {
     }
 
-    public static void createDestinationIndex(Client client, FeatureIndexBuilderJob job, Map<String, String> mappings,
+    public static void createDestinationIndex(Client client, DataFrameJob job, Map<String, String> mappings,
             final ActionListener<Boolean> listener) {
         CreateIndexRequest request = new CreateIndexRequest(job.getConfig().getDestinationIndex());
 

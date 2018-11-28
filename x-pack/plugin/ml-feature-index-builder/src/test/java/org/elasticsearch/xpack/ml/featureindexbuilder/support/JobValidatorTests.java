@@ -27,7 +27,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.AggregationConfig;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfig;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobConfig;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.SourceConfig;
 import org.junit.After;
 import org.junit.Before;
@@ -78,7 +78,7 @@ public class JobValidatorTests extends ESTestCase {
         SourceConfig sourceConfig = getValidSourceConfig();
         AggregationConfig aggregationConfig = getValidAggregationConfig();
 
-        FeatureIndexBuilderJobConfig config = new FeatureIndexBuilderJobConfig(getTestName(), "existing_source_index", "non_existing_dest",
+        DataFrameJobConfig config = new DataFrameJobConfig(getTestName(), "existing_source_index", "non_existing_dest",
                 sourceConfig, aggregationConfig);
 
         assertValidJob(client, config);
@@ -88,7 +88,7 @@ public class JobValidatorTests extends ESTestCase {
         SourceConfig sourceConfig = getValidSourceConfig();
         AggregationConfig aggregationConfig = getValidAggregationConfig();
 
-        FeatureIndexBuilderJobConfig config = new FeatureIndexBuilderJobConfig(getTestName(), "non_existing_source_index",
+        DataFrameJobConfig config = new DataFrameJobConfig(getTestName(), "non_existing_source_index",
                 "non_existing_dest", sourceConfig, aggregationConfig);
 
         assertInvalidJob(client, config);
@@ -100,7 +100,7 @@ public class JobValidatorTests extends ESTestCase {
 
         // test a failure during the search operation, job creation fails if
         // search has failures although they might just be temporary
-        FeatureIndexBuilderJobConfig config = new FeatureIndexBuilderJobConfig(getTestName(), "existing_source_index_with_failing_shards",
+        DataFrameJobConfig config = new DataFrameJobConfig(getTestName(), "existing_source_index_with_failing_shards",
                 "non_existing_dest", sourceConfig, aggregationConfig);
 
         assertInvalidJob(client, config);
@@ -112,7 +112,7 @@ public class JobValidatorTests extends ESTestCase {
         for (String agg : supportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            FeatureIndexBuilderJobConfig config = new FeatureIndexBuilderJobConfig(getTestName(), "existing_source", "non_existing_dest",
+            DataFrameJobConfig config = new DataFrameJobConfig(getTestName(), "existing_source", "non_existing_dest",
                     sourceConfig, aggregationConfig);
 
             assertValidJob(client, config);
@@ -125,7 +125,7 @@ public class JobValidatorTests extends ESTestCase {
         for (String agg : unsupportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            FeatureIndexBuilderJobConfig config = new FeatureIndexBuilderJobConfig(getTestName(), "existing_source", "non_existing_dest",
+            DataFrameJobConfig config = new DataFrameJobConfig(getTestName(), "existing_source", "non_existing_dest",
                     sourceConfig, aggregationConfig);
 
             assertInvalidJob(client, config);
@@ -199,15 +199,15 @@ public class JobValidatorTests extends ESTestCase {
         return AggregationConfig.fromXContent(parser);
     }
 
-    private static void assertValidJob(Client client, FeatureIndexBuilderJobConfig config) throws Exception {
+    private static void assertValidJob(Client client, DataFrameJobConfig config) throws Exception {
         validate(client, config, true);
     }
 
-    private static void assertInvalidJob(Client client, FeatureIndexBuilderJobConfig config) throws Exception {
+    private static void assertInvalidJob(Client client, DataFrameJobConfig config) throws Exception {
         validate(client, config, false);
     }
 
-    private static void validate(Client client, FeatureIndexBuilderJobConfig config, boolean expectValid) throws Exception {
+    private static void validate(Client client, DataFrameJobConfig config, boolean expectValid) throws Exception {
         JobValidator validator = new JobValidator(config, client);
 
         CountDownLatch latch = new CountDownLatch(1);

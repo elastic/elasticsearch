@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.AbstractSerializingFeatureIndexBuilderTestCase;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameIndexerJobStatsTests;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobStateTests;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobStateTests;
 
 import java.io.IOException;
 
@@ -25,7 +25,7 @@ public class DataFrameJobStateAndStatsTests
     @Override
     protected DataFrameJobStateAndStats createTestInstance() {
         return new DataFrameJobStateAndStats(randomAlphaOfLengthBetween(1,10),
-                FeatureIndexBuilderJobStateTests.randomFeatureIndexBuilderJobState(),
+                DataFrameJobStateTests.randomDataFrameJobState(),
                 DataFrameIndexerJobStatsTests.randomStats());
     }
 

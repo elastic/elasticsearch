@@ -17,31 +17,31 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.ml.featureindexbuilder.FeatureIndexBuilder;
+import org.elasticsearch.xpack.ml.featureindexbuilder.DataFrame;
 
 import java.util.Map;
 
-public class FeatureIndexBuilderJobPersistentTasksExecutor extends PersistentTasksExecutor<FeatureIndexBuilderJob> {
+public class DataFrameJobPersistentTasksExecutor extends PersistentTasksExecutor<DataFrameJob> {
 
-    private static final Logger logger = LogManager.getLogger(FeatureIndexBuilderJobPersistentTasksExecutor.class);
+    private static final Logger logger = LogManager.getLogger(DataFrameJobPersistentTasksExecutor.class);
 
     private final Client client;
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
 
-    public FeatureIndexBuilderJobPersistentTasksExecutor(Client client, SchedulerEngine schedulerEngine,
+    public DataFrameJobPersistentTasksExecutor(Client client, SchedulerEngine schedulerEngine,
             ThreadPool threadPool) {
-        super(FeatureIndexBuilder.TASK_NAME, FeatureIndexBuilder.TASK_THREAD_POOL_NAME);
+        super(DataFrame.TASK_NAME, DataFrame.TASK_THREAD_POOL_NAME);
         this.client = client;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;
     }
 
     @Override
-    protected void nodeOperation(AllocatedPersistentTask task, @Nullable FeatureIndexBuilderJob params, PersistentTaskState state) {
-        FeatureIndexBuilderJobTask buildTask = (FeatureIndexBuilderJobTask) task;
+    protected void nodeOperation(AllocatedPersistentTask task, @Nullable DataFrameJob params, PersistentTaskState state) {
+        DataFrameJobTask buildTask = (DataFrameJobTask) task;
         SchedulerEngine.Job schedulerJob = new SchedulerEngine.Job(
-                FeatureIndexBuilderJobTask.SCHEDULE_NAME + "_" + params.getConfig().getId(), next());
+                DataFrameJobTask.SCHEDULE_NAME + "_" + params.getConfig().getId(), next());
 
         // Note that while the task is added to the scheduler here, the internal state
         // will prevent
@@ -60,8 +60,8 @@ public class FeatureIndexBuilderJobPersistentTasksExecutor extends PersistentTas
 
     @Override
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-            PersistentTasksCustomMetaData.PersistentTask<FeatureIndexBuilderJob> persistentTask, Map<String, String> headers) {
-        return new FeatureIndexBuilderJobTask(id, type, action, parentTaskId, persistentTask.getParams(),
-                (FeatureIndexBuilderJobState) persistentTask.getState(), client, schedulerEngine, threadPool, headers);
+            PersistentTasksCustomMetaData.PersistentTask<DataFrameJob> persistentTask, Map<String, String> headers) {
+        return new DataFrameJobTask(id, type, action, parentTaskId, persistentTask.getParams(),
+                (DataFrameJobState) persistentTask.getState(), client, schedulerEngine, threadPool, headers);
     }
 }

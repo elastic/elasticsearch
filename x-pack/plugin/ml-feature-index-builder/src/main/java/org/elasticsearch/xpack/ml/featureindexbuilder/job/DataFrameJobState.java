@@ -29,7 +29,7 @@ import java.util.TreeMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskState {
+public class DataFrameJobState implements Task.Status, PersistentTaskState {
     public static final String NAME = "xpack/feature_index_builder/job";
 
     private final IndexerState state;
@@ -41,8 +41,8 @@ public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskS
     private static final ParseField CURRENT_POSITION = new ParseField("current_position");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<FeatureIndexBuilderJobState, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            args -> new FeatureIndexBuilderJobState((IndexerState) args[0], (HashMap<String, Object>) args[1]));
+    public static final ConstructingObjectParser<DataFrameJobState, Void> PARSER = new ConstructingObjectParser<>(NAME,
+            args -> new DataFrameJobState((IndexerState) args[0], (HashMap<String, Object>) args[1]));
 
     static {
         PARSER.declareField(constructorArg(), p -> {
@@ -63,12 +63,12 @@ public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskS
         }, CURRENT_POSITION, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
     }
 
-    public FeatureIndexBuilderJobState(IndexerState state, @Nullable Map<String, Object> position) {
+    public DataFrameJobState(IndexerState state, @Nullable Map<String, Object> position) {
         this.state = state;
         this.currentPosition = position == null ? null : Collections.unmodifiableSortedMap(new TreeMap<>(position));
     }
 
-    public FeatureIndexBuilderJobState(StreamInput in) throws IOException {
+    public DataFrameJobState(StreamInput in) throws IOException {
         state = IndexerState.fromStream(in);
         currentPosition = in.readBoolean() ? Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap())) : null;
     }
@@ -81,7 +81,7 @@ public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskS
         return currentPosition;
     }
 
-    public static FeatureIndexBuilderJobState fromXContent(XContentParser parser) {
+    public static DataFrameJobState fromXContent(XContentParser parser) {
         try {
             return PARSER.parse(parser, null);
         } catch (IOException e) {
@@ -124,7 +124,7 @@ public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskS
             return false;
         }
 
-        FeatureIndexBuilderJobState that = (FeatureIndexBuilderJobState) other;
+        DataFrameJobState that = (DataFrameJobState) other;
 
         return Objects.equals(this.state, that.state) && Objects.equals(this.currentPosition, that.currentPosition);
     }

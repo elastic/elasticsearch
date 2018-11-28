@@ -24,8 +24,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfig;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJob;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.DataFrameJobConfig;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -65,10 +65,10 @@ public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Respon
         public boolean match(Task task) {
             // If we are retrieving all the jobs, the task description does not contain the id
             if (id.equals(MetaData.ALL)) {
-                return task.getDescription().startsWith(FeatureIndexBuilderJob.PERSISTENT_TASK_DESCRIPTION_PREFIX);
+                return task.getDescription().startsWith(DataFrameJob.PERSISTENT_TASK_DESCRIPTION_PREFIX);
             }
             // Otherwise find the task by ID
-            return task.getDescription().equals(FeatureIndexBuilderJob.PERSISTENT_TASK_DESCRIPTION_PREFIX + id);
+            return task.getDescription().equals(DataFrameJob.PERSISTENT_TASK_DESCRIPTION_PREFIX + id);
         }
 
         public String getId() {
@@ -94,7 +94,7 @@ public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Respon
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(FeatureIndexBuilderJob.ID.getPreferredName(), id);
+            builder.field(DataFrameJob.ID.getPreferredName(), id);
             return builder;
         }
 
@@ -125,14 +125,14 @@ public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Respon
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private List<FeatureIndexBuilderJobConfig> jobConfigurations;
+        private List<DataFrameJobConfig> jobConfigurations;
 
-        public Response(List<FeatureIndexBuilderJobConfig> jobConfigs) {
+        public Response(List<DataFrameJobConfig> jobConfigs) {
             super(Collections.emptyList(), Collections.emptyList());
             this.jobConfigurations = jobConfigs;
         }
 
-        public Response(List<FeatureIndexBuilderJobConfig> jobResponses, List<TaskOperationFailure> taskFailures,
+        public Response(List<DataFrameJobConfig> jobResponses, List<TaskOperationFailure> taskFailures,
                 List<? extends FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
             this.jobConfigurations = jobResponses;
@@ -147,14 +147,14 @@ public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Respon
             readFrom(in);
         }
 
-        public List<FeatureIndexBuilderJobConfig> getJobConfigurations() {
+        public List<DataFrameJobConfig> getJobConfigurations() {
             return jobConfigurations;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            jobConfigurations = in.readList(FeatureIndexBuilderJobConfig::new);
+            jobConfigurations = in.readList(DataFrameJobConfig::new);
         }
 
         @Override
@@ -170,7 +170,7 @@ public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Respon
             // XContentBuilder does not support passing the params object for Iterables
             builder.field(JOBS.getPreferredName());
             builder.startArray();
-            for (FeatureIndexBuilderJobConfig jobResponse : jobConfigurations) {
+            for (DataFrameJobConfig jobResponse : jobConfigurations) {
                 jobResponse.toXContent(builder, params);
             }
             builder.endArray();

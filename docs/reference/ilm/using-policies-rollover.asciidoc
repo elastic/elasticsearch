@@ -23,8 +23,10 @@ checked, specify the `indices.lifecycle.poll_interval` cluster setting.
 
 IMPORTANT: New indices created via rollover will not automatically inherit the
 policy used by the old index, and will not use any policy by default. Therefore,
-it is highly recommended to set up an <<indices-templates,index template>> for
-your indices which specifies the policy you wish to use for each new index.
+it is highly recommended to apply the policy via
+<<applying-policy-to-template,index template>>, including a Rollover alias
+setting, for your indices which specifies the policy you wish to use for each
+new index.
 
 The rollover action takes the following parameters:
 

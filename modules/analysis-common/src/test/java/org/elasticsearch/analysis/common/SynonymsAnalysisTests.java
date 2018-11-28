@@ -125,7 +125,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         }
     }
 
-    public void testSynonymsWithMultiplexer() throws IOException {
+    public void testSynonymsWrappedByMultiplexer() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
@@ -300,6 +300,23 @@ public class SynonymsAnalysisTests extends ESTestCase {
         }
 
         assertWarnings(expectedWarnings.toArray(new String[0]));
+
+        settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
+            .put("path.home", createTempDir().toString())
+            .put("preserve_original", "false")
+            .build();
+        idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        TokenFilterFactory tff = plugin.getTokenFilters().get("multiplexer").get(idxSettings, null, "multiplexer", settings);
+        TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
+        SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, null, "synonym", settings);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null));
+
+        assertEquals("Token filter [multiplexer] cannot be used to parse synonyms unless [preserve_original] is [true]",
+            e.getMessage());
 
     }
 

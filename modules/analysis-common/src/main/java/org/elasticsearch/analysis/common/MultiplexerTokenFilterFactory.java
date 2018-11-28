@@ -66,9 +66,13 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
         }
         else {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
-                + "] will not be usable to parse synonyms after v7.0");
-            return IDENTITY_FILTER;
+            if (preserveOriginal) {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+                    + "] will not be usable to parse synonyms after v7.0");
+                return IDENTITY_FILTER;
+            }
+            throw new IllegalArgumentException("Token filter [" + name()
+                + "] cannot be used to parse synonyms unless [preserve_original] is [true]");
         }
     }
 
@@ -120,9 +124,13 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                     throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
                 }
                 else {
-                    DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
-                        + "] will not be usable to parse synonyms after v7.0");
-                    return IDENTITY_FILTER;
+                    if (preserveOriginal) {
+                        DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+                            + "] will not be usable to parse synonyms after v7.0");
+                        return IDENTITY_FILTER;
+                    }
+                    throw new IllegalArgumentException("Token filter [" + name()
+                        + "] cannot be used to parse synonyms unless [preserve_original] is [true]");
                 }
             }
         };

@@ -161,28 +161,6 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "source": "-doc['num1'].value"
-                                }
-                            }
-                        }]
-
-    - match: { hits.total: 2 }
-    - match: { hits.hits.0._id: "1" }
-    - match: { hits.hits.1._id: "2" }
-
-    - do:
-        search:
-            index: test
-            body:
-                query:
-                    function_score:
-                        query:
-                            term:
-                                test: value
-                        "functions": [{
-                            "script_score": {
-                                "script": {
-                                    "lang": "painless",
                                     "source": "Math.pow(doc['num1'].value, 2)"
                                 }
                             }
@@ -370,7 +348,7 @@
                 script_fields:
                     foobar:
                         script: 
-                            source: "doc['f'].values.size()"
+                            source: "doc['f'].size()"
                             lang: painless
 
 
@@ -442,3 +420,39 @@
     - match: { error.root_cause.0.reason: "Iterable object is self-referencing itself" }
     - match: { error.type: "search_phase_execution_exception" }
     - match: { error.reason: "all shards failed" }
+
+---
+"Warning on negative score":
+    - skip:
+        version: " - 6.59.99"
+        reason: "check on negative scores was added from 6.6.0 on"
+        features: "warnings"
+
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "test": "value beck", "num1": 1.0 }
+    - do:
+        indices.refresh: {}
+
+    - do:
+        warnings:
+            - "Negative scores for script score function are deprecated, and will throw an error in the next major version. Got score: [-9.0]"
+        search:
+            index: test
+            body:
+                query:
+                    function_score:
+                        query:
+                            term:
+                                test: value
+                        "functions": [{
+                            "script_score": {
+                                "script": {
+                                    "lang": "painless",
+                                    "source": "doc['num1'].value - 10.0"
+                                }
+                            }
+                        }]

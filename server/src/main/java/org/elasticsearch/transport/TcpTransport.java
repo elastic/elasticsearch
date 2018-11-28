@@ -348,24 +348,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         public void close() {
             if (isClosing.compareAndSet(false, true)) {
                 try {
-                    if (lifecycle.stopped()) {
-                        /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't
-                         * have a gazillion connections sitting in TIME_WAIT to free up resources quickly.
-                         * This is really the only part where we close the connection from the server side
-                         * otherwise the client (node) initiates the TCP closing sequence which doesn't cause
-                         * these issues. Setting this by default from the beginning can have unexpected
-                         * side-effects an should be avoided, our protocol is designed in a way that clients
-                         * close connection which is how it should be*/
-
-                        channels.forEach(c -> {
-                            try {
-                                c.setSoLinger(0);
-                            } catch (IOException e) {
-                                logger.warn(new ParameterizedMessage("unexpected exception when setting SO_LINGER on channel {}", c), e);
-                            }
-                        });
-                    }
-
                     boolean block = lifecycle.stopped() && Transports.isTransportThread(Thread.currentThread()) == false;
                     CloseableChannel.closeChannels(channels, block);
                 } finally {

@@ -5,19 +5,21 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
+import com.carrotsearch.hppc.IntObjectHashMap;
+
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.xpack.sql.jdbc.EsType;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.relique.jdbc.csv.CsvResultSet;
 
-import java.sql.JDBCType;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
-import java.util.TimeZone;
 
 import static java.lang.String.format;
 import static java.sql.Types.BIGINT;
@@ -36,7 +38,14 @@ import static org.junit.Assert.fail;
  * Utility class for doing JUnit-style asserts over JDBC.
  */
 public class JdbcAssert {
-    private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+
+    private static final IntObjectHashMap<EsType> SQL_TO_TYPE = new IntObjectHashMap<>();
+
+    static {
+        for (EsType type : EsType.values()) {
+            SQL_TO_TYPE.putIfAbsent(type.getVendorTypeNumber().intValue(), type);
+        }
+    }
 
     public static void assertResultSets(ResultSet expected, ResultSet actual) throws SQLException {
         assertResultSets(expected, actual, null);
@@ -118,15 +127,25 @@ public class JdbcAssert {
             if (expectedType == Types.FLOAT && expected instanceof CsvResultSet) {
                 expectedType = Types.REAL;
             }
+            // handle intervals
+            if ((expectedType == Types.VARCHAR && expected instanceof CsvResultSet) && nameOf(actualType).startsWith("INTERVAL_")) {
+                expectedType = actualType;
+            }
+            
             // csv doesn't support NULL type so skip type checking
             if (actualType == Types.NULL && expected instanceof CsvResultSet) {
                 expectedType = Types.NULL;
             }
 
             // when lenient is used, an int is equivalent to a short, etc...
-            assertEquals("Different column type for column [" + expectedName + "] (" + JDBCType.valueOf(expectedType) + " != "
-                    + JDBCType.valueOf(actualType) + ")", expectedType, actualType);
+            assertEquals(
+                    "Different column type for column [" + expectedName + "] (" + nameOf(expectedType) + " != " + nameOf(actualType) + ")",
+                    expectedType, actualType);
         }
+    }
+    
+    private static String nameOf(int sqlType) {
+        return SQL_TO_TYPE.get(sqlType).getName();
     }
 
     // The ResultSet is consumed and thus it should be closed
@@ -139,7 +158,7 @@ public class JdbcAssert {
             doAssertResultSetData(ex, ac, logger, lenient);
         }
     }
-    
+
     private static void doAssertResultSetData(ResultSet expected, ResultSet actual, Logger logger, boolean lenient) throws SQLException {
         ResultSetMetaData metaData = expected.getMetaData();
         int columns = metaData.getColumnCount();
@@ -178,7 +197,7 @@ public class JdbcAssert {
                     } catch (ClassNotFoundException cnfe) {
                         throw new SQLException(cnfe);
                     }
-                    
+
                     Object expectedObject = expected.getObject(column);
                     Object actualObject = lenient ? actual.getObject(column, expectedColumnClass) : actual.getObject(column);
 
@@ -204,6 +223,10 @@ public class JdbcAssert {
                         assertEquals(msg, (double) expectedObject, (double) actualObject, 1d);
                     } else if (type == Types.FLOAT) {
                         assertEquals(msg, (float) expectedObject, (float) actualObject, 1f);
+                    }
+                    // intervals
+                    else if (type == Types.VARCHAR && actualObject instanceof TemporalAmount) {
+                        assertEquals(msg, expectedObject, StringUtils.toString(actualObject));
                     }
                     // finally the actual comparison
                     else {

@@ -23,7 +23,6 @@ package org.elasticsearch.indices.breaker;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -176,11 +175,11 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .build();
         try (CircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
-            CircuitBreaker requestCircuitBreaker = service.getBreaker(MemoryCircuitBreaker.REQUEST);
-            CircuitBreaker fieldDataCircuitBreaker = service.getBreaker(MemoryCircuitBreaker.FIELDDATA);
+            CircuitBreaker requestCircuitBreaker = service.getBreaker(CircuitBreaker.REQUEST);
+            CircuitBreaker fieldDataCircuitBreaker = service.getBreaker(CircuitBreaker.FIELDDATA);
 
             assertEquals(new ByteSizeValue(200, ByteSizeUnit.MB).getBytes(),
-                service.stats().getStats(MemoryCircuitBreaker.PARENT).getLimit());
+                service.stats().getStats(CircuitBreaker.PARENT).getLimit());
             assertEquals(new ByteSizeValue(150, ByteSizeUnit.MB).getBytes(), requestCircuitBreaker.getLimit());
             assertEquals(new ByteSizeValue(150, ByteSizeUnit.MB).getBytes(), fieldDataCircuitBreaker.getLimit());
 

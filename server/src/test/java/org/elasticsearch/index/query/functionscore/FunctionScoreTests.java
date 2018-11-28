@@ -825,6 +825,20 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(exc.getMessage(), containsString("function score query returned an invalid score: " + Float.NEGATIVE_INFINITY));
     }
 
+    public void testWarningOnNegativeScores() throws IOException {
+        IndexSearcher localSearcher = new IndexSearcher(reader);
+        TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
+
+        // test that field_value_factor function issues a warning on negative scores
+        FieldValueFactorFunction.Modifier modifier = FieldValueFactorFunction.Modifier.NONE;
+        final ScoreFunction fvfFunction = new FieldValueFactorFunction(FIELD, -10,  modifier, 1.0, new IndexNumericFieldDataStub());
+        FunctionScoreQuery fsQuery =
+            new FunctionScoreQuery(termQuery, fvfFunction, CombineFunction.REPLACE, null, Float.POSITIVE_INFINITY);
+        localSearcher.search(fsQuery, 1); 
+        assertWarnings("Negative scores for field value function are deprecated," + 
+            " and will throw an error in the next major version. Got: [-10.0] for field value: [1.0]");
+    }
+
     private static class DummyScoreFunction extends ScoreFunction {
         protected DummyScoreFunction(CombineFunction scoreCombiner) {
             super(scoreCombiner);

@@ -52,7 +52,7 @@ Imagine we have an index named `sensor-1` full of raw data, and we have created 
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/rollup/job/sensor
+PUT _rollup/job/sensor
 {
     "index_pattern": "sensor-*",
     "rollup_index": "sensor_rollup",

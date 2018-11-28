@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +38,8 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     public static final Setting<TimeValue> TICKER_INTERVAL_SETTING =
         positiveTimeSetting("xpack.watcher.trigger.schedule.ticker.tick_interval", TimeValue.timeValueMillis(500), Property.NodeScope);
+
+    private static final Logger logger = LogManager.getLogger(TickerScheduleTriggerEngine.class);
 
     private final TimeValue tickInterval;
     private final Map<String, ActiveSchedule> schedules = new ConcurrentHashMap<>();

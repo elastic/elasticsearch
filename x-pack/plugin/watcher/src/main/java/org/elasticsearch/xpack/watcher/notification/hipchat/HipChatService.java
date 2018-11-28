@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.notification.hipchat;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -60,6 +62,7 @@ public class HipChatService extends NotificationService<HipChatAccount> {
             Setting.affixKeySetting("xpack.notification.hipchat.account.", "message",
                     (key) -> Setting.groupSetting(key + ".", Setting.Property.Dynamic, Setting.Property.NodeScope));
 
+    private static final Logger logger = LogManager.getLogger(HipChatService.class);
 
     private final HttpClient httpClient;
     private HipChatServer defaultServer;

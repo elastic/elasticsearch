@@ -27,7 +27,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
@@ -55,10 +57,12 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.DATA;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.INGEST;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.MASTER;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
+import static org.elasticsearch.test.discovery.TestZenDiscovery.USE_ZEN2;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
@@ -190,11 +194,14 @@ public class InternalTestClusterTests extends ESTestCase {
                     .put(
                         NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                         2 * ((masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes))
+                    .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
+                    .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
                 if (autoManageMinMasterNodes == false) {
                     assert minNumDataNodes == maxNumDataNodes;
                     assert masterNodes == false;
-                    settings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minNumDataNodes / 2 + 1);
+                    settings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minNumDataNodes / 2 + 1)
+                        .put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), minNumDataNodes);
                 }
                 return settings.build();
             }
@@ -265,6 +272,7 @@ public class InternalTestClusterTests extends ESTestCase {
                         NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                         2 + (masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+                    .put(USE_ZEN2.getKey(), false) // full cluster restarts not yet supported
                     .build();
             }
 
@@ -375,6 +383,7 @@ public class InternalTestClusterTests extends ESTestCase {
                         // speedup join timeout as setting initial state timeout to 0 makes split
                         // elections more likely
                         .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "3s")
+                        .put(USE_ZEN2.getKey(), false) // full cluster restarts not yet supported
                         .build();
             }
 
@@ -457,6 +466,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 return Settings.builder()
                     .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+                    .put(USE_ZEN2.getKey(), false) // full cluster restarts not yet supported
                     .build();
             }
 

@@ -33,7 +33,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class PersistedStateIT extends ESIntegTestCase {
 
     private static Settings SETTINGS = Settings.builder()
-        .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
         .put(TestZenDiscovery.USE_ZEN2_PERSISTED_STATE.getKey(), true)
         .build();
 

@@ -108,7 +108,6 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put("path.home", home)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
-                .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
                 //.put("xpack.ml.autodetect_process", false);
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(
@@ -152,7 +151,6 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("discovery.initial_state_timeout", "0s")
                 .put("path.home", home)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
-                .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
                 //.put("xpack.ml.autodetect_process", false);
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(

@@ -284,6 +284,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-delete-model-snapshot>>
 * <<{upid}-revert-model-snapshot>>
 * <<{upid}-update-model-snapshot>>
+* <<{upid}-get-ml-info>>
 * <<{upid}-delete-expired-data>>
 
 include::ml/put-job.asciidoc[]
@@ -326,6 +327,7 @@ include::ml/get-model-snapshots.asciidoc[]
 include::ml/delete-model-snapshot.asciidoc[]
 include::ml/revert-model-snapshot.asciidoc[]
 include::ml/update-model-snapshot.asciidoc[]
+include::ml/get-info.asciidoc[]
 include::ml/delete-expired-data.asciidoc[]
 
 == Migration APIs

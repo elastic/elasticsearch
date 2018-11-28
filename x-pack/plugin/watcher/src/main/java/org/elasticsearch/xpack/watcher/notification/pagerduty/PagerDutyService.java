@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -40,11 +41,13 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
     private final HttpClient httpClient;
 
     public PagerDutyService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
-        super("pagerduty", clusterSettings, Arrays.asList(SETTING_DEFAULT_ACCOUNT, SETTING_SERVICE_API_KEY, SETTING_DEFAULTS));
+        super("pagerduty", settings, clusterSettings, getClusterSettings());
         this.httpClient = httpClient;
+        // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SERVICE_API_KEY, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_DEFAULTS, (s, o) -> {}, (s, o) -> {});
+        // do an initial load
         reload(settings);
     }
 
@@ -53,7 +56,13 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
         return new PagerDutyAccount(name, accountSettings, accountSettings, httpClient);
     }
 
+    private static List<Setting<?>> getClusterSettings() {
+        return Arrays.asList(SETTING_SERVICE_API_KEY, SETTING_DEFAULTS, SETTING_DEFAULT_ACCOUNT);
+    }
+
     public static List<Setting<?>> getSettings() {
-        return Arrays.asList(SETTING_SERVICE_API_KEY, SETTING_SECURE_SERVICE_API_KEY, SETTING_DEFAULTS, SETTING_DEFAULT_ACCOUNT);
+        List<Setting<?>> allSettings = new ArrayList<Setting<?>>(getClusterSettings());
+        allSettings.add(SETTING_SECURE_SERVICE_API_KEY);
+        return allSettings;
     }
 }

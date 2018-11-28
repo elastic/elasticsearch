@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.notification;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -29,6 +31,8 @@ import java.util.function.BiFunction;
 public abstract class NotificationService<Account> {
 
     private final String type;
+    private final Logger logger;
+    private final Settings bootSettings;
     // all are guarded by this
     private volatile Map<String, Account> accounts;
     private volatile Account defaultAccount;
@@ -39,50 +43,57 @@ public abstract class NotificationService<Account> {
     // using the new updated cluster settings
     private volatile SecureSettings cachedSecureSettings;
 
-    public NotificationService(String type, ClusterSettings clusterSettings, List<Setting<?>> pluginClusterSettings) {
+    public NotificationService(String type, Settings settings, ClusterSettings clusterSettings, List<Setting<?>> pluginClusterSettings) {
         this.type = type;
+        this.logger = LogManager.getLogger();
+        this.bootSettings = settings;
+        // register a grand updater for the whole group, as settings are usable together
         clusterSettings.addSettingsUpdateConsumer(this::clusterSettingsConsumer, pluginClusterSettings);
-    }
-
-    private synchronized void clusterSettingsConsumer(Settings settings) {
-        // update cached cluster settings
-        this.cachedClusterSettings = settings;
-        // build new settings from the previously cached secure settings
-        final Settings.Builder completeSettingsBuilder = Settings.builder().put(settings, false);
-        if (cachedSecureSettings != null) {
-            completeSettingsBuilder.setSecureSettings(cachedSecureSettings);
-        }
-        final Settings completeSettings = completeSettingsBuilder.build();
-        // create new accounts from the latest
-        final Set<String> accountNames = getAccountNames(completeSettings);
-        this.accounts = createAccounts(completeSettings, accountNames, this::createAccount);
-        this.defaultAccount = selectDefaultAccount(completeSettings, this.accounts);
     }
 
     // Used for testing only
     NotificationService(String type) {
         this.type = type;
+        this.logger = LogManager.getLogger();
+        this.bootSettings = Settings.EMPTY;
+    }
+
+    private synchronized void clusterSettingsConsumer(Settings settings) {
+        // update cached cluster settings
+        this.cachedClusterSettings = settings;
+        // use these new dynamic cluster settings together with the previously cached
+        // secure settings
+        buildAccounts();
     }
 
     public synchronized void reload(Settings settings) {
-        // `SecureSettings` are available here!
-        // cache the `SecureSettings`
+        // `SecureSettings` are available here! cache them as they will be needed
+        // whenever dynamic cluster settings change and we have to rebuild the accounts
         try {
-            this.cachedSecureSettings = cacheSecureSettings(settings);
+            this.cachedSecureSettings = extractSecureSettings(settings);
         } catch (GeneralSecurityException e) {
             logger.error("Keystore exception while reloading watcher notification service", e);
             return;
         }
-        // build new settings from the previously cached cluster settings
-        final Settings.Builder completeSettingsBuilder = Settings.builder().put(settings, true);
-        if (cachedClusterSettings != null) {
-            completeSettingsBuilder.put(cachedClusterSettings);
+        // use these new secure settings together with the previously cached dynamic
+        // cluster settings
+        buildAccounts();
+    }
+
+    private void buildAccounts() {
+        // build complete settings combining cluster and secure settings
+        final Settings.Builder completeSettingsBuilder = Settings.builder().put(bootSettings, false);
+        if (this.cachedClusterSettings != null) {
+            completeSettingsBuilder.put(this.cachedClusterSettings, false);
+        }
+        if (this.cachedSecureSettings != null) {
+            completeSettingsBuilder.setSecureSettings(this.cachedSecureSettings);
         }
         final Settings completeSettings = completeSettingsBuilder.build();
-        // create new accounts from the latest
+        // obtain account names and create accounts
         final Set<String> accountNames = getAccountNames(completeSettings);
         this.accounts = createAccounts(completeSettings, accountNames, this::createAccount);
-        this.defaultAccount = selectDefaultAccount(completeSettings, this.accounts);
+        this.defaultAccount = findDefaultAccountOrNull(completeSettings, this.accounts);
     }
 
     protected abstract Account createAccount(String name, Settings accountSettings);
@@ -112,7 +123,7 @@ public abstract class NotificationService<Account> {
     }
 
     private Set<String> getAccountNames(Settings settings) {
-        // secure settings don't account for the client names
+        // secure settings are not responsible for the client names
         final Settings noSecureSettings = Settings.builder().put(settings, false).build();
         return noSecureSettings.getByPrefix(getNotificationsAccountPrefix()).names();
     }
@@ -132,7 +143,7 @@ public abstract class NotificationService<Account> {
         return Collections.unmodifiableMap(accounts);
     }
 
-    private @Nullable Account selectDefaultAccount(Settings settings, Map<String, Account> accounts) {
+    private @Nullable Account findDefaultAccountOrNull(Settings settings, Map<String, Account> accounts) {
         final String defaultAccountName = getDefaultAccountName(settings);
         if (defaultAccountName == null) {
             if (accounts.isEmpty()) {
@@ -149,7 +160,19 @@ public abstract class NotificationService<Account> {
         }
     }
 
-    private SecureSettings cacheSecureSettings(Settings source) throws GeneralSecurityException {
+    /**
+     * Extracts the {@link SecureSettings}` out of the passed in {@link Settings} object. The
+     * {@code Setting} argument has to have the {@code SecureSettings} open/available. Normally
+     * {@code SecureSettings} are available only under specific callstacks (eg. during node
+     * initialization or during a `reload` call). The returned copy can be reused freely as it
+     * will never be closed (this is a bit of cheating, but it is necessary in this specific
+     * circumstance). Only works for secure settings of type string (not file). 
+     * 
+     * @param source
+     *            A {@code Settings} object with its {@code SecureSettings} open/available.
+     * @return A copy of the {@code SecureSettings} of the passed in {@code Settings} argument.
+     */
+    private static SecureSettings extractSecureSettings(Settings source) throws GeneralSecurityException {
         // get the secure settings out
         final SecureSettings sourceSecureSettings = Settings.builder().put(source, true).getSecureSettings();
         // cache them...

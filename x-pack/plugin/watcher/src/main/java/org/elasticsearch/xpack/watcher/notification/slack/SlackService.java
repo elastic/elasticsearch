@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -43,11 +44,13 @@ public class SlackService extends NotificationService<SlackAccount> {
     private final HttpClient httpClient;
 
     public SlackService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
-        super("slack", clusterSettings, Arrays.asList(SETTING_DEFAULT_ACCOUNT, SETTING_URL, SETTING_DEFAULTS));
+        super("slack", settings, clusterSettings, getClusterSettings());
         this.httpClient = httpClient;
+        // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_URL, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_DEFAULTS, (s, o) -> {}, (s, o) -> {});
+        // do an initial load
         reload(settings);
     }
 
@@ -56,7 +59,13 @@ public class SlackService extends NotificationService<SlackAccount> {
         return new SlackAccount(name, accountSettings, accountSettings, httpClient, logger);
     }
 
+    private static List<Setting<?>> getClusterSettings() {
+        return Arrays.asList(SETTING_URL, SETTING_DEFAULT_ACCOUNT, SETTING_DEFAULTS);
+    }
+
     public static List<Setting<?>> getSettings() {
-        return Arrays.asList(SETTING_URL, SETTING_URL_SECURE, SETTING_DEFAULT_ACCOUNT, SETTING_DEFAULTS);
+        List<Setting<?>> allSettings = new ArrayList<Setting<?>>(getClusterSettings());
+        allSettings.add(SETTING_URL_SECURE);
+        return allSettings;
     }
 }

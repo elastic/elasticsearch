@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -50,17 +51,22 @@ public class DatafeedConfigReader {
      * @param listener   DatafeedConfig listener
      */
     public void datafeedConfig(String datafeedId, ClusterState state, ActionListener<DatafeedConfig> listener) {
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
-        DatafeedConfig config = mlMetadata.getDatafeed(datafeedId);
 
-        if (config != null) {
-            listener.onResponse(config);
-        } else {
-            datafeedConfigProvider.getDatafeedConfig(datafeedId, ActionListener.wrap(
-                    builder -> listener.onResponse(builder.build()),
-                    listener::onFailure
-            ));
-        }
+        datafeedConfigProvider.getDatafeedConfig(datafeedId, ActionListener.wrap(
+                builder -> listener.onResponse(builder.build()),
+                e -> {
+                    if (e.getClass() == ResourceNotFoundException.class) {
+                        // look in the clusterstate
+                        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
+                        DatafeedConfig config = mlMetadata.getDatafeed(datafeedId);
+                        if (config != null) {
+                            listener.onResponse(config);
+                            return;
+                        }
+                    }
+                    listener.onFailure(e);
+                }
+        ));
     }
 
     /**
@@ -70,22 +76,15 @@ public class DatafeedConfigReader {
     public void expandDatafeedIds(String expression, boolean allowNoDatafeeds, ClusterState clusterState,
                                   ActionListener<SortedSet<String>> listener) {
 
-        Set<String> clusterStateDatafeedIds = MlMetadata.getMlMetadata(clusterState).expandDatafeedIds(expression);
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(expression, allowNoDatafeeds);
-        requiredMatches.filterMatchedIds(clusterStateDatafeedIds);
 
         datafeedConfigProvider.expandDatafeedIdsWithoutMissingCheck(expression, ActionListener.wrap(
                 expandedDatafeedIds -> {
-                    // Check for duplicate Ids
-                    expandedDatafeedIds.forEach(id -> {
-                        if (clusterStateDatafeedIds.contains(id)) {
-                            listener.onFailure(new IllegalStateException("Datafeed [" + id + "] configuration " +
-                                    "exists in both clusterstate and index"));
-                            return;
-                        }
-                    });
-
                     requiredMatches.filterMatchedIds(expandedDatafeedIds);
+
+                    // now read from the clusterstate
+                    Set<String> clusterStateDatafeedIds = MlMetadata.getMlMetadata(clusterState).expandDatafeedIds(expression);
+                    requiredMatches.filterMatchedIds(clusterStateDatafeedIds);
 
                     if (requiredMatches.hasUnmatchedIds()) {
                         listener.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
@@ -105,25 +104,25 @@ public class DatafeedConfigReader {
     public void expandDatafeedConfigs(String expression, boolean allowNoDatafeeds, ClusterState clusterState,
                                       ActionListener<List<DatafeedConfig>> listener) {
 
-        Map<String, DatafeedConfig> clusterStateConfigs = expandClusterStateDatafeeds(expression, clusterState);
-
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(expression, allowNoDatafeeds);
-        requiredMatches.filterMatchedIds(clusterStateConfigs.keySet());
 
         datafeedConfigProvider.expandDatafeedConfigsWithoutMissingCheck(expression, ActionListener.wrap(
                 datafeedBuilders -> {
-                    // Check for duplicate Ids
-                    datafeedBuilders.forEach(datafeedBuilder -> {
-                        if (clusterStateConfigs.containsKey(datafeedBuilder.getId())) {
-                            listener.onFailure(new IllegalStateException("Datafeed [" + datafeedBuilder.getId() + "] configuration " +
-                                    "exists in both clusterstate and index"));
-                            return;
-                        }
-                    });
-
                     List<DatafeedConfig> datafeedConfigs = new ArrayList<>();
                     for (DatafeedConfig.Builder builder : datafeedBuilders) {
                         datafeedConfigs.add(builder.build());
+                    }
+
+                    Map<String, DatafeedConfig> clusterStateConfigs = expandClusterStateDatafeeds(expression, clusterState);
+
+                    // Duplicate configs existing in both the clusterstate and index documents are ok
+                    // this may occur during migration of configs.
+                    // Prefer the index configs and filter duplicates from the clusterstate configs.
+                    Set<String> indexConfigIds = datafeedConfigs.stream().map(DatafeedConfig::getId).collect(Collectors.toSet());
+                    for (String clusterStateDatafeedId : clusterStateConfigs.keySet()) {
+                        if (indexConfigIds.contains(clusterStateDatafeedId) == false) {
+                            datafeedConfigs.add(clusterStateConfigs.get(clusterStateDatafeedId));
+                        }
                     }
 
                     requiredMatches.filterMatchedIds(datafeedConfigs.stream().map(DatafeedConfig::getId).collect(Collectors.toList()));
@@ -131,7 +130,6 @@ public class DatafeedConfigReader {
                     if (requiredMatches.hasUnmatchedIds()) {
                         listener.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
                     } else {
-                        datafeedConfigs.addAll(clusterStateConfigs.values());
                         Collections.sort(datafeedConfigs, Comparator.comparing(DatafeedConfig::getId));
                         listener.onResponse(datafeedConfigs);
                     }

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
@@ -692,47 +693,53 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     private void clearJobFinishedTime(String jobId, ActionListener<AcknowledgedResponse> listener) {
 
-        boolean jobIsInClusterState = ClusterStateJobUpdate.jobIsInClusterState(clusterService.state(), jobId);
-        if (jobIsInClusterState) {
-            clusterService.submitStateUpdateTask("clearing-job-finish-time-for-" + jobId, new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    MlMetadata mlMetadata = MlMetadata.getMlMetadata(currentState);
-                    MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder(mlMetadata);
-                    Job.Builder jobBuilder = new Job.Builder(mlMetadata.getJobs().get(jobId));
-                    jobBuilder.setFinishedTime(null);
+        JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
 
-                    mlMetadataBuilder.putJob(jobBuilder.build(), true);
-                    ClusterState.Builder builder = ClusterState.builder(currentState);
-                    return builder.metaData(new MetaData.Builder(currentState.metaData())
-                            .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
-                            .build();
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    logger.error("[" + jobId + "] Failed to clear finished_time; source [" + source + "]", e);
-                    listener.onResponse(new AcknowledgedResponse(true));
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState,
-                                                  ClusterState newState) {
-                    listener.onResponse(new AcknowledgedResponse(true));
-                }
-            });
-        } else {
-            JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
-
-            jobConfigProvider.updateJob(jobId, update, null, ActionListener.wrap(
-                    job -> listener.onResponse(new AcknowledgedResponse(true)),
-                    e -> {
-                        logger.error("[" + jobId + "] Failed to clear finished_time", e);
-                        // Not a critical error so continue
-                        listener.onResponse(new AcknowledgedResponse(true));
+        jobConfigProvider.updateJob(jobId, update, null, ActionListener.wrap(
+                job -> listener.onResponse(new AcknowledgedResponse(true)),
+                e -> {
+                    if (e.getClass() == ResourceNotFoundException.class) {
+                        // Maybe the config is in the clusterstate
+                        if (ClusterStateJobUpdate.jobIsInClusterState(clusterService.state(), jobId)) {
+                            clearJobFinishedTimeClusterState(jobId, listener);
+                            return;
+                        }
                     }
-            ));
-        }
+                    logger.error("[" + jobId + "] Failed to clear finished_time", e);
+                    // Not a critical error so continue
+                    listener.onResponse(new AcknowledgedResponse(true));
+                }
+        ));
+    }
+
+    private void clearJobFinishedTimeClusterState(String jobId, ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("clearing-job-finish-time-for-" + jobId, new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                MlMetadata mlMetadata = MlMetadata.getMlMetadata(currentState);
+                MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder(mlMetadata);
+                Job.Builder jobBuilder = new Job.Builder(mlMetadata.getJobs().get(jobId));
+                jobBuilder.setFinishedTime(null);
+
+                mlMetadataBuilder.putJob(jobBuilder.build(), true);
+                ClusterState.Builder builder = ClusterState.builder(currentState);
+                return builder.metaData(new MetaData.Builder(currentState.metaData())
+                        .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
+                        .build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error("[" + jobId + "] Failed to clear finished_time; source [" + source + "]", e);
+                listener.onResponse(new AcknowledgedResponse(true));
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState,
+                                              ClusterState newState) {
+                listener.onResponse(new AcknowledgedResponse(true));
+            }
+        });
     }
 
     private void cancelJobStart(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask, Exception exception,

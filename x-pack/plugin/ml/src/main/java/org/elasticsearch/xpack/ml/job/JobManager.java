@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
@@ -212,28 +213,10 @@ public class JobManager {
      * @param jobsListener The jobs listener
      */
     public void expandJobs(String expression, boolean allowNoJobs, ActionListener<QueryPage<Job>> jobsListener) {
-        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, clusterService.state());
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(expression, allowNoJobs);
-        requiredMatches.filterMatchedIds(clusterStateJobs.keySet());
-
-        // If expression contains a group Id it has been expanded to its
-        // constituent job Ids but Ids matcher needs to know the group
-        // has been matched
-        Set<String> groupIds = clusterStateJobs.values().stream()
-                .filter(job -> job.getGroups() != null).flatMap(j -> j.getGroups().stream()).collect(Collectors.toSet());
-        requiredMatches.filterMatchedIds(groupIds);
 
         jobConfigProvider.expandJobsWithoutMissingcheck(expression, false, ActionListener.wrap(
                 jobBuilders -> {
-                    // Check for duplicate jobs
-                    for (Job.Builder jb : jobBuilders) {
-                        if (clusterStateJobs.containsKey(jb.getId())) {
-                            jobsListener.onFailure(new IllegalStateException("Job [" + jb.getId() + "] configuration " +
-                                    "exists in both clusterstate and index"));
-                            return;
-                        }
-                    }
-
                     Set<String> jobAndGroupIds = new HashSet<>();
 
                     // Merge cluster state and index jobs
@@ -241,8 +224,25 @@ public class JobManager {
                     for (Job.Builder jb : jobBuilders) {
                         Job job = jb.build();
                         jobAndGroupIds.add(job.getId());
+                        // If expression contains a group Id it has been expanded to its
+                        // constituent job Ids but Ids matcher needs to know the group
+                        // has been matched
                         jobAndGroupIds.addAll(job.getGroups());
                         jobs.add(job);
+                    }
+
+                    // Duplicate configs existing in both the clusterstate and index documents are ok
+                    // this may occur during migration of configs.
+                    // Prefer the index configs and filter duplicates from the clusterstate configs
+                    Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, clusterService.state());
+                    for (String clusterStateJobId : clusterStateJobs.keySet()) {
+                        boolean isDuplicate = jobAndGroupIds.contains(clusterStateJobId);
+                        if (isDuplicate == false) {
+                            Job csJob = clusterStateJobs.get(clusterStateJobId);
+                            jobs.add(csJob);
+                            jobAndGroupIds.add(csJob.getId());
+                            jobAndGroupIds.addAll(csJob.getGroups());
+                        }
                     }
 
                     requiredMatches.filterMatchedIds(jobAndGroupIds);
@@ -250,7 +250,6 @@ public class JobManager {
                     if (requiredMatches.hasUnmatchedIds()) {
                         jobsListener.onFailure(ExceptionsHelper.missingJobException(requiredMatches.unmatchedIdsString()));
                     } else {
-                        jobs.addAll(clusterStateJobs.values());
                         Collections.sort(jobs, Comparator.comparing(Job::getId));
                         jobsListener.onResponse(new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
                     }
@@ -277,27 +276,21 @@ public class JobManager {
      * @param jobsListener The jobs listener
      */
     public void expandJobIds(String expression, boolean allowNoJobs, ActionListener<SortedSet<String>> jobsListener) {
-        Set<String> clusterStateJobIds = MlMetadata.getMlMetadata(clusterService.state()).expandJobIds(expression);
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(expression, allowNoJobs);
-        requiredMatches.filterMatchedIds(clusterStateJobIds);
-        // If expression contains a group Id it has been expanded to its
-        // constituent job Ids but Ids matcher needs to know the group
-        // has been matched
-        requiredMatches.filterMatchedIds(MlMetadata.getMlMetadata(clusterService.state()).expandGroupIds(expression));
+
 
         jobConfigProvider.expandJobsIdsWithoutMissingCheck(expression, false, ActionListener.wrap(
                 jobIdsAndGroups -> {
-                    // Check for duplicate job Ids
-                    for (String id : jobIdsAndGroups.getJobs()) {
-                        if (clusterStateJobIds.contains(id)) {
-                            jobsListener.onFailure(new IllegalStateException("Job [" + id + "] configuration " +
-                                    "exists in both clusterstate and index"));
-                            return;
-                        }
-                    }
-
                     requiredMatches.filterMatchedIds(jobIdsAndGroups.getJobs());
+
+                    Set<String> clusterStateJobIds = MlMetadata.getMlMetadata(clusterService.state()).expandJobIds(expression);
+                    requiredMatches.filterMatchedIds(clusterStateJobIds);
+                    // If expression contains a group Id it has been expanded to its
+                    // constituent job Ids but Ids matcher needs to know the group
+                    // has been matched
                     requiredMatches.filterMatchedIds(jobIdsAndGroups.getGroups());
+                    requiredMatches.filterMatchedIds(MlMetadata.getMlMetadata(clusterService.state()).expandGroupIds(expression));
+
                     if (requiredMatches.hasUnmatchedIds()) {
                         jobsListener.onFailure(ExceptionsHelper.missingJobException(requiredMatches.unmatchedIdsString()));
                     } else {
@@ -311,38 +304,50 @@ public class JobManager {
     }
 
     /**
-     * Mark the job as being deleted. First looks in the cluster state for the
-     * job configuration then the index
+     * Mark the job as being deleted. First looks in the ml-config index
+     * for the job configuration then the clusterstate
      *
      * @param jobId     To to mark
      * @param force     Allows an open job to be marked
      * @param listener  listener
      */
     public void markJobAsDeleting(String jobId, boolean force, ActionListener<Boolean> listener) {
-        if (ClusterStateJobUpdate.jobIsInClusterState(clusterService.state(), jobId)) {
-            ClusterStateJobUpdate.markJobAsDeleting(jobId, force, clusterService, listener);
-        } else {
-            jobConfigProvider.markJobAsDeleting(jobId, listener);
-        }
+        jobConfigProvider.markJobAsDeleting(jobId, ActionListener.wrap(
+                listener::onResponse,
+                e -> {
+                    if (e.getClass() == ResourceNotFoundException.class) {
+                        // is the config in the cluster state
+                        if (ClusterStateJobUpdate.jobIsInClusterState(clusterService.state(), jobId)) {
+                            ClusterStateJobUpdate.markJobAsDeleting(jobId, force, clusterService, listener);
+                            return;
+                        }
+                    }
+                    listener.onFailure(e);
+                }
+        ));
+
     }
 
     /**
-     * First try to delete the job from the cluster state, if it does not exist
-     * there try to  delete the index job.
+     * First try to delete the job document from ml-config, if it does not exist
+     * there try to the clusterstate.
      *
      * @param request   The delete job request
      * @param listener  Delete listener
      */
     public void deleteJob(DeleteJobAction.Request request, ActionListener<Boolean> listener) {
-
-        if (ClusterStateJobUpdate.jobIsInClusterState(clusterService.state(), request.getJobId())) {
-            ClusterStateJobUpdate.deleteJob(request, clusterService, listener);
-        } else {
-            jobConfigProvider.deleteJob(request.getJobId(), false, ActionListener.wrap(
-                    deleteResponse -> listener.onResponse(Boolean.TRUE),
-                    listener::onFailure
-            ));
-        }
+        jobConfigProvider.deleteJob(request.getJobId(), false, ActionListener.wrap(
+                deleteResponse -> {
+                    if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        if (ClusterStateJobUpdate.jobIsInClusterState(clusterService.state(), request.getJobId())) {
+                            ClusterStateJobUpdate.deleteJob(request, clusterService, listener);
+                        }
+                    } else {
+                        listener.onResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
+                    }
+                },
+                listener::onFailure
+        ));
     }
 
     /**
@@ -462,18 +467,21 @@ public class JobManager {
     }
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
-        if (ClusterStateJobUpdate.jobIsInMlMetadata(mlMetadata, request.getJobId())) {
-            updateJobClusterState(request, actionListener);
-        } else {
-            updateJobIndex(request, ActionListener.wrap(
-                    updatedJob -> {
-                        postJobUpdate(clusterService.state(), request);
-                        actionListener.onResponse(new PutJobAction.Response(updatedJob));
-                    },
-                    actionListener::onFailure
-            ));
-        }
+        updateJobIndex(request, ActionListener.wrap(
+                updatedJob -> {
+                    postJobUpdate(clusterService.state(), request);
+                    actionListener.onResponse(new PutJobAction.Response(updatedJob));
+                },
+                e -> {
+                    if (e.getClass() == ResourceNotFoundException.class) {
+                        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
+                        if (ClusterStateJobUpdate.jobIsInMlMetadata(mlMetadata, request.getJobId())) {
+                            updateJobClusterState(request, actionListener);
+                            return;
+                        }
+                    }
+                    actionListener.onFailure(e);
+                }));
     }
 
     private void postJobUpdate(ClusterState clusterState, UpdateJobAction.Request request) {
@@ -658,16 +666,16 @@ public class JobManager {
                 indexJobs -> {
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
 
-                        List<Job> allJobs = new ArrayList<>();
-                        // Check for duplicate jobs
-                        for (Job indexJob : indexJobs) {
-                            if (clusterStateJobs.containsKey(indexJob.getId())) {
-                                logger.error("[" + indexJob.getId() + "] job configuration exists in both clusterstate and index");
-                            } else {
-                                allJobs.add(indexJob);
+                        List<Job> allJobs = new ArrayList<>(indexJobs);
+                        // Duplicate configs existing in both the clusterstate and index documents are ok
+                        // this may occur during migration of configs.
+                        // Filter the duplicates so we don't update twice for duplicated jobs
+                        for (String clusterStateJobId : clusterStateJobs.keySet()) {
+                            boolean isDuplicate = allJobs.stream().anyMatch(job -> job.getId().equals(clusterStateJobId));
+                            if (isDuplicate == false) {
+                                allJobs.add(clusterStateJobs.get(clusterStateJobId));
                             }
                         }
-                        allJobs.addAll(clusterStateJobs.values());
 
                         for (Job job: allJobs) {
                             Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
@@ -740,7 +748,7 @@ public class JobManager {
         jobConfigProvider.expandGroupIds(calendarJobIds, ActionListener.wrap(
                 expandedIds -> {
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-                        // Merge the expended group members with the request Ids which
+                        // Merge the expanded group members with the request Ids
                         // which are job ids rather than group Ids.
                         expandedIds.addAll(calendarJobIds);
 
@@ -798,39 +806,10 @@ public class JobManager {
 
         // Step 1. update the job
         // -------
-
-        Consumer<Long> updateJobHandler;
-
-        if (ClusterStateJobUpdate.jobIsInClusterState(clusterService.state(), request.getJobId())) {
-            updateJobHandler = response -> clusterService.submitStateUpdateTask("revert-snapshot-" + request.getJobId(),
-                    new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(updateHandler, actionListener::onFailure)) {
-
-                        @Override
-                        protected Boolean newResponse(boolean acknowledged) {
-                            if (acknowledged) {
-                                auditor.info(request.getJobId(),
-                                        Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
-                                return true;
-                            }
-                            actionListener.onFailure(new IllegalStateException("Could not revert modelSnapshot on job ["
-                                    + request.getJobId() + "], not acknowledged by master."));
-                            return false;
-                        }
-
-                        @Override
-                        public ClusterState execute(ClusterState currentState) {
-                            Job job = MlMetadata.getMlMetadata(currentState).getJobs().get(request.getJobId());
-                            Job.Builder builder = new Job.Builder(job);
-                            builder.setModelSnapshotId(modelSnapshot.getSnapshotId());
-                            builder.setEstablishedModelMemory(response);
-                            return ClusterStateJobUpdate.putJobInClusterState(builder.build(), true, currentState);
-                        }
-                    });
-        } else {
-            updateJobHandler = response -> {
+        Consumer<Long> establishedMemoryHandler = modelMem -> {
                 JobUpdate update = new JobUpdate.Builder(request.getJobId())
                         .setModelSnapshotId(modelSnapshot.getSnapshotId())
-                        .setEstablishedModelMemory(response)
+                        .setEstablishedModelMemory(modelMem)
                         .build();
 
                 jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit, ActionListener.wrap(
@@ -839,14 +818,53 @@ public class JobManager {
                                     Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
                             updateHandler.accept(Boolean.TRUE);
                         },
-                        actionListener::onFailure
+                        e -> {
+                            if (e.getClass() == ResourceNotFoundException.class) {
+                                // Not found? maybe it's in the index
+                                if (ClusterStateJobUpdate.jobIsInClusterState(clusterService.state(), request.getJobId())) {
+                                    revertModelSnapshotClusterState(request, modelSnapshot, updateHandler, modelMem, actionListener);
+                                    return;
+                                }
+                            }
+                            actionListener.onFailure(e);
+                        }
                 ));
             };
-        }
 
         // Step 0. Find the appropriate established model memory for the reverted job
         // -------
-        jobResultsProvider.getEstablishedMemoryUsage(request.getJobId(), modelSizeStats.getTimestamp(), modelSizeStats, updateJobHandler,
-                actionListener::onFailure);
+        jobResultsProvider.getEstablishedMemoryUsage(request.getJobId(), modelSizeStats.getTimestamp(), modelSizeStats,
+                establishedMemoryHandler, actionListener::onFailure);
+    }
+
+    private void revertModelSnapshotClusterState(RevertModelSnapshotAction.Request request,
+                                                 ModelSnapshot modelSnapshot,
+                                                 CheckedConsumer<Boolean, Exception> updateHandler, Long modelMem,
+                                                 ActionListener<RevertModelSnapshotAction.Response> actionListener) {
+        clusterService.submitStateUpdateTask("revert-snapshot-" + request.getJobId(),
+                new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(updateHandler, actionListener::onFailure)) {
+
+                    @Override
+                    protected Boolean newResponse(boolean acknowledged) {
+                        if (acknowledged) {
+                            auditor.info(request.getJobId(),
+                                    Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
+                            return true;
+                        }
+                        // TODO is this an error? can actionListener.onFailure be called twice?
+                        actionListener.onFailure(new IllegalStateException("Could not revert modelSnapshot on job ["
+                                + request.getJobId() + "], not acknowledged by master."));
+                        return false;
+                    }
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        Job job = MlMetadata.getMlMetadata(currentState).getJobs().get(request.getJobId());
+                        Job.Builder builder = new Job.Builder(job);
+                        builder.setModelSnapshotId(modelSnapshot.getSnapshotId());
+                        builder.setEstablishedModelMemory(modelMem);
+                        return ClusterStateJobUpdate.putJobInClusterState(builder.build(), true, currentState);
+                    }
+                });
     }
 }

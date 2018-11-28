@@ -209,7 +209,11 @@ public class JobConfigProvider {
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(e);
+                if (e.getClass() == IndexNotFoundException.class) {
+                    listener.onFailure(ExceptionsHelper.missingJobException(String.join(",", jobIds)));
+                } else {
+                    listener.onFailure(e);
+                }
             }
         }, client::multiGet);
     }
@@ -244,7 +248,11 @@ public class JobConfigProvider {
             }
             @Override
             public void onFailure(Exception e) {
-                actionListener.onFailure(e);
+                if (e.getClass() == IndexNotFoundException.class) {
+                    actionListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                } else {
+                    actionListener.onFailure(e);
+                }
             }
         });
     }
@@ -298,7 +306,11 @@ public class JobConfigProvider {
 
             @Override
             public void onFailure(Exception e) {
-                updatedJobListener.onFailure(e);
+                if (e.getClass() == IndexNotFoundException.class) {
+                    updatedJobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                } else {
+                    updatedJobListener.onFailure(e);
+                }
             }
         });
     }
@@ -366,7 +378,11 @@ public class JobConfigProvider {
 
             @Override
             public void onFailure(Exception e) {
-                updatedJobListener.onFailure(e);
+                if (e.getClass() == IndexNotFoundException.class) {
+                    updatedJobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                } else {
+                    updatedJobListener.onFailure(e);
+                }
             }
         });
     }

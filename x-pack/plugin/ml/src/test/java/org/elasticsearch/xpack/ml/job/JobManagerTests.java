@@ -86,7 +86,6 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -243,6 +242,7 @@ public class JobManagerTests extends ESTestCase {
 
         List<BytesReference> docsAsBytes = new ArrayList<>();
         Job.Builder indexJob = buildJobBuilder("dupe");
+        indexJob.setCustomSettings(Collections.singletonMap("job-saved-in-index", Boolean.TRUE));
         docsAsBytes.add(toBytesReference(indexJob.build()));
 
         MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
@@ -256,9 +256,10 @@ public class JobManagerTests extends ESTestCase {
                 exceptionHolder::set
         ));
 
-        assertNull(jobsHolder.get());
-        assertThat(exceptionHolder.get(), instanceOf(IllegalStateException.class));
-        assertEquals("Job [dupe] configuration exists in both clusterstate and index", exceptionHolder.get().getMessage());
+        assertThat(jobsHolder.get().results(), hasSize(1));
+        Job foundJob = jobsHolder.get().results().get(0);
+        assertTrue((Boolean)foundJob.getCustomSettings().get("job-saved-in-index"));
+        assertNull(exceptionHolder.get());
     }
 
     public void testExpandJobs_SplitBetweenClusterStateAndIndex() throws IOException {
@@ -371,9 +372,8 @@ public class JobManagerTests extends ESTestCase {
                 exceptionHolder::set
         ));
 
-        assertNull(jobIdsHolder.get());
-        assertThat(exceptionHolder.get(), instanceOf(IllegalStateException.class));
-        assertEquals("Job [dupe] configuration exists in both clusterstate and index", exceptionHolder.get().getMessage());
+        assertThat(jobIdsHolder.get(), contains("dupe"));
+        assertNull(exceptionHolder.get());
     }
 
     public void testExpandJobIdsFromClusterStateAndIndex_GivenAll() {
@@ -870,6 +870,12 @@ public class JobManagerTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        doAnswer(invocationOnMock -> {
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[3];
+            listener.onFailure(new ResourceNotFoundException("missing job"));
+            return null;
+        }).when(jobConfigProvider).updateJob(anyString(), any(), any(), any(ActionListener.class));
+
         JobManager jobManager = new JobManager(environment, environment.settings(), jobResultsProvider, clusterService,
                 auditor, threadPool, mock(Client.class), updateJobProcessNotifier, jobConfigProvider);
 
@@ -888,7 +894,6 @@ public class JobManagerTests extends ESTestCase {
 
         jobManager.revertSnapshot(request, mock(ActionListener.class), modelSnapshot);
         verify(clusterService, times(1)).submitStateUpdateTask(eq("revert-snapshot-cs-revert"), any(AckedClusterStateUpdateTask.class));
-        verify(jobConfigProvider, never()).updateJob(any(), any(), any(), any());
     }
 
     private Job.Builder createJob() {

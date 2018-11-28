@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
-[[ilm-delete-policy]]
-=== Delete Policy from Index API
+[[ilm-remove-policy]]
+=== Remove Policy from Index API
 ++++
-<titleabbrev>Delete Policy</titleabbrev>
+<titleabbrev>Remove Policy</titleabbrev>
 ++++
 
 beta[]

@@ -69,7 +69,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentTestCase
     }
 
     public void testInvalidStepDetails() {
-        final int numNull = randomIntBetween(1, 6);
+        final int numNull = randomIntBetween(1, 3);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
             IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
@@ -78,9 +78,9 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentTestCase
                 (numNull == 2) ? null : randomAlphaOfLength(10),
                 (numNull == 3) ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : randomAlphaOfLength(10),
-                (numNull == 4) ? null : randomNonNegativeLong(),
-                (numNull == 5) ? null : randomNonNegativeLong(),
-                (numNull == 6) ? null : randomNonNegativeLong(),
+                randomBoolean() ? null : randomNonNegativeLong(),
+                randomBoolean() ? null : randomNonNegativeLong(),
+                randomBoolean() ? null : randomNonNegativeLong(),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
                 randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")));
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));

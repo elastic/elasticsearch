@@ -200,23 +200,26 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            //tag::x-pack-get-watch-execute
+            //tag::get-watch-request
             GetWatchRequest request = new GetWatchRequest("my_watch_id");
-            GetWatchResponse response = client.watcher().getWatch(request, RequestOptions.DEFAULT);
-            //end::x-pack-get-watch-execute
+            //end::get-watch-request
 
-            //tag::x-pack-get-watch-response
+            //tag::ack-watch-execute
+            GetWatchResponse response = client.watcher().getWatch(request, RequestOptions.DEFAULT);
+            //end::get-watch-request
+
+            //tag::get-watch-response
             String watchId = response.getId(); // <1>
             boolean found = response.isFound(); // <2>
             long version = response.getVersion(); // <3>
             WatchStatus status = response.getStatus(); // <4>
             BytesReference source = response.getSource(); // <5>
-            //end::x-pack-get-watch-response
+            //end::get-watch-response
         }
 
         {
             GetWatchRequest request = new GetWatchRequest("my_other_watch_id");
-            // tag::x-pack-get-watch-execute-listener
+            // tag::get-watch-execute-listener
             ActionListener<GetWatchResponse> listener = new ActionListener<GetWatchResponse>() {
                 @Override
                 public void onResponse(GetWatchResponse response) {
@@ -228,15 +231,15 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-            // end::x-pack-get-watch-execute-listener
+            // end::get-watch-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::x-pack-get-watch-execute-async
+            // tag::get-watch-execute-async
             client.watcher().getWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::x-pack-get-watch-execute-async
+            // end::get-watch-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

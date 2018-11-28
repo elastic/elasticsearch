@@ -14,18 +14,18 @@ A watch can be retrieved as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-get-watch-execute]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 
-[[java-rest-high-x-pack-watcher-get-watch-response]]
+[id="{upid}-{api}-response"]
 ==== Response
 
-The returned `GetWatchResponse` contains `id`,
-, `version`, `status` and `source` information.
+The returned +{response}+ contains `id`, `version`, `status` and `source`
+information.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-get-watch-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> `_id`, id of the watch
 <2> `found` is a boolean indicating whether the watch was found
@@ -33,29 +33,4 @@ include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-get-watch-respons
 <3> `status` contains status of the watch
 <4> `source` the source of the watch
 
-[[java-rest-high-x-pack-watcher-put-watch-async]]
-==== Asynchronous Execution
-
-This request can be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-get-watch-execute-async]
---------------------------------------------------
-<1> The `GetWatchRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `GetWatchResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-get-watch-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
+include::../execution.asciidoc[]

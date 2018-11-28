@@ -20,6 +20,7 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.joda.time.DateTime;
@@ -44,19 +45,22 @@ public class WatchStatus {
     private final DateTime lastMetCondition;
     private final long version;
     private final Map<String, ActionStatus> actions;
+    @Nullable private Map<String, String> headers;
 
     public WatchStatus(long version,
                        State state,
                        ExecutionState executionState,
                        DateTime lastChecked,
                        DateTime lastMetCondition,
-                       Map<String, ActionStatus> actions) {
+                       Map<String, ActionStatus> actions,
+                       Map<String, String> headers) {
         this.version = version;
         this.lastChecked = lastChecked;
         this.lastMetCondition = lastMetCondition;
         this.actions = actions;
         this.state = state;
         this.executionState = executionState;
+        this.headers = headers;
     }
 
     public State state() {
@@ -79,7 +83,7 @@ public class WatchStatus {
         return actions.get(actionId);
     }
 
-    Map<String, ActionStatus> getActions() {
+    public Map<String, ActionStatus> getActions() {
         return actions;
     }
 
@@ -116,6 +120,7 @@ public class WatchStatus {
         DateTime lastChecked = null;
         DateTime lastMetCondition = null;
         Map<String, ActionStatus> actions = null;
+        Map<String, String> headers = null;
         long version = -1;
 
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
@@ -176,13 +181,17 @@ public class WatchStatus {
                     throw new ElasticsearchParseException("could not parse watch status. expecting field [{}] to be an object, " +
                             "found [{}] instead", currentFieldName, token);
                 }
+            } else if (Field.HEADERS.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    headers = parser.mapStrings();
+                }
             } else {
                 parser.skipChildren();
             }
         }
 
         actions = actions == null ? emptyMap() : unmodifiableMap(actions);
-        return new WatchStatus(version, state, executionState, lastChecked, lastMetCondition, actions);
+        return new WatchStatus(version, state, executionState, lastChecked, lastMetCondition, actions, headers);
     }
 
     public static class State {
@@ -233,5 +242,6 @@ public class WatchStatus {
         ParseField ACTIONS = new ParseField("actions");
         ParseField VERSION = new ParseField("version");
         ParseField EXECUTION_STATE = new ParseField("execution_state");
+        ParseField HEADERS = new ParseField("headers");
     }
 }

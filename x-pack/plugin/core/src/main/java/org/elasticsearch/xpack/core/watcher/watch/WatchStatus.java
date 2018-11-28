@@ -54,11 +54,11 @@ public class WatchStatus implements ToXContentObject, Streamable {
     }
 
     public WatchStatus(DateTime now, Map<String, ActionStatus> actions) {
-        this(-1, new State(true, now), null, null, null, actions, Collections.emptyMap());
+        this(-1, new State(true, now), null, null, null, actions, null);
     }
 
-    private WatchStatus(long version, State state, ExecutionState executionState, DateTime lastChecked, DateTime lastMetCondition,
-                        Map<String, ActionStatus> actions, Map<String, String> headers) {
+    public WatchStatus(long version, State state, ExecutionState executionState, DateTime lastChecked, DateTime lastMetCondition,
+                       Map<String, ActionStatus> actions, Map<String, String> headers) {
         this.version = version;
         this.lastChecked = lastChecked;
         this.lastMetCondition = lastMetCondition;
@@ -209,7 +209,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
         if (executionState != null) {
             out.writeString(executionState.id());
         }
-        boolean statusHasHeaders = headers != null && headers.isEmpty() == false;
+        boolean statusHasHeaders = headers != null;
         out.writeBoolean(statusHasHeaders);
         if (statusHasHeaders) {
             out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
@@ -234,6 +234,8 @@ public class WatchStatus implements ToXContentObject, Streamable {
         }
         if (in.readBoolean()) {
             headers = in.readMap(StreamInput::readString, StreamInput::readString);
+        } else {
+            headers = null;
         }
     }
 
@@ -265,7 +267,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
         if (executionState != null) {
             builder.field(Field.EXECUTION_STATE.getPreferredName(), executionState.id());
         }
-        if (headers != null && headers.isEmpty() == false && WatcherParams.hideHeaders(params) == false) {
+        if (headers != null && WatcherParams.hideHeaders(params) == false) {
             builder.field(Field.HEADERS.getPreferredName(), headers);
         }
         builder.field(Field.VERSION.getPreferredName(), version);
@@ -279,7 +281,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
         DateTime lastMetCondition = null;
         Map<String, ActionStatus> actions = null;
         long version = -1;
-        Map<String, String> headers = Collections.emptyMap();
+        Map<String, String> headers = null;
 
         String currentFieldName = null;
         XContentParser.Token token;

@@ -35,21 +35,19 @@ public class GetWatchResponse {
     private final WatchStatus status;
 
     private final BytesReference source;
-    private final XContentType xContentType;
 
     /**
      * Ctor for missing watch
      */
     public GetWatchResponse(String id) {
-        this(id, Versions.NOT_FOUND, null, null, null);
+        this(id, Versions.NOT_FOUND, null, null);
     }
 
-    public GetWatchResponse(String id, long version, WatchStatus status, BytesReference source, XContentType xContentType) {
+    public GetWatchResponse(String id, long version, WatchStatus status, BytesReference source) {
         this.id = id;
         this.version = version;
         this.status = status;
         this.source = source;
-        this.xContentType = xContentType;
     }
 
     public String getId() {
@@ -73,7 +71,7 @@ public class GetWatchResponse {
     }
 
     public XContentType getContentType() {
-        return xContentType;
+        return XContentType.JSON;
     }
 
     @Override
@@ -84,13 +82,12 @@ public class GetWatchResponse {
         return version == that.version &&
             Objects.equals(id, that.id) &&
             Objects.equals(status, that.status) &&
-            Objects.equals(source, that.source) &&
-            xContentType == that.xContentType;
+            Objects.equals(source, that.source);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, status, source, xContentType, version);
+        return Objects.hash(id, status, source, version);
     }
 
     private static final ParseField ID_FIELD = new ParseField("_id");
@@ -104,9 +101,8 @@ public class GetWatchResponse {
             a -> {
                 boolean isFound = (boolean) a[1];
                 if (isFound) {
-                    XContentBuilder builder = (XContentBuilder) a[4];
-                    BytesReference source = BytesReference.bytes(builder);
-                    return new GetWatchResponse((String) a[0], (long) a[2], (WatchStatus) a[3], source, builder.contentType());
+                    BytesReference source = (BytesReference) a[4];
+                    return new GetWatchResponse((String) a[0], (long) a[2], (WatchStatus) a[3], source);
                 } else {
                     return new GetWatchResponse((String) a[0]);
                 }
@@ -122,7 +118,7 @@ public class GetWatchResponse {
             (parser, context) -> {
                 try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
                     builder.copyCurrentStructure(parser);
-                    return builder;
+                    return BytesReference.bytes(builder);
                 }
             }, WATCH_FIELD);
     }

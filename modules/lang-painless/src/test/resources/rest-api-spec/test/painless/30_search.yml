@@ -370,7 +370,7 @@
                 script_fields:
                     foobar:
                         script: 
-                            source: "doc['f'].values.size()"
+                            source: "doc['f'].size()"
                             lang: painless
 
 
@@ -464,6 +464,7 @@
         catch: bad_request
         search:
             index: test
+            allow_partial_search_results: false
             body:
                 query:
                     function_score:

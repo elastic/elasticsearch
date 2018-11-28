@@ -110,7 +110,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         expected.put("columns", singletonList(columnInfo(mode, "COUNT(1)", "long", JDBCType.BIGINT, 20)));
         expected.put("rows", singletonList(singletonList(count)));
 
-        Request request = new Request("POST", "/_xpack/sql");
+        Request request = new Request("POST", "/_sql");
         if (false == mode.isEmpty()) {
             request.addParameter("mode", mode);
         }

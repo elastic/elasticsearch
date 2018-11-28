@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 
 import java.sql.SQLException;
 import java.util.Properties;

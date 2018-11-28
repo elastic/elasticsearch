@@ -13,6 +13,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -22,12 +23,13 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class DataFrameDataExtractorFactory {
 
@@ -41,14 +43,13 @@ public class DataFrameDataExtractorFactory {
      * The types supported by data frames
      */
     private static final Set<String> COMPATIBLE_FIELD_TYPES;
+
     static {
-        Set<String> types = Stream.of(NumberFieldMapper.NumberType.values())
+        COMPATIBLE_FIELD_TYPES = Stream.of(NumberFieldMapper.NumberType.values())
             .map(NumberFieldMapper.NumberType::typeName)
             .collect(Collectors.toSet());
-        types.add("scaled_float"); // have to add manually since scaled_float is in a module
-        COMPATIBLE_FIELD_TYPES = types;
+        COMPATIBLE_FIELD_TYPES.add("scaled_float"); // have to add manually since scaled_float is in a module
     }
-        "long", "integer", "short", "byte", "double", "float", "half_float", "scaled_float"));
 
     private final Client client;
     private final String index;

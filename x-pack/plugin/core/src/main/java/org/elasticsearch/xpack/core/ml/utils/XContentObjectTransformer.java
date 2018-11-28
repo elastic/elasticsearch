@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.utils;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -62,12 +61,14 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
     }
 
     public T fromMap(Map<String, Object> stringObjectMap) throws IOException {
+        LoggingDeprecationAccumulationHandler deprecationLogger = new LoggingDeprecationAccumulationHandler();
         try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(stringObjectMap);
             XContentParser parser = XContentType.JSON
                 .xContent()
                 .createParser(registry,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    deprecationLogger,
                     BytesReference.bytes(xContentBuilder).streamInput())) {
+            //TODO do something with the accumulated deprecation warnings
             return parserFunction.apply(parser);
         }
     }

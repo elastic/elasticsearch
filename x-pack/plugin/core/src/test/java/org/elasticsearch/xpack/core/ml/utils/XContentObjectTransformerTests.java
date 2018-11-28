@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -24,6 +26,8 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class XContentObjectTransformerTests extends ESTestCase {
 
@@ -54,6 +58,30 @@ public class XContentObjectTransformerTests extends ESTestCase {
         assertXContentAreEqual(queryBuilderTransformer.fromMap(queryMap), queryMap);
         assertXContentAreEqual(queryBuilderTransformer.fromMap(queryMap),
             queryBuilderTransformer.toMap(queryBuilderTransformer.fromMap(queryMap)));
+    }
+
+    public void testFromMapWithBadMaps() {
+        Map<String, Object> queryMap = Collections.singletonMap("match",
+            Collections.singletonMap("airline", new HashMap<String, Object>() {{
+                put("query", "notSupported");
+                put("type", "phrase"); //phrase stopped being supported for match in 6.x
+            }}));
+
+        XContentObjectTransformer<QueryBuilder> queryBuilderTransformer = XContentObjectTransformer.queryBuilderTransformer();
+        ParsingException exception = expectThrows(ParsingException.class,
+            () -> queryBuilderTransformer.fromMap(queryMap));
+
+        assertThat(exception.getMessage(), equalTo("[match] query does not support [type]"));
+
+        Map<String, Object> aggMap = Collections.singletonMap("badTerms",
+            Collections.singletonMap("terms", new HashMap<String, Object>() {{
+                put("size", 0); //size being 0 in terms agg stopped being supported in 6.x
+                put("field", "myField");
+            }}));
+
+        XContentObjectTransformer<AggregatorFactories.Builder> aggTransformer = XContentObjectTransformer.aggregatorTransformer();
+        XContentParseException xContentParseException = expectThrows(XContentParseException.class, () -> aggTransformer.fromMap(aggMap));
+        assertThat(xContentParseException.getMessage(), containsString("[terms] failed to parse field [size]"));
     }
 
     public void testToMap() throws IOException {

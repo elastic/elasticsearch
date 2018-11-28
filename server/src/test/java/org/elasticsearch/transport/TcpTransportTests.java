@@ -284,10 +284,6 @@ public class TcpTransportTests extends ESTestCase {
         }
 
         @Override
-        public void setSoLinger(int value) throws IOException {
-        }
-
-        @Override
         public boolean isOpen() {
             return false;
         }

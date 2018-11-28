@@ -64,7 +64,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(configMigrator).migrateConfigs(any(ClusterState.class), any(ActionListener.class));
+        }).when(configMigrator).migrateConfigsWithoutTasks(any(ClusterState.class), any(ActionListener.class));
     }
 
     public void testClusterChanged_info() {
@@ -87,7 +87,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                 .build();
         notifier.clusterChanged(new ClusterChangedEvent("_test", state, previous));
         verify(auditor, times(1)).info(eq("job_id"), any());
-        verify(configMigrator, times(1)).migrateConfigs(eq(state), any());
+        verify(configMigrator, times(1)).migrateConfigsWithoutTasks(eq(state), any());
 
         notifier.offMaster();
         notifier.clusterChanged(new ClusterChangedEvent("_test", state, previous));
@@ -111,7 +111,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                 .build();
         notifier.clusterChanged(new ClusterChangedEvent("_test", state, previous));
         verify(auditor, times(1)).warning(eq("job_id"), any());
-        verify(configMigrator, times(1)).migrateConfigs(eq(state), any());
+        verify(configMigrator, times(1)).migrateConfigsWithoutTasks(eq(state), any());
 
         notifier.offMaster();
         notifier.clusterChanged(new ClusterChangedEvent("_test", state, previous));
@@ -134,10 +134,10 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                 .build();
 
         notifier.clusterChanged(new ClusterChangedEvent("_test", current, previous));
-        verify(configMigrator, never()).migrateConfigs(any(), any());
+        verify(configMigrator, never()).migrateConfigsWithoutTasks(any(), any());
 
         notifier.offMaster();
-        verify(configMigrator, never()).migrateConfigs(any(), any());
+        verify(configMigrator, never()).migrateConfigsWithoutTasks(any(), any());
     }
 
     public void testMigrateNotTriggered_GivenPre66Nodes() {
@@ -160,7 +160,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                 .build();
 
         notifier.clusterChanged(new ClusterChangedEvent("_test", current, previous));
-        verify(configMigrator, never()).migrateConfigs(any(), any());
+        verify(configMigrator, never()).migrateConfigsWithoutTasks(any(), any());
 
         current = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
@@ -171,6 +171,6 @@ public class MlAssignmentNotifierTests extends ESTestCase {
 
         // all 6.6 nodes
         notifier.clusterChanged(new ClusterChangedEvent("_test", current, previous));
-        verify(configMigrator, times(1)).migrateConfigs(any(), any());
+        verify(configMigrator, times(1)).migrateConfigsWithoutTasks(any(), any());
     }
 }

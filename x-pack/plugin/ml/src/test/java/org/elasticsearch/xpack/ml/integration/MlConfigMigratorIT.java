@@ -110,7 +110,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
         // do the migration
         MlConfigMigrator mlConfigMigrator = new MlConfigMigrator(client(), clusterService);
-        blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
+        blockingCall(actionListener -> mlConfigMigrator.migrateConfigsWithoutTasks(clusterState, actionListener),
                 responseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());

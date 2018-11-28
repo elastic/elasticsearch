@@ -89,7 +89,7 @@ public class MlAssignmentNotifier implements ClusterStateListener, LocalNodeMast
         Version minNodeVersion = event.state().nodes().getMinNodeVersion();
         if (minNodeVersion.onOrAfter(Version.V_6_6_0)) {
             // ok to migrate
-            mlConfigMigrator.migrateConfigs(event.state(), ActionListener.wrap(
+            mlConfigMigrator.migrateConfigsWithoutTasks(event.state(), ActionListener.wrap(
                     response -> threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(current, previous, event.state())),
                     e -> logger.error("error migrating ml configurations", e)
             ));

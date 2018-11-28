@@ -62,7 +62,6 @@ setup:
         job_id: migration-old-cluster-open-job
   - is_true: jobs.0.finished_time
 
-
   - do:
       xpack.ml.delete_datafeed:
         datafeed_id: migration-old-cluster-started-datafeed

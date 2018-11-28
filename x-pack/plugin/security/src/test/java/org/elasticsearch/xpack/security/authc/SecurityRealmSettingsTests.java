@@ -83,10 +83,10 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
         return settings;
     }
 
-    @AfterClass
     /**
      * Some realms (currently only SAML, but maybe more in the future) hold on to resources that may need to be explicitly closed.
      */
+    @AfterClass
     public static void closeRealms() throws IOException {
         final Logger logger = LogManager.getLogger(SecurityRealmSettingsTests.class);
         final Iterable<Realms> realms = internalCluster().getInstances(Realms.class);

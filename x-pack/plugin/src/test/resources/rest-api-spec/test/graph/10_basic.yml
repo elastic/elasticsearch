@@ -16,6 +16,8 @@ setup:
 
 ---
 "Test basic graph explore":
+  - skip:
+      version: " - 6.99.99"
   - do:
       index:
           index:  test_1

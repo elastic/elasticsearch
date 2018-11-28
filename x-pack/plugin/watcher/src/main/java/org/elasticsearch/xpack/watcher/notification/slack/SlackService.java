@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.notification.slack;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -35,6 +37,8 @@ public class SlackService extends NotificationService<SlackAccount> {
     private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS =
             Setting.affixKeySetting("xpack.notification.slack.account.", "message_defaults",
                     (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope));
+
+    private static final Logger logger = LogManager.getLogger(SlackService.class);
 
     private final HttpClient httpClient;
 

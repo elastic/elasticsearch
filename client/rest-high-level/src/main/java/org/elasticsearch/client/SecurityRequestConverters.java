@@ -28,13 +28,16 @@ import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
+import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.InvalidateTokenRequest;
+import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.PutRoleMappingRequest;
+import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
-import org.elasticsearch.client.security.InvalidateTokenRequest;
-import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.SetUserEnabledRequest;
 import org.elasticsearch.common.Strings;
@@ -114,6 +117,12 @@ final class SecurityRequestConverters {
         return request;
     }
 
+    static Request hasPrivileges(HasPrivilegesRequest hasPrivilegesRequest) throws IOException {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/security/user/_has_privileges");
+        request.setEntity(createEntity(hasPrivilegesRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request clearRealmCache(ClearRealmCacheRequest clearRealmCacheRequest) {
         RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_xpack/security/realm");
@@ -162,6 +171,15 @@ final class SecurityRequestConverters {
         return request;
     }
 
+    static Request getRoles(GetRolesRequest getRolesRequest) {
+        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder();
+        builder.addPathPartAsIs("_xpack/security/role");
+        if (getRolesRequest.getRoleNames().size() > 0) {
+            builder.addPathPart(Strings.collectionToCommaDelimitedString(getRolesRequest.getRoleNames()));
+        }
+        return new Request(HttpGet.METHOD_NAME, builder.build());
+    }
+
     static Request createToken(CreateTokenRequest createTokenRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_xpack/security/oauth2/token");
         request.setEntity(createEntity(createTokenRequest, REQUEST_BODY_CONTENT_TYPE));
@@ -172,6 +190,15 @@ final class SecurityRequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, "/_xpack/security/oauth2/token");
         request.setEntity(createEntity(invalidateTokenRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
+    }
+
+    static Request getPrivileges(GetPrivilegesRequest getPrivilegesRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack/security/privilege")
+            .addPathPart(getPrivilegesRequest.getApplicationName())
+            .addCommaSeparatedPathParts(getPrivilegesRequest.getPrivilegeNames())
+            .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     static Request deletePrivileges(DeletePrivilegesRequest deletePrivilegeRequest) {

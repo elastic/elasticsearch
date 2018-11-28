@@ -80,7 +80,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * Tests that a single document survives. Super basic smoke test.
      */
     public void testSingleDoc() throws IOException {
-        String docLocation = "/testsingledoc/doc/1";
+        String docLocation = "/testsingledoc/_doc/1";
         String doc = "{\"test\": \"test\"}";
 
         if (isRunningAgainstOldCluster()) {
@@ -252,7 +252,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             // index documents for the rollup job
             final StringBuilder bulk = new StringBuilder();
             for (int i = 0; i < numDocs; i++) {
-                bulk.append("{\"index\":{\"_index\":\"rollup-docs\",\"_type\":\"doc\"}}\n");
+                bulk.append("{\"index\":{\"_index\":\"rollup-docs\",\"_type\":\"_doc\"}}\n");
                 String date = String.format(Locale.ROOT, "%04d-01-01T00:%02d:00Z", year, i);
                 bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
             }

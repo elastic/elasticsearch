@@ -197,8 +197,11 @@ STDDEV_POP      |AGGREGATE
 SUM_OF_SQUARES  |AGGREGATE      
 VAR_POP         |AGGREGATE      
 COALESCE        |CONDITIONAL
+GREATEST        |CONDITIONAL
 IFNULL          |CONDITIONAL
 ISNULL          |CONDITIONAL
+LEAST           |CONDITIONAL
+NULLIF          |CONDITIONAL
 NVL             |CONDITIONAL
 DAY             |SCALAR
 DAYNAME         |SCALAR
@@ -1596,4 +1599,87 @@ SELECT NVL(null, 'search') AS "nvl";
 ---------------
 search
 // end::nvlReturnSecond
+;
+
+
+nullIfReturnFirst
+// tag::nullIfReturnFirst
+SELECT NULLIF('elastic', 'search') AS "nullif";
+    nullif
+---------------
+elastic
+// end::nullIfReturnFirst
+;
+
+
+nullIfReturnNull
+// tag::nullIfReturnNull
+SELECT NULLIF('elastic', 'elastic') AS "nullif";
+
+    nullif:s
+---------------
+null
+// end::nullIfReturnNull
+;
+
+greatestReturnNonNull
+// tag::greatestReturnNonNull
+SELECT GREATEST(null, 1, 2) AS "greatest";
+
+    greatest
+---------------
+2
+// end::greatestReturnNonNull
+;
+
+
+greatestReturnNull
+// tag::greatestReturnNull
+SELECT GREATEST(null, null, null, null) AS "greatest";
+
+    greatest
+---------------
+null
+// end::greatestReturnNull
+;
+
+leastReturnNonNull
+// tag::leastReturnNonNull
+SELECT LEAST(null, 2, 1) AS "least";
+
+    least
+---------------
+1
+// end::leastReturnNonNull
+;
+
+
+leastReturnNull
+// tag::leastReturnNull
+SELECT LEAST(null, null, null, null) AS "least";
+
+    least
+---------------
+null
+// end::leastReturnNull
+;
+
+nullEqualsCompareWithNull
+// tag::nullEqualsCompareWithNull
+SELECT 'elastic' <=> null AS "equals";
+
+    equals
+---------------
+false
+// end::nullEqualsCompareWithNull
+;
+
+nullEqualsCompareTwoNulls
+// tag::nullEqualsCompareTwoNulls
+SELECT null <=> null AS "equals";
+
+    equals
+---------------
+true
+// end::nullEqualsCompareTwoNulls
 ;

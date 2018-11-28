@@ -230,10 +230,10 @@ public class LifecycleExecutionState {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         LifecycleExecutionState that = (LifecycleExecutionState) o;
-        return getLifecycleDate() == that.getLifecycleDate() &&
-            getPhaseTime() == that.getPhaseTime() &&
-            getActionTime() == that.getActionTime() &&
-            getStepTime() == that.getStepTime() &&
+        return Objects.equals(getLifecycleDate(),that.getLifecycleDate()) &&
+            Objects.equals(getPhaseTime(), that.getPhaseTime()) &&
+            Objects.equals(getActionTime(), that.getActionTime()) &&
+            Objects.equals(getStepTime(), that.getStepTime()) &&
             Objects.equals(getPhase(), that.getPhase()) &&
             Objects.equals(getAction(), that.getAction()) &&
             Objects.equals(getStep(), that.getStep()) &&

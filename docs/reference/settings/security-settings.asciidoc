@@ -285,7 +285,7 @@ this setting is not valid. For more information on
 the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
 
 `authorization_realms`::
-The names of the realms that should be consulted for delegate authorization.
+The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the LDAP realm does not perform role mapping and
 instead loads the user from the listed realms. The referenced realms are
 consulted in the order that they are defined in this list.
@@ -794,7 +794,7 @@ Specifies the {xpack-ref}/security-files.html[location] of the
 Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `authorization_realms`::
-The names of the realms that should be consulted for delegate authorization.
+The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the PKI realm does not perform role mapping and
 instead loads the user from the listed realms.
 See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
@@ -923,7 +923,7 @@ Specifies whether to populate the {es} user's metadata with the values that are
 provided by the SAML attributes. Defaults to `true`.
 
 `authorization_realms`::
-The names of the realms that should be consulted for delegate authorization.
+The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the SAML realm does not perform role mapping and
 instead loads the user from the listed realms.
 See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
@@ -1169,6 +1169,12 @@ this period of time. Specify the time period using the standard {es}
 
 `cache.max_users`:: The maximum number of user entries that can live in the
 cache at any given time. Defaults to 100,000.
+
+`authorization_realms`::
+The names of the realms that should be consulted for delegated authorization.
+If this setting is used, then the Kerberos realm does not perform role mapping and
+instead loads the user from the listed realms.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm]
 
 [float]
 [[load-balancing]]

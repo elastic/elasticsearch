@@ -5,13 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-class JdbcException extends RuntimeException {
-    
-    JdbcException(String message) {
-        super(message);
-    }
+/**
+ *  Debug marker interface for compatible proxy.
+ */
+interface DebugProxy {
 
-    JdbcException(Throwable cause, String message) {
-        super(message, cause);
-    }
 }

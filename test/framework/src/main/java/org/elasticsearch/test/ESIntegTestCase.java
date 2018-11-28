@@ -1925,9 +1925,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
             initialTransportClientSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         }
-        if (addTestZenDiscovery() == false) {
-            initialNodeSettings.put(TestZenDiscovery.USE_ZEN2.getKey(), false);
-        }
         return new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {

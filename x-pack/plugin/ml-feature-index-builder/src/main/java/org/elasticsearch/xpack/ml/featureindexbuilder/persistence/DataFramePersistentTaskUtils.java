@@ -25,10 +25,8 @@ public final class DataFramePersistentTaskUtils {
         PersistentTasksCustomMetaData pTasksMeta = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 
         if (pTasksMeta != null) {
-            // If the request was for _all jobs, we need to look through the
-            // list of
-            // persistent tasks and see if at least once has a DataFrameJob
-            // param
+            // If the request was for _all jobs, we need to look through the list of
+            // persistent tasks and see if at least once has a DataFrameJob param
             if (id.equals(MetaData.ALL)) {
                 hasJobs = pTasksMeta.tasks().stream()
                         .anyMatch(persistentTask -> persistentTask.getTaskName().equals(FeatureIndexBuilder.TASK_NAME));

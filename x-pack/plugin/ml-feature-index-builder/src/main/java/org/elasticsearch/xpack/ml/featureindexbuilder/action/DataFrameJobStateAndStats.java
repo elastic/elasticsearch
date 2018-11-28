@@ -40,9 +40,9 @@ public class DataFrameJobStateAndStats implements Writeable, ToXContentObject {
     }
 
     public DataFrameJobStateAndStats(String id, FeatureIndexBuilderJobState state, DataFrameIndexerJobStats stats) {
-        this.id = id;
-        this.jobState = state;
-        this.jobStats = stats;
+        this.id = Objects.requireNonNull(id);
+        this.jobState = Objects.requireNonNull(state);
+        this.jobStats = Objects.requireNonNull(stats);
     }
 
     public DataFrameJobStateAndStats(StreamInput in) throws IOException {

@@ -138,6 +138,7 @@ public class GetDataFrameJobsStatsAction extends Action<GetDataFrameJobsStatsAct
 
         public Response() {
             super(Collections.emptyList(), Collections.emptyList());
+            this.jobsStateAndStats = Collections.emptyList();
         }
 
         public Response(StreamInput in) throws IOException {
@@ -165,13 +166,7 @@ public class GetDataFrameJobsStatsAction extends Action<GetDataFrameJobsStatsAct
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(COUNT.getPreferredName(), jobsStateAndStats.size());
-            // XContentBuilder does not support passing the params object for Iterables
-            builder.field(JOBS.getPreferredName());
-            builder.startArray();
-            for (DataFrameJobStateAndStats jobResponse : jobsStateAndStats) {
-                jobResponse.toXContent(builder, params);
-            }
-            builder.endArray();
+            builder.field(JOBS.getPreferredName(), jobsStateAndStats);
             builder.endObject();
             return builder;
         }

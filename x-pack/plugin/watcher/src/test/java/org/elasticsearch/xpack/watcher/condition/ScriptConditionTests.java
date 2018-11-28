@@ -194,8 +194,8 @@ public class ScriptConditionTests extends ESTestCase {
     }
 
     public void testScriptConditionAccessCtx() throws Exception {
-        ScriptCondition condition = new ScriptCondition(mockScript("ctx.trigger.scheduled_time.toInstant().toEpochMill() < new Date().time"),
-                scriptService);
+        ScriptCondition condition = new ScriptCondition(
+            mockScript("ctx.trigger.scheduled_time.toInstant().toEpochMill() < new Date().time"), scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
         WatchExecutionContext ctx = mockExecutionContext("_name", new DateTime(DateTimeZone.UTC), new Payload.XContent(response));

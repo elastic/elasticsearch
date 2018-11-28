@@ -65,20 +65,20 @@ public class RestGraphAction extends XPackRestHandler {
         super(settings);
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
-                GET, "/{index}" + URI_BASE + "/graph/_explore", this,
-                GET, "/{index}/_graph/explore", deprecationLogger);
+                GET, "/{index}/_graph/explore", this,
+                GET, "/{index}" + URI_BASE + "/graph/_explore", deprecationLogger);
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
-                POST, "/{index}" + URI_BASE + "/graph/_explore", this,
-                POST, "/{index}/_graph/explore", deprecationLogger);
+                POST, "/{index}/_graph/explore", this,
+                POST, "/{index}" + URI_BASE + "/graph/_explore", deprecationLogger);
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
-                GET, "/{index}/{type}" + URI_BASE + "/graph/_explore", this,
-                GET, "/{index}/{type}/_graph/explore", deprecationLogger);
+                GET, "/{index}/{type}/_graph/explore", this,
+                GET, "/{index}/{type}" + URI_BASE + "/graph/_explore", deprecationLogger);
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
-                POST, "/{index}/{type}" + URI_BASE + "/graph/_explore", this,
-                POST, "/{index}/{type}/_graph/explore", deprecationLogger);
+                POST, "/{index}/{type}/_graph/explore", this,
+                POST, "/{index}/{type}" + URI_BASE + "/graph/_explore", deprecationLogger);
     }
 
     @Override

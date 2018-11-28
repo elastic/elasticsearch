@@ -27,7 +27,8 @@ public class DataFrameIndexerJobStatsTests extends AbstractSerializingTestCase<D
     }
 
     public static DataFrameIndexerJobStats randomStats() {
-        return new DataFrameIndexerJobStats(randomNonNegativeLong(), randomNonNegativeLong(),
-            randomNonNegativeLong(), randomNonNegativeLong());
+        return new DataFrameIndexerJobStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                randomNonNegativeLong(), randomNonNegativeLong());
     }
 }

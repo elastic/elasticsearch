@@ -85,6 +85,9 @@ import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRIT
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
+
+    public static final long ZEN1_BWC_TERM = 0;
+
     private static final Logger logger = LogManager.getLogger(Coordinator.class);
 
     // the timeout for the publication of each value
@@ -250,6 +253,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 throw new CoordinationStateRejectedException("no longer leading this publication's term: " + publishRequest);
             }
 
+            if (publishRequest.getAcceptedState().term() == ZEN1_BWC_TERM && getCurrentTerm() == ZEN1_BWC_TERM
+                && mode == Mode.FOLLOWER && Optional.of(sourceNode).equals(lastKnownLeader) == false) {
+
+                logger.debug("received cluster state from {} but currently following {}, rejecting", sourceNode, lastKnownLeader);
+                throw new CoordinationStateRejectedException("received cluster state from " + sourceNode + " but currently following "
+                    + lastKnownLeader + ", rejecting");
+            }
+
             ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
             final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
 
@@ -376,7 +387,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             joinAccumulator = joinHelper.new CandidateJoinAccumulator();
 
             peerFinder.activate(coordinationState.get().getLastAcceptedState().nodes());
-            if (getCurrentTerm() == 0) {
+            if (getCurrentTerm() == ZEN1_BWC_TERM) {
                 discoveryUpgradeService.activate(lastKnownLeader);
             }
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
@@ -689,7 +700,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 throw new IllegalStateException("Cannot upgrade from last-known leader: " + lastKnownLeader);
             }
 
-            if (getCurrentTerm() != 0) {
+            if (getCurrentTerm() != ZEN1_BWC_TERM) {
                 throw new IllegalStateException("Cannot upgrade, term is " + getCurrentTerm());
             }
 

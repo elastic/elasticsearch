@@ -32,6 +32,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
+
 /**
  * The core class of the cluster state coordination algorithm, directly implementing the
  * <a href="https://github.com/elastic/elasticsearch-formal-models/blob/master/ZenWithTerms/tla/ZenWithTerms.tla">formal model</a>
@@ -321,10 +323,15 @@ public class CoordinationState {
                 getCurrentTerm());
         }
         if (clusterState.term() == getLastAcceptedTerm() && clusterState.version() <= getLastAcceptedVersion()) {
-            logger.debug("handlePublishRequest: ignored publish request due to version mismatch (expected: >[{}], actual: [{}])",
-                getLastAcceptedVersion(), clusterState.version());
-            throw new CoordinationStateRejectedException("incoming version " + clusterState.version() +
-                " lower or equal to current version " + getLastAcceptedVersion());
+            if (clusterState.term() == ZEN1_BWC_TERM) {
+                logger.debug("handling publish request in compatibility mode despite version mismatch (expected: >[{}], actual: [{}])",
+                    getLastAcceptedVersion(), clusterState.version());
+            } else {
+                logger.debug("handlePublishRequest: ignored publish request due to version mismatch (expected: >[{}], actual: [{}])",
+                    getLastAcceptedVersion(), clusterState.version());
+                throw new CoordinationStateRejectedException("incoming version " + clusterState.version() +
+                    " lower or equal to current version " + getLastAcceptedVersion());
+            }
         }
 
         logger.trace("handlePublishRequest: accepting publish request for version [{}] and term [{}]",

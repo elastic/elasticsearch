@@ -20,8 +20,14 @@ STDDEV_POP      |AGGREGATE
 SUM_OF_SQUARES  |AGGREGATE      
 VAR_POP         |AGGREGATE      
 COALESCE        |CONDITIONAL
-DAY             |SCALAR         
-DAYNAME         |SCALAR         
+GREATEST        |CONDITIONAL
+IFNULL          |CONDITIONAL
+ISNULL          |CONDITIONAL
+LEAST           |CONDITIONAL
+NULLIF          |CONDITIONAL
+NVL             |CONDITIONAL
+DAY             |SCALAR
+DAYNAME         |SCALAR
 DAYOFMONTH      |SCALAR         
 DAYOFWEEK       |SCALAR         
 DAYOFYEAR       |SCALAR         
@@ -102,6 +108,8 @@ SUBSTRING       |SCALAR
 UCASE           |SCALAR         
 CAST            |SCALAR
 CONVERT         |SCALAR
+DATABASE        |SCALAR
+USER            |SCALAR
 SCORE           |SCORE
 ;
 

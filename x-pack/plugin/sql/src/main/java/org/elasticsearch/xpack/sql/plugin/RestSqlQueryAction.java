@@ -3,10 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -23,28 +26,51 @@ import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CANVAS;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
 
 public class RestSqlQueryAction extends BaseRestHandler {
 
-    public RestSqlQueryAction(Settings settings, RestController controller) {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlQueryAction.class));
+
+    private static String CLIENT_ID = "client.id";
+
+    RestSqlQueryAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, Protocol.SQL_QUERY_REST_ENDPOINT, this);
-        controller.registerHandler(POST, Protocol.SQL_QUERY_REST_ENDPOINT, this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                GET, Protocol.SQL_QUERY_REST_ENDPOINT, this,
+                GET, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, deprecationLogger);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                POST, Protocol.SQL_QUERY_REST_ENDPOINT, this,
+                POST, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, deprecationLogger);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SqlQueryRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            sqlRequest = SqlQueryRequest.fromXContent(parser,Mode.fromString(request.param("mode")));
+            String clientId = request.param(CLIENT_ID);
+            if (clientId != null) {
+                clientId = clientId.toLowerCase(Locale.ROOT);
+                if (!clientId.equals(CLI) && !clientId.equals(CANVAS)) {
+                    clientId = null;
+                }
+            }
+            
+            sqlRequest = SqlQueryRequest.fromXContent(parser,
+                    new RequestInfo(Mode.fromString(request.param("mode")), clientId));
         }
 
         /*
@@ -117,6 +143,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_sql_query_action";
+        return "sql_query";
     }
+
 }

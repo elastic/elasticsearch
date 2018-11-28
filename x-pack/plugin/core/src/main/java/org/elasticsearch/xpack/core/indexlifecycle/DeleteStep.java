@@ -11,6 +11,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
+/**
+ * Deletes a single index.
+ */
 public class DeleteStep extends AsyncActionStep {
     public static final String NAME = "delete";
 

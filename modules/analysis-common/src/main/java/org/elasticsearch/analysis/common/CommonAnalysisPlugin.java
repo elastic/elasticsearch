@@ -22,7 +22,6 @@ package org.elasticsearch.analysis.common;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
@@ -492,35 +491,26 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     @Override
     public List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
         List<PreConfiguredTokenizer> tokenizers = new ArrayList<>();
-        tokenizers.add(PreConfiguredTokenizer.singleton("keyword", KeywordTokenizer::new, null));
-        tokenizers.add(PreConfiguredTokenizer.singleton("classic", ClassicTokenizer::new, null));
-        tokenizers.add(PreConfiguredTokenizer.singleton("uax_url_email", UAX29URLEmailTokenizer::new, null));
-        tokenizers.add(PreConfiguredTokenizer.singleton("path_hierarchy", PathHierarchyTokenizer::new, null));
-        tokenizers.add(PreConfiguredTokenizer.singleton("letter", LetterTokenizer::new, null));
-        tokenizers.add(PreConfiguredTokenizer.singleton("whitespace", WhitespaceTokenizer::new, null));
-        tokenizers.add(PreConfiguredTokenizer.singleton("ngram", NGramTokenizer::new, null));
+        tokenizers.add(PreConfiguredTokenizer.singleton("keyword", KeywordTokenizer::new));
+        tokenizers.add(PreConfiguredTokenizer.singleton("classic", ClassicTokenizer::new));
+        tokenizers.add(PreConfiguredTokenizer.singleton("uax_url_email", UAX29URLEmailTokenizer::new));
+        tokenizers.add(PreConfiguredTokenizer.singleton("path_hierarchy", PathHierarchyTokenizer::new));
+        tokenizers.add(PreConfiguredTokenizer.singleton("letter", LetterTokenizer::new));
+        tokenizers.add(PreConfiguredTokenizer.singleton("whitespace", WhitespaceTokenizer::new));
+        tokenizers.add(PreConfiguredTokenizer.singleton("ngram", NGramTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("edge_ngram",
-            () -> new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE), null));
-        tokenizers.add(PreConfiguredTokenizer.singleton("pattern", () -> new PatternTokenizer(Regex.compile("\\W+", null), -1), null));
-        tokenizers.add(PreConfiguredTokenizer.singleton("thai", ThaiTokenizer::new, null));
+            () -> new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE)));
+        tokenizers.add(PreConfiguredTokenizer.singleton("pattern", () -> new PatternTokenizer(Regex.compile("\\W+", null), -1)));
+        tokenizers.add(PreConfiguredTokenizer.singleton("thai", ThaiTokenizer::new));
         // TODO deprecate and remove in API
-        tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", XLowerCaseTokenizer::new, () -> new TokenFilterFactory() {
-            @Override
-            public String name() {
-                return "lowercase";
-            }
-
-            @Override
-            public TokenStream create(TokenStream tokenStream) {
-                return new LowerCaseFilter(tokenStream);
-            }
-        }));
+        // This is already broken with normalization, so backwards compat isn't necessary?
+        tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", XLowerCaseTokenizer::new));
 
         // Temporary shim for aliases. TODO deprecate after they are moved
-        tokenizers.add(PreConfiguredTokenizer.singleton("nGram", NGramTokenizer::new, null));
+        tokenizers.add(PreConfiguredTokenizer.singleton("nGram", NGramTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("edgeNGram",
-            () -> new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE), null));
-        tokenizers.add(PreConfiguredTokenizer.singleton("PathHierarchy", PathHierarchyTokenizer::new, null));
+            () -> new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE)));
+        tokenizers.add(PreConfiguredTokenizer.singleton("PathHierarchy", PathHierarchyTokenizer::new));
 
         return tokenizers;
     }

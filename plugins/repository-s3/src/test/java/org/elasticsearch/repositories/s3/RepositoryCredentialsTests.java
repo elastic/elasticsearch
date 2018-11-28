@@ -19,14 +19,9 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.HeadBucketRequest;
-import com.amazonaws.services.s3.model.HeadBucketResult;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -61,11 +56,6 @@ public class RepositoryCredentialsTests extends ESTestCase {
             ClientAndCredentials(AmazonS3 delegate, AWSCredentialsProvider credentials) {
                 super(delegate);
                 this.credentials = credentials;
-            }
-
-            @Override
-            public HeadBucketResult headBucket(HeadBucketRequest headBucketRequest) throws AmazonClientException, AmazonServiceException {
-                return new HeadBucketResult();
             }
 
         }

@@ -652,7 +652,12 @@ final class RequestConverters {
     }
 
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
-        BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
+        return createEntity(toXContent, xContentType, ToXContent.EMPTY_PARAMS);
+    }
+
+    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType, ToXContent.Params toXContentParams)
+        throws IOException {
+        BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
@@ -854,22 +859,24 @@ final class RequestConverters {
         }
 
         Params withIndicesOptions(IndicesOptions indicesOptions) {
-            withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
-            putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
-            String expandWildcards;
-            if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
-                expandWildcards = "none";
-            } else {
-                StringJoiner joiner = new StringJoiner(",");
-                if (indicesOptions.expandWildcardsOpen()) {
-                    joiner.add("open");
+            if (indicesOptions != null) {
+                withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
+                putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
+                String expandWildcards;
+                if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
+                    expandWildcards = "none";
+                } else {
+                    StringJoiner joiner = new StringJoiner(",");
+                    if (indicesOptions.expandWildcardsOpen()) {
+                        joiner.add("open");
+                    }
+                    if (indicesOptions.expandWildcardsClosed()) {
+                        joiner.add("closed");
+                    }
+                    expandWildcards = joiner.toString();
                 }
-                if (indicesOptions.expandWildcardsClosed()) {
-                    joiner.add("closed");
-                }
-                expandWildcards = joiner.toString();
+                putParam("expand_wildcards", expandWildcards);
             }
-            putParam("expand_wildcards", expandWildcards);
             return this;
         }
 

@@ -208,8 +208,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getSystemFunctions() throws SQLException {
-        // TODO: sync this with the grammar
-        return EMPTY;
+        // https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/system-functions?view=sql-server-2017
+        return "DATABASE, IFNULL, USER";
     }
 
     @Override

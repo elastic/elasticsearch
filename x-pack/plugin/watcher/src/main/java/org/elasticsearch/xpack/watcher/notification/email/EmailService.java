@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -100,6 +102,8 @@ public class EmailService extends NotificationService<Account> {
     private static final Setting.AffixSetting<Boolean> SETTING_SMTP_WAIT_ON_QUIT =
             Setting.affixKeySetting("xpack.notification.email.account.", "smtp.wait_on_quit",
                     (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+
+    private static final Logger logger = LogManager.getLogger(EmailService.class);
 
     private final CryptoService cryptoService;
 

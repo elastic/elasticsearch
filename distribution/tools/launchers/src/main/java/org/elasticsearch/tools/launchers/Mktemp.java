@@ -20,7 +20,6 @@
 package org.elasticsearch.tools.launchers;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
@@ -41,7 +40,7 @@ final class Mktemp {
         if (args.length != 0) {
             throw new IllegalArgumentException("expected zero arguments but was " + Arrays.toString(args));
         }
-        final Path path = Files.createTempDirectory("elasticsearch-");
+        final Path path = Launchers.createTempDirectory("elasticsearch-");
         // wrap output in quotes in case the default temporary directory contains spaces
         Launchers.outPrintln("\"" + path.toString() + "\"");
     }

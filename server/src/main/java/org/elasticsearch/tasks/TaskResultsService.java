@@ -76,9 +76,10 @@ public class TaskResultsService {
 
     /**
      * The backoff policy to use when saving a task result fails. The total wait
-     * time is 59460 milliseconds, about a minute.
+     * time is 600000 milliseconds, ten minutes.
      */
-    private static final BackoffPolicy STORE_BACKOFF_POLICY = BackoffPolicy.exponentialBackoff(timeValueMillis(500), 11);
+    static final BackoffPolicy STORE_BACKOFF_POLICY =
+            BackoffPolicy.exponentialBackoff(timeValueMillis(250), 14);
 
     private final Client client;
 

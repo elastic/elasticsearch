@@ -55,13 +55,13 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
         ensureStartingWithBasic();
 
         RestClient restClient = getRestClient();
-        Response response = restClient.performRequest(new Request("GET", "/_xpack/license/trial_status"));
+        Response response = restClient.performRequest(new Request("GET", "/_license/trial_status"));
         String body = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals("{\"eligible_to_start_trial\":true}", body);
 
         // Test that starting will fail without acknowledgement
-        Response response2 = restClient.performRequest(new Request("POST", "/_xpack/license/start_trial"));
+        Response response2 = restClient.performRequest(new Request("POST", "/_license/start_trial"));
         String body2 = Streams.copyToString(new InputStreamReader(response2.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(200, response2.getStatusLine().getStatusCode());
         assertTrue(body2.contains("\"trial_was_started\":false"));
@@ -75,7 +75,7 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
 
         String type = randomFrom(LicenseService.VALID_TRIAL_TYPES);
 
-        Request ackRequest = new Request("POST", "/_xpack/license/start_trial");
+        Request ackRequest = new Request("POST", "/_license/start_trial");
         ackRequest.addParameter("acknowledge", "true");
         ackRequest.addParameter("type", type);
         Response response3 = restClient.performRequest(ackRequest);
@@ -90,14 +90,14 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
             assertEquals(type, postTrialLicenseResponse.license().type());
         });
 
-        Response response4 = restClient.performRequest(new Request("GET", "/_xpack/license/trial_status"));
+        Response response4 = restClient.performRequest(new Request("GET", "/_license/trial_status"));
         String body4 = Streams.copyToString(new InputStreamReader(response4.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(200, response4.getStatusLine().getStatusCode());
         assertEquals("{\"eligible_to_start_trial\":false}", body4);
 
         String secondAttemptType = randomFrom(LicenseService.VALID_TRIAL_TYPES);
 
-        Request startTrialWhenStartedRequest = new Request("POST", "/_xpack/license/start_trial");
+        Request startTrialWhenStartedRequest = new Request("POST", "/_license/start_trial");
         startTrialWhenStartedRequest.addParameter("acknowledge", "true");
         startTrialWhenStartedRequest.addParameter("type", secondAttemptType);
         ResponseException ex = expectThrows(ResponseException.class, () -> restClient.performRequest(startTrialWhenStartedRequest));
@@ -111,7 +111,7 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
     public void testInvalidType() throws Exception {
         ensureStartingWithBasic();
 
-        Request request = new Request("POST", "/_xpack/license/start_trial");
+        Request request = new Request("POST", "/_license/start_trial");
         request.addParameter("type", "basic");
         ResponseException ex = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         Response response = ex.getResponse();

@@ -60,4 +60,9 @@ class TestMultiValueAggregation extends InternalNumericMetricsAggregation.MultiV
     protected boolean doEquals(Object obj) {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    public boolean hasValue() {
+        return values.size() > 0;
+    }
 }

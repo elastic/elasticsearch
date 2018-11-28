@@ -100,6 +100,11 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     }
 
     @Override
+    public boolean hasValue() {
+        return (searchHits.totalHits == 0 && Double.isNaN(searchHits.getMaxScore()) && Double.isNaN(topDocs.maxScore)) == false;
+    }
+
+    @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         final SearchHits[] shardHits = new SearchHits[aggregations.size()];
         final int from;

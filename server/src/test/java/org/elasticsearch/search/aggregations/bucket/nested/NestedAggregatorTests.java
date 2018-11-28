@@ -115,16 +115,16 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
 
                 assertEquals(NESTED_AGG, nested.getName());
                 assertEquals(0, nested.getDocCount());
 
-                InternalMax max = (InternalMax)
-                    ((InternalAggregation)nested).getProperty(MAX_AGG_NAME);
+                InternalMax max = (InternalMax) nested.getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), Double.MIN_VALUE);
+                assertFalse(nested.hasValue());
             }
         }
     }
@@ -162,17 +162,18 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
                 assertEquals(NESTED_AGG, nested.getName());
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
-                InternalMax max = (InternalMax)
-                    ((InternalAggregation)nested).getProperty(MAX_AGG_NAME);
+                InternalMax max = (InternalMax) nested.getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(expectedMaxValue, max.getValue(), Double.MIN_VALUE);
+
+                assertTrue(nested.hasValue());
             }
         }
     }
@@ -211,17 +212,18 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
                 assertEquals(NESTED_AGG, nested.getName());
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
-                InternalMax max = (InternalMax)
-                    ((InternalAggregation)nested).getProperty(MAX_AGG_NAME);
+                InternalMax max = (InternalMax) nested.getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(expectedMaxValue, max.getValue(), Double.MIN_VALUE);
+
+                assertTrue(nested.hasValue());
             }
         }
     }
@@ -263,7 +265,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
@@ -348,12 +350,14 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 bq.add(Queries.newNonNestedFilter(VersionUtils.randomVersion(random())), BooleanClause.Occur.MUST);
                 bq.add(new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("2"))), BooleanClause.Occur.MUST_NOT);
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = search(newSearcher(indexReader, false, true),
                     new ConstantScoreQuery(bq.build()), nestedBuilder, fieldType);
 
                 assertEquals(NESTED_AGG, nested.getName());
                 // The bug manifests if 6 docs are returned, because currentRootDoc isn't reset the previous child docs from the first segment are emitted as hits.
                 assertEquals(4L, nested.getDocCount());
+
+                assertTrue(nested.hasValue());
             }
         }
     }
@@ -629,7 +633,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 assertEquals("filterAgg", filter.getName());
                 assertEquals(3L, filter.getDocCount());
 
-                Nested nested = filter.getAggregations().get(NESTED_AGG);
+                InternalNested nested = filter.getAggregations().get(NESTED_AGG);
                 assertEquals(6L, nested.getDocCount());
 
                 StringTerms keyAgg = nested.getAggregations().get("key");
@@ -686,7 +690,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 NestedAggregationBuilder aliasAgg = nested(NESTED_AGG, NESTED_OBJECT).subAggregation(
                     max(MAX_AGG_NAME).field(VALUE_FIELD_NAME + "-alias"));
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), agg, fieldType);
                 Nested aliasNested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), aliasAgg, fieldType);

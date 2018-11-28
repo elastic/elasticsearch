@@ -292,6 +292,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         return FACTORY;
     }
 
+    @Override
+    public boolean hasValue() {
+        return ranges.stream().anyMatch(b -> b.getDocCount() > 0);
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public R create(List<B> buckets) {

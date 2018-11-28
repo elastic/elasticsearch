@@ -64,6 +64,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         InternalFilter response = search(indexSearcher, new MatchAllDocsQuery(), builder,
                 fieldType);
         assertEquals(response.getDocCount(), 0);
+        assertFalse(response.hasValue());
         indexReader.close();
         directory.close();
     }
@@ -103,6 +104,11 @@ public class FilterAggregatorTests extends AggregatorTestCase {
                 response = search(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
             }
             assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
+            if (expectedBucketCount[expectedBucketCount[value]] > 0) {
+                assertTrue(response.hasValue());
+            } else {
+                assertFalse(response.hasValue());
+            }
         }
         indexReader.close();
         directory.close();

@@ -50,4 +50,9 @@ public class InternalFilter extends InternalSingleBucketAggregation implements F
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
         return new InternalFilter(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
     }
+
+    @Override
+    public boolean hasValue() {
+        return getDocCount() > 0;
+    }
 }

@@ -48,6 +48,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             // Intentionally not writing any docs
         }, card -> {
             assertEquals(0.0, card.getValue(), 0);
+            assertFalse(card.hasValue());
         });
     }
 
@@ -57,6 +58,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, card -> {
             assertEquals(0.0, card.getValue(), 0);
+            assertFalse(card.hasValue());
         });
     }
 
@@ -66,6 +68,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 1)));
         }, card -> {
             assertEquals(2, card.getValue(), 0);
+            assertTrue(card.hasValue());
         });
     }
 
@@ -75,6 +78,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, card -> {
             assertEquals(2, card.getValue(), 0);
+            assertTrue(card.hasValue());
         });
     }
 
@@ -86,6 +90,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                     new SortedNumericDocValuesField("number", 1)));
         }, card -> {
             assertEquals(1, card.getValue(), 0);
+            assertTrue(card.hasValue());
         });
     }
 
@@ -97,6 +102,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                     new SortedNumericDocValuesField("number", 1)));
         }, card -> {
             assertEquals(0.0, card.getValue(), 0);
+            assertFalse(card.hasValue());
         });
     }
 

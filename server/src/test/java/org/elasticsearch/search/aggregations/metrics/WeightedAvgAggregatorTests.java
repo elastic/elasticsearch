@@ -63,6 +63,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
             // Intentionally not writing any docs
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
+            assertFalse(avg.hasValue());
         });
     }
 
@@ -77,6 +78,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 3)));
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
+            assertFalse(avg.hasValue());
         });
     }
 
@@ -95,6 +97,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
                 new SortedNumericDocValuesField("weight_field", 1)));
         }, avg -> {
             assertEquals(4, avg.getValue(), 0);
+            assertTrue(avg.hasValue());
         });
     }
 
@@ -115,6 +118,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             // (7*2 + 2*3 + 3*3) / (2+3+3) == 3.625
             assertEquals(3.625, avg.getValue(), 0);
+            assertTrue(avg.hasValue());
         });
     }
 
@@ -133,6 +137,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
                 new SortedNumericDocValuesField("weight_field", 1)));
         }, avg -> {
             assertEquals(4, avg.getValue(), 0);
+            assertTrue(avg.hasValue());
         });
     }
 
@@ -151,6 +156,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
                 new SortedNumericDocValuesField("weight_field", 1)));
         }, avg -> {
             assertEquals(2.5, avg.getValue(), 0);
+            assertTrue(avg.hasValue());
         });
     }
 
@@ -170,6 +176,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             double value = (2.0*3.0 + 3.0*4.0) / (3.0+4.0);
             assertEquals(value, avg.getValue(), 0);
+            assertTrue(avg.hasValue());
         });
     }
 
@@ -185,6 +192,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("value_field", 3), new SortedNumericDocValuesField("value_field", 7)));
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
+            assertFalse(avg.hasValue());
         });
     }
 
@@ -203,6 +211,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
                 new SortedNumericDocValuesField("weight_field", 4)));
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
+            assertFalse(avg.hasValue());
         });
     }
 
@@ -222,6 +231,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             double value = (2.0*2.0 + 2.0*3.0 + 2.0*4.0) / (2.0+3.0+4.0);
             assertEquals(value, avg.getValue(), 0);
+            assertTrue(avg.hasValue());
         });
     }
 
@@ -241,6 +251,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             double value = (2.0*2.0 + 3.0*2.0 + 4.0*2.0) / (2.0+2.0+2.0);
             assertEquals(value, avg.getValue(), 0);
+            assertTrue(avg.hasValue());
         });
     }
 
@@ -311,6 +322,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             double value = (((2.0+3.0)/2.0) + ((3.0+4.0)/2.0) + ((4.0+5.0)/2.0)) / (1.0+1.0+1.0);
             assertEquals(value, avg.getValue(), 0);
+            assertTrue(avg.hasValue());
         });
     }
 

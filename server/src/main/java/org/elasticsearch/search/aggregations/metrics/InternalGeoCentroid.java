@@ -104,6 +104,11 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     @Override
+    public boolean hasValue() {
+        return centroid != null && count > 0;
+    }
+
+    @Override
     public InternalGeoCentroid doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double lonSum = Double.NaN;
         double latSum = Double.NaN;

@@ -80,6 +80,11 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     }
 
     @Override
+    public boolean hasValue() {
+        return counts != null;
+    }
+
+    @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         InternalCardinality reduced = null;
         for (InternalAggregation aggregation : aggregations) {

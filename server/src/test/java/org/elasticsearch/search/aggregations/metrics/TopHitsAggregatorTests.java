@@ -74,12 +74,14 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertEquals("type", searchHits.getAt(1).getType());
         assertEquals("1", searchHits.getAt(2).getId());
         assertEquals("type", searchHits.getAt(2).getType());
+        assertTrue(((InternalTopHits)result).hasValue());
     }
 
     public void testNoResults() throws Exception {
         TopHits result = (TopHits) testCase(new MatchNoDocsQuery(), topHits("_name").sort("string", SortOrder.DESC));
-        SearchHits searchHits = ((TopHits) result).getHits();
+        SearchHits searchHits = result.getHits();
         assertEquals(0L, searchHits.getTotalHits());
+        assertFalse(((InternalTopHits)result).hasValue());
     }
 
     /**
@@ -106,22 +108,26 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertEquals(2L, searchHits.getTotalHits());
         assertEquals("2", searchHits.getAt(0).getId());
         assertEquals("1", searchHits.getAt(1).getId());
+        assertTrue(((InternalTopHits) terms.getBucketByKey("a").getAggregations().get("top")).hasValue());
 
         // The "b" bucket
         searchHits = ((TopHits) terms.getBucketByKey("b").getAggregations().get("top")).getHits();
         assertEquals(2L, searchHits.getTotalHits());
         assertEquals("3", searchHits.getAt(0).getId());
         assertEquals("1", searchHits.getAt(1).getId());
+        assertTrue(((InternalTopHits) terms.getBucketByKey("b").getAggregations().get("top")).hasValue());
 
         // The "c" bucket
         searchHits = ((TopHits) terms.getBucketByKey("c").getAggregations().get("top")).getHits();
         assertEquals(1L, searchHits.getTotalHits());
         assertEquals("2", searchHits.getAt(0).getId());
+        assertTrue(((InternalTopHits) terms.getBucketByKey("c").getAggregations().get("top")).hasValue());
 
         // The "d" bucket
         searchHits = ((TopHits) terms.getBucketByKey("d").getAggregations().get("top")).getHits();
         assertEquals(1L, searchHits.getTotalHits());
         assertEquals("3", searchHits.getAt(0).getId());
+        assertTrue(((InternalTopHits) terms.getBucketByKey("d").getAggregations().get("top")).hasValue());
     }
 
     private static final MappedFieldType STRING_FIELD_TYPE = new KeywordFieldMapper.KeywordFieldType();

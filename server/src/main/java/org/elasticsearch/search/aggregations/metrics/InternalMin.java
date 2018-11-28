@@ -71,6 +71,11 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
+    public boolean hasValue() {
+        return min != Double.POSITIVE_INFINITY;
+    }
+
+    @Override
     public InternalMin doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double min = Double.POSITIVE_INFINITY;
         for (InternalAggregation aggregation : aggregations) {

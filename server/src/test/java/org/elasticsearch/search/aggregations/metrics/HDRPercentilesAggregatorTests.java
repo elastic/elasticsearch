@@ -52,6 +52,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
             // Intentionally not writing any docs
         }, hdr -> {
             assertEquals(0L, hdr.state.getTotalCount());
+            assertFalse(hdr.hasValue());
         });
     }
 
@@ -61,6 +62,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, hdr -> {
             assertEquals(0L, hdr.state.getTotalCount());
+            assertFalse(hdr.hasValue());
         });
     }
 
@@ -77,6 +79,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals(20.0d, hdr.percentile(50), approximation);
             assertEquals(40.0d, hdr.percentile(75), approximation);
             assertEquals(60.0d, hdr.percentile(99), approximation);
+            assertTrue(hdr.hasValue());
         });
     }
 
@@ -93,6 +96,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals(20.0d, hdr.percentile(50), approximation);
             assertEquals(40.0d, hdr.percentile(75), approximation);
             assertEquals(60.0d, hdr.percentile(99), approximation);
+            assertTrue(hdr.hasValue());
         });
     }
 
@@ -107,10 +111,12 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
         testCase(LongPoint.newRangeQuery("row", 0, 2), docs, hdr -> {
             assertEquals(2L, hdr.state.getTotalCount());
             assertEquals(10.0d, hdr.percentile(randomDoubleBetween(1, 50, true)), 0.05d);
+            assertTrue(hdr.hasValue());
         });
 
         testCase(LongPoint.newRangeQuery("row", 5, 10), docs, hdr -> {
             assertEquals(0L, hdr.state.getTotalCount());
+            assertFalse(hdr.hasValue());
         });
     }
 

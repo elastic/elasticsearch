@@ -269,6 +269,11 @@ public final class InternalAutoDateHistogram extends
     }
 
     @Override
+    public boolean hasValue() {
+        return buckets.stream().anyMatch(b -> b.getDocCount() > 0);
+    }
+
+    @Override
     public InternalAutoDateHistogram create(List<Bucket> buckets) {
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators(), metaData, 1);
     }

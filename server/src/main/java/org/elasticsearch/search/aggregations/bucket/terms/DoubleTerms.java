@@ -149,6 +149,11 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     }
 
     @Override
+    public boolean hasValue() {
+        return buckets.stream().anyMatch(b -> b.docCount > 0);
+    }
+
+    @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         boolean promoteToDouble = false;
         for (InternalAggregation agg : aggregations) {

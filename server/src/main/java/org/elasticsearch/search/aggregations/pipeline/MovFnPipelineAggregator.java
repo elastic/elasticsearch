@@ -134,7 +134,14 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
                     .stream(bucket.getAggregations().spliterator(), false)
                     .map(InternalAggregation.class::cast)
                     .collect(Collectors.toList());
-                aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<>(), metaData()));
+                aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<>(), metaData()) {
+                    @Override
+                    public boolean hasValue() {
+                        // movfn values are only added when an actual value is encountered in a bucket
+                        // so this is always true
+                        return true;
+                    }
+                });
                 newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
                 values.offer(thisBucketValue);
             }

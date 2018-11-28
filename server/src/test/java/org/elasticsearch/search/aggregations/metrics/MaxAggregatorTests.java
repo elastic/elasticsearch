@@ -69,6 +69,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             // Intentionally not writing any docs
         }, max -> {
             assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
+            assertFalse(max.hasValue());
         });
     }
 
@@ -78,6 +79,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, max -> {
             assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
+            assertFalse(max.hasValue());
         });
     }
 
@@ -87,6 +89,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 1)));
         }, max -> {
             assertEquals(7, max.getValue(), 0);
+            assertTrue(max.hasValue());
         });
     }
 
@@ -96,6 +99,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
             assertEquals(7, max.getValue(), 0);
+            assertTrue(max.hasValue());
         });
     }
 
@@ -105,6 +109,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
         }, max -> {
             assertEquals(1, max.getValue(), 0);
+            assertTrue(max.hasValue());
         });
     }
 
@@ -114,6 +119,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
         }, max -> {
             assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
+            assertFalse(max.hasValue());
         });
     }
 

@@ -74,6 +74,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         for (InternalFilters.InternalBucket filter : response.getBuckets()) {
             assertEquals(filter.getDocCount(), 0);
         }
+        assertFalse(response.hasValue());
         indexReader.close();
         directory.close();
     }
@@ -135,6 +136,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             assertEquals(filters.getBucketByKey("bar").getDocCount(), 1);
             assertEquals(filters.getBucketByKey("same").getDocCount(), 1);
             assertEquals(filters.getBucketByKey("other").getDocCount(), 2);
+            assertTrue(filters.hasValue());
         }
 
         indexReader.close();
@@ -197,8 +199,14 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 } else {
                     int index = Integer.parseInt(bucket.getKey());
                     assertEquals(bucket.getDocCount(), (long) expectedBucketCount[filterTerms[index]]);
+                    if (expectedBucketCount[filterTerms[index]] > 0) {
+                        assertTrue(response.hasValue());
+                    } else {
+                        assertFalse(response.hasValue());
+                    }
                 }
             }
+
         }
         indexReader.close();
         directory.close();

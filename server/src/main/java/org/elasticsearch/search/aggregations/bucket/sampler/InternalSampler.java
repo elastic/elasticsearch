@@ -59,4 +59,9 @@ public class InternalSampler extends InternalSingleBucketAggregation implements 
             InternalAggregations subAggregations) {
         return new InternalSampler(name, docCount, subAggregations, pipelineAggregators(), metaData);
     }
+
+    @Override
+    public boolean hasValue() {
+        return getDocCount() > 0;
+    }
 }

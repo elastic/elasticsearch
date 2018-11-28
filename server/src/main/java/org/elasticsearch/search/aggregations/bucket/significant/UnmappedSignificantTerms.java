@@ -148,4 +148,9 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     protected long getSupersetSize() {
         return 0;
     }
+
+    @Override
+    public boolean hasValue() {
+        return false;
+    }
 }

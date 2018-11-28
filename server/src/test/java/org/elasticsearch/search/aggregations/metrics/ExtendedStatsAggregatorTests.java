@@ -55,6 +55,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(Double.NaN, stats.getVariance(), 0);
                 assertEquals(Double.NaN, stats.getStdDeviation(), 0);
                 assertEquals(0d, stats.getSumOfSquares(), 0);
+                assertFalse(stats.hasValue());
             }
         );
     }
@@ -92,6 +93,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                     stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER), TOLERANCE);
                 assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER, stats.getSigma()),
                     stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER), TOLERANCE);
+                assertTrue(stats.hasValue());
             }
         );
     }
@@ -128,6 +130,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                     stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER), TOLERANCE);
                 assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER, stats.getSigma()),
                     stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER), TOLERANCE);
+                assertTrue(stats.hasValue());
             }
         );
     }

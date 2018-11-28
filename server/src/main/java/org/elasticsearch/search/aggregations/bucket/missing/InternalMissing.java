@@ -49,4 +49,9 @@ public class InternalMissing extends InternalSingleBucketAggregation implements 
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
         return new InternalMissing(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
     }
+
+    @Override
+    public boolean hasValue() {
+        return getDocCount() > 0;
+    }
 }

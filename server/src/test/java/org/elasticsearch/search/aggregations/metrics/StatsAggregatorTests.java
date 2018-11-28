@@ -51,6 +51,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(Float.NaN, stats.getAvg(), 0);
                 assertEquals(Double.POSITIVE_INFINITY, stats.getMin(), 0);
                 assertEquals(Double.NEGATIVE_INFINITY, stats.getMax(), 0);
+                assertFalse(stats.hasValue());
             }
         );
     }
@@ -81,6 +82,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected.min, stats.getMin(), 0);
                 assertEquals(expected.max, stats.getMax(), 0);
                 assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
+                assertTrue(stats.hasValue());
             }
         );
     }
@@ -110,6 +112,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected.min, stats.getMin(), 0);
                 assertEquals(expected.max, stats.getMax(), 0);
                 assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
+                assertTrue(stats.hasValue());
             }
         );
     }

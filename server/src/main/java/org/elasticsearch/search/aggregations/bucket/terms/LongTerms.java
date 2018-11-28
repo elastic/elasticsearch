@@ -149,6 +149,11 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     }
 
     @Override
+    public boolean hasValue() {
+        return buckets.stream().anyMatch(b -> b.docCount > 0);
+    }
+
+    @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof DoubleTerms) {

@@ -77,6 +77,11 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
         return count;
     }
 
+    @Override
+    public boolean hasValue() {
+        return count > 0;
+    }
+
     DocValueFormat getFormatter() {
         return format;
     }

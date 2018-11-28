@@ -53,6 +53,7 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
             // Intentionally not writing any docs
         }, geoHashGrid -> {
             assertEquals(0, geoHashGrid.getBuckets().size());
+            assertFalse(geoHashGrid.hasValue());
         });
     }
 
@@ -61,6 +62,7 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D)));
         }, geoHashGrid -> {
             assertEquals(0, geoHashGrid.getBuckets().size());
+            assertFalse(geoHashGrid.hasValue());
         });
     }
 
@@ -94,6 +96,7 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
             for (GeoHashGrid.Bucket bucket : geoHashGrid.getBuckets()) {
                 assertEquals((long) expectedCountPerGeoHash.get(bucket.getKeyAsString()), bucket.getDocCount());
             }
+            assertTrue(geoHashGrid.hasValue());
         });
     }
 

@@ -52,6 +52,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoCentroid result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertNull(result.centroid());
+                assertFalse(result.hasValue());
             }
         }
     }
@@ -79,6 +80,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 fieldType.setName("field");
                 result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertNull(result.centroid());
+                assertFalse(result.hasValue());
             }
         }
     }
@@ -149,6 +151,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
             assertNotNull(centroid);
             assertEquals(expectedCentroid.getLat(), centroid.getLat(), GEOHASH_TOLERANCE);
             assertEquals(expectedCentroid.getLon(), centroid.getLon(), GEOHASH_TOLERANCE);
+            assertTrue(result.hasValue());
         }
     }
 

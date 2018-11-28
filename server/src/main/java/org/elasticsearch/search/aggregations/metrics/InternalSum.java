@@ -71,6 +71,13 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
+    public boolean hasValue() {
+        // TODO this could be incorrect... e.g. +1 + -1
+        // Think we'll have to serialize count if we want to fix this...
+        return sum != 0.0;
+    }
+
+    @Override
     public InternalSum doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.

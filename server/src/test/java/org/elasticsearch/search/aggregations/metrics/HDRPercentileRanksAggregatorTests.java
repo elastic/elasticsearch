@@ -55,6 +55,7 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
             Percentile rank = ranks.iterator().next();
             assertEquals(Double.NaN, rank.getPercent(), 0d);
             assertEquals(0.5, rank.getValue(), 0d);
+            assertFalse(((InternalHDRPercentileRanks)ranks).hasValue());
         }
     }
 
@@ -87,6 +88,7 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
                 assertEquals(12, rank.getValue(), 0d);
                 assertThat(rank.getPercent(), Matchers.equalTo(100d));
                 assertFalse(rankIterator.hasNext());
+                assertTrue(((InternalHDRPercentileRanks)ranks).hasValue());
             }
         }
     }

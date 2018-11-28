@@ -84,6 +84,12 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
     }
 
     @Override
+    public boolean hasValue() {
+        // Derivatives are only added if this and the last bucket had a value
+        return true;
+    }
+
+    @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         super.doXContentBody(builder, params);
 

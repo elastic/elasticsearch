@@ -52,6 +52,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             // Intentionally not writing any docs
         }, tdigest -> {
             assertEquals(0L, tdigest.state.size());
+            assertFalse(tdigest.hasValue());
         });
     }
 
@@ -61,6 +62,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, tdigest -> {
             assertEquals(0L, tdigest.state.size());
+            assertFalse(tdigest.hasValue());
         });
     }
 
@@ -82,6 +84,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals("2.0", tdigest.percentileAsString(50));
             assertEquals(1.0d, tdigest.percentile(22), 0.0d);
             assertEquals("1.0", tdigest.percentileAsString(22));
+            assertTrue(tdigest.hasValue());
         });
     }
 
@@ -107,6 +110,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals("1.0", tdigest.percentileAsString(25));
             assertEquals(0.0d, tdigest.percentile(1), 0.0d);
             assertEquals("0.0", tdigest.percentileAsString(1));
+            assertTrue(tdigest.hasValue());
         });
     }
 
@@ -127,11 +131,13 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals(2.0d, tdigest.percentile(100), 0.0d);
             assertEquals(1.0d, tdigest.percentile(50), 0.0d);
             assertEquals(0.5d, tdigest.percentile(25), 0.0d);
+            assertTrue(tdigest.hasValue());
         });
 
         testCase(LongPoint.newRangeQuery("row", 100, 110), docs, tdigest -> {
             assertEquals(0L, tdigest.state.size());
             assertEquals(0L, tdigest.state.centroidCount());
+            assertFalse(tdigest.hasValue());
         });
     }
 

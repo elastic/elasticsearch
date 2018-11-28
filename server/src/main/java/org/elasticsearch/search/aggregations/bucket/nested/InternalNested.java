@@ -52,4 +52,9 @@ public class InternalNested extends InternalSingleBucketAggregation implements N
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
         return new InternalNested(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
     }
+
+    @Override
+    public boolean hasValue() {
+        return getDocCount() > 0;
+    }
 }

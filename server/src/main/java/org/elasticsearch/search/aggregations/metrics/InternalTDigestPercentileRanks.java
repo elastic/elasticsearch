@@ -84,6 +84,11 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         return percentileRank * 100;
     }
 
+    @Override
+    public boolean hasValue() {
+        return state.size() > 0;
+    }
+
     public static class Iter implements Iterator<Percentile> {
 
         private final double[] values;

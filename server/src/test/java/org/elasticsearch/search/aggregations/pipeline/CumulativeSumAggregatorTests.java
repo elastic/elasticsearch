@@ -88,6 +88,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             for (Histogram.Bucket bucket : buckets) {
                 sum += ((InternalAvg) (bucket.getAggregations().get("the_avg"))).value();
                 assertThat(((InternalSimpleValue) (bucket.getAggregations().get("cusum"))).value(), equalTo(sum));
+                assertTrue(((InternalAvg) (bucket.getAggregations().get("the_avg"))).hasValue());
             }
         });
     }
@@ -111,10 +112,31 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < buckets.size(); i++) {
                 if (i == 0) {
                     assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("cusum"))).value(), equalTo(0.0));
+                    assertFalse(((InternalSimpleValue) (buckets.get(i).getAggregations().get("cusum"))).hasValue());
                 } else {
                     sum += 1.0;
                     assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("cusum"))).value(), equalTo(sum));
+                    assertTrue(((InternalSimpleValue) (buckets.get(i).getAggregations().get("cusum"))).hasValue());
                 }
+            }
+        });
+    }
+
+    public void testCount() throws IOException {
+        Query query = new MatchAllDocsQuery();
+
+        DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
+        aggBuilder.dateHistogramInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "_count"));
+
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertEquals(10, ((Histogram)histogram).getBuckets().size());
+            List<? extends Histogram.Bucket> buckets = ((Histogram)histogram).getBuckets();
+            double sum = 1.0;
+            for (Histogram.Bucket bucket : buckets) {
+                assertThat(((InternalSimpleValue) (bucket.getAggregations().get("cusum"))).value(), equalTo(sum));
+                assertTrue(((InternalSimpleValue) (bucket.getAggregations().get("cusum"))).hasValue());
+                sum += 1.0;
             }
         });
     }

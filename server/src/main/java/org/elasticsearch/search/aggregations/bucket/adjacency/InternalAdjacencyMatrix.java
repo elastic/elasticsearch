@@ -196,6 +196,11 @@ public class InternalAdjacencyMatrix
     }
 
     @Override
+    public boolean hasValue() {
+        return buckets.stream().anyMatch(b -> b.getDocCount() > 0);
+    }
+
+    @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         Map<String, List<InternalBucket>> bucketsMap = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {

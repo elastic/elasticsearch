@@ -156,6 +156,11 @@ public class InternalComposite
     }
 
     @Override
+    public boolean hasValue() {
+        return buckets.stream().anyMatch(b -> b.getDocCount() > 0);
+    }
+
+    @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size());
         for (InternalAggregation agg : aggregations) {

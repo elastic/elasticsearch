@@ -142,5 +142,24 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             }
             return aggregation.getProperty(path.subList(1, path.size()));
         }
+
+        /**
+         * A helper similar to getProperty, but returns the leaf aggregation in a path.
+         * If the path includes a special modifier like _count, _key, etc, the modifier is dropped
+         * and the agg is returned.
+         */
+        public Object getAgg(String containingAggName, List<String> path) {
+            if (path.isEmpty() || (path.get(0).equals("_count") || path.get(0).equals("_key") || path.get(0).equals("_bucket_count"))) {
+                return this;
+            }
+            Aggregations aggregations = getAggregations();
+            String aggName = path.get(0);
+            InternalAggregation aggregation = aggregations.get(aggName);
+            if (aggregation == null) {
+                throw new InvalidAggregationPathException("Cannot find an aggregation named [" + aggName + "] in [" + containingAggName
+                    + "]");
+            }
+            return aggregation.getProperty(path.subList(1, path.size()));
+        }
     }
 }

@@ -141,4 +141,9 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     protected Bucket[] createBucketsArray(int size) {
         return new Bucket[size];
     }
+
+    @Override
+    public boolean hasValue() {
+        return false;
+    }
 }

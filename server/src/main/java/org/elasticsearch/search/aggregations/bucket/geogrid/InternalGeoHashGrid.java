@@ -190,6 +190,11 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
     }
 
     @Override
+    public boolean hasValue() {
+        return buckets.stream().anyMatch(b -> b.getDocCount() > 0);
+    }
+
+    @Override
     public InternalGeoHashGrid doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         LongObjectPagedHashMap<List<Bucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {

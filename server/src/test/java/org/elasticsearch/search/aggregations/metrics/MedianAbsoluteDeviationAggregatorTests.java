@@ -71,7 +71,10 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
     // intentionally not writing any docs
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), writer -> {}, agg -> assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN)));
+        testCase(new MatchAllDocsQuery(), writer -> {}, agg -> {
+            assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
+            assertFalse(agg.hasValue());
+        });
     }
 
     public void testNoMatchingField() throws IOException {
@@ -81,7 +84,10 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                 writer.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
                 writer.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 2)));
             },
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
+                assertFalse(agg.hasValue());
+            }
         );
     }
 
@@ -94,7 +100,10 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                 sample.add(point);
                 return singleton(new SortedNumericDocValuesField("number", point));
             }),
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
+                assertTrue(agg.hasValue());
+            }
         );
     }
 
@@ -107,7 +116,10 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                 sample.add(point);
                 return singleton(new NumericDocValuesField("number", point));
             }),
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
+                assertTrue(agg.hasValue());
+            }
         );
     }
 
@@ -123,7 +135,10 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(Arrays.asList(new IntPoint("number", point), new SortedNumericDocValuesField("number", point)));
                 }
             },
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(filteredSample)))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(filteredSample)));
+                assertTrue(agg.hasValue());
+            }
         );
     }
 
@@ -134,7 +149,10 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                 writer.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
                 writer.addDocument(Arrays.asList(new IntPoint("number", 2), new SortedNumericDocValuesField("number", 2)));
             },
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
+                assertFalse(agg.hasValue());
+            }
         );
     }
 

@@ -30,6 +30,7 @@ import java.util.Map;
 
 public class SumBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
     private double sum = 0;
+    private long count = 0;
 
     SumBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat formatter,
             Map<String, Object> metaData) {
@@ -51,16 +52,23 @@ public class SumBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     @Override
     protected void preCollection() {
         sum = 0;
+        count = 0;
     }
 
     @Override
     protected void collectBucketValue(String bucketKey, Double bucketValue) {
         sum += bucketValue;
+        count += 1;
     }
 
     @Override
     protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        return new InternalSimpleValue(name(), sum, format, pipelineAggregators, metadata);
+        return new InternalSimpleValue(name(), sum, format, pipelineAggregators, metadata) {
+            @Override
+            public boolean hasValue() {
+                return count > 0;
+            }
+        };
     }
 
 }

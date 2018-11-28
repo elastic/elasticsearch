@@ -76,6 +76,13 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
     }
 
     @Override
+    public boolean hasValue() {
+        // This is a coarse approximation, since some aggs use positive/negative infinity or NaN
+        // Individual aggs may override this for better accuracy
+        return (Double.isInfinite(value) || Double.isNaN(value)) == false;
+    }
+
+    @Override
     public InternalSimpleValue doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }

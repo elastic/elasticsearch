@@ -175,6 +175,16 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
     }
 
     @Override
+    public boolean hasValue() {
+        return (top == Double.NEGATIVE_INFINITY
+            && bottom == Double.POSITIVE_INFINITY
+            && posLeft == Double.POSITIVE_INFINITY
+            && posRight == Double.NEGATIVE_INFINITY
+            && negLeft == Double.POSITIVE_INFINITY
+            && negRight == Double.NEGATIVE_INFINITY) == false;
+    }
+
+    @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         GeoPoint topLeft = topLeft();
         GeoPoint bottomRight = bottomRight();

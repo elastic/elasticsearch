@@ -196,6 +196,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         assertEquals(1L, result.getBuckets().get(3).getDocCount());
                         assertEquals("d", result.getBuckets().get(4).getKeyAsString());
                         assertEquals(1L, result.getBuckets().get(4).getDocCount());
+                        assertTrue(((InternalTerms)result).hasValue());
                     }
                 }
             }
@@ -275,6 +276,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(8).getDocCount());
                     assertEquals("val009", result.getBuckets().get(9).getKeyAsString());
                     assertEquals(1L, result.getBuckets().get(9).getDocCount());
+                    assertTrue(((InternalTerms)result).hasValue());
 
                     MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType();
                     fieldType2.setName("sv_field");
@@ -301,6 +303,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(3).getDocCount());
                     assertEquals("val009", result.getBuckets().get(4).getKeyAsString());
                     assertEquals(1L, result.getBuckets().get(4).getDocCount());
+                    assertTrue(((InternalTerms)result).hasValue());
 
                     aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.STRING)
                         .executionHint(executionHint)
@@ -330,6 +333,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(6).getDocCount());
                     assertEquals("val009", result.getBuckets().get(7).getKeyAsString());
                     assertEquals(1L, result.getBuckets().get(7).getDocCount());
+                    assertTrue(((InternalTerms)result).hasValue());
 
                     aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.STRING)
                         .executionHint(executionHint)
@@ -346,6 +350,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(0).getDocCount());
                     assertEquals("val011", result.getBuckets().get(1).getKeyAsString());
                     assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                    assertTrue(((InternalTerms)result).hasValue());
 
                     aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.STRING)
                         .executionHint(executionHint)
@@ -362,6 +367,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(0).getDocCount());
                     assertEquals("val010", result.getBuckets().get(1).getKeyAsString());
                     assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                    assertTrue(((InternalTerms)result).hasValue());
 
                     aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.STRING)
                         .executionHint(executionHint)
@@ -379,6 +385,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(0).getDocCount());
                     assertEquals("val010", result.getBuckets().get(1).getKeyAsString());
                     assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                    assertTrue(((InternalTerms)result).hasValue());
                 }
             }
         }
@@ -433,6 +440,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(0).getDocCount());
                     assertEquals(5L, result.getBuckets().get(1).getKey());
                     assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                    assertTrue(((InternalTerms)result).hasValue());
 
                     aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.LONG)
                         .executionHint(executionHint)
@@ -453,6 +461,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(2).getDocCount());
                     assertEquals(4L, result.getBuckets().get(3).getKey());
                     assertEquals(1L, result.getBuckets().get(3).getDocCount());
+                    assertTrue(((InternalTerms)result).hasValue());
 
                     fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
                     fieldType.setName("double_field");
@@ -472,6 +481,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(0).getDocCount());
                     assertEquals(5.0, result.getBuckets().get(1).getKey());
                     assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                    assertTrue(((InternalTerms)result).hasValue());
 
                     aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.DOUBLE)
                         .executionHint(executionHint)
@@ -492,6 +502,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(2).getDocCount());
                     assertEquals(4.0, result.getBuckets().get(3).getKey());
                     assertEquals(1L, result.getBuckets().get(3).getDocCount());
+                    assertTrue(((InternalTerms)result).hasValue());
                 }
             }
         }

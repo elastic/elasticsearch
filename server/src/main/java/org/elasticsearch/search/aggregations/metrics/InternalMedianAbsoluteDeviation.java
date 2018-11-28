@@ -134,4 +134,9 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     public double getMedianAbsoluteDeviation() {
         return medianAbsoluteDeviation;
     }
+
+    @Override
+    public boolean hasValue() {
+        return valuesSketch.size() > 0;
+    }
 }

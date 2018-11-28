@@ -114,6 +114,12 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
     }
 
     @Override
+    public boolean hasValue() {
+        // Empty percentiles_bucket will be an array of all NaN
+        return Arrays.stream(percentiles).allMatch(Double::isNaN) == false;
+    }
+
+    @Override
     public InternalMax doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }

@@ -49,7 +49,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
             fieldType.setName("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                Histogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertEquals(4, histogram.getBuckets().size());
                 assertEquals(-10d, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
@@ -59,6 +59,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, histogram.getBuckets().get(2).getDocCount());
                 assertEquals(50d, histogram.getBuckets().get(3).getKey());
                 assertEquals(1, histogram.getBuckets().get(3).getDocCount());
+                assertTrue(histogram.hasValue());
             }
         }
     }
@@ -79,7 +80,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
             fieldType.setName("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                Histogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertEquals(4, histogram.getBuckets().size());
                 assertEquals(-10d, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
@@ -89,6 +90,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, histogram.getBuckets().get(2).getDocCount());
                 assertEquals(50d, histogram.getBuckets().get(3).getKey());
                 assertEquals(1, histogram.getBuckets().get(3).getDocCount());
+                assertTrue(histogram.hasValue());
             }
         }
     }
@@ -109,7 +111,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
             fieldType.setName("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                Histogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertEquals(4, histogram.getBuckets().size());
                 assertEquals(-4 * Math.PI, histogram.getBuckets().get(0).getKey());
                 assertEquals(1, histogram.getBuckets().get(0).getDocCount());
@@ -119,6 +121,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, histogram.getBuckets().get(2).getDocCount());
                 assertEquals(Math.PI, histogram.getBuckets().get(3).getKey());
                 assertEquals(1, histogram.getBuckets().get(3).getDocCount());
+                assertTrue(histogram.hasValue());
             }
         }
     }
@@ -140,12 +143,13 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
             fieldType.setName("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                Histogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertEquals(2, histogram.getBuckets().size());
                 assertEquals(-10d, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
                 assertEquals(0d, histogram.getBuckets().get(1).getKey());
                 assertEquals(3, histogram.getBuckets().get(1).getDocCount());
+                assertTrue(histogram.hasValue());
             }
         }
     }
@@ -168,7 +172,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
             fieldType.setName("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                Histogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertEquals(4, histogram.getBuckets().size());
                 assertEquals(-10d, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
@@ -178,6 +182,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, histogram.getBuckets().get(2).getDocCount());
                 assertEquals(50d, histogram.getBuckets().get(3).getKey());
                 assertEquals(1, histogram.getBuckets().get(3).getDocCount());
+                assertTrue(histogram.hasValue());
             }
         }
     }
@@ -199,7 +204,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
             fieldType.setName("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                Histogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertEquals(3, histogram.getBuckets().size());
                 assertEquals(-10 + Math.PI, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
@@ -207,6 +212,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, histogram.getBuckets().get(1).getDocCount());
                 assertEquals(5 + Math.PI, histogram.getBuckets().get(2).getKey());
                 assertEquals(1, histogram.getBuckets().get(2).getDocCount());
+                assertTrue(histogram.hasValue());
             }
         }
     }
@@ -228,7 +234,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
             fieldType.setName("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                Histogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertEquals(6, histogram.getBuckets().size());
                 assertEquals(-15d, histogram.getBuckets().get(0).getKey());
                 assertEquals(0, histogram.getBuckets().get(0).getDocCount());
@@ -242,6 +248,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(0, histogram.getBuckets().get(4).getDocCount());
                 assertEquals(10d, histogram.getBuckets().get(5).getKey());
                 assertEquals(0, histogram.getBuckets().get(5).getDocCount());
+                assertTrue(histogram.hasValue());
             }
         }
     }

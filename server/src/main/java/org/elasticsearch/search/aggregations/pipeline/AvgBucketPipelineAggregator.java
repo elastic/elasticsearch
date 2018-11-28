@@ -64,7 +64,12 @@ public class AvgBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     @Override
     protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         double avgValue = count == 0 ? Double.NaN : (sum / count);
-        return new InternalSimpleValue(name(), avgValue, format, pipelineAggregators, metadata);
+        return new InternalSimpleValue(name(), avgValue, format, pipelineAggregators, metadata) {
+            @Override
+            public boolean hasValue() {
+                return count > 0;
+            }
+        };
     }
 
 }

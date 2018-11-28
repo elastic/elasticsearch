@@ -166,6 +166,23 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     public abstract Object getProperty(List<String> path);
 
     /**
+     * Returns true if this aggregation has a "value".  This is useful since InternalAggs
+     * each define "empty" differently for internal book-keeping purposes (e.g. NaN, +/- Inf, 0.0, etc).
+     * This method allows the user to ask if the agg has seen _any_ values, regardless
+     * of the internal bookkeeping convention.
+     *
+     * The definition of "having a value" varies depending on agg, but generally:
+     *
+     * - If it is a metric agg, the agg has collected at least one value
+     * - If it is a bucketing agg, at least one of the buckets had doc_count greater than 0
+     * - Pipeline aggs behavior is variable and depends on the particular agg.  E.g. derivatives always
+     *   have a value because they are only added to the agg response if a value can be calculated.
+     *   In contrast, a cumulative_sum will emit 0 even if no values are collected, so hasValue()
+     *   depends on if any of the buckets it processes have a value themselves.
+     */
+    public abstract boolean hasValue();
+
+    /**
      * Read a size under the assumption that a value of 0 means unlimited.
      */
     protected static int readSize(StreamInput in) throws IOException {

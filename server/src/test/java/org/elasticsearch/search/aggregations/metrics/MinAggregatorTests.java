@@ -116,6 +116,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         aggregator.postCollection();
         InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
         assertEquals(-1.0, result.getValue(), 0);
+        assertTrue(result.hasValue());
 
         indexReader.close();
         directory.close();
@@ -157,6 +158,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         aggregator.postCollection();
         InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
         assertEquals(-1.0, result.getValue(), 0);
+        assertTrue(result.hasValue());
 
         indexReader.close();
         directory.close();
@@ -189,6 +191,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         aggregator.postCollection();
         InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
         assertEquals(Double.POSITIVE_INFINITY, result.getValue(), 0);
+        assertFalse(result.hasValue());
 
         indexReader.close();
         directory.close();
@@ -212,6 +215,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         aggregator.postCollection();
         InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
         assertEquals(Double.POSITIVE_INFINITY, result.getValue(), 0);
+        assertFalse(result.hasValue());
 
         indexReader.close();
         directory.close();

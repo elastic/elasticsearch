@@ -499,6 +499,11 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     }
 
     @Override
+    public boolean hasValue() {
+        return buckets.stream().anyMatch(b -> b.getDocCount() > 0);
+    }
+
+    @Override
     public InternalAggregation createAggregation(List<MultiBucketsAggregation.Bucket> buckets) {
         // convert buckets to the right type
         List<Bucket> buckets2 = new ArrayList<>(buckets.size());

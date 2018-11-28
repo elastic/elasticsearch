@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -186,6 +187,34 @@ public class BucketHelpers {
             }
         } catch (InvalidAggregationPathException e) {
             return null;
+        }
+    }
+
+    /**
+     * Given a path and a set of buckets, this method will return true if the final "leaf"
+     * aggregation in the path has a value (as defined by that agg's concept of "having a value").
+     * Special modifiers such as _count/_key/etc are ignored.
+     */
+    static boolean bucketPropertyHasValue(MultiBucketsAggregation agg,
+                                          InternalMultiBucketAggregation.InternalBucket bucket, String aggPath) {
+        List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
+        return bucketPropertyHasValue(agg, bucket, aggPathsList);
+    }
+
+    static boolean bucketPropertyHasValue(MultiBucketsAggregation agg, InternalMultiBucketAggregation.InternalBucket bucket,
+                                                 List<String> aggPathAsList) {
+        Object propertyValue;
+        try {
+            propertyValue = bucket.getAgg(agg.getName(), aggPathAsList);
+        } catch (InvalidAggregationPathException e) {
+            return false;
+        }
+        if (propertyValue instanceof InternalAggregation) {
+            return ((InternalAggregation)propertyValue).hasValue();
+        } else if (propertyValue instanceof MultiBucketsAggregation.Bucket) {
+            return ((MultiBucketsAggregation.Bucket)propertyValue).getDocCount() > 0;
+        } else {
+            return false;
         }
     }
 }

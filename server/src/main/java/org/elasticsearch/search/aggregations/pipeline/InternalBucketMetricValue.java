@@ -103,6 +103,13 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
     }
 
     @Override
+    public boolean hasValue() {
+        // This is a coarse approximation, since some aggs use positive or negative infinity
+        // Individual aggs may override this for better accuracy
+        return Double.isInfinite(value) == false;
+    }
+
+    @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         boolean hasValue = !Double.isInfinite(value);
         builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? value : null);

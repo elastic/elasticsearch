@@ -87,6 +87,11 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
     }
 
     @Override
+    public boolean hasValue() {
+        return (sum == 0.0 && weight == 0L) == false;
+    }
+
+    @Override
     public InternalWeightedAvg doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double weight = 0;
         double sum = 0;

@@ -81,6 +81,13 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     }
 
     @Override
+    public boolean hasValue() {
+        // TODO better way to know if the scripted metric received documents?
+        // Could check for null too, but a script might return null on purpose...
+        return aggregation.size() > 0 ;
+    }
+
+    @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Object> aggregationObjects = new ArrayList<>();
         for (InternalAggregation aggregation : aggregations) {

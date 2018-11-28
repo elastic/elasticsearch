@@ -113,7 +113,14 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
 
                 List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(
                         (p) -> (InternalAggregation) p).collect(Collectors.toList());
-                aggs.add(new InternalSimpleValue(name(), diff, formatter, new ArrayList<>(), metaData()));
+                aggs.add(new InternalSimpleValue(name(), diff, formatter, new ArrayList<>(), metaData()) {
+                    @Override
+                    public boolean hasValue() {
+                        // diffs are only added when there are the current bucket and the lag are actual values
+                        // so this is always true
+                        return true;
+                    }
+                });
                 newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
             }
 

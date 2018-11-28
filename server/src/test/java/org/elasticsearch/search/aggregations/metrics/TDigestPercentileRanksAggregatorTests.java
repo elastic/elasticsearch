@@ -55,6 +55,7 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
             Percentile rank = ranks.iterator().next();
             assertEquals(Double.NaN, rank.getPercent(), 0d);
             assertEquals(0.5, rank.getValue(), 0d);
+            assertFalse(((InternalTDigestPercentileRanks)ranks).hasValue());
         }
     }
 
@@ -91,6 +92,7 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
                 // https://github.com/elastic/elasticsearch/issues/14851
                 // assertThat(rank.getPercent(), Matchers.equalTo(100d));
                 assertFalse(rankIterator.hasNext());
+                assertTrue(((InternalTDigestPercentileRanks)ranks).hasValue());
             }
         }
     }

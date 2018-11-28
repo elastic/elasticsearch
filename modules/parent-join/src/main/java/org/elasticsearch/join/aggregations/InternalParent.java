@@ -53,4 +53,9 @@ public class InternalParent extends InternalSingleBucketAggregation implements P
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
         return new InternalParent(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
     }
+
+    @Override
+    public boolean hasValue() {
+        return getDocCount() > 0;
+    }
 }

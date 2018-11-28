@@ -150,4 +150,9 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
     protected Bucket[] createBucketsArray(int size) {
         return new Bucket[size];
     }
+
+    @Override
+    public boolean hasValue() {
+        return buckets.stream().anyMatch(b -> b.docCount > 0);
+    }
 }

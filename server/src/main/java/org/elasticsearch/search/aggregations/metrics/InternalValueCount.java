@@ -70,6 +70,11 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     }
 
     @Override
+    public boolean hasValue() {
+        return value > 0;
+    }
+
+    @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long valueCount = 0;
         for (InternalAggregation aggregation : aggregations) {

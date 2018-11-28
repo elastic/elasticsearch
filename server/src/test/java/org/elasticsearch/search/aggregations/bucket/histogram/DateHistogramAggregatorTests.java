@@ -61,7 +61,10 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     public void testMatchNoDocs() throws IOException {
         testBothCases(new MatchNoDocsQuery(), dataset,
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
-                histogram -> assertEquals(0, histogram.getBuckets().size())
+                histogram -> {
+                    assertEquals(0, histogram.getBuckets().size());
+                    assertFalse(histogram.hasValue());
+                }
         );
     }
 
@@ -70,15 +73,24 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
         testSearchCase(query, dataset,
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
-                histogram -> assertEquals(6, histogram.getBuckets().size())
+                histogram -> {
+                    assertEquals(6, histogram.getBuckets().size());
+                    assertTrue(histogram.hasValue());
+                }
         );
         testSearchAndReduceCase(query, dataset,
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
-                histogram -> assertEquals(8, histogram.getBuckets().size())
+                histogram -> {
+                    assertEquals(8, histogram.getBuckets().size());
+                    assertTrue(histogram.hasValue());
+                }
         );
         testBothCases(query, dataset,
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD).minDocCount(1L),
-                histogram -> assertEquals(6, histogram.getBuckets().size())
+                histogram -> {
+                    assertEquals(6, histogram.getBuckets().size());
+                    assertTrue(histogram.hasValue());
+                }
         );
     }
 
@@ -89,7 +101,10 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 agg.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD);
 
         testSearchCase(query, dates, aggregation,
-                histogram -> assertEquals(0, histogram.getBuckets().size())
+                histogram -> {
+                    assertEquals(0, histogram.getBuckets().size());
+                    assertFalse(histogram.hasValue());
+                }
         );
         testSearchAndReduceCase(query, dates, aggregation,
                 histogram -> assertNull(histogram)
@@ -99,7 +114,10 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     public void testAggregateWrongField() throws IOException {
         testBothCases(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field("wrong_field"),
-                histogram -> assertEquals(0, histogram.getBuckets().size())
+                histogram -> {
+                    assertEquals(0, histogram.getBuckets().size());
+                    assertFalse(histogram.hasValue());
+                }
         );
     }
 
@@ -371,39 +389,39 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
     private void testSearchCase(Query query, List<String> dataset,
                                 Consumer<DateHistogramAggregationBuilder> configure,
-                                Consumer<Histogram> verify) throws IOException {
+                                Consumer<InternalDateHistogram> verify) throws IOException {
         testSearchCase(query, dataset, configure, verify, 10000);
     }
 
     private void testSearchCase(Query query, List<String> dataset,
                                 Consumer<DateHistogramAggregationBuilder> configure,
-                                Consumer<Histogram> verify,
+                                Consumer<InternalDateHistogram> verify,
                                 int maxBucket) throws IOException {
         executeTestCase(false, query, dataset, configure, verify, maxBucket);
     }
 
     private void testSearchAndReduceCase(Query query, List<String> dataset,
                                          Consumer<DateHistogramAggregationBuilder> configure,
-                                         Consumer<Histogram> verify) throws IOException {
+                                         Consumer<InternalDateHistogram> verify) throws IOException {
         testSearchAndReduceCase(query, dataset, configure, verify, 1000);
     }
 
     private void testSearchAndReduceCase(Query query, List<String> dataset,
                                          Consumer<DateHistogramAggregationBuilder> configure,
-                                         Consumer<Histogram> verify,
+                                         Consumer<InternalDateHistogram> verify,
                                          int maxBucket) throws IOException {
         executeTestCase(true, query, dataset, configure, verify, maxBucket);
     }
 
     private void testBothCases(Query query, List<String> dataset,
                                Consumer<DateHistogramAggregationBuilder> configure,
-                               Consumer<Histogram> verify) throws IOException {
+                               Consumer<InternalDateHistogram> verify) throws IOException {
         testBothCases(query, dataset, configure, verify, 10000);
     }
 
     private void testBothCases(Query query, List<String> dataset,
                                Consumer<DateHistogramAggregationBuilder> configure,
-                               Consumer<Histogram> verify,
+                               Consumer<InternalDateHistogram> verify,
                                int maxBucket) throws IOException {
         testSearchCase(query, dataset, configure, verify, maxBucket);
         testSearchAndReduceCase(query, dataset, configure, verify, maxBucket);
@@ -411,7 +429,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
     private void executeTestCase(boolean reduced, Query query, List<String> dataset,
                                  Consumer<DateHistogramAggregationBuilder> configure,
-                                 Consumer<Histogram> verify,
+                                 Consumer<InternalDateHistogram> verify,
                                  int maxBucket) throws IOException {
 
         try (Directory directory = newDirectory()) {

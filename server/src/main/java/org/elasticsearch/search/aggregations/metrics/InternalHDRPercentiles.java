@@ -72,6 +72,11 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
     }
 
     @Override
+    public boolean hasValue() {
+        return state.getTotalCount() > 0;
+    }
+
+    @Override
     protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         return new InternalHDRPercentiles(name, keys, merged, keyed, format, pipelineAggregators, metaData);

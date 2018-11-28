@@ -1,18 +1,19 @@
 [[sparse-vector]]
 === Sparse vector datatype
 
-A `sparse_vector` field indexes sparse vectors of float values.
-Number of dimensions in a vector can be arbitrary and can be
+A `sparse_vector` field stores sparse vectors of float values.
+The maximum number of dimensions that can be in a vector should
+not exceed 500. The number of dimensions can be
 different across documents.
 
 These vectors can be used for document scoring.
 For example, a document score can represent a distance between
 a given query vector and the indexed document vector.
 
-You index a sparse vector as an object, where object fields are dimensions,
-and fields values are values for these dimensions. Dimensions are
-integer values from `Integer.MIN_VALUE` to `Integer.MAX_VALUE`
-encoded as strings. Dimensions during indexing don't need to be in order.
+You represent a sparse vector as an object, where object fields
+are dimensions, and fields values are values for these dimensions.
+Dimensions are integer values from `0` to `65000` encoded as strings.
+Dimensions don't need to be in order.
 
 [source,js]
 --------------------------------------------------
@@ -49,6 +50,6 @@ PUT my_index/_doc/2
 
 Internally, each sparse document vector will be encoded as a binary
 doc value with the size in bytes equal to
-`INT_BYTES + 2* INT_BYTES* NUMBER_OF_DIMENSIONS`,
+`(INT_BYTES * 2) * NUMBER_OF_DIMENSIONS`,
 where `INT_BYTES` - number of bytes used to represent an integer,
 and `NUMBER_OF_DIMENSIONS` - number of the vector's dimensions.

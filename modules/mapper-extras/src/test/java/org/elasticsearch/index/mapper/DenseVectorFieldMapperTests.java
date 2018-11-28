@@ -70,7 +70,7 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = ((BinaryDocValuesField) fields[0]).binaryValue();
-        float[] decodedValues =DenseVectorFieldMapper.decodeVector(vectorBR);
+        float[] decodedValues = DenseVectorFieldMapper.decodeVector(vectorBR);
         assertArrayEquals(
             "Decoded dense vector values is not equal to the indexed one.",
             expectedArray,

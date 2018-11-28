@@ -26,7 +26,6 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -45,6 +44,7 @@ import java.util.Map;
 public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMapperParser {
 
     public static final String CONTENT_TYPE = "dense_vector";
+    public static int MAX_DIMS_COUNT = 500; //maximum allowed number of dimensions
     private static final int INT_BYTES = Integer.BYTES;
 
     public static class Defaults {
@@ -107,7 +107,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         @Override
         public DocValueFormat docValueFormat(String format, DateTimeZone timeZone) {
-            return DocValueFormat.BINARY;
+            throw new UnsupportedOperationException("[dense_vector] field doesn't support doc values");
         }
 
         @Override
@@ -117,7 +117,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            throw new UnsupportedOperationException("[dense_vector] fields do not support sorting, scripting or aggregating");
+            throw new UnsupportedOperationException("[dense_vector] fields doen't support sorting, scripting or aggregating");
         }
 
         @Override
@@ -148,10 +148,9 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             throw new IllegalArgumentException("[dense_vector] field can't be used in multi-fields");
         }
 
-        // encode array of floats into buf
-        // buf contains an integer - number of dimensions, followed byn array of floats encoded as integers
-        byte[] buf = new byte[INT_BYTES + 10 * INT_BYTES]; // initially allocating buffer for 10 dimensions
-        int offset = INT_BYTES;
+        // encode array of floats as array of integers and store into buf
+        byte[] buf = new byte[0];
+        int offset = 0;
         int dim = 0;
         for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
             if (token == Token.VALUE_NUMBER) {
@@ -159,15 +158,26 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
                 if (buf.length < (offset + INT_BYTES)) {
                     buf = ArrayUtil.grow(buf, (offset + INT_BYTES));
                 }
-                NumericUtils.intToSortableBytes(Float.floatToIntBits(value), buf, offset);
-                offset = offset + INT_BYTES;
+                int intValue = Float.floatToIntBits(value);
+                buf[offset] =  (byte) (intValue >> 24);
+                buf[offset+1] = (byte) (intValue >> 16);
+                buf[offset+2] = (byte) (intValue >>  8);
+                buf[offset+3] = (byte) intValue;
+                offset += INT_BYTES;
                 dim++;
+                if (dim >= MAX_DIMS_COUNT) {
+                    throw new IllegalArgumentException(
+                        "[dense_vector] field has exceeded the maximum allowed number of dimensions of :[" + MAX_DIMS_COUNT + "]");
+                }
             } else {
                 throw new IllegalArgumentException("[dense_vector] field takes an array of floats, but got unexpected token " + token);
             }
         }
-        NumericUtils.intToSortableBytes(dim, buf, 0); //recording number of dimensions at the beginning
         BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(buf, 0, offset));
+        if (context.doc().getByKey(fieldType().name()) != null) {
+            throw new IllegalArgumentException("[dense_vector] field doesn't not support indexing multiple values for the same " +
+                "field [" + name() + "] in the same document");
+        }
         context.doc().addWithKey(fieldType().name(), field);
     }
 
@@ -183,15 +193,18 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
 
     //**************STATIC HELPER METHODS***********************************
-    // Decodes a BytesRef into a dense array <code>vector</code>
-    // TODO: possibly have another type of DocValuesField where an array of floats can be already decoded
+    // Decodes a BytesRef into an array of floats
     public static float[] decodeVector(BytesRef vectorBR) {
-        int dimCount = NumericUtils.sortableBytesToInt(vectorBR.bytes, vectorBR.offset);
+        int dimCount = (vectorBR.length - vectorBR.offset) / INT_BYTES;
         float[] vector = new float[dimCount];
-        int offset =  vectorBR.offset;
+        int offset = vectorBR.offset;
         for (int dim = 0; dim < dimCount; dim++) {
+            int intValue = ((vectorBR.bytes[offset] & 0xFF) << 24)   |
+                ((vectorBR.bytes[offset+1] & 0xFF) << 16) |
+                ((vectorBR.bytes[offset+2] & 0xFF) <<  8) |
+                (vectorBR.bytes[offset+3] & 0xFF);
+            vector[dim] = Float.intBitsToFloat(intValue);
             offset = offset + INT_BYTES;
-            vector[dim] = Float.intBitsToFloat(NumericUtils.sortableBytesToInt(vectorBR.bytes, offset));
         }
         return vector;
     }

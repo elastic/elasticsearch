@@ -57,7 +57,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        int[] indexedDims = {-100, 50, 2};
+        int[] indexedDims = {65000, 50, 2};
         float[] indexedValues = {0.5f, 1800f, -34567.11f};
         ParsedDocument doc1 = mapper.parse(SourceToParse.source("test-index", "_doc", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
@@ -74,12 +74,12 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fields[0], Matchers.instanceOf(BinaryDocValuesField.class));
 
         // assert that after decoding the indexed values are equal to expected
-        int[] expectedDims = {-100, 2, 50}; //the same as indexed but sorted
-        float[] expectedValues = {0.5f, -34567.11f, 1800f}; //the same as indexed but sorted by their dimensions
+        int[] expectedDims = {2, 50, 65000}; //the same as indexed but sorted
+        float[] expectedValues = {-34567.11f, 1800f, 0.5f}; //the same as indexed but sorted by their dimensions
 
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = ((BinaryDocValuesField) fields[0]).binaryValue();
-        float[] decodedValues = DenseVectorFieldMapper.decodeVector(vectorBR);
+        float[] decodedValues = SparseVectorFieldMapper.decodeVector(vectorBR);
         assertArrayEquals(
             "Decoded sparse vector values are not equal to the indexed ones.",
             expectedValues,

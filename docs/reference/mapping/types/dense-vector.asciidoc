@@ -1,8 +1,9 @@
 [[dense-vector]]
 === Dense vector datatype
 
-A `dense_vector` field indexes dense vectors of float values.
-Number of dimensions in a vector can be arbitrary and can be
+A `dense_vector` field stores dense vectors of float values.
+The maximum number of dimensions that can be in a vector should
+not exceed 500. The number of dimensions can be
 different across documents.
 
 These vectors can be used for document scoring.
@@ -44,8 +45,8 @@ PUT my_index/_doc/2
 --------------------------------------------------
 // CONSOLE
 
-Internally, each dense document vector will be encoded as a binary
+Internally, each document's dense vector will be encoded as a binary
 doc value. Its size in bytes is equal to
-`INT_BYTES + INT_BYTES* NUMBER_OF_DIMENSIONS`,
+`INT_BYTES * NUMBER_OF_DIMENSIONS`,
 where `INT_BYTES` - number of bytes used to represent an integer,
 and `NUMBER_OF_DIMENSIONS` - number of the vector's dimensions.

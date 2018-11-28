@@ -40,18 +40,18 @@ public class GroupByScriptKey extends GroupByKey {
                 .order(direction().asOrder())
                 .missingBucket(true);
 
-        if (script.outputType() == DataType.BOOLEAN) {
-            builder.valueType(ValueType.BOOLEAN);
-        } else if (script.outputType().isInteger()) {
+        if (script.outputType().isInteger()) {
             builder.valueType(ValueType.LONG);
         } else if (script.outputType().isRational()) {
             builder.valueType(ValueType.DOUBLE);
         } else if (script.outputType().isString()) {
             builder.valueType(ValueType.STRING);
-        } else if (script.outputType() == DataType.IP) {
-            builder.valueType(ValueType.IP);
         } else if (script.outputType() == DataType.DATE) {
             builder.valueType(ValueType.DATE);
+        } else if (script.outputType() == DataType.BOOLEAN) {
+            builder.valueType(ValueType.BOOLEAN);
+        } else if (script.outputType() == DataType.IP) {
+            builder.valueType(ValueType.IP);
         }
 
         return builder;

@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 
+import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.Objects;
 import java.util.Random;
@@ -70,7 +71,7 @@ public class MlDailyMaintenanceService implements Releasable {
         Random random = new Random(clusterName.hashCode());
         int minutesOffset = random.ints(0, MAX_TIME_OFFSET_MINUTES).findFirst().getAsInt();
 
-        ZonedDateTime now = ZonedDateTime.now();
+        ZonedDateTime now = ZonedDateTime.now(Clock.systemDefaultZone());
         ZonedDateTime next = now.plusDays(1)
             .toLocalDate()
             .atStartOfDay(now.getZone())

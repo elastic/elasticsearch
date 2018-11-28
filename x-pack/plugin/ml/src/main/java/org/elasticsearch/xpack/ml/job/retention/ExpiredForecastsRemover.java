@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,7 +66,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     public ExpiredForecastsRemover(Client client, ThreadPool threadPool) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
-        this.cutoffEpochMs = Instant.now().toEpochMilli();
+        this.cutoffEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
     }
 
     @Override

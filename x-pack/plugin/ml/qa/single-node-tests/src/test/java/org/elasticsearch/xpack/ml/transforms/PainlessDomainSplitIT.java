@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
+import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -267,7 +268,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "\"time\": { \"type\": \"date\" } } }");
 
         // Index some data
-        ZonedDateTime baseTime = ZonedDateTime.now().minusYears(1);
+        ZonedDateTime baseTime = ZonedDateTime.now(Clock.systemDefaultZone()).minusYears(1);
         TestConfiguration test = tests.get(randomInt(tests.size()-1));
 
         // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() did not, so we need a special case for sub

@@ -21,7 +21,7 @@ live?
 
 ==== Request
 
-`GET _xpack/rollup/data/{index}`
+`GET _rollup/data/{index}`
 
 //===== Description
 
@@ -50,7 +50,7 @@ this future scaling:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/rollup/job/sensor
+PUT _rollup/job/sensor
 {
     "index_pattern": "sensor-*",
     "rollup_index": "sensor_rollup",
@@ -85,7 +85,7 @@ We can then retrieve the rollup capabilities of that index pattern (`sensor-*`) 
 
 [source,js]
 --------------------------------------------------
-GET _xpack/rollup/data/sensor-*
+GET _rollup/data/sensor-*
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -155,7 +155,7 @@ We could also retrieve the same information with a request to `_all`:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/rollup/data/_all
+GET _rollup/data/_all
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -164,7 +164,7 @@ But note that if we use the concrete index name (`sensor-1`), we'll retrieve no 
 
 [source,js]
 --------------------------------------------------
-GET _xpack/rollup/data/sensor-1
+GET _rollup/data/sensor-1
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

@@ -24,6 +24,7 @@ import org.junit.BeforeClass;
 import java.util.Map;
 import java.util.TimeZone;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 
 public class QueryFolderTests extends ESTestCase {
@@ -174,5 +175,89 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
         assertThat(ee.output().get(1).toString(), startsWith("MAX(int){a->"));
+    }
+
+    public void testGroupKeyTypes_Boolean() {
+        PhysicalPlan p = plan("SELECT count(*), int > 10 AS a FROM test GROUP BY a");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("{\"script\":{" +
+                "\"source\":\"InternalSqlScriptUtils.gt(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":10}},\"missing_bucket\":true," +
+                "\"value_type\":\"boolean\",\"order\":\"asc\"}}}]}}}"));
+        assertEquals(2, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
+        assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
+    }
+
+    public void testGroupKeyTypes_Integer() {
+        PhysicalPlan p = plan("SELECT count(*), int + 10 AS a FROM test GROUP BY a");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("{\"script\":{" +
+                "\"source\":\"InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":10}},\"missing_bucket\":true," +
+                "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}"));
+        assertEquals(2, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
+        assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
+    }
+
+    public void testGroupKeyTypes_Rational() {
+        PhysicalPlan p = plan("SELECT count(*), sin(int) AS a FROM test GROUP BY a");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("{\"script\":{" +
+                "\"source\":\"InternalSqlScriptUtils.sin(InternalSqlScriptUtils.docValue(doc,params.v0))\"," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":\"int\"}},\"missing_bucket\":true," +
+                "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}"));
+        assertEquals(2, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
+        assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
+    }
+
+    public void testGroupKeyTypes_String() {
+        PhysicalPlan p = plan("SELECT count(*), LCASE(keyword) AS a FROM test GROUP BY a");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("{\"script\":{" +
+                "\"source\":\"InternalSqlScriptUtils.lcase(InternalSqlScriptUtils.docValue(doc,params.v0))\"," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":\"keyword\"}},\"missing_bucket\":true," +
+                "\"value_type\":\"string\",\"order\":\"asc\"}}}]}}}"));
+        assertEquals(2, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
+        assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
+    }
+
+    public void testGroupKeyTypes_IP() {
+        PhysicalPlan p = plan("SELECT count(*), CAST(keyword AS IP) AS a FROM test GROUP BY a");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("{\"script\":{" +
+                "\"source\":\"InternalSqlScriptUtils.docValue(doc,params.v0)\",\"lang\":\"painless\"," +
+                "\"params\":{\"v0\":\"keyword\"}},\"missing_bucket\":true," +
+                "\"value_type\":\"ip\",\"order\":\"asc\"}}}]}}}"));
+        assertEquals(2, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
+        assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
+    }
+
+    public void testGroupKeyTypes_Date() {
+        PhysicalPlan p = plan("SELECT count(*), CAST(int AS DATE) AS a FROM test GROUP BY a");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("{\"script\":{" +
+                "\"source\":\"InternalSqlScriptUtils.docValue(doc,params.v0)\",\"lang\":\"painless\"," +
+                "\"params\":{\"v0\":\"int\"}},\"missing_bucket\":true," +
+                "\"value_type\":\"date\",\"order\":\"asc\"}}}]}}}"));
+        assertEquals(2, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
+        assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
     }
 }

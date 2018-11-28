@@ -19,28 +19,13 @@
 
 package org.elasticsearch.search.suggest.completion;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.MockAnalyzer;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
-import org.apache.lucene.search.suggest.document.SuggestField;
-import org.apache.lucene.search.suggest.document.SuggestIndexSearcher;
-import org.apache.lucene.search.suggest.document.TopSuggestDocs;
-import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;

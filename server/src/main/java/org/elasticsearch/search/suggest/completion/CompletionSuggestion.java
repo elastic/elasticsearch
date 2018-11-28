@@ -35,6 +35,7 @@ import org.elasticsearch.search.suggest.Suggest.Suggestion;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;

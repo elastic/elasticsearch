@@ -5,11 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,29 +22,23 @@ import java.util.List;
  * NOTE: The accumulation is NOT THREAD SAFE
  */
 public class LoggingDeprecationAccumulationHandler implements DeprecationHandler {
-    /**
-     * The logger to which to send deprecation messages.
-     */
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ParseField.class));
 
     private final List<String> deprecations = new ArrayList<>();
 
     @Override
     public void usedDeprecatedName(String usedName, String modernName) {
-        String formattedMessage = LoggerMessageFormat.format("Deprecated field [{}] used, expected [{}] instead",
+        LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(usedName, modernName);
+        deprecations.add(LoggerMessageFormat.format("Deprecated field [{}] used, expected [{}] instead",
             usedName,
-            modernName);
-        deprecationLogger.deprecated(formattedMessage);
-        deprecations.add(formattedMessage);
+            modernName));
     }
 
     @Override
     public void usedDeprecatedField(String usedName, String replacedWith) {
-        String formattedMessage = LoggerMessageFormat.format("Deprecated field [{}] used, replaced by [{}]",
+        LoggingDeprecationHandler.INSTANCE.usedDeprecatedField(usedName, replacedWith);
+        deprecations.add(LoggerMessageFormat.format("Deprecated field [{}] used, replaced by [{}]",
             usedName,
-            replacedWith);
-        deprecationLogger.deprecated(formattedMessage);
-        deprecations.add(formattedMessage);
+            replacedWith));
     }
 
     /**

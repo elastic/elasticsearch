@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -59,7 +58,6 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
             .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
             .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
             .put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 2)
-            .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "5s")
             .build();
     }
 
@@ -68,13 +66,12 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         return false; // enable http
     }
 
-    public void testAddAndClearVotingTombstones() throws Exception {
-        final int nodeCount = 2;
-        final List<String> nodes = internalCluster().startNodes(nodeCount);
+    public void testRollingRestartOfTwoNodeCluster() throws Exception {
+        final List<String> nodes = internalCluster().startNodes(2);
         createIndex("test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, nodeCount) // causes rebalancing
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2) // causes rebalancing
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build());
         ensureGreen("test");
@@ -109,13 +106,12 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
                     Response deleteResponse = restClient.performRequest(new Request("DELETE", "/_cluster/withdrawn_votes"));
                     assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
 
-                    final ClusterHealthRequestBuilder clusterHealthRequestBuilder = client(viaNode).admin().cluster().prepareHealth()
+                    ClusterHealthResponse clusterHealthResponse = client(viaNode).admin().cluster().prepareHealth()
                         .setWaitForEvents(Priority.LANGUID)
-                        .setWaitForNodes(Integer.toString(nodeCount - 1))
-                        .setTimeout(TimeValue.timeValueSeconds(30L));
-
-                    clusterHealthRequestBuilder.setWaitForYellowStatus();
-                    ClusterHealthResponse clusterHealthResponse = clusterHealthRequestBuilder.get();
+                        .setWaitForNodes(Integer.toString(1))
+                        .setTimeout(TimeValue.timeValueSeconds(30L))
+                        .setWaitForYellowStatus()
+                        .get();
                     assertFalse(nodeName, clusterHealthResponse.isTimedOut());
                     return Settings.EMPTY;
                 } finally {
@@ -123,7 +119,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
                 }
             }
         });
-        ensureStableCluster(nodeCount);
+        ensureStableCluster(2);
         ensureGreen("test");
         assertThat(internalCluster().size(), is(2));
     }
@@ -134,8 +130,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         Response deleteResponse = restClient.performRequest(new Request("DELETE", "/_cluster/withdrawn_votes"));
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
         assertThat(deleteResponse.getEntity().getContentLength(), is(0L));
-        Response response =
-            restClient.performRequest(new Request("POST", "/_cluster/withdrawn_votes/" + nodes.get(0)));
+        Response response = restClient.performRequest(new Request("POST", "/_cluster/withdrawn_votes/" + nodes.get(0)));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
         try {

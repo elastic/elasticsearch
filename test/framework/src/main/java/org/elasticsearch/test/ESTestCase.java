@@ -995,8 +995,19 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static boolean useNio;
 
     @BeforeClass
-    public static void setUseNio() throws Exception {
+    public static void setUseNio() {
         useNio = randomBoolean();
+    }
+
+    private static boolean useZen2;
+
+    @BeforeClass
+    public static void setUseZen2() {
+        useZen2 = true;
+    }
+
+    protected static boolean getUseZen2() {
+        return useZen2;
     }
 
     public static String getTestTransportType() {

@@ -45,6 +45,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportInfo;
@@ -187,6 +188,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                         .put(super.nodeSettings(nodeOrdinal))
                         .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
                         .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
+                        .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
                         .put("xpack.security.audit.index.settings.index.number_of_shards", numShards)
                         .put("xpack.security.audit.index.settings.index.number_of_replicas", numReplicas)
                         // Disable native ML autodetect_process as the c++ controller won't be available

@@ -78,7 +78,7 @@ public class XPackIT extends AbstractRollingTestCase {
      * trial license a little bit to make sure that it works.
      */
     public void testTrialLicense() throws IOException {
-        Request startTrial = new Request("POST", "/_xpack/license/start_trial");
+        Request startTrial = new Request("POST", "/_license/start_trial");
         startTrial.addParameter("acknowledge", "true");
         client().performRequest(startTrial);
 

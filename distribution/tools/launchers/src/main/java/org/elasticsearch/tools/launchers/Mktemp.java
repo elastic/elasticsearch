@@ -41,8 +41,7 @@ final class Mktemp {
             throw new IllegalArgumentException("expected zero arguments but was " + Arrays.toString(args));
         }
         final Path path = Launchers.createTempDirectory("elasticsearch-");
-        // wrap output in quotes in case the default temporary directory contains spaces
-        Launchers.outPrintln("\"" + path.toString() + "\"");
+        Launchers.outPrintln(path.toString());
     }
 
 }

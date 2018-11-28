@@ -33,22 +33,6 @@ public abstract class Arithmetics {
         return Integer.valueOf(Math.addExact(l.intValue(), r.intValue()));
     }
 
-    static Period add(Period l, Period r) {
-        if (l == null || r == null) {
-            return null;
-        }
-
-        return l.plus(r);
-    }
-
-    static Duration add(Duration l, Duration r) {
-        if (l == null || r == null) {
-            return null;
-        }
-
-        return l.plus(r);
-    }
-
     static ZonedDateTime add(ZonedDateTime l, Period r) {
         if (l == null || r == null) {
             return null;
@@ -81,22 +65,6 @@ public abstract class Arithmetics {
         }
 
         return Integer.valueOf(Math.subtractExact(l.intValue(), r.intValue()));
-    }
-
-    static Period sub(Period l, Period r) {
-        if (l == null || r == null) {
-            return null;
-        }
-
-        return l.minus(r);
-    }
-
-    static Duration sub(Duration l, Duration r) {
-        if (l == null || r == null) {
-            return null;
-        }
-
-        return l.minus(r);
     }
 
     static ZonedDateTime sub(ZonedDateTime l, Period r) {

@@ -457,7 +457,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
 
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
-                anonymousUser, tokenService));
+                anonymousUser, tokenService, apiKeyService));
         components.add(authcService.get());
 
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());

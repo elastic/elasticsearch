@@ -213,11 +213,13 @@ public class ApiKeyService {
                         }
                     } else {
                         credentials.close();
-                        listener.onResponse(AuthenticationResult.unsuccessful("unable to authenticate", null));
+                        listener.onResponse(
+                            AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
                     }
                 }, e -> {
                     credentials.close();
-                    listener.onResponse(AuthenticationResult.unsuccessful("apikey auth encountered a failure", e));
+                    listener.onResponse(AuthenticationResult.unsuccessful("apikey authentication for id " + credentials.getId() +
+                        " encountered a failure", e));
                 }), client::get);
             } else {
                 listener.onResponse(AuthenticationResult.notHandled());
@@ -244,8 +246,9 @@ public class ApiKeyService {
         if (verified) {
             final Long expirationEpochMilli = (Long) source.get("expiration_time");
             if (expirationEpochMilli == null || Instant.ofEpochMilli(expirationEpochMilli).isAfter(clock.instant())) {
-                final String principal = Objects.requireNonNull((String) source.get("principal"));
-                final Map<String, Object> metadata = (Map<String, Object>) source.get("metadata");
+                final Map<String, Object> creator = Objects.requireNonNull((Map<String, Object>) source.get("creator"));
+                final String principal = Objects.requireNonNull((String) creator.get("principal"));
+                final Map<String, Object> metadata = (Map<String, Object>) creator.get("metadata");
                 final List<Map<String, Object>> roleDescriptors = (List<Map<String, Object>>) source.get("role_descriptors");
                 final String[] roleNames = roleDescriptors.stream()
                     .map(rdSource -> (String) rdSource.get("name"))
@@ -254,7 +257,7 @@ public class ApiKeyService {
                 final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
                 listener.onResponse(AuthenticationResult.success(apiKeyUser));
             } else {
-                listener.onResponse(AuthenticationResult.unsuccessful("api key is expired", null));
+                listener.onResponse(AuthenticationResult.terminate("api key is expired", null));
             }
         } else {
             listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));

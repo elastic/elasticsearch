@@ -232,11 +232,13 @@ public class WatcherRequestConvertersTests extends ESTestCase {
 
     public void testExecuteInlineWatchRequest() throws IOException {
         boolean ignoreCondition = randomBoolean();
-        boolean recordExecution = randomBoolean();
 
         ExecuteWatchRequest request = ExecuteWatchRequest.inline(WATCH_JSON);
         request.setIgnoreCondition(ignoreCondition);
-        request.setRecordExecution(recordExecution);
+
+        expectThrows(IllegalArgumentException.class, () -> {
+            request.setRecordExecution(true);
+        });
 
         request.setActionMode("action1", ExecuteWatchRequest.ActionExecutionMode.SIMULATE);
 
@@ -253,11 +255,6 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         if (ignoreCondition) {
             assertThat(req.getParameters(), hasKey("ignore_condition"));
             assertThat(req.getParameters().get("ignore_condition"), is("true"));
-        }
-
-        if (recordExecution) {
-            assertThat(req.getParameters(), hasKey("record_execution"));
-            assertThat(req.getParameters().get("record_execution"), is("true"));
         }
 
         String body = toString(req.getEntity());

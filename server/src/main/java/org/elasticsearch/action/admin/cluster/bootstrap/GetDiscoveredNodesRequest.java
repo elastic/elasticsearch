@@ -102,7 +102,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
 
     /**
      * Sometimes it is useful only to receive a successful response after discovering a certain set of master-eligible nodes.
-     * This parameter gives the names, hostnames, or transport addresses of the expected nodes.
+     * This parameter gives the names or transport addresses of the expected nodes.
      *
      * @return list of expected nodes
      */
@@ -112,7 +112,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
 
     /**
      * Sometimes it is useful only to receive a successful response after discovering a certain set of master-eligible nodes.
-     * This parameter gives the names, hostnames, or transport addresses of the expected nodes.
+     * This parameter gives the names or transport addresses of the expected nodes.
      *
      * @param requiredNodes list of expected nodes
      */

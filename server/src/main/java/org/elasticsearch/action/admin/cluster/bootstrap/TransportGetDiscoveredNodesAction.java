@@ -128,10 +128,23 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
 
     private static boolean checkWaitRequirements(GetDiscoveredNodesRequest request, Set<DiscoveryNode> nodes) {
         Set<String> requiredNodes = new HashSet<>(request.getRequiredNodes());
+        Set<String> matchedIps = new HashSet<>();
         for (final DiscoveryNode node : nodes) {
-            boolean matchedAddress = requiredNodes.remove(node.getAddress().toString());
-            boolean matchedName = requiredNodes.remove(node.getName());
-            if (matchedAddress && matchedName) {
+            int matches = 0;
+            String ip = node.getAddress().getAddress();
+            if (matchedIps.contains(ip)) {
+                ++matches;
+            } else if (requiredNodes.remove(ip)) {
+                matchedIps.add(ip);
+                ++matches;
+            }
+            if (requiredNodes.remove(node.getAddress().toString())) {
+                ++matches;
+            }
+            if (requiredNodes.remove(node.getName())) {
+                ++matches;
+            }
+            if (matches > 1) {
                 throw new IllegalArgumentException(
                     "Node [" + node + "] matched both a name as well as an address entry" +
                         " in the nodes list specified in setting [cluster.initial_master_nodes]."

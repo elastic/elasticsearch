@@ -52,6 +52,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -95,7 +96,12 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
     public void setupTest() {
         clusterName = randomAlphaOfLength(10);
         localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
-        otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(), Version.CURRENT);
+        localNode = new DiscoveryNode(
+            "node1", "local", buildNewFakeTransportAddress(), emptyMap(), EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT
+        );
+        otherNode = new DiscoveryNode(
+            "node2", "other", buildNewFakeTransportAddress(), emptyMap(), EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT
+        );
 
         final MockTransport transport = new MockTransport() {
             @Override
@@ -319,6 +325,78 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
             final CountDownLatch countDownLatch = new CountDownLatch(1);
             final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
             getDiscoveredNodesRequest.setRequiredNodes(
+                Arrays.asList(localNode.getName(), otherNode.getName())
+            );
+            getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+            transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+                @Override
+                public void handleResponse(GetDiscoveredNodesResponse response) {
+                    assertThat(response.getNodes(), containsInAnyOrder(localNode, otherNode));
+                    countDownLatch.countDown();
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    throw new AssertionError("should not be called", exp);
+                }
+            });
+
+            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        }
+
+        {
+            final CountDownLatch countDownLatch = new CountDownLatch(1);
+            final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+            getDiscoveredNodesRequest.setRequiredNodes(
+                Arrays.asList(localNode.getAddress().getAddress(), otherNode.getAddress().getAddress())
+            );
+            getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+            transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+                @Override
+                public void handleResponse(GetDiscoveredNodesResponse response) {
+                    assertThat(response.getNodes(), containsInAnyOrder(localNode, otherNode));
+                    countDownLatch.countDown();
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    throw new AssertionError("should not be called", exp);
+                }
+            });
+
+            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        }
+
+        {
+            final CountDownLatch countDownLatch = new CountDownLatch(1);
+            final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+            getDiscoveredNodesRequest.setRequiredNodes(
+                Arrays.asList(localNode.getAddress().getAddress(), localNode.getAddress().toString())
+            );
+            getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+            transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+                @Override
+                public void handleResponse(GetDiscoveredNodesResponse response) {
+                    throw new AssertionError("should not be called");
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    Throwable t = exp.getRootCause();
+                    assertThat(t, instanceOf(IllegalArgumentException.class));
+                    assertThat(t.getMessage(), is("Node [" + localNode + "] matched both a name as well as an address entry" +
+                        " in the nodes list specified in setting [cluster.initial_master_nodes]."));
+                    countDownLatch.countDown();
+                }
+            });
+
+            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        }
+
+        {
+            final CountDownLatch countDownLatch = new CountDownLatch(1);
+            final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+            getDiscoveredNodesRequest.setRequiredNodes(
                 Arrays.asList(localNode.getAddress().toString(), localNode.getName())
             );
             getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
@@ -339,6 +417,29 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
             });
 
             assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        }
+
+        {
+            final CountDownLatch countDownLatch = new CountDownLatch(1);
+            final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+            getDiscoveredNodesRequest.setRequiredNodes(
+                Arrays.asList(localNode.getAddress().toString(), "_missing")
+            );
+            getDiscoveredNodesRequest.setWaitForNodes(1);
+            getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+            transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+                @Override
+                public void handleResponse(GetDiscoveredNodesResponse response) {
+                    throw new AssertionError("should not be called");
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    throw new AssertionError("should not be called");
+                }
+            });
+
+            assertFalse(countDownLatch.await(1L, TimeUnit.SECONDS));
         }
     }
 

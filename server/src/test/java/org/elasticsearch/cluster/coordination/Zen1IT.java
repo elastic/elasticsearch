@@ -84,7 +84,7 @@ public class Zen1IT extends ESIntegTestCase {
 
         for (final String node : nodes) {
             final boolean addedVotingTombstone;
-            if (zen1NodeCount == 1 && zen2NodeCount < 3) {
+            if (zen1NodeCount == 1 && zen2NodeCount > 1 && zen2NodeCount < 3) {
                 final int nodeIndex = nodes.indexOf(node);
                 final int masterIndex = nodes.indexOf(internalCluster().getMasterName());
                 if (zen1NodeCount <= nodeIndex && zen1NodeCount <= masterIndex) {

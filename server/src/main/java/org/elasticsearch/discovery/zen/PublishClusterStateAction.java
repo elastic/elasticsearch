@@ -29,8 +29,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.metadata.MetaData.Builder;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -416,14 +414,8 @@ public class PublishClusterStateAction {
             } finally {
                 IOUtils.close(in);
             }
-
-            // simulate that Zen1 nodes know nothing about coordination metadata.
-            final ClusterState incomingStateWithoutCoordinationMetadata = ClusterState.builder(incomingState).metaData(
-                new Builder(incomingState.metaData()).coordinationMetaData(CoordinationMetaData.EMPTY_META_DATA)
-            ).build();
-
-            incomingClusterStateListener.onIncomingClusterState(incomingStateWithoutCoordinationMetadata);
-            lastSeenClusterState = incomingStateWithoutCoordinationMetadata;
+            incomingClusterStateListener.onIncomingClusterState(incomingState);
+            lastSeenClusterState = incomingState;
         }
         channel.sendResponse(TransportResponse.Empty.INSTANCE);
     }

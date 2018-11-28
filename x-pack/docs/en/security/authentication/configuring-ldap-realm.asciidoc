@@ -52,7 +52,7 @@ xpack:
             bind_dn: "cn=ldapuser, ou=users, o=services, dc=example, dc=com"
             user_search:
               base_dn: "dc=example,dc=com"
-              attribute: cn
+              filter: cn
             group_search:
               base_dn: "dc=example,dc=com"
             files:

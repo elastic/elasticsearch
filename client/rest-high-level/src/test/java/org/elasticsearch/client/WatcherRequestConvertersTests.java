@@ -265,7 +265,5 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         assertThat(body, containsString("\"trigger_data\":" + triggerData));
         assertThat(body, containsString("\"alternative_input\":" + alternativeInput));
         assertThat(body, containsString("\"watch\":" + WATCH_JSON));
-
-
     }
 }

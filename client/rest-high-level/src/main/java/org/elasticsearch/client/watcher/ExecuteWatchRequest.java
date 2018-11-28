@@ -97,6 +97,9 @@ public class ExecuteWatchRequest implements Validatable, ToXContentObject {
      * @param recordExecution Sets if this execution be recorded in the history index
      */
     public void setRecordExecution(boolean recordExecution) {
+        if (watchContent != null && recordExecution) {
+            throw new IllegalArgumentException("The execution of an inline watch cannot be recorded");
+        }
         this.recordExecution = recordExecution;
     }
 

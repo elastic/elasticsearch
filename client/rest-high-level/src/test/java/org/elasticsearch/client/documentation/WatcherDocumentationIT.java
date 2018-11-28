@@ -204,7 +204,7 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::x-pack-execute-watch-by-id
             ExecuteWatchRequest request = ExecuteWatchRequest.byId("my_watch_id");
-            request.setAlternativeInput("\"{ \"foo\" : \"bar\" }");                                         // <1>
+            request.setAlternativeInput("{ \"foo\" : \"bar\" }");                                         // <1>
             request.setActionMode("action1", ExecuteWatchRequest.ActionExecutionMode.SIMULATE);             // <2>
             request.setRecordExecution(true);                                                               // <3>
             request.setIgnoreCondition(true);                                                               // <4>
@@ -299,12 +299,11 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
                 "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
                 "}";
             ExecuteWatchRequest request = ExecuteWatchRequest.inline(watchJson);
-            request.setAlternativeInput("\"{ \"foo\" : \"bar\" }");                                         // <1>
+            request.setAlternativeInput("{ \"foo\" : \"bar\" }");                                         // <1>
             request.setActionMode("action1", ExecuteWatchRequest.ActionExecutionMode.SIMULATE);             // <2>
-            request.setRecordExecution(true);                                                               // <3>
-            request.setIgnoreCondition(true);                                                               // <4>
-            request.setTriggerData("{\"triggered_time\":\"now\"}");                                         // <5>
-            request.setDebug(true);                                                                         // <6>
+            request.setIgnoreCondition(true);                                                               // <3>
+            request.setTriggerData("{\"triggered_time\":\"now\"}");                                         // <4>
+            request.setDebug(true);                                                                         // <5>
             ExecuteWatchResponse response = client.watcher().executeWatch(request, RequestOptions.DEFAULT);
             // end::x-pack-execute-inline-watch
 

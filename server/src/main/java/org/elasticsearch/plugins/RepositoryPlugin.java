@@ -44,6 +44,11 @@ public interface RepositoryPlugin {
         return Collections.emptyMap();
     }
 
+    /**
+     * Passes the {@link RepositoriesService} to the plugin.
+     *
+     * @param repositoriesService instance for the plugin to optionally use
+     */
     default void supplyRepositoriesService(RepositoriesService repositoriesService) {
 
     }

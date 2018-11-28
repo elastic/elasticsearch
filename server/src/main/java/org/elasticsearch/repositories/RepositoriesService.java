@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,6 +68,7 @@ public class RepositoriesService implements ClusterStateApplier {
     private final VerifyNodeRepositoryAction verifyAction;
 
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
+    private volatile Map<String, Repository> internalRepositories = ConcurrentCollections.newConcurrentMap();
 
     @Inject
     public RepositoriesService(Settings settings, ClusterService clusterService, TransportService transportService,
@@ -351,7 +353,38 @@ public class RepositoriesService implements ClusterStateApplier {
         if (repository != null) {
             return repository;
         }
+        repository = internalRepositories.get(repositoryName);
+        if (repository != null) {
+            return repository;
+        }
         throw new RepositoryMissingException(repositoryName);
+    }
+
+    public void registerInternalRepository(String name, Repository repository) {
+        RepositoryMetaData metadata = repository.getMetadata();
+        logger.debug(() -> new ParameterizedMessage("Registering internal [type={}] repository [name={}].", metadata.type(), name));
+        Repository existingRepository = internalRepositories.putIfAbsent(name, repository);
+        if (existingRepository != null) {
+            logger.error(new ParameterizedMessage("Error registering internal [type={}] repository [name={}]. " +
+                "Internal repository with that name already registered.", metadata.type(), name));
+        }
+        if (repositories.containsKey(name)) {
+            logger.warn(new ParameterizedMessage("Non-internal repository [name={}] already registered. This repository will block the " +
+                "usage of internal [type={}] repository [name={}].", name, metadata.type(), name));
+        }
+    }
+
+    public void unregisterInternalRepository(String name) {
+        Repository repository = internalRepositories.remove(name);
+        RepositoryMetaData metadata = repository.getMetadata();
+        if (repository != null) {
+            logger.debug(() -> new ParameterizedMessage("Unregistering internal [type={}] repository [name={}].", metadata.type(), name));
+            closeRepository(repository);
+            repository.close();
+        } else {
+            logger.warn(() -> new ParameterizedMessage("Attempted to unregistering internal [type={}] repository [name={}]. " +
+                "Repository could not found.", metadata.type(), name));
+        }
     }
 
     /**
@@ -384,7 +417,7 @@ public class RepositoriesService implements ClusterStateApplier {
     }
 
     /** Closes the given repository. */
-    private void closeRepository(Repository repository) throws IOException {
+    private void closeRepository(Repository repository) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
         repository.close();
     }

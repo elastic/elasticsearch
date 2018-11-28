@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -58,6 +59,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction.IncomingClusterStateListener;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -159,7 +161,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
                         NamedWriteableRegistry namedWriteableRegistry, MasterService masterService, ClusterApplier clusterApplier,
                         ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider, AllocationService allocationService,
-                        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators) {
+                        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, GatewayMetaState gatewayMetaState) {
         super(settings);
         this.onJoinValidators = addBuiltInJoinValidators(onJoinValidators);
         this.masterService = masterService;
@@ -227,6 +229,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         transportService.registerRequestHandler(
             DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
+
+        if (clusterApplier instanceof ClusterApplierService) {
+            ((ClusterApplierService) clusterApplier).addLowPriorityApplier(gatewayMetaState);
+        }
     }
 
     static Collection<BiConsumer<DiscoveryNode,ClusterState>> addBuiltInJoinValidators(

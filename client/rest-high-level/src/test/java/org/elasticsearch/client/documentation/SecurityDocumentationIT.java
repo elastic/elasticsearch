@@ -532,6 +532,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::authenticate-response
             User user = response.getUser(); // <1>
             boolean enabled = response.enabled(); // <2>
+            final String authenticationRealmName = response.getAuthenticationRealm().getName(); // <3>
+            final String authenticationRealmType = response.getAuthenticationRealm().getType(); // <4>
+            final String lookupRealmName = response.getLookupRealm().getName(); // <5>
+            final String lookupRealmType = response.getLookupRealm().getType(); // <6>
             //end::authenticate-response
 
             assertThat(user.getUsername(), is("test_user"));
@@ -540,6 +544,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(user.getEmail(), nullValue());
             assertThat(user.getMetadata().isEmpty(), is(true));
             assertThat(enabled, is(true));
+            assertThat(authenticationRealmName, is("default_file"));
+            assertThat(authenticationRealmType, is("file"));
+            assertThat(lookupRealmName, is("default_file"));
+            assertThat(lookupRealmType, is("file"));
         }
 
         {

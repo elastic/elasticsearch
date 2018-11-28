@@ -58,8 +58,13 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
         options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
                 new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
         request.setOptions(options);
-        ObjectPath objectPath = ObjectPath.createFromResponse(getRestClient().performRequest(request));
+        Response a = getRestClient().performRequest(request);
+        ObjectPath objectPath = ObjectPath.createFromResponse(a);
         assertThat(objectPath.evaluate("username").toString(), equalTo(SecuritySettingsSource.TEST_USER_NAME));
+        assertThat(objectPath.evaluate("authentication_realm.name").toString(), equalTo("file"));
+        assertThat(objectPath.evaluate("authentication_realm.type").toString(), equalTo("file"));
+        assertThat(objectPath.evaluate("lookup_realm.name").toString(), equalTo("file"));
+        assertThat(objectPath.evaluate("lookup_realm.type").toString(), equalTo("file"));
         List<String> roles = objectPath.evaluate("roles");
         assertThat(roles.size(), is(1));
         assertThat(roles, contains(SecuritySettingsSource.TEST_ROLE));

@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.CloseableChannel;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 
 
@@ -38,14 +37,6 @@ public interface TcpChannel extends CloseableChannel {
      * This returns the profile for this channel.
      */
     String getProfile();
-
-    /**
-     * This sets the low level socket option {@link java.net.StandardSocketOptions} SO_LINGER on a channel.
-     *
-     * @param value to set for SO_LINGER
-     * @throws IOException that can be throw by the low level socket implementation
-     */
-    void setSoLinger(int value) throws IOException;
 
     /**
      * Returns the local address for this channel.

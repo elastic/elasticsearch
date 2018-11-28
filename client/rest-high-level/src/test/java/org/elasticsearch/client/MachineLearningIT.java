@@ -63,6 +63,8 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
+import org.elasticsearch.client.ml.MlInfoRequest;
+import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
@@ -137,6 +139,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
@@ -1280,6 +1283,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             () -> execute(deleteFilterRequest, machineLearningClient::deleteFilter,
                 machineLearningClient::deleteFilterAsync));
         assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    public void testGetMlInfo() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        MlInfoResponse infoResponse = execute(new MlInfoRequest(), machineLearningClient::getMlInfo, machineLearningClient::getMlInfoAsync);
+        Map<String, Object> info = infoResponse.getInfo();
+        assertThat(info, notNullValue());
+        assertTrue(info.containsKey("defaults"));
+        assertTrue(info.containsKey("limits"));
     }
 
     public static String randomValidJobId() {

@@ -22,7 +22,11 @@ package org.elasticsearch.client;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Node.Roles;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;

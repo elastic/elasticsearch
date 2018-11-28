@@ -70,11 +70,6 @@ public class Zen1IT extends ESIntegTestCase {
             .mapToObj(i -> i < zen1NodeCount ? ZEN1_SETTINGS : ZEN2_SETTINGS).toArray(Settings[]::new));
 
         for (final String node : nodes) {
-            if (zen1NodeCount == 1 && node.equals(nodes.get(0))) {
-                // Restarting the only Zen1 node allows the Zen2 nodes to bootstrap, which prevents the Zen1 node from rejoining the
-                // cluster, which is tested as part of the rolling upgrade tests, so don't do it here.
-                continue;
-            }
             internalCluster().restartNode(node, new RestartCallback() {
                 @Override
                 public Settings onNodeStopped(String restartingNode) {

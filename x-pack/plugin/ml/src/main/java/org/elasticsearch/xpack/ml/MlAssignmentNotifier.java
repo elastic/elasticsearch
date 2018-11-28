@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
@@ -23,7 +24,9 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class MlAssignmentNotifier extends AbstractComponent implements ClusterStateListener, LocalNodeMasterListener {
+public class MlAssignmentNotifier implements ClusterStateListener, LocalNodeMasterListener {
+
+    private static final Logger logger = LogManager.getLogger(MlAssignmentNotifier.class);
 
     private final Auditor auditor;
     private final ClusterService clusterService;

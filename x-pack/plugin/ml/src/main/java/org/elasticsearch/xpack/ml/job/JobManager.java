@@ -80,11 +80,9 @@ import java.util.regex.Pattern;
  */
 public class JobManager {
 
-    private static final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(LogManager.getLogger(JobManager.class));
     private static final Logger logger = LogManager.getLogger(JobManager.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    private final Settings settings;
     private final Environment environment;
     private final JobResultsProvider jobResultsProvider;
     private final ClusterService clusterService;
@@ -102,7 +100,6 @@ public class JobManager {
     public JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
                       ClusterService clusterService, Auditor auditor, ThreadPool threadPool,
                       Client client, UpdateJobProcessNotifier updateJobProcessNotifier) {
-        this.settings = settings;
         this.environment = environment;
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.clusterService = Objects.requireNonNull(clusterService);

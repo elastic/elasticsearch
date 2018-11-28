@@ -47,6 +47,7 @@ public class GetRolesRequestTests extends ESTestCase {
     }
 
     private static GetRolesRequest mutateTestItem(GetRolesRequest original) {
-        return new GetRolesRequest(randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5)));
+        final int minRoles = original.getRoleNames().isEmpty() ? 1 : 0;
+        return new GetRolesRequest(randomArray(minRoles, 5, String[]::new, () -> randomAlphaOfLength(6)));
     }
 }

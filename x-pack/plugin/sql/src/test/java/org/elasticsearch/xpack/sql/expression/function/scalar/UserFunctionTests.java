@@ -27,11 +27,13 @@ public class UserFunctionTests extends ESTestCase {
     public void testNoUsernameFunctionOutput() {
         SqlParser parser = new SqlParser();
         EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-basic.json", true));
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(),
+        Analyzer analyzer = new Analyzer(
+                new Configuration(TimeZone.getTimeZone("UTC"), Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+                                  Protocol.PAGE_TIMEOUT, null, randomFrom(Mode.values()), null, randomAlphaOfLengthBetween(1, 15)),
+                new FunctionRegistry(),
                 IndexResolution.valid(test),
-                new Configuration(TimeZone.getTimeZone("UTC"), Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT,
-                                  null, randomFrom(Mode.values()), null, randomAlphaOfLengthBetween(1, 15)),
-                new Verifier(new Metrics()));
+                new Verifier(new Metrics())
+        );
         
         Project result = (Project) analyzer.analyze(parser.createStatement("SELECT USER()"), true);
         assertTrue(result.projections().get(0) instanceof User);

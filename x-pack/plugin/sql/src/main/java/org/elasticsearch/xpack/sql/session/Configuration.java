@@ -23,8 +23,8 @@ public class Configuration {
     private final TimeValue requestTimeout;
     private final TimeValue pageTimeout;
     private final Mode mode;
-    private String username;
-    private String clusterName;
+    private final String username;
+    private final String clusterName;
 
     @Nullable
     private QueryBuilder filter;

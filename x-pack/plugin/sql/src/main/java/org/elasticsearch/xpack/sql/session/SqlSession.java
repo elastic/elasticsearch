@@ -101,7 +101,7 @@ public class SqlSession {
         }
 
         preAnalyze(parsed, c -> {
-            Analyzer analyzer = new Analyzer(functionRegistry, c, configuration, verifier);
+            Analyzer analyzer = new Analyzer(configuration, functionRegistry, c, verifier);
             return analyzer.analyze(parsed, verify);
         }, listener);
     }
@@ -113,7 +113,7 @@ public class SqlSession {
         }
 
         preAnalyze(parsed, r -> {
-            Analyzer analyzer = new Analyzer(functionRegistry, r, configuration, verifier);
+            Analyzer analyzer = new Analyzer(configuration, functionRegistry, r, verifier);
             return analyzer.debugAnalyze(parsed);
         }, listener);
     }

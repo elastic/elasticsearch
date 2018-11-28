@@ -36,6 +36,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
+import static org.elasticsearch.xpack.sql.plugin.Transports.username;
 
 public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse> {
     private final SecurityContext securityContext;
@@ -120,13 +122,5 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                 Cursors.encodeToString(Version.CURRENT, rowSet.nextPageCursor()),
                 columns,
                 rows);
-    }
-    
-    protected static String username(SecurityContext securityContext) {
-        return securityContext != null ? securityContext.getUser().principal() : null;
-    }
-    
-    protected static String clusterName(ClusterService clusterService) {
-        return clusterService.getClusterName().value();
     }
 }

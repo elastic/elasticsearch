@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.sql.action.SqlTranslateResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.Configuration;
 
-import static org.elasticsearch.xpack.sql.plugin.TransportSqlQueryAction.username;
-import static org.elasticsearch.xpack.sql.plugin.TransportSqlQueryAction.clusterName;
+import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
+import static org.elasticsearch.xpack.sql.plugin.Transports.username;
 
 /**
  * Transport action for translating SQL queries into ES requests

@@ -12,7 +12,6 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -20,15 +19,20 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.rules.TestName;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.JDBCType;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
 
@@ -37,6 +41,9 @@ public class UserFunctionIT extends ESRestTestCase {
     private static final String SQL = "SELECT USER()";
     // role defined in roles.yml
     private static final String MINIMAL_ACCESS_ROLE = "rest_minimal";
+    private List<String> users;
+    @Rule
+    public TestName name = new TestName();
     
     @Override
     protected Settings restClientSettings() {
@@ -48,10 +55,28 @@ public class UserFunctionIT extends ESRestTestCase {
         return RestSqlIT.SSL_ENABLED ? "https" : "http";
     }
     
+    @Before
+    private void setUpUsers() throws IOException {
+        int usersCount = name.getMethodName().startsWith("testSingle") ? 1 : randomIntBetween(5,  15);
+        users = new ArrayList<String>(usersCount);
+        
+        for(int i = 0; i < usersCount; i++) {
+            String randomUserName = randomAlphaOfLengthBetween(1, 15);
+            users.add(randomUserName);
+            createUser(randomUserName, MINIMAL_ACCESS_ROLE);
+        }
+    }
+
+    @After
+    private void clearUsers() throws IOException {
+        for (String user : users) {
+            deleteUser(user);
+        }
+    }
+    
     public void testSingleRandomUser() throws IOException {
-        String randomUserName = randomAlphaOfLengthBetween(1, 15);
         String mode = randomMode().toString();
-        createUser(randomUserName, MINIMAL_ACCESS_ROLE);
+        String randomUserName = users.get(0);
         
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
@@ -62,16 +87,41 @@ public class UserFunctionIT extends ESRestTestCase {
         assertResponse(expected, actual);
     }
     
+    public void testSingleRandomUserWithWhereEvaluatingTrue() throws IOException {
+        index("{\"test\":\"doc1\"}",
+              "{\"test\":\"doc2\"}",
+              "{\"test\":\"doc3\"}");
+        String mode = randomMode().toString();
+        String randomUserName = users.get(0);
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", Arrays.asList(
+                columnInfo(mode, "USER", "keyword", JDBCType.VARCHAR, 0)));
+        expected.put("rows", Arrays.asList(Arrays.asList(randomUserName),
+                                           Arrays.asList(randomUserName),
+                                           Arrays.asList(randomUserName)));
+        Map<String, Object> actual = runSql(randomUserName, mode, SQL + " FROM test WHERE USER()='" + randomUserName + "' LIMIT 3");
+        assertResponse(expected, actual);
+    }
+    
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35980")
+    public void testSingleRandomUserWithWhereEvaluatingFalse() throws IOException {
+        index("{\"test\":\"doc1\"}",
+              "{\"test\":\"doc2\"}",
+              "{\"test\":\"doc3\"}");
+        String mode = randomMode().toString();
+        String randomUserName = users.get(0);
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", Arrays.asList(
+                columnInfo(mode, "USER", "keyword", JDBCType.VARCHAR, 0)));
+        expected.put("rows", Collections.<ArrayList<String>>emptyList());
+        String anotherRandomUserName = randomValueOtherThan(randomUserName, () -> randomAlphaOfLengthBetween(1, 15));
+        Map<String, Object> actual = runSql(randomUserName, mode, SQL + " FROM test WHERE USER()='" + anotherRandomUserName + "' LIMIT 3");
+        assertResponse(expected, actual);
+    }
+    
     public void testMultipleRandomUsersAccess() throws IOException {
-        // create a random number of users
-        int usersCount = randomIntBetween(5,  15);
-        Set<String> users = new HashSet<String>();
-        for(int i = 0; i < usersCount; i++) {
-            String randomUserName = randomAlphaOfLengthBetween(1, 15);
-            users.add(randomUserName);
-            createUser(randomUserName, MINIMAL_ACCESS_ROLE);
-        }
-        
         // run 30 queries and pick randomly each time one of the 5-15 users created previously
         for (int i = 0; i < 30; i++) {
             String mode = randomMode().toString();
@@ -88,13 +138,12 @@ public class UserFunctionIT extends ESRestTestCase {
         }
     }
     
-    public void testSelectUserFromIndex() throws IOException {
+    public void testSingleUserSelectFromIndex() throws IOException {
         index("{\"test\":\"doc1\"}",
               "{\"test\":\"doc2\"}",
               "{\"test\":\"doc3\"}");
-        String randomUserName = randomAlphaOfLengthBetween(1, 15);
         String mode = randomMode().toString();
-        createUser(randomUserName, MINIMAL_ACCESS_ROLE);
+        String randomUserName = users.get(0);
         
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
@@ -102,7 +151,7 @@ public class UserFunctionIT extends ESRestTestCase {
         expected.put("rows", Arrays.asList(Arrays.asList(randomUserName),
                                            Arrays.asList(randomUserName),
                                            Arrays.asList(randomUserName)));
-        Map<String, Object> actual = runSql(randomUserName, mode, "SELECT USER() FROM test");
+        Map<String, Object> actual = runSql(randomUserName, mode, "SELECT USER() FROM test LIMIT 3");
         
         assertResponse(expected, actual);
     }
@@ -119,11 +168,16 @@ public class UserFunctionIT extends ESRestTestCase {
         client().performRequest(request);
     }
     
-    private Map<String, Object> runSql(@Nullable String asUser, String mode, String sql) throws IOException {
+    private void deleteUser(String name) throws IOException {
+        Request request = new Request("DELETE", "/_xpack/security/user/" + name);
+        client().performRequest(request);
+    }
+    
+    private Map<String, Object> runSql(String asUser, String mode, String sql) throws IOException {
         return runSql(asUser, mode, new StringEntity("{\"query\": \"" + sql + "\"}", ContentType.APPLICATION_JSON));
     }
     
-    private Map<String, Object> runSql(@Nullable String asUser, String mode, HttpEntity entity) throws IOException {
+    private Map<String, Object> runSql(String asUser, String mode, HttpEntity entity) throws IOException {
         Request request = new Request("POST", "/_xpack/sql");
         if (false == mode.isEmpty()) {
             request.addParameter("mode", mode);
@@ -154,7 +208,7 @@ public class UserFunctionIT extends ESRestTestCase {
     private String randomMode() {
         return randomFrom("plain", "jdbc", "");
     }
-    
+
     private void index(String... docs) throws IOException {
         Request request = new Request("POST", "/test/test/_bulk");
         request.addParameter("refresh", "true");

@@ -241,7 +241,7 @@ public class VerifierMetricsTests extends ESTestCase {
             verifier = new Verifier(metrics);
         }
 
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), Configuration.DEFAULT, verifier);
+        Analyzer analyzer = new Analyzer(Configuration.DEFAULT, new FunctionRegistry(), IndexResolution.valid(test), verifier);
         analyzer.analyze(parser.createStatement(sql), true);
         
         return metrics == null ? null : metrics.stats();

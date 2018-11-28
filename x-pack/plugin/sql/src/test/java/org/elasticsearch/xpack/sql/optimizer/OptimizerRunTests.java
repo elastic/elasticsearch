@@ -36,7 +36,7 @@ public class OptimizerRunTests extends ESTestCase {
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(functionRegistry, getIndexResult, Configuration.DEFAULT, new Verifier(new Metrics()));
+        analyzer = new Analyzer(Configuration.DEFAULT, functionRegistry, getIndexResult, new Verifier(new Metrics()));
         optimizer = new Optimizer();
     }
 

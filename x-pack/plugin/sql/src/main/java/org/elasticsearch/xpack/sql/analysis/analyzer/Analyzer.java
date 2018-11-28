@@ -86,10 +86,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      */
     private final Verifier verifier;
 
-    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, Configuration configuration, Verifier verifier) {
+    public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, IndexResolution results, Verifier verifier) {
+        this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.indexResolution = results;
-        this.configuration = configuration;
         this.verifier = verifier;
     }
 

@@ -28,11 +28,13 @@ public class DatabaseFunctionTests extends ESTestCase {
         String clusterName = randomAlphaOfLengthBetween(1, 15);
         SqlParser parser = new SqlParser();
         EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-basic.json", true));
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(),
+        Analyzer analyzer = new Analyzer(
+                new Configuration(TimeZone.getTimeZone("UTC"), Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+                                  Protocol.PAGE_TIMEOUT, null, randomFrom(Mode.values()), null, clusterName),
+                new FunctionRegistry(),
                 IndexResolution.valid(test),
-                new Configuration(TimeZone.getTimeZone("UTC"), Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT,
-                                  null, randomFrom(Mode.values()), null, clusterName),
-                new Verifier(new Metrics()));
+                new Verifier(new Metrics())
+        );
         
         Project result = (Project) analyzer.analyze(parser.createStatement("SELECT DATABASE()"), true);
         assertTrue(result.projections().get(0) instanceof Database);

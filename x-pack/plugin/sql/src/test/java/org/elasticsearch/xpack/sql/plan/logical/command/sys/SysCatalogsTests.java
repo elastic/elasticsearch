@@ -34,7 +34,7 @@ public class SysCatalogsTests extends ESTestCase {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private Tuple<Command, SqlSession> sql(String sql) {
         EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), Configuration.DEFAULT,
+        Analyzer analyzer = new Analyzer(Configuration.DEFAULT, new FunctionRegistry(), IndexResolution.valid(test),
                                          new Verifier(new Metrics()));
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), true);
 

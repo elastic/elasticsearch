@@ -211,6 +211,10 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
                      XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
                     Map<String, Object> source = parser.map();
+                    Object expandWildcards = null;
+                    Object ignoreUnavailable = null;
+                    Object ignoreThrottled = null;
+                    Object allowNoIndices = null;
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
                         if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
@@ -230,12 +234,20 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             searchRequest.routing(nodeStringValue(value, null));
                         } else if ("allow_partial_search_results".equals(entry.getKey())) {
                             searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));
+                        } else if ("expand_wildcards".equals(entry.getKey()) || "expandWildcards".equals(entry.getKey())) {
+                            expandWildcards = value;
+                        } else if ("ignore_unavailable".equals(entry.getKey()) || "ignoreUnavailable".equals(entry.getKey())) {
+                            ignoreUnavailable = value;
+                        } else if ("allow_no_indices".equals(entry.getKey()) || "allowNoIndices".equals(entry.getKey())) {
+                            allowNoIndices = value;
+                        } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
+                            ignoreThrottled = value;
                         } else {
-                            // TODO we should not be lenient here and fail if there is any unknown key in the source map
+                            throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                         }
-
                     }
-                    defaultOptions = IndicesOptions.fromMap(source, defaultOptions);
+                    defaultOptions = IndicesOptions.fromParameters(expandWildcards, ignoreUnavailable, allowNoIndices, ignoreThrottled,
+                        defaultOptions);
                 }
             }
             searchRequest.indicesOptions(defaultOptions);

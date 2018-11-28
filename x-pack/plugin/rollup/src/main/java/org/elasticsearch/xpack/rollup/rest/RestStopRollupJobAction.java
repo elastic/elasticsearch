@@ -3,9 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.rollup.rest;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -15,10 +18,17 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.rollup.Rollup;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestStopRollupJobAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestStopRollupJobAction.class));
+
     public RestStopRollupJobAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, Rollup.BASE_PATH +  "job/{id}/_stop", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                POST, "/_rollup/job/{id}/_stop", this,
+                POST, Rollup.BASE_PATH +  "job/{id}/_stop", deprecationLogger);
     }
 
     @Override
@@ -33,6 +43,7 @@ public class RestStopRollupJobAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "rollup_stop_job_action";
+        return "stop_rollup_job";
     }
+
 }

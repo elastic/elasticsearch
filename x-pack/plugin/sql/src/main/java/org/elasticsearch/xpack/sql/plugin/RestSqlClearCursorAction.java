@@ -3,9 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -20,10 +23,15 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-
 public class RestSqlClearCursorAction extends BaseRestHandler {
-    public RestSqlClearCursorAction(RestController controller) {
-        controller.registerHandler(POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT, this);
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlClearCursorAction.class));
+
+    RestSqlClearCursorAction(RestController controller) {
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT, this,
+                POST, Protocol.CLEAR_CURSOR_DEPRECATED_REST_ENDPOINT, deprecationLogger);
     }
 
     @Override
@@ -37,6 +45,7 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_sql_clear_cursor_action";
+        return "sql_clear_cursor";
     }
+
 }

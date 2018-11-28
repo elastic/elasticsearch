@@ -3,10 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -36,11 +39,20 @@ import static org.elasticsearch.xpack.sql.proto.RequestInfo.CANVAS;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
 
 public class RestSqlQueryAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlQueryAction.class));
+
     private static String CLIENT_ID = "client.id";
 
-    public RestSqlQueryAction(RestController controller) {
-        controller.registerHandler(GET, Protocol.SQL_QUERY_REST_ENDPOINT, this);
-        controller.registerHandler(POST, Protocol.SQL_QUERY_REST_ENDPOINT, this);
+    RestSqlQueryAction(RestController controller) {
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                GET, Protocol.SQL_QUERY_REST_ENDPOINT, this,
+                GET, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, deprecationLogger);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                POST, Protocol.SQL_QUERY_REST_ENDPOINT, this,
+                POST, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, deprecationLogger);
     }
 
     @Override
@@ -129,6 +141,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_sql_query_action";
+        return "sql_query";
     }
+
 }

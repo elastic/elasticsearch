@@ -3,8 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.license;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -18,14 +21,23 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutLicenseAction extends XPackRestHandler {
 
-    public RestPutLicenseAction(RestController controller) {
-        controller.registerHandler(POST, URI_BASE + "/license", this);
-        controller.registerHandler(PUT, URI_BASE + "/license", this);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutLicenseAction.class));
+
+    RestPutLicenseAction(RestController controller) {
+        // TODO: remove POST endpoint?
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                POST, "/_license", this,
+                POST, URI_BASE + "/license", deprecationLogger);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                PUT, "/_license", this,
+                PUT, URI_BASE + "/license", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_put_license_action";
+        return "put_license";
     }
 
     @Override
@@ -41,10 +53,11 @@ public class RestPutLicenseAction extends XPackRestHandler {
 
         if ("basic".equals(putLicenseRequest.license().type())) {
             throw new IllegalArgumentException("Installing basic licenses is no longer allowed. Use the POST " +
-                    "/_xpack/license/start_basic API to install a basic license that does not expire.");
+                    "/_license/start_basic API to install a basic license that does not expire.");
         }
 
         return channel -> client.es().admin().cluster().execute(PutLicenseAction.INSTANCE, putLicenseRequest,
                 new RestToXContentListener<>(channel));
     }
+
 }

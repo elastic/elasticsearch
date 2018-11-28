@@ -25,8 +25,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestSqlTranslateAction extends BaseRestHandler {
     public RestSqlTranslateAction(RestController controller) {
-        controller.registerHandler(GET, "/_xpack/sql/translate", this);
-        controller.registerHandler(POST, "/_xpack/sql/translate", this);
+        controller.registerHandler(GET, "/_sql/translate", this);
+        controller.registerHandler(POST, "/_sql/translate", this);
     }
 
     @Override

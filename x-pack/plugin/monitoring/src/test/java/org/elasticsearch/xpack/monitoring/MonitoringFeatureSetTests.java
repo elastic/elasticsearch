@@ -94,7 +94,7 @@ public class MonitoringFeatureSetTests extends ESTestCase {
                 exporterList.add(exporter);
             }
         }
-        when(exporters.iterator()).thenReturn(exporterList.iterator());
+        when(exporters.getEnabledExporters()).thenReturn(exporterList);
         when(monitoring.isMonitoringActive()).thenReturn(collectionEnabled);
 
         MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, monitoring, licenseState, exporters);

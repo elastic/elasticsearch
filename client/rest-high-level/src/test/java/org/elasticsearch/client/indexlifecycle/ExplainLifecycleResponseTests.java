@@ -36,7 +36,7 @@ public class ExplainLifecycleResponseTests extends AbstractXContentTestCase<Expl
     protected ExplainLifecycleResponse createTestInstance() {
         Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
         for (int i = 0; i < randomIntBetween(0, 2); i++) {
-            IndexLifecycleExplainResponse indexResponse = IndexExplainResponseTests.randomIndexExplainResponse();
+            IndexLifecycleExplainResponse indexResponse = IndexLifecycleExplainResponseTests.randomIndexExplainResponse();
             indexResponses.put(indexResponse.getIndex(), indexResponse);
         }
         return new ExplainLifecycleResponse(indexResponses);

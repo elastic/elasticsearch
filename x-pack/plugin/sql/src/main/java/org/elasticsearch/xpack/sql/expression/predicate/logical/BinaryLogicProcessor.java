@@ -84,8 +84,18 @@ public class BinaryLogicProcessor extends FunctionalBinaryProcessor<Boolean, Boo
 
     @Override
     protected void checkParameter(Object param) {
-        if (!(param instanceof Boolean)) {
+        if (param != null && !(param instanceof Boolean)) {
             throw new SqlIllegalArgumentException("A boolean is required; received {}", param);
         }
+    }
+
+    @Override
+    public Object process(Object input) {
+        Object l = left().process(input);
+        checkParameter(l);
+        Object r = right().process(input);
+        checkParameter(r);
+
+        return doProcess(l, r);
     }
 }

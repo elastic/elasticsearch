@@ -162,7 +162,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
 
     protected CleanerService.Listener getListener() {
         Exporters exporters = internalCluster().getInstance(Exporters.class, internalCluster().getMasterName());
-        for (Exporter exporter : exporters) {
+        for (Exporter exporter : exporters.getEnabledExporters()) {
             if (exporter instanceof CleanerService.Listener) {
                 return (CleanerService.Listener) exporter;
             }

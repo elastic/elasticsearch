@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -52,12 +51,6 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
 
         // How many shards the node should have
         int expectedShardCount = idxMeta.getNumberOfShards();
-
-        if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
-            logger.debug("[{}] shrink action for [{}] cannot make progress because not all shards are active",
-                getKey().getAction(), index.getName());
-            return new Result(false, new CheckShrinkReadyStep.Info("", expectedShardCount, -1));
-        }
 
         // The id of the node the shards should be on
         final String idShardsShouldBeOn = idxMeta.getSettings().get(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id");

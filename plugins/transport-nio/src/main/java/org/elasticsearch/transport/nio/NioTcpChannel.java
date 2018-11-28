@@ -24,8 +24,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.transport.TcpChannel;
 
-import java.io.IOException;
-import java.net.StandardSocketOptions;
 import java.nio.channels.SocketChannel;
 
 public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
@@ -42,13 +40,6 @@ public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
     }
 
     @Override
-    public void setSoLinger(int value) throws IOException {
-        if (isOpen()) {
-            getRawChannel().setOption(StandardSocketOptions.SO_LINGER, value);
-        }
-    }
-
-    @Override
     public String getProfile() {
         return profile;
     }
@@ -56,6 +47,11 @@ public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
         addCloseListener(ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
+    public void addConnectListener(ActionListener<Void> listener) {
+        addConnectListener(ActionListener.toBiConsumer(listener));
     }
 
     @Override

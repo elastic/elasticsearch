@@ -32,6 +32,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
+/**
+ * Checks whether all shards have been correctly routed in response to an update to the allocation rules for an index.
+ */
 public class AllocationRoutedStep extends ClusterStateWaitStep {
     public static final String NAME = "check-allocation";
 
@@ -71,7 +74,7 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
                 boolean canRemainOnCurrentNode = ALLOCATION_DECIDERS
                         .canRemain(shardRouting, clusterState.getRoutingNodes().node(currentNodeId), allocation)
                         .type() == Decision.Type.YES;
-                if (canRemainOnCurrentNode == false) {
+                if (canRemainOnCurrentNode == false || shardRouting.started() == false) {
                     allocationPendingAllShards++;
                 }
             }

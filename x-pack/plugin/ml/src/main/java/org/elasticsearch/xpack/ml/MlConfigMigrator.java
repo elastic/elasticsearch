@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -82,9 +83,12 @@ public class MlConfigMigrator {
     private final Client client;
     private final ClusterService clusterService;
 
+    private final AtomicBoolean migrationInProgress;
+
     public MlConfigMigrator(Client client, ClusterService clusterService) {
         this.client = client;
         this.clusterService = clusterService;
+        this.migrationInProgress = new AtomicBoolean(false);
     }
 
     /**
@@ -106,13 +110,28 @@ public class MlConfigMigrator {
      */
     public void migrateConfigsWithoutTasks(ClusterState clusterState, ActionListener<Boolean> listener) {
 
+        if (migrationInProgress.compareAndSet(false, true) == false) {
+            listener.onResponse(Boolean.FALSE);
+        }
+
         Collection<DatafeedConfig> datafeedsToMigrate = stoppedDatafeedConfigs(clusterState);
         List<Job> jobsToMigrate = nonDeletingJobs(closedJobConfigs(clusterState)).stream()
                 .map(MlConfigMigrator::updateJobForMigration)
                 .collect(Collectors.toList());
 
+        ActionListener<Boolean> onFailureUnMarkMigrationInProgress = ActionListener.wrap(
+                response -> {
+                    migrationInProgress.set(false);
+                    listener.onResponse(response);
+                },
+                e -> {
+                    migrationInProgress.set(false);
+                    listener.onFailure(e);
+                }
+        );
+
         if (datafeedsToMigrate.isEmpty() && jobsToMigrate.isEmpty()) {
-            listener.onResponse(Boolean.FALSE);
+            onFailureUnMarkMigrationInProgress.onResponse(Boolean.FALSE);
             return;
         }
 
@@ -121,9 +140,9 @@ public class MlConfigMigrator {
                     List<String> successfulJobWrites = filterFailedJobConfigWrites(failedDocumentIds, jobsToMigrate);
                     List<String> successfullDatafeedWrites =
                             filterFailedDatafeedConfigWrites(failedDocumentIds, datafeedsToMigrate);
-                    removeFromClusterState(successfulJobWrites, successfullDatafeedWrites, listener);
+                    removeFromClusterState(successfulJobWrites, successfullDatafeedWrites, onFailureUnMarkMigrationInProgress);
                 },
-                listener::onFailure
+                onFailureUnMarkMigrationInProgress::onFailure
         ));
     }
 

@@ -9,7 +9,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
-import org.joda.time.DateTime;
 
 import java.util.Arrays;
 

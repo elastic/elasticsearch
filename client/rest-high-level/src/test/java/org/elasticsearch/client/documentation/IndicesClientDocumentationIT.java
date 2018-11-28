@@ -2544,19 +2544,19 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             FreezeIndexRequest request = new FreezeIndexRequest("index"); // <1>
             // end::freeze-index-request
 
-            // tag::freeze-index-reques-timeout
+            // tag::freeze-index-request-timeout
             request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
-            // end::freeze-index-reques-timeout
-            // tag::freeze-index-reques-masterTimeout
+            // end::freeze-index-request-timeout
+            // tag::freeze-index-request-masterTimeout
             request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
-            // end::freeze-index-reques-masterTimeout
-            // tag::freeze-index-reques-waitForActiveShards
+            // end::freeze-index-request-masterTimeout
+            // tag::freeze-index-request-waitForActiveShards
             request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <1>
-            // end::freeze-index-reques-waitForActiveShards
+            // end::freeze-index-request-waitForActiveShards
 
-            // tag::freeze-index-reques-indicesOptions
+            // tag::freeze-index-request-indicesOptions
             request.setIndicesOptions(IndicesOptions.strictExpandOpen()); // <1>
-            // end::freeze-index-reques-indicesOptions
+            // end::freeze-index-request-indicesOptions
 
             // tag::freeze-index-execute
             ShardsAcknowledgedResponse openIndexResponse = client.indices().freeze(request, RequestOptions.DEFAULT);
@@ -2622,19 +2622,19 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             UnfreezeIndexRequest request = new UnfreezeIndexRequest("index"); // <1>
             // end::unfreeze-index-request
 
-            // tag::unfreeze-index-reques-timeout
+            // tag::unfreeze-index-request-timeout
             request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
-            // end::unfreeze-index-reques-timeout
-            // tag::unfreeze-index-reques-masterTimeout
+            // end::unfreeze-index-request-timeout
+            // tag::unfreeze-index-request-masterTimeout
             request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
-            // end::unfreeze-index-reques-masterTimeout
-            // tag::unfreeze-index-reques-waitForActiveShards
+            // end::unfreeze-index-request-masterTimeout
+            // tag::unfreeze-index-request-waitForActiveShards
             request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <1>
-            // end::unfreeze-index-reques-waitForActiveShards
+            // end::unfreeze-index-request-waitForActiveShards
 
-            // tag::unfreeze-index-reques-indicesOptions
+            // tag::unfreeze-index-request-indicesOptions
             request.setIndicesOptions(IndicesOptions.strictExpandOpen()); // <1>
-            // end::unfreeze-index-reques-indicesOptions
+            // end::unfreeze-index-request-indicesOptions
 
             // tag::unfreeze-index-execute
             ShardsAcknowledgedResponse openIndexResponse = client.indices().unfreeze(request, RequestOptions.DEFAULT);

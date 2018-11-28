@@ -1,14 +1,20 @@
-[[java-rest-high-freeze-index]]
+--
+:api: freeze-index
+:request: FreezeIndexRequest
+:response: FreezeIndexResponse
+--
+
+[id="{upid}-{api}"]
 === Freeze Index API
 
-[[java-rest-high-freeze-index-request]]
+[id="{upid}-{api}-request"]
 ==== Freeze Index Request
 
-An `FreezeIndexRequest` requires an `index` argument:
+An +{request}+ requires an `index` argument:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[freeze-index-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The index to freeze
 
@@ -17,77 +23,42 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[freeze-index-request-timeout]
+include-tagged::{doc-tests-file}[{api}-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for the all the nodes to acknowledge the index is frozen
 as a `TimeValue`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[freeze-index-request-masterTimeout]
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[freeze-index-request-waitForActiveShards]
+include-tagged::{doc-tests-file}[{api}-request-waitForActiveShards]
 --------------------------------------------------
 <1> The number of active shard copies to wait for before  the freeze index API
 returns a response, as an `ActiveShardCount`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[freeze-index-request-indicesOptions]
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
 --------------------------------------------------
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded
 
-[[java-rest-high-freeze-index-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[freeze-index-execute]
---------------------------------------------------
-
-[[java-rest-high-freeze-index-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of an freeze index request requires both the `FreezeIndexRequest`
-instance and an `ActionListener` instance to be passed to the asynchronous
-method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[freeze-index-execute-async]
---------------------------------------------------
-<1> The `FreezeIndexRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `FreezeIndexResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[freeze-index-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
-
-[[java-rest-high-freeze-index-response]]
+[id="{upid}-{api}-response"]
 ==== Freeze Index Response
 
-The returned `FreezeIndexResponse` allows to retrieve information about the
+The returned +{response}+ allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[freeze-index-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Indicates whether all of the nodes have acknowledged the request
 <2> Indicates whether the requisite number of shard copies were started for

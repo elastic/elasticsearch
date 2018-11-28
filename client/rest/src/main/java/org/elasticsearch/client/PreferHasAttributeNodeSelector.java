@@ -25,8 +25,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A {@link NodeSelector} that prefer to select nodes that have a particular value
- * for an attribute.
+ * Both {@link PreferHasAttributeNodeSelector} and {@link HasAttributeNodeSelector} will work the same
+ * if there is a {@link Node} with particular attribute in the attributes,
+ * but {@link PreferHasAttributeNodeSelector} will select another node even if there is no {@link Node} with particular attribute
+ * in the attributes.
  */
 public final class PreferHasAttributeNodeSelector implements NodeSelector {
     private final String key;

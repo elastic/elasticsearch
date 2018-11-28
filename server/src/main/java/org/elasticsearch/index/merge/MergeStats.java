@@ -51,8 +51,9 @@ public class MergeStats implements Streamable, ToXContentFragment {
 
     }
 
-    public void add(long totalMerges, long totalMergeTime, long totalNumDocs, long totalSizeInBytes, long currentMerges, long currentNumDocs, long currentSizeInBytes,
-                    long stoppedTimeMillis, long throttledTimeMillis, double mbPerSecAutoThrottle) {
+    public void add(long totalMerges, long totalMergeTime, long totalNumDocs, long totalSizeInBytes,
+                        long currentMerges, long currentNumDocs, long currentSizeInBytes,
+                        long stoppedTimeMillis, long throttledTimeMillis, double mbPerSecAutoThrottle) {
         this.total += totalMerges;
         this.totalTimeInMillis += totalMergeTime;
         this.totalNumDocs += totalNumDocs;

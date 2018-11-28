@@ -28,10 +28,11 @@ import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LazyInitializable;
 
@@ -45,7 +46,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 
-public class GoogleCloudStorageService extends AbstractComponent {
+public class GoogleCloudStorageService {
+    
+    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageService.class);
 
     /**
      * Dictionary of client instances. Client instances are built lazily from the

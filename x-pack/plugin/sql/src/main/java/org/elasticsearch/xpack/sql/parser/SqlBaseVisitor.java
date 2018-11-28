@@ -470,6 +470,13 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitNullLiteral(SqlBaseParser.NullLiteralContext ctx);
   /**
+   * Visit a parse tree produced by the {@code intervalLiteral}
+   * labeled alternative in {@link SqlBaseParser#constant}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIntervalLiteral(SqlBaseParser.IntervalLiteralContext ctx);
+  /**
    * Visit a parse tree produced by the {@code numericLiteral}
    * labeled alternative in {@link SqlBaseParser#constant}.
    * @param ctx the parse tree
@@ -537,6 +544,18 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitBooleanValue(SqlBaseParser.BooleanValueContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#interval}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInterval(SqlBaseParser.IntervalContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#intervalField}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIntervalField(SqlBaseParser.IntervalFieldContext ctx);
   /**
    * Visit a parse tree produced by the {@code primitiveDataType}
    * labeled alternative in {@link SqlBaseParser#dataType}.

@@ -163,16 +163,19 @@ public class FuzzinessTests extends ESTestCase {
             {
                 XContentBuilder json;
                 boolean isDefaultAutoFuzzinessTested = randomBoolean();
+                Fuzziness expectedFuzziness = Fuzziness.AUTO;
                 if (isDefaultAutoFuzzinessTested) {
                     json = Fuzziness.AUTO.toXContent(jsonBuilder().startObject(), null).endObject();
                 } else {
-                    String auto = randomBoolean() ? "AUTO" : "auto";
+                    StringBuilder auto = new StringBuilder();
+                    auto = randomBoolean() ? auto.append("AUTO") : auto.append("auto");
                     if (randomBoolean()) {
-                        auto += ":" + randomIntBetween(1, 3) + "," + randomIntBetween(4, 10);
+                        int lowDistance = randomIntBetween(1, 3);
+                        int highDistance = randomIntBetween(4, 10);
+                        auto.append(":").append(lowDistance).append(",").append(highDistance);
+                        expectedFuzziness = Fuzziness.fromString(auto.toString());
                     }
-                    json = jsonBuilder().startObject()
-                        .field(Fuzziness.X_FIELD_NAME, auto)
-                        .endObject();
+                    json = expectedFuzziness.toXContent(jsonBuilder().startObject(), null).endObject();
                 }
                 try (XContentParser parser = createParser(json)) {
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
@@ -180,7 +183,9 @@ public class FuzzinessTests extends ESTestCase {
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
                     Fuzziness fuzziness = Fuzziness.parse(parser);
                     if (isDefaultAutoFuzzinessTested) {
-                        assertThat(fuzziness, sameInstance(Fuzziness.AUTO));
+                        assertThat(fuzziness, sameInstance(expectedFuzziness));
+                    } else {
+                        assertEquals(expectedFuzziness, fuzziness);
                     }
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
                 }
@@ -205,6 +210,7 @@ public class FuzzinessTests extends ESTestCase {
         deserializedFuzziness = doSerializeRoundtrip(fuzziness);
         assertNotSame(fuzziness, deserializedFuzziness);
         assertEquals(fuzziness, deserializedFuzziness);
+        assertEquals(fuzziness.asString(), deserializedFuzziness.asString());
     }
 
     private static Fuzziness doSerializeRoundtrip(Fuzziness in) throws IOException {

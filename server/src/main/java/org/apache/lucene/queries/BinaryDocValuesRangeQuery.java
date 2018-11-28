@@ -108,7 +108,7 @@ public final class BinaryDocValuesRangeQuery extends Query {
                         return 4; // at most 4 comparisons
                     }
                 };
-                return new ConstantScoreScorer(this, score(), iterator);
+                return new ConstantScoreScorer(this, score(), scoreMode, iterator);
             }
 
             @Override

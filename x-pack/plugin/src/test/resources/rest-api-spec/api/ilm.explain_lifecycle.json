@@ -1,6 +1,6 @@
 {
   "ilm.explain_lifecycle": {
-    "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-explain-lifecycle.html",
     "methods": [ "GET" ],
     "url": {
       "path": "/{index}/_ilm/explain",

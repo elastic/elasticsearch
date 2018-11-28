@@ -24,6 +24,7 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.logging.Logger;
@@ -31,6 +32,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.TaskState;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -44,7 +46,8 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     private static final String LIST_TASK_NAME = "listTestClusters";
     private static final String NODE_EXTENSION_NAME = "testClusters";
-    public static final String PROPERTY_TESTCLUSTERS_RUN_ONCE = "_testclusters_run_once";
+    static final String HELPER_CONFIGURATION_NAME = "testclusters";
+    private static final String SYNC_ARTIFACTS_TASK_NAME = "syncTestClustersArtifacts";
 
     private final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
 
@@ -56,6 +59,8 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        Project rootProject = project.getRootProject();
+
         // enable the DSL to describe clusters
         NamedDomainObjectContainer<ElasticsearchNode> container = createTestClustersContainerExtension(project);
 
@@ -67,13 +72,27 @@ public class TestClustersPlugin implements Plugin<Project> {
 
         // There's a single Gradle instance for multi project builds, this means that some configuration needs to be
         // done only once even if the plugin is applied multiple times as a part of multi project build
-        ExtraPropertiesExtension rootProperties = project.getRootProject().getExtensions().getExtraProperties();
-        if (rootProperties.has(PROPERTY_TESTCLUSTERS_RUN_ONCE) == false) {
-            rootProperties.set(PROPERTY_TESTCLUSTERS_RUN_ONCE, true);
+        if (rootProject.getConfigurations().findByName(HELPER_CONFIGURATION_NAME) == null) {
+            // We use a single configuration on the root project to resolve all testcluster dependencies ( like distros )
+            // at once, only once without the need to repeat it for each project. This pays off assuming that most
+            // projects use the same dependencies.
+            Configuration helperConfiguration = project.getRootProject().getConfigurations().create(HELPER_CONFIGURATION_NAME);
+            helperConfiguration.setDescription(
+                "Internal helper configuration used by cluster configuration to download " +
+                    "ES distributions and plugins."
+            );
+
             // When running in the Daemon it's possible for this to hold references to past
             usedClusters.clear();
             claimsInventory.clear();
             runningClusters.clear();
+
+
+            // We have a single task to sync the helper configuration to "artifacts dir"
+            // the clusters will look for artifacts there based on the naming conventions.
+            // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
+            // the build.
+            rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, SyncTestClustersConfiguration.class);
 
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
             // that are defined in the build script and the ones that will actually be used in this invocation of gradle
@@ -86,6 +105,10 @@ public class TestClustersPlugin implements Plugin<Project> {
 
             // After each task we determine if there are clusters that are no longer needed.
             configureStopClustersHook(project);
+
+            // Since we have everything modeled in the DSL, add all the required dependencies e.x. the distribution to the
+            // configuration so the user doesn't have to repeat this.
+            autoConfigureClusterDependencies(project, rootProject, container);
         }
     }
 
@@ -123,7 +146,15 @@ public class TestClustersPlugin implements Plugin<Project> {
                     "useCluster",
                     new Closure<Void>(this, task) {
                         public void doCall(ElasticsearchNode node) {
+                            Object thisObject = this.getThisObject();
+                            if (thisObject instanceof Task == false) {
+                                throw new AssertionError("Expected " + thisObject + " to be an instance of " +
+                                    "Task, but got: " + thisObject.getClass());
+                            }
                             usedClusters.computeIfAbsent(task, k -> new ArrayList<>()).add(node);
+                            ((Task) thisObject).dependsOn(
+                                project.getRootProject().getTasks().getByName(SYNC_ARTIFACTS_TASK_NAME)
+                            );
                         }
                     })
         );
@@ -204,5 +235,43 @@ public class TestClustersPlugin implements Plugin<Project> {
             }
         );
     }
+
+    static File getTestClustersBuildDir(Project project) {
+        return new File(project.getRootProject().getBuildDir(), "testclusters");
+    }
+
+    /**
+     * Boilerplate to get testClusters container extension
+     *
+     * Equivalent to project.testClusters in the DSL
+     */
+    @SuppressWarnings("unchecked")
+    public static NamedDomainObjectContainer<ElasticsearchNode> getNodeExtension(Project project) {
+        return (NamedDomainObjectContainer<ElasticsearchNode>)
+            project.getExtensions().getByName(NODE_EXTENSION_NAME);
+    }
+
+    private void autoConfigureClusterDependencies(
+        Project project,
+        Project rootProject,
+        NamedDomainObjectContainer<ElasticsearchNode> container
+    ) {
+        // When the project evaluated we know of all tasks that use clusters.
+        // Each of these have to depend on the artifacts being synced.
+        // We need afterEvaluate here despite the fact that container is a domain object, we can't implement this with
+        // all because fields can change after the fact.
+        project.afterEvaluate(ip -> container.forEach(esNode -> {
+            // declare dependencies against artifacts needed by cluster formation.
+            String dependency = String.format(
+                "org.elasticsearch.distribution.zip:%s:%s@zip",
+                esNode.getDistribution().getFileName(),
+                esNode.getVersion()
+            );
+            logger.info("Cluster {} depends on {}", esNode.getName(), dependency);
+            rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
+        }));
+    }
+
+
 
 }

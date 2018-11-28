@@ -168,7 +168,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(X_FIELD_NAME, fuzziness);
+        builder.field(X_FIELD_NAME, asString());
         return builder;
     }
 
@@ -223,8 +223,8 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
         }
         Fuzziness other = (Fuzziness) obj;
         return Objects.equals(fuzziness, other.fuzziness) &&
-                Objects.equals(lowDistance, other.lowDistance) &&
-                Objects.equals(highDistance, other.highDistance);
+                lowDistance == other.lowDistance &&
+                highDistance == other.highDistance;
     }
 
     @Override

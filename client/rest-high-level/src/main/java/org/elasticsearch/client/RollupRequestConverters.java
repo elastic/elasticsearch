@@ -28,6 +28,7 @@ import org.elasticsearch.client.rollup.GetRollupIndexCapsRequest;
 import org.elasticsearch.client.rollup.GetRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.StartRollupJobRequest;
+import org.elasticsearch.client.rollup.StopRollupJobRequest;
 
 import java.io.IOException;
 
@@ -41,7 +42,7 @@ final class RollupRequestConverters {
 
     static Request putJob(final PutRollupJobRequest putRollupJobRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack", "rollup", "job")
+            .addPathPartAsIs("_rollup", "job")
             .addPathPart(putRollupJobRequest.getConfig().getId())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -51,17 +52,32 @@ final class RollupRequestConverters {
 
     static Request startJob(final StartRollupJobRequest startRollupJobRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack", "rollup", "job")
+            .addPathPartAsIs("_rollup", "job")
             .addPathPart(startRollupJobRequest.getJobId())
             .addPathPartAsIs("_start")
             .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
+    static Request stopJob(final StopRollupJobRequest stopRollupJobRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_rollup", "job")
+            .addPathPart(stopRollupJobRequest.getJobId())
+            .addPathPartAsIs("_stop")
+            .build();
+
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        parameters.withTimeout(stopRollupJobRequest.timeout());
+        if (stopRollupJobRequest.waitForCompletion() != null) {
+            parameters.withWaitForCompletion(stopRollupJobRequest.waitForCompletion());
+        }
         return request;
     }
 
     static Request getJob(final GetRollupJobRequest getRollupJobRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack", "rollup", "job")
+            .addPathPartAsIs("_rollup", "job")
             .addPathPart(getRollupJobRequest.getJobId())
             .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
@@ -69,7 +85,7 @@ final class RollupRequestConverters {
 
     static Request deleteJob(final DeleteRollupJobRequest deleteRollupJobRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack", "rollup", "job")
+            .addPathPartAsIs("_rollup", "job")
             .addPathPart(deleteRollupJobRequest.getId())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
@@ -79,7 +95,7 @@ final class RollupRequestConverters {
 
     static Request getRollupCaps(final GetRollupCapsRequest getRollupCapsRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack", "rollup", "data")
+            .addPathPartAsIs("_rollup", "data")
             .addPathPart(getRollupCapsRequest.getIndexPattern())
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -90,7 +106,7 @@ final class RollupRequestConverters {
     static Request getRollupIndexCaps(final GetRollupIndexCapsRequest getRollupIndexCapsRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addCommaSeparatedPathParts(getRollupIndexCapsRequest.indices())
-            .addPathPartAsIs("_xpack", "rollup", "data")
+            .addPathPartAsIs("_rollup", "data")
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getRollupIndexCapsRequest, REQUEST_BODY_CONTENT_TYPE));

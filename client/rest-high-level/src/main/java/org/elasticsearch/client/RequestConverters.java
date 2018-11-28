@@ -50,6 +50,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.client.core.MultiTermVectorsRequest;
+import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
@@ -78,7 +80,6 @@ import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.client.core.TermVectorsRequest;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -264,7 +265,7 @@ final class RequestConverters {
 
         return request;
     }
-    
+
     static Request sourceExists(GetRequest getRequest) {
         Request request = new Request(HttpHead.METHOD_NAME, endpoint(getRequest.index(), getRequest.type(), getRequest.id(), "_source"));
 
@@ -275,7 +276,7 @@ final class RequestConverters {
         parameters.withRealtime(getRequest.realtime());
         // Version params are not currently supported by the source exists API so are not passed
         return request;
-    }    
+    }
 
     static Request multiGet(MultiGetRequest multiGetRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_mget");
@@ -626,6 +627,13 @@ final class RequestConverters {
         return request;
     }
 
+    static Request mtermVectors(MultiTermVectorsRequest mtvrequest) throws IOException {
+        String endpoint = "_mtermvectors";
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(mtvrequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -644,7 +652,12 @@ final class RequestConverters {
     }
 
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
-        BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
+        return createEntity(toXContent, xContentType, ToXContent.EMPTY_PARAMS);
+    }
+
+    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType, ToXContent.Params toXContentParams)
+        throws IOException {
+        BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
@@ -846,22 +859,24 @@ final class RequestConverters {
         }
 
         Params withIndicesOptions(IndicesOptions indicesOptions) {
-            withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
-            putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
-            String expandWildcards;
-            if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
-                expandWildcards = "none";
-            } else {
-                StringJoiner joiner = new StringJoiner(",");
-                if (indicesOptions.expandWildcardsOpen()) {
-                    joiner.add("open");
+            if (indicesOptions != null) {
+                withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
+                putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
+                String expandWildcards;
+                if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
+                    expandWildcards = "none";
+                } else {
+                    StringJoiner joiner = new StringJoiner(",");
+                    if (indicesOptions.expandWildcardsOpen()) {
+                        joiner.add("open");
+                    }
+                    if (indicesOptions.expandWildcardsClosed()) {
+                        joiner.add("closed");
+                    }
+                    expandWildcards = joiner.toString();
                 }
-                if (indicesOptions.expandWildcardsClosed()) {
-                    joiner.add("closed");
-                }
-                expandWildcards = joiner.toString();
+                putParam("expand_wildcards", expandWildcards);
             }
-            putParam("expand_wildcards", expandWildcards);
             return this;
         }
 

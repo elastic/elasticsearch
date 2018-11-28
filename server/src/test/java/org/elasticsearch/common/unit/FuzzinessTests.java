@@ -100,7 +100,7 @@ public class FuzzinessTests extends ESTestCase {
                 } else {
                     StringBuilder auto = new StringBuilder();
                     auto = randomBoolean() ? auto.append("AUTO") : auto.append("auto");
-                    if (true) {
+                    if (randomBoolean()) {
                         int lowDistance = randomIntBetween(1, 3);
                         int highDistance = randomIntBetween(4, 10);
                         auto.append(":").append(lowDistance).append(",").append(highDistance);

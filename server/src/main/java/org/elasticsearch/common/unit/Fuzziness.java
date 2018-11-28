@@ -232,8 +232,8 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
         }
         Fuzziness other = (Fuzziness) obj;
         return Objects.equals(fuzziness, other.fuzziness) &&
-                Objects.equals(lowDistance, other.lowDistance) &&
-                Objects.equals(highDistance, other.highDistance);
+                lowDistance == other.lowDistance &&
+                highDistance == other.highDistance;
     }
 
     @Override

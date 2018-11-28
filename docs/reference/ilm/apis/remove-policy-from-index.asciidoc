@@ -1,0 +1,95 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-remove-policy]]
+=== Remove Policy from Index API
+++++
+<titleabbrev>Remove Policy</titleabbrev>
+++++
+
+beta[]
+
+Removes the assigned lifecycle policy from an index.
+
+==== Request
+
+`POST <index>/_ilm/remove`
+
+==== Description
+
+Removes the assigned lifecycle policy and stops managing the specified index.
+If an index pattern is specified, removes the assigned policies from all matching
+indices.
+
+==== Path Parameters
+
+`index` (required)::
+  (string) Identifier for the index.
+
+==== Request Parameters
+
+include::{docdir}/rest-api/timeoutparms.asciidoc[]
+
+==== Authorization
+
+include::ilm-cluster-mgt-privilege.asciidoc[]
+
+==== Examples
+
+The following example removes the assigned policy from `my_index`.
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "min_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT my_index
+{
+  "settings": {
+    "index.lifecycle.name": "my_policy"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+POST my_index/_ilm/remove
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+If the request succeeds, you receive the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "has_failures" : false,
+  "failed_indexes" : []
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE

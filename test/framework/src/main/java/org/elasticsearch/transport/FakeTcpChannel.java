@@ -62,11 +62,6 @@ public class FakeTcpChannel implements TcpChannel {
     }
 
     @Override
-    public void setSoLinger(int value) {
-
-    }
-
-    @Override
     public InetSocketAddress getLocalAddress() {
         return null;
     }

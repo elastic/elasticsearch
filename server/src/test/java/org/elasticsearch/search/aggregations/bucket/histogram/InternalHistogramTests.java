@@ -50,6 +50,9 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         super.setUp();
         keyed = randomBoolean();
         format = randomNumericDocValueFormat();
+        //in order for reduction to work properly (and be realistic) we need to use the same interval, minDocCount, emptyBucketInfo
+        //and offset in all randomly created aggs as part of the same test run. This is particularly important when minDocCount is
+        //set to 0 as empty buckets need to be added to fill the holes.
         interval = randomIntBetween(1, 3);
         offset = randomIntBetween(0, 3);
         if (randomBoolean()) {

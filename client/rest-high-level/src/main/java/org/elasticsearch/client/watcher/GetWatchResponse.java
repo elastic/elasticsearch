@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -91,12 +90,12 @@ public class GetWatchResponse {
      * Returns the source as a map
      */
     public Map<String, Object> getSourceAsMap() throws IOException {
-        if (sourceAsMap == null) {
+        if (sourceAsMap == null && source != null) {
             // EMPTY is safe here because we never use namedObject
             try (InputStream stream = source.streamInput();
                  XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                      LoggingDeprecationHandler.INSTANCE, stream)) {
-                sourceAsMap = (Map<String, Object>) XContentUtils.readValue(parser, parser.nextToken());
+                return parser.map();
             }
         }
         return sourceAsMap;

@@ -37,5 +37,4 @@ public class RestStartFeatureIndexBuilderJobAction extends BaseRestHandler {
     public String getName() {
         return "ml_feature_index_builder_start_job_action";
     }
-
 }

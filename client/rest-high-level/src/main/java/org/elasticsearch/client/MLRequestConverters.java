@@ -32,6 +32,7 @@ import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
@@ -52,6 +53,7 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
@@ -152,6 +154,17 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(closeJobRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteExpiredData(DeleteExpiredDataRequest deleteExpiredDataRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_delete_expired_data")
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+
         return request;
     }
 
@@ -649,6 +662,13 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         return request;
+    }
+
+    static Request mlInfo(MlInfoRequest infoRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack", "ml", "info")
+            .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     static Request findFileStructure(FindFileStructureRequest findFileStructureRequest) {

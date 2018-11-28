@@ -51,6 +51,7 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
@@ -193,7 +194,17 @@ public class MockNioTransport extends TcpTransport {
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),
                 readWriteHandler, new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
-            nioChannel.setSoLinger(0);
+            nioChannel.addConnectListener((v, e) -> {
+                if (e == null) {
+                    if (channel.isConnected()) {
+                        try {
+                            channel.setOption(StandardSocketOptions.SO_LINGER, 0);
+                        } catch (IOException ex) {
+                            throw new UncheckedIOException(new IOException());
+                        }
+                    }
+                }
+            });
             return nioChannel;
         }
 
@@ -278,14 +289,6 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public void addConnectListener(ActionListener<Void> listener) {
             addConnectListener(ActionListener.toBiConsumer(listener));
-        }
-
-        @Override
-        public void setSoLinger(int value) throws IOException {
-            SocketChannel rawChannel = getRawChannel();
-            if (rawChannel.isConnected()) {
-                rawChannel.setOption(StandardSocketOptions.SO_LINGER, value);
-            }
         }
 
         @Override

@@ -11,11 +11,9 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
-import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
@@ -281,18 +279,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(index), is(false));
-
-        // Tasks index
-        final String taskIndex = org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
-        // Things that kibana_system *should* be able to do
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(taskIndex), is(true));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(taskIndex), is(true));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(taskIndex), is(true));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(taskIndex), is(true));
-        // Things that kibana_system *should not* be able to do
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(taskIndex), is(false));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(taskIndex), is(false));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(CloseIndexAction.NAME).test(taskIndex), is(false));
     }
 
     public void testKibanaUserRole() {

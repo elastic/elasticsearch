@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.FilterExec;
@@ -140,9 +139,6 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         if (pj instanceof ScalarFunction) {
                             ScalarFunction f = (ScalarFunction) pj;
                             processors.put(f.toAttribute(), Expressions.pipe(f));
-                        } else if (pj instanceof In) {
-                            In in = (In) pj;
-                            processors.put(in.toAttribute(), Expressions.pipe(in));
                         }
                     }
                 }

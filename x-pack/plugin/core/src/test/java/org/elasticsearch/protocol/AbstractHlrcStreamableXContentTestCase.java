@@ -23,7 +23,7 @@ public abstract class AbstractHlrcStreamableXContentTestCase<T extends ToXConten
      */
     public final void testHlrcFromXContent() throws IOException {
         xContentTester(this::createParser, this::createTestInstance, getToXContentParams(),
-            p -> convertHlrcToInternal(doHlrcParseInstance(p)), supportedContentTypes())
+            p -> convertHlrcToInternal(doHlrcParseInstance(p)))
             .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
             .supportsUnknownFields(supportsUnknownFields())
             .shuffleFieldsExceptions(getShuffleFieldsExceptions())

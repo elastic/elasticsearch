@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentPars
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -53,7 +54,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
     }
 
     public WatchStatus(DateTime now, Map<String, ActionStatus> actions) {
-        this(-1, new State(true, now), null, null, null, actions, null);
+        this(-1, new State(true, now), null, null, null, actions, Collections.emptyMap());
     }
 
     public WatchStatus(long version, State state, ExecutionState executionState, DateTime lastChecked, DateTime lastMetCondition,
@@ -208,7 +209,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
         if (executionState != null) {
             out.writeString(executionState.id());
         }
-        boolean statusHasHeaders = headers != null;
+        boolean statusHasHeaders = headers != null && headers.isEmpty() == false;
         out.writeBoolean(statusHasHeaders);
         if (statusHasHeaders) {
             out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
@@ -233,8 +234,6 @@ public class WatchStatus implements ToXContentObject, Streamable {
         }
         if (in.readBoolean()) {
             headers = in.readMap(StreamInput::readString, StreamInput::readString);
-        } else {
-            headers = null;
         }
     }
 
@@ -266,7 +265,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
         if (executionState != null) {
             builder.field(Field.EXECUTION_STATE.getPreferredName(), executionState.id());
         }
-        if (headers != null && WatcherParams.hideHeaders(params) == false) {
+        if (headers != null && headers.isEmpty() == false && WatcherParams.hideHeaders(params) == false) {
             builder.field(Field.HEADERS.getPreferredName(), headers);
         }
         builder.field(Field.VERSION.getPreferredName(), version);
@@ -280,7 +279,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
         DateTime lastMetCondition = null;
         Map<String, ActionStatus> actions = null;
         long version = -1;
-        Map<String, String> headers = null;
+        Map<String, String> headers = Collections.emptyMap();
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -341,6 +340,8 @@ public class WatchStatus implements ToXContentObject, Streamable {
                 if (token == XContentParser.Token.START_OBJECT) {
                     headers = parser.mapStrings();
                 }
+            } else {
+                parser.skipChildren();
             }
         }
 
@@ -396,6 +397,8 @@ public class WatchStatus implements ToXContentObject, Streamable {
                     active = parser.booleanValue();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
                     timestamp = parseDate(currentFieldName, parser, UTC);
+                } else {
+                    parser.skipChildren();
                 }
             }
             return new State(active, timestamp);

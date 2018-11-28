@@ -22,14 +22,12 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,20 +37,21 @@ public class GetWatchResponse {
     private final WatchStatus status;
 
     private final BytesReference source;
-    private transient Map<String, Object> sourceAsMap;
+    private final XContentType xContentType;
 
     /**
      * Ctor for missing watch
      */
     public GetWatchResponse(String id) {
-        this(id, Versions.NOT_FOUND, null, null);
+        this(id, Versions.NOT_FOUND, null, null, null);
     }
 
-    public GetWatchResponse(String id, long version, WatchStatus status, BytesReference source) {
+    public GetWatchResponse(String id, long version, WatchStatus status, BytesReference source, XContentType xContentType) {
         this.id = id;
         this.version = version;
         this.status = status;
         this.source = source;
+        this.xContentType = xContentType;
     }
 
     public String getId() {
@@ -75,7 +74,7 @@ public class GetWatchResponse {
      * Returns the {@link XContentType} of the source
      */
     public XContentType getContentType() {
-        return XContentType.JSON;
+        return xContentType;
     }
 
     /**
@@ -88,16 +87,8 @@ public class GetWatchResponse {
     /**
      * Returns the source as a map
      */
-    public Map<String, Object> getSourceAsMap() throws IOException {
-        if (sourceAsMap == null && source != null) {
-            // EMPTY is safe here because we never use namedObject
-            try (InputStream stream = source.streamInput();
-                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
-                sourceAsMap = parser.map();
-            }
-        }
-        return sourceAsMap;
+    public Map<String, Object> getSourceAsMap() {
+        return source == null ? null : XContentHelper.convertToMap(source, false, getContentType()).v2();
     }
 
     @Override
@@ -108,6 +99,7 @@ public class GetWatchResponse {
         return version == that.version &&
             Objects.equals(id, that.id) &&
             Objects.equals(status, that.status) &&
+            Objects.equals(xContentType, that.xContentType) &&
             Objects.equals(source, that.source);
     }
 
@@ -127,8 +119,9 @@ public class GetWatchResponse {
             a -> {
                 boolean isFound = (boolean) a[1];
                 if (isFound) {
-                    BytesReference source = (BytesReference) a[4];
-                    return new GetWatchResponse((String) a[0], (long) a[2], (WatchStatus) a[3], source);
+                    XContentBuilder builder = (XContentBuilder) a[4];
+                    BytesReference source = BytesReference.bytes(builder);
+                    return new GetWatchResponse((String) a[0], (long) a[2], (WatchStatus) a[3], source, builder.contentType());
                 } else {
                     return new GetWatchResponse((String) a[0]);
                 }
@@ -144,7 +137,7 @@ public class GetWatchResponse {
             (parser, context) -> {
                 try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
                     builder.copyCurrentStructure(parser);
-                    return BytesReference.bytes(builder);
+                    return builder;
                 }
             }, WATCH_FIELD);
     }

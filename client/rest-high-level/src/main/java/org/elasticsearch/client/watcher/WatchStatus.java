@@ -95,6 +95,10 @@ public class WatchStatus {
         return executionState;
     }
 
+    public Map<String, String> getHeaders() {
+        return headers;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -106,7 +110,8 @@ public class WatchStatus {
                 Objects.equals(lastMetCondition, that.lastMetCondition) &&
                 Objects.equals(version, that.version) &&
                 Objects.equals(executionState, that.executionState) &&
-                Objects.equals(actions, that.actions);
+                Objects.equals(actions, that.actions) &&
+                Objects.equals(headers, that.headers);
     }
 
     @Override
@@ -227,6 +232,8 @@ public class WatchStatus {
                     active = parser.booleanValue();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
                     timestamp = parseDate(currentFieldName, parser);
+                } else {
+                    parser.skipChildren();
                 }
             }
             return new State(active, timestamp);

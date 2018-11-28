@@ -23,11 +23,8 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.function.Predicate;
 
 public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & Streamable> extends AbstractStreamableTestCase<T> {
@@ -39,7 +36,7 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
     public final void testFromXContent() throws IOException {
         AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(),
                 getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
-                this::assertEqualInstances, true, getToXContentParams(), supportedContentTypes());
+                this::assertEqualInstances, true, getToXContentParams());
     }
 
     /**
@@ -67,14 +64,6 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
      */
     protected String[] getShuffleFieldsExceptions() {
         return Strings.EMPTY_ARRAY;
-    }
-
-    /**
-     * Returns a list of {@link XContentType} supported by the {@link ToXContent} object.
-     * Defaults to {@link XContentType#values()}.
-     */
-    protected List<XContentType> supportedContentTypes() {
-        return Arrays.asList(XContentType.values());
     }
 
     /**

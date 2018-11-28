@@ -6,12 +6,19 @@
 package org.elasticsearch.protocol.xpack.watcher;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.AbstractHlrcStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
@@ -19,10 +26,13 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class GetWatchResponseTests extends
     AbstractHlrcStreamableXContentTestCase<GetWatchResponse, org.elasticsearch.client.watcher.GetWatchResponse> {
@@ -35,14 +45,42 @@ public class GetWatchResponseTests extends
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected ToXContent.Params getToXContentParams() {
+        return new ToXContent.MapParams(Collections.singletonMap("hide_headers", "false"));
     }
 
     @Override
-    protected List<XContentType> supportedContentTypes() {
-        // The get watch API supports JSON output only.
-        return Arrays.asList(XContentType.JSON);
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return f -> f.contains("watch") || f.contains("actions") || f.contains("headers");
+    }
+
+    @Override
+    protected void assertEqualInstances(GetWatchResponse expectedInstance, GetWatchResponse newInstance) {
+        if (expectedInstance.isFound() &&
+                expectedInstance.getSource().getContentType() != newInstance.getSource().getContentType()) {
+            /**
+             * The {@link GetWatchResponse#getContentType()} depends on the content type that
+             * was used to serialize the main object so we use the same content type than the
+             * <code>expectedInstance</code> to translate the watch of the <code>newInstance</code>.
+             */
+            XContent from = XContentFactory.xContent(newInstance.getSource().getContentType());
+            XContent to = XContentFactory.xContent(expectedInstance.getSource().getContentType());
+            final BytesReference newSource;
+            // It is safe to use EMPTY here because this never uses namedObject
+            try (InputStream stream = newInstance.getSource().getBytes().streamInput();
+                 XContentParser parser = XContentFactory.xContent(from.type()).createParser(NamedXContentRegistry.EMPTY,
+                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
+                parser.nextToken();
+                XContentBuilder builder = XContentFactory.contentBuilder(to.type());
+                builder.copyCurrentStructure(parser);
+                newSource = BytesReference.bytes(builder);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+            newInstance = new GetWatchResponse(newInstance.getId(), newInstance.getVersion(),
+                newInstance.getStatus(), new XContentSource(newSource, expectedInstance.getSource().getContentType()));
+        }
+        super.assertEqualInstances(expectedInstance, newInstance);
     }
 
     @Override
@@ -58,14 +96,27 @@ public class GetWatchResponseTests extends
         }
         long version = randomLongBetween(0, 10);
         WatchStatus status = randomWatchStatus();
-        BytesReference source = emptyWatch();
+        BytesReference source = simpleWatch();
         return new GetWatchResponse(id, version, status, new XContentSource(source, XContentType.JSON));
     }
 
-    private static BytesReference emptyWatch() {
+    private static BytesReference simpleWatch() {
         try {
             XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
-            builder.startObject().endObject();
+            builder.startObject()
+                .startObject("trigger")
+                    .startObject("schedule")
+                        .field("interval", "10h")
+                    .endObject()
+                .endObject()
+                .startObject("input")
+                    .startObject("none").endObject()
+                .endObject()
+                .startObject("actions")
+                    .startObject("logme")
+                        .field("text", "{{ctx.payload}}")
+                    .endObject()
+                .endObject().endObject();
             return BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new AssertionError(e);
@@ -93,7 +144,14 @@ public class GetWatchResponseTests extends
             );
             actionMap.put(randomAlphaOfLength(10), actionStatus);
         }
-        return new WatchStatus(version, state, executionState, lastChecked, lastMetCondition, actionMap, null);
+        Map<String, String> headers = randomBoolean() ? new HashMap<>() : null;
+        if (headers != null) {
+            int headerSize = randomIntBetween(1, 5);
+            for (int i = 0; i < headerSize; i++) {
+                headers.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(1, 10));
+            }
+        }
+        return new WatchStatus(version, state, executionState, lastChecked, lastMetCondition, actionMap, headers);
     }
 
     private static ActionStatus.Throttle randomThrottle() {
@@ -133,7 +191,7 @@ public class GetWatchResponseTests extends
         return new WatchStatus(status.version(),
             convertHlrcToInternal(status.state()),
             status.getExecutionState() == null ? null : convertHlrcToInternal(status.getExecutionState()),
-            status.lastChecked(), status.lastMetCondition(), actions, null
+            status.lastChecked(), status.lastMetCondition(), actions, status.getHeaders()
         );
     }
 

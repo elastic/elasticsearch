@@ -421,6 +421,14 @@ public class CoordinationState {
         assert publishVotes.isEmpty() || electionWon();
     }
 
+    public String getQuorumDescription() {
+        if (getLastAcceptedConfiguration().equals(getLastCommittedConfiguration())) {
+            return getLastAcceptedConfiguration().getQuorumDescription();
+        } else {
+            return getLastAcceptedConfiguration().getQuorumDescription() + " and " + getLastCommittedConfiguration().getQuorumDescription();
+        }
+    }
+
     /**
      * Pluggable persistence layer for {@link CoordinationState}.
      *

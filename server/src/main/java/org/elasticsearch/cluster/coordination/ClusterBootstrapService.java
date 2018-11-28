@@ -158,4 +158,12 @@ public class ClusterBootstrapService {
                 }
             });
     }
+
+    public String getBootstrapDescription() {
+        if (initialMasterNodeCount == 0) {
+            return "external cluster bootstrapping";
+        } else {
+            return "discovery of at least " + initialMasterNodeCount + " master-eligible nodes for cluster bootstrapping";
+        }
+    }
 }

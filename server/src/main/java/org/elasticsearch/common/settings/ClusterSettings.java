@@ -456,6 +456,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
                     PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING,
                     PeerFinder.DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING,
+                    PeerFinder.DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING,
                     ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING,
                     ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING,
                     ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING,

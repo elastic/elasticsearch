@@ -50,6 +50,7 @@ import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class CoordinationStateTests extends ESTestCase {
 
@@ -766,6 +767,16 @@ public class CoordinationStateTests extends ESTestCase {
             });
     }
 
+    public void testQuorumDescription() {
+        VotingConfiguration node1Config = new VotingConfiguration(Collections.singleton(node1.getId()));
+        cs1.setInitialState(clusterState(0L, 1L, node1, node1Config, node1Config, 42L));
+        assertThat(cs1.getQuorumDescription(), is("node with id [node1]"));
+
+        VotingConfiguration node2Config = new VotingConfiguration(Collections.singleton(node2.getId()));
+        cs2.setInitialState(clusterState(0L, 1L, node1, node1Config, node2Config, 42L));
+        assertThat(cs2.getQuorumDescription(), is("node with id [node2] and node with id [node1]"));
+    }
+
     public void testSafety() {
         new Cluster(randomIntBetween(1, 5)).runRandomly();
     }
@@ -811,7 +822,7 @@ public class CoordinationStateTests extends ESTestCase {
     public static long value(ClusterState clusterState) {
         return clusterState.metaData().persistentSettings().getAsLong("value", 0L);
     }
-    
+
     static class ClusterNode {
 
         final DiscoveryNode localNode;

@@ -52,6 +52,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -922,6 +923,23 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             for (Consumer<Iterable<DiscoveryNode>> discoveredNodesListener : discoveredNodesListeners) {
                 discoveredNodesListener.accept(foundPeers);
             }
+        }
+
+        @Override
+        protected void warnClusterFormationFailed(DiscoveryNodes clusterStateNodes, List<TransportAddress> resolvedAddresses,
+                                                  List<DiscoveryNode> foundPeers) {
+            final String quorumDescription;
+            synchronized (mutex) {
+                if (isInitialConfigurationSet()) {
+                    quorumDescription = coordinationState.get().getQuorumDescription();
+                } else {
+                    quorumDescription = clusterBootstrapService.getBootstrapDescription();
+                }
+            }
+
+            logger.warn("leader not discovered or elected yet: election requires {}, have discovered {}; discovery continues using " +
+                    "{} from hosts providers and {} from last-known cluster state", quorumDescription, foundPeers, resolvedAddresses,
+                StreamSupport.stream(clusterStateNodes.spliterator(), false).map(DiscoveryNode::toString).collect(Collectors.toList()));
         }
     }
 

@@ -190,7 +190,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         public Builder() {
 
         }
-        
+
         public Builder(CoordinationMetaData state) {
             this.term = state.term;
             this.lastCommittedConfiguration = state.lastCommittedConfiguration;
@@ -385,6 +385,18 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         public static VotingConfiguration of(DiscoveryNode... nodes) {
             // this could be used in many more places - TODO use this where appropriate
             return new VotingConfiguration(Arrays.stream(nodes).map(DiscoveryNode::getId).collect(Collectors.toSet()));
+        }
+
+        public String getQuorumDescription() {
+            if (nodeIds.isEmpty()) {
+                return "cluster bootstrapping";
+            } else if (nodeIds.size() == 1) {
+                return "node with id " + nodeIds;
+            } else if (nodeIds.size() == 2) {
+                return "two nodes with ids " + nodeIds;
+            } else {
+                return "at least " + (nodeIds.size() / 2 + 1) + " nodes with ids from " + nodeIds;
+            }
         }
     }
 }

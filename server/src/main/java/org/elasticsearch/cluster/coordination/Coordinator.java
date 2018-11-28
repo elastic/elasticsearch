@@ -359,6 +359,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private void handleJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         assert Thread.holdsLock(mutex) == false;
+        assert getLocalNode().isMasterNode() : getLocalNode() + " received a join but is not master-eligible";
         logger.trace("handleJoinRequest: as {}, handling {}", mode, joinRequest);
         transportService.connectToNode(joinRequest.getSourceNode());
 
@@ -410,7 +411,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     void becomeLeader(String method) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
-        assert getLocalNode().isMasterNode() : getLocalNode();
+        assert getLocalNode().isMasterNode() : getLocalNode() + " became a leader but is not master-eligible";
+
         logger.debug("{}: becoming LEADER (was {}, lastKnownLeader was [{}])", method, mode, lastKnownLeader);
 
         mode = Mode.LEADER;
@@ -429,7 +431,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     void becomeFollower(String method, DiscoveryNode leaderNode) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        assert leaderNode.isMasterNode() : getLocalNode();
+        assert leaderNode.isMasterNode() : leaderNode + " became a leader but is not master-eligible";
+
         logger.debug("{}: becoming FOLLOWER of [{}] (was {}, lastKnownLeader was [{}])", method, leaderNode, mode, lastKnownLeader);
 
         final boolean restartLeaderChecker = (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) == false;

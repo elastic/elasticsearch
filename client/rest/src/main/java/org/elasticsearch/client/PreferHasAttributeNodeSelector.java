@@ -27,8 +27,8 @@ import java.util.Objects;
 /**
  * Both {@link PreferHasAttributeNodeSelector} and {@link HasAttributeNodeSelector} will work the same
  * if there is a {@link Node} with particular attribute in the attributes,
- * but {@link PreferHasAttributeNodeSelector} will select another node even if there is no {@link Node} with particular attribute
- * in the attributes.
+ * but {@link PreferHasAttributeNodeSelector} will select another {@link Node}s even if there is no {@link Node}
+ * with particular attribute in the attributes.
  */
 public final class PreferHasAttributeNodeSelector implements NodeSelector {
     private final String key;

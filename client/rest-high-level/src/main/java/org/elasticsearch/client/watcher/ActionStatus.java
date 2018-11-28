@@ -193,7 +193,7 @@ public class ActionStatus {
         private final boolean successful;
         private final String reason;
 
-        Execution(DateTime timestamp, boolean successful, String reason) {
+        private Execution(DateTime timestamp, boolean successful, String reason) {
             this.timestamp = timestamp.toDateTime(DateTimeZone.UTC);
             this.successful = successful;
             this.reason = reason;

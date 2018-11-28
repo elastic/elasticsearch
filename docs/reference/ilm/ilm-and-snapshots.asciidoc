@@ -1,0 +1,26 @@
+[role="xpack"]
+[testenv="basic"]
+[[index-lifecycle-and-snapshots]]
+== Restoring Snapshots of Managed Indices
+
+beta[]
+
+When restoring a snapshot that contains indices managed by Index Lifecycle
+Management, the lifecycle will automatically continue to execute after the
+snapshot is restored. Notably, the `min_age` is relative to the original
+creation or rollover of the index, rather than when the index was restored.
+
+In cases where the index uses a policy with a Delete phase, this may cause the
+restored index to be deleted by Index Lifecycle Management immediately after it
+is restored. To prevent this, before restoring the snapshot,
+<<start-stop-ilm,lifecycle policy execution can be paused>> to allow the policy
+to be removed.
+
+For example, the following workflow can be used in the above situation to
+prevent the deletion of the index after it is restored:
+
+1. Pause execution of lifecycle policies using the <<ilm-stop,Stop ILM API>>
+2. Restore the snapshot.
+3. Remove the lifecycle policy from the index using the
+    <<ilm-remove-policy,Remove Policy from Index API>>
+4. Resume execution of lifecycle policies using the <<ilm-start,Start ILM API>>

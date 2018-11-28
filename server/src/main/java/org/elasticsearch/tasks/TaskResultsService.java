@@ -32,6 +32,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -50,6 +51,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 
 /**
  * Service that can store task results.
@@ -77,7 +80,7 @@ public class TaskResultsService {
     @Inject
     public TaskResultsService(Client client, ClusterService clusterService,
                               TransportCreateIndexAction createIndexAction) {
-        this.client = client;
+        this.client = new OriginSettingClient(client, TASKS_ORIGIN);
         this.clusterService = clusterService;
         this.createIndexAction = createIndexAction;
     }
@@ -93,7 +96,7 @@ public class TaskResultsService {
             createIndexRequest.mapping(TASK_TYPE, taskResultIndexMapping(), XContentType.JSON);
             createIndexRequest.cause("auto(task api)");
 
-            createIndexAction.execute(null, createIndexRequest, new ActionListener<CreateIndexResponse>() {
+            client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     doStoreResult(taskResult, listener);

@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentPars
 import org.joda.time.DateTime;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;

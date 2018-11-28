@@ -7,11 +7,9 @@ package org.elasticsearch.protocol;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 public abstract class AbstractHlrcXContentTestCase<T extends ToXContent, H> extends AbstractXContentTestCase<T> {
 

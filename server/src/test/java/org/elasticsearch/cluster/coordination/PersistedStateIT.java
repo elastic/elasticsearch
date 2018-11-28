@@ -23,8 +23,8 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -32,14 +32,9 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class PersistedStateIT extends ESIntegTestCase {
 
-    private static Settings SETTINGS = Settings.builder()
-        .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
-        .put(TestZenDiscovery.USE_ZEN2_PERSISTED_STATE.getKey(), true)
-        .build();
-
 
     public void testPersistentSettingsOnFullRestart() throws Exception {
-        internalCluster().startNodes(1, SETTINGS);
+        internalCluster().startNodes(1);
         final int maxShardsPerNode = randomIntBetween(1000, 10000);
 
         client().admin().cluster().updateSettings(
@@ -52,6 +47,15 @@ public class PersistedStateIT extends ESIntegTestCase {
                 client().admin().cluster().state(new ClusterStateRequest()).actionGet(30, TimeUnit.SECONDS).getState().metaData();
         assertThat(metaData.persistentSettings()
                         .get(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()), equalTo(Integer.toString(maxShardsPerNode)));
+
+    }
+
+    public void testIndexIsPreservedOnFullClusterRestart() throws Exception {
+        List<String> nodes = internalCluster().startNodes(2);
+        createIndex("test");
+
+        internalCluster().fullRestart();
+        ensureGreen("test");
 
     }
 }

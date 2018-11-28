@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
@@ -58,6 +59,8 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
+
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
  * This class is responsible for storing/retrieving metadata to/from disk.
@@ -99,8 +102,21 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
         previousManifest = manifestAndMetaData.v1();
 
+        MetaData metaData = manifestAndMetaData.v2();
+        ClusterBlocks.Builder blocks = ClusterBlocks.builder();
+        blocks.addGlobalBlock(STATE_NOT_RECOVERED_BLOCK);
+        if (MetaData.SETTING_READ_ONLY_SETTING.get(metaData.settings())
+                || MetaData.SETTING_READ_ONLY_SETTING.get(metaData.settings())) {
+            blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
+        }
+        if (MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metaData.settings())
+                || MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metaData.settings())) {
+            blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+        }
+
         previousClusterState = ClusterState.builder(clusterName)
                 .version(previousManifest.getClusterStateVersion())
+                .blocks(blocks.build())
                 .metaData(manifestAndMetaData.v2()).build();
 
         logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
@@ -215,8 +231,6 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
 
     @Override
     public void setLastAcceptedState(ClusterState clusterState) {
-        assert clusterState.blocks().disableStatePersistence() == false;
-
         try {
             incrementalWrite = previousClusterState.term() == clusterState.term();
             updateClusterState(clusterState, previousClusterState);

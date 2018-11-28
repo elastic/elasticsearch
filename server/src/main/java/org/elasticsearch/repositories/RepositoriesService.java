@@ -375,6 +375,8 @@ public class RepositoriesService implements ClusterStateApplier {
     }
 
     public void unregisterInternalRepository(String name) {
+        // TODO: We normally have validation to prevent removing a repository that is in use.
+        //  How do we want to handle that for internal repositories?
         Repository repository = internalRepositories.remove(name);
         RepositoryMetaData metadata = repository.getMetadata();
         if (repository != null) {

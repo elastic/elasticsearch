@@ -733,7 +733,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
 
         final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
-            .filter(this::hasJoinVoteFrom).collect(Collectors.toSet());
+            .filter(this::hasJoinVoteFrom).filter(discoveryNode -> isZen1Node(discoveryNode) == false).collect(Collectors.toSet());
         final VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes,
             clusterState.getVotingTombstones().stream().map(VotingTombstone::getNodeId).collect(Collectors.toSet()),
             clusterState.getLastAcceptedConfiguration());
@@ -1012,7 +1012,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             prevotingRound.close();
                         }
                         final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
-                        prevotingRound = preVoteCollector.start(lastAcceptedState, getDiscoveredNodes());
+                        final List<DiscoveryNode> discoveredNodes
+                            = getDiscoveredNodes().stream().filter(n -> isZen1Node(n) == false).collect(Collectors.toList());
+                        prevotingRound = preVoteCollector.start(lastAcceptedState, discoveredNodes);
                     }
                 }
             }

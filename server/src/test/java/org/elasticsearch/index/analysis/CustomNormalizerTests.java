@@ -137,7 +137,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
         @Override
         public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
             return singletonMap("mock_char_filter", (indexSettings, env, name, settings) -> {
-                class Factory implements CharFilterFactory, MultiTermAwareComponent {
+                class Factory implements NormalizingCharFilterFactory {
                     @Override
                     public String name() {
                         return name;
@@ -161,10 +161,6 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
                                 reader.close();
                             }
                         };
-                    }
-                    @Override
-                    public Object getMultiTermComponent() {
-                        return this;
                     }
                 }
                 return new Factory();

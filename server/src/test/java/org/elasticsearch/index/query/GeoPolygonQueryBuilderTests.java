@@ -70,7 +70,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         while (shapeBuilder == null) {
             shapeBuilder = RandomShapeGenerator.createShapeWithin(random(), null, ShapeType.POLYGON);
         }
-        JtsGeometry shape = (JtsGeometry) shapeBuilder.build();
+        JtsGeometry shape = (JtsGeometry) shapeBuilder.buildS4J();
         Coordinate[] coordinates = shape.getGeom().getCoordinates();
         ArrayList<GeoPoint> polygonPoints = new ArrayList<>();
         for (Coordinate coord : coordinates) {

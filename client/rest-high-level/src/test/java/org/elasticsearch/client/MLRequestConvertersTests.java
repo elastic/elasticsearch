@@ -50,6 +50,7 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
@@ -725,6 +726,16 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_xpack/ml/filters/foo"));
+        assertNull(request.getEntity());
+    }
+
+    public void testMlInfo() {
+        MlInfoRequest infoRequest = new MlInfoRequest();
+
+        Request request = MLRequestConverters.mlInfo(infoRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/info"));
         assertNull(request.getEntity());
     }
 

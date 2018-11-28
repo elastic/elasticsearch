@@ -223,7 +223,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private Map<String, Object> getStats() throws UnsupportedOperationException, IOException {
-        Request request = new Request("GET", "/_xpack/sql/stats");
+        Request request = new Request("GET", "/_sql/stats");
         Map<String, Object> responseAsMap;
         try (InputStream content = client().performRequest(request).getEntity().getContent()) {
             responseAsMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
@@ -233,7 +233,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void runTranslate(String sql) throws IOException {
-        Request request = new Request("POST", "/_xpack/sql/translate");
+        Request request = new Request("POST", "/_sql/translate");
         if (randomBoolean()) {
             // We default to JSON but we force it randomly for extra coverage
             request.addParameter("format", "json");
@@ -267,7 +267,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void runSql(String mode, String restClient, String sql) throws IOException {
-        Request request = new Request("POST", "/_xpack/sql");
+        Request request = new Request("POST", "/_sql");
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         if (randomBoolean()) {

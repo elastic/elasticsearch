@@ -322,7 +322,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         request.username(SecuritySettingsSource.TEST_SUPERUSER);
         client.execute(AuthenticateAction.INSTANCE, request, authFuture);
         AuthenticateResponse response = authFuture.actionGet();
-        assertEquals(SecuritySettingsSource.TEST_SUPERUSER, response.user().principal());
+        assertEquals(SecuritySettingsSource.TEST_SUPERUSER, response.authentication().getUser().principal());
 
         authFuture = new PlainActionFuture<>();
         request = new AuthenticateRequest();
@@ -330,7 +330,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         client.filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + createTokenResponse.getTokenString()))
                 .execute(AuthenticateAction.INSTANCE, request, authFuture);
         response = authFuture.actionGet();
-        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.user().principal());
+        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.authentication().getUser().principal());
 
         authFuture = new PlainActionFuture<>();
         request = new AuthenticateRequest();
@@ -338,7 +338,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         client.filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + refreshResponse.getTokenString()))
                 .execute(AuthenticateAction.INSTANCE, request, authFuture);
         response = authFuture.actionGet();
-        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.user().principal());
+        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.authentication().getUser().principal());
     }
 
     public void testClientCredentialsGrant() throws Exception {
@@ -357,7 +357,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         client.filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + createTokenResponse.getTokenString()))
             .execute(AuthenticateAction.INSTANCE, request, authFuture);
         AuthenticateResponse response = authFuture.get();
-        assertEquals(SecuritySettingsSource.TEST_SUPERUSER, response.user().principal());
+        assertEquals(SecuritySettingsSource.TEST_SUPERUSER, response.authentication().getUser().principal());
 
         // invalidate
         PlainActionFuture<InvalidateTokenResponse> invalidateResponseFuture = new PlainActionFuture<>();

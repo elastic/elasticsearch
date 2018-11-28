@@ -1,14 +1,21 @@
+--
+:api: get-index
+:request: GetIndexRequest
+:response: GetIndexResponse
+--
+
+[id="{upid}-{api}"]
 [[java-rest-high-get-index]]
 === Get Index API
 
-[[java-rest-high-get-index-request]]
+[id="{upid}-{api}-request"]
 ==== Get Index Request
 
-A `GetIndexRequest` requires one or more `index` arguments:
+A +{request}+ requires one or more `index` arguments:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-index-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The index whose information we want to retrieve
 
@@ -17,63 +24,28 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-index-request-includeDefaults]
+include-tagged::{doc-tests-file}[{api}-request-includeDefaults]
 --------------------------------------------------
 <1> If true, defaults will be returned for settings not explicitly set on the index
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-index-request-indicesOptions]
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
 --------------------------------------------------
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded
 
-[[java-rest-high-get-index-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-index-execute]
---------------------------------------------------
-
-[[java-rest-high-get-index-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a Get Index request requires both the `GetIndexRequest`
-instance and an `ActionListener` instance to be passed to the asynchronous
-method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-index-execute-async]
---------------------------------------------------
-<1> The `GetIndexRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `GetIndexResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-index-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument.
-<2> Called in case of failure. The raised exception is provided as an argument.
-
-[[java-rest-high-get-index-response]]
+[id="{upid}-{api}-response"]
 ==== Get Index Response
 
-The returned `GetIndexResponse` allows to retrieve information about the
+The returned +{response}+ allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-index-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Retrieve a Map of different types to `MappingMetadata` for `index`.
 <2> Retrieve a Map for the properties for document type `doc`.

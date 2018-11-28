@@ -1,14 +1,20 @@
-[[java-rest-high-get-field-mappings]]
+--
+:api: get-field-mappings
+:request: GetFieldMappingsRequest
+:response: GetFieldMappingsResponse
+--
+
+[id="{upid}-{api}"]
 === Get Field Mappings API
 
-[[java-rest-high-get-field-mappings-request]]
+[id="{upid}-{api}-request"]
 ==== Get Field Mappings Request
 
-A `GetFieldMappingsRequest` can have an optional list of indices, optional list of types and the list of fields:
+A +{request}+ can have an optional list of indices, optional list of types and the list of fields:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-field-mapping-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> An empty request
 <2> Setting the indices to fetch mapping for
@@ -20,63 +26,31 @@ The following arguments can also optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-field-mapping-request-indicesOptions]
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
 --------------------------------------------------
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-field-mapping-request-local]
+include-tagged::{doc-tests-file}[{api}-request-local]
 --------------------------------------------------
 <1> The `local` flag (defaults to `false`) controls whether the aliases need
 to be looked up in the local cluster state or in the cluster state held by
 the elected master node
 
-[[java-rest-high-get-field-mappings-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-field-mapping-execute]
---------------------------------------------------
+[id="{upid}-{api}-response"]
 
-[[java-rest-high-get-field-mapping-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a get mappings request requires both the
-`GetFieldMappingsRequest` instance and an `ActionListener` instance to be passed to
-the asynchronous method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-field-mapping-execute-async]
---------------------------------------------------
-<1> The `GetFieldMappingsRequest` to execute and the `ActionListener` to use when the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method if
-the execution successfully completed or using the `onFailure` method if it
-failed.
-
-A typical listener for `GetMappingsResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-field-mapping-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
-
-[[java-rest-high-get-field-mapping-response]]
 ==== Get Field Mappings Response
 
-The returned `GetFieldMappingsResponse` allows to retrieve information about the
+The returned +{response}+ allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-field-mapping-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Returning all requested indices fields' mappings
 <2> Retrieving the mappings for a particular index and type

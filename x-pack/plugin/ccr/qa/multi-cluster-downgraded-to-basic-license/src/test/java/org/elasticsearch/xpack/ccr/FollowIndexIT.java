@@ -50,7 +50,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
 
         String index2 = "logs-20190102";
         try (RestClient leaderClient = buildLeaderClient()) {
-            Request request = new Request("POST", "/_xpack/license/start_basic");
+            Request request = new Request("POST", "/_license/start_basic");
             request.addParameter("acknowledge", "true");
             Map<?, ?> response = toMap(leaderClient.performRequest(request));
             assertThat(response.get("basic_was_started"), is(true));

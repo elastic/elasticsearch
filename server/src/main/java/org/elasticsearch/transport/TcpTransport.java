@@ -60,6 +60,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -185,8 +186,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
-    private final Map<TcpChannel, TcpChannel.ChannelStats> acceptedChannels = newConcurrentMap();
-    private final Map<TcpChannel, TcpChannel.ChannelStats> clientChannels = newConcurrentMap();
+    private final Set<TcpChannel> acceptedChannels = ConcurrentCollections.newConcurrentSet();
 
     private final NamedWriteableRegistry namedWriteableRegistry;
 
@@ -649,7 +649,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 serverChannels.clear();
 
                 // close all of the incoming channels. The closeChannels method takes a list so we must convert the set.
-                CloseableChannel.closeChannels(new ArrayList<>(acceptedChannels.keySet()), true);
+                CloseableChannel.closeChannels(new ArrayList<>(acceptedChannels), true);
                 acceptedChannels.clear();
 
                 stopInternal();
@@ -739,8 +739,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     protected void serverAcceptedChannel(TcpChannel channel) {
-        boolean addedOnThisCall = acceptedChannels.put(channel, new TcpChannel.ChannelStats(threadPool::relativeTimeInMillis)) == null;
+        boolean addedOnThisCall = acceptedChannels.add(channel);
         assert addedOnThisCall : "Channel should only be added to accepted channel set once";
+        // Mark the channel init time
+        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
         logger.trace(() -> new ParameterizedMessage("Tcp transport channel accepted: {}", channel));
     }
@@ -817,10 +819,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * sends a message to the given channel, using the given callbacks.
      */
     private void internalSendMessage(TcpChannel channel, BytesReference message, ActionListener<Void> listener) {
-        TcpChannel.ChannelStats channelStats = getChannelStats(channel);
-        if (channelStats != null) {
-            channelStats.markWrite();
-        }
+        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         transportLogger.logOutboundMessage(channel, message);
         try {
             channel.sendMessage(message, new SendListener(channel, message.length(), listener));
@@ -975,10 +974,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public void inboundMessage(TcpChannel channel, BytesReference message) {
         try {
-            TcpChannel.ChannelStats channelStats = getChannelStats(channel);
-            if (channelStats != null) {
-                channelStats.markRead();
-            }
+            channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
             transportLogger.logInboundMessage(channel, message);
             // Message length of 0 is a ping
             if (message.length() != 0) {
@@ -1407,16 +1403,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    private TcpChannel.ChannelStats getChannelStats(TcpChannel channel) {
-        TcpChannel.ChannelStats channelStats;
-        if (channel.isServerChannel()) {
-            channelStats = acceptedChannels.get(channel);
-        } else  {
-            channelStats = clientChannels.get(channel);
-        }
-        return channelStats;
-    }
-
     /**
      * This listener increments the transmitted bytes metric on success.
      */
@@ -1617,18 +1603,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         @Override
                         public void onResponse(Version version) {
                             NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
-                            Map<TcpChannel, TcpChannel.ChannelStats> channelMap = new HashMap<>(nodeChannels.getChannels().size());
-                            for  (TcpChannel channel : nodeChannels.getChannels()) {
-                                TcpChannel.ChannelStats channelStats = new TcpChannel.ChannelStats(threadPool::relativeTimeInMillis);
-                                channelMap.put(channel, channelStats);
-                                clientChannels.put(channel, channelStats);
-                                channel.addCloseListener(ActionListener.wrap(() -> {
-                                    clientChannels.remove(channel);
-                                    nodeChannels.close();
-                                }));
-
-                            }
-                            keepAlive.registerNodeConnection(channelMap, connectionProfile);
+                            long relativeMillisTime = threadPool.relativeTimeInMillis();
+                            nodeChannels.channels.forEach(ch -> {
+                                // Mark the channel init time
+                                ch.getChannelStats().markAccessed(relativeMillisTime);
+                                ch.addCloseListener(ActionListener.wrap(nodeChannels::close));
+                            });
+                            keepAlive.registerNodeConnection(nodeChannels.channels, connectionProfile);
                             listener.onResponse(nodeChannels);
                         }
 

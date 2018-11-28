@@ -22,9 +22,9 @@ package org.elasticsearch.transport;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.CloseableChannel;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.net.InetSocketAddress;
-import java.util.function.LongSupplier;
 
 
 /**
@@ -77,33 +77,25 @@ public interface TcpChannel extends CloseableChannel {
      */
     void addConnectListener(ActionListener<Void> listener);
 
+    /**
+     * Returns stats about this channel
+     */
+    ChannelStats getChannelStats();
+
     class ChannelStats {
 
-        private final LongSupplier timeSupplier;
-        private volatile long lastReadTime;
-        private volatile long lastWriteTime;
+        private volatile long lastAccessedTime;
 
-        ChannelStats(LongSupplier timeSupplier) {
-            this.timeSupplier = timeSupplier;
-            long initTime = timeSupplier.getAsLong();
-            lastReadTime = initTime;
-            lastWriteTime = initTime;
+        public ChannelStats() {
+            lastAccessedTime = TimeValue.nsecToMSec(System.nanoTime());
         }
 
-        void markRead() {
-            lastReadTime = timeSupplier.getAsLong();
+        void markAccessed(long relativeMillisTime) {
+            lastAccessedTime = relativeMillisTime;
         }
 
-        void markWrite() {
-            lastWriteTime = timeSupplier.getAsLong();
-        }
-
-        long lastRelativeReadTime() {
-            return lastReadTime;
-        }
-
-        long lastRelativeWriteTime() {
-            return lastWriteTime;
+        long lastAccessedTime() {
+            return lastAccessedTime;
         }
     }
 }

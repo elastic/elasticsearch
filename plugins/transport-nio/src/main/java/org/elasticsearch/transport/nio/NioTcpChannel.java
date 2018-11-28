@@ -30,6 +30,7 @@ public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
 
     private final boolean isServer;
     private final String profile;
+    private final ChannelStats stats = new ChannelStats();
 
     public NioTcpChannel(boolean isServer, String profile, SocketChannel socketChannel) {
         super(socketChannel);
@@ -59,6 +60,11 @@ public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
     @Override
     public void addConnectListener(ActionListener<Void> listener) {
         addConnectListener(ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
+    public ChannelStats getChannelStats() {
+        return stats;
     }
 
     @Override

@@ -29,11 +29,10 @@ import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Deque;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -84,7 +83,9 @@ public class TransportKeepAliveTests extends ESTestCase {
 
         TcpChannel channel1 = new FakeTcpChannel();
         TcpChannel channel2 = new FakeTcpChannel();
-        keepAlive.registerNodeConnection(createChannelStats(channel1, channel2), connectionProfile);
+        channel1.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        channel2.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        keepAlive.registerNodeConnection(Arrays.asList(channel1, channel2), connectionProfile);
 
         assertEquals(1, threadPool.scheduledTasks.size());
         Tuple<TimeValue, Runnable> taskTuple = threadPool.scheduledTasks.poll();
@@ -117,8 +118,10 @@ public class TransportKeepAliveTests extends ESTestCase {
 
         TcpChannel channel1 = new FakeTcpChannel();
         TcpChannel channel2 = new FakeTcpChannel();
-        keepAlive.registerNodeConnection(createChannelStats(channel1), connectionProfile1);
-        keepAlive.registerNodeConnection(createChannelStats(channel2), connectionProfile2);
+        channel1.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        channel2.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        keepAlive.registerNodeConnection(Collections.singletonList(channel1), connectionProfile1);
+        keepAlive.registerNodeConnection(Collections.singletonList(channel2), connectionProfile2);
 
         assertEquals(2, threadPool.scheduledTasks.size());
         Tuple<TimeValue, Runnable> taskTuple1 = threadPool.scheduledTasks.poll();
@@ -143,8 +146,10 @@ public class TransportKeepAliveTests extends ESTestCase {
 
         TcpChannel channel1 = new FakeTcpChannel();
         TcpChannel channel2 = new FakeTcpChannel();
-        keepAlive.registerNodeConnection(createChannelStats(channel1), connectionProfile);
-        keepAlive.registerNodeConnection(createChannelStats(channel2), connectionProfile);
+        channel1.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        channel2.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        keepAlive.registerNodeConnection(Collections.singletonList(channel1), connectionProfile);
+        keepAlive.registerNodeConnection(Collections.singletonList(channel2), connectionProfile);
 
         channel1.close();
 
@@ -157,6 +162,7 @@ public class TransportKeepAliveTests extends ESTestCase {
 
     public void testKeepAliveResponseIfServer() {
         TcpChannel channel = new FakeTcpChannel(true);
+        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
 
         keepAlive.receiveKeepAlive(channel);
 
@@ -165,6 +171,7 @@ public class TransportKeepAliveTests extends ESTestCase {
 
     public void testNoKeepAliveResponseIfClient() {
         TcpChannel channel = new FakeTcpChannel(false);
+        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
 
         keepAlive.receiveKeepAlive(channel);
 
@@ -179,67 +186,20 @@ public class TransportKeepAliveTests extends ESTestCase {
 
         TcpChannel channel1 = new FakeTcpChannel();
         TcpChannel channel2 = new FakeTcpChannel();
-        Map<TcpChannel, TcpChannel.ChannelStats> channelStats = createChannelStats(channel1, channel2);
-        keepAlive.registerNodeConnection(channelStats, connectionProfile);
+        channel1.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        channel2.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        keepAlive.registerNodeConnection(Arrays.asList(channel1, channel2), connectionProfile);
 
         Tuple<TimeValue, Runnable> taskTuple = threadPool.scheduledTasks.poll();
         taskTuple.v2().run();
 
-        boolean increased = false;
-        long lastReadTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
-        long lastWriteTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
-        TcpChannel.ChannelStats stats = channelStats.get(channel1);
-        while (increased == false) {
-            stats.markRead();
-            stats.markWrite();
-            increased = stats.lastRelativeReadTime() - lastReadTime > 0 && stats.lastRelativeWriteTime() - lastWriteTime > 0;
-            lastReadTime = stats.lastRelativeReadTime();
-            lastWriteTime = stats.lastRelativeWriteTime();
-        }
+        TcpChannel.ChannelStats stats = channel1.getChannelStats();
+        stats.markAccessed(threadPool.relativeTimeInMillis() + (pingInterval.millis() / 2));
 
         taskTuple = threadPool.scheduledTasks.poll();
         taskTuple.v2().run();
 
         verify(pingSender, times(1)).apply(same(channel1), eq(expectedPingMessage), any());
-        verify(pingSender, times(2)).apply(same(channel2), eq(expectedPingMessage), any());
-    }
-
-    public void testNeedBothReadAndWriteToPreventPing() {
-        TimeValue pingInterval = TimeValue.timeValueSeconds(15);
-        ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile)
-            .setPingInterval(pingInterval)
-            .build();
-
-        TcpChannel channel1 = new FakeTcpChannel();
-        TcpChannel channel2 = new FakeTcpChannel();
-        Map<TcpChannel, TcpChannel.ChannelStats> channelStats = createChannelStats(channel1, channel2);
-        keepAlive.registerNodeConnection(channelStats, connectionProfile);
-
-        Tuple<TimeValue, Runnable> taskTuple = threadPool.scheduledTasks.poll();
-        taskTuple.v2().run();
-
-        boolean doRead = randomBoolean();
-
-        boolean increased = false;
-        long lastReadTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
-        long lastWriteTime = System.nanoTime() + TimeUnit.HOURS.toNanos(1);
-        while (increased == false) {
-            TcpChannel.ChannelStats stats = channelStats.get(channel1);
-            if (doRead) {
-                stats.markRead();
-                increased = stats.lastRelativeReadTime() - lastReadTime > 0;
-                lastReadTime = stats.lastRelativeReadTime();
-            } else {
-                stats.markWrite();
-                increased = stats.lastRelativeWriteTime() - lastWriteTime > 0;
-                lastWriteTime = stats.lastRelativeWriteTime();
-            }
-        }
-
-        taskTuple = threadPool.scheduledTasks.poll();
-        taskTuple.v2().run();
-
-        verify(pingSender, times(2)).apply(same(channel1), eq(expectedPingMessage), any());
         verify(pingSender, times(2)).apply(same(channel2), eq(expectedPingMessage), any());
     }
 
@@ -256,14 +216,5 @@ public class TransportKeepAliveTests extends ESTestCase {
             scheduledTasks.add(new Tuple<>(delay, task));
             return null;
         }
-    }
-
-    private Map<TcpChannel, TcpChannel.ChannelStats> createChannelStats(TcpChannel... channels) {
-        Map<TcpChannel, TcpChannel.ChannelStats> channelStats = new HashMap<>(channels.length);
-        for (TcpChannel channel : channels) {
-            channelStats.put(channel, new TcpChannel.ChannelStats(threadPool::relativeTimeInMillis));
-        }
-
-        return channelStats;
     }
 }

@@ -116,7 +116,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         serviceScript = installation.bin("elasticsearch-service.bat").toString();
     }
 
-    public void test11InstallServiceExeMissing() throws IOException {
+    /*public void test11InstallServiceExeMissing() throws IOException {
         Path serviceExe = installation.bin("elasticsearch-service-x64.exe");
         Path tmpServiceExe = serviceExe.getParent().resolve(serviceExe.getFileName() + ".tmp");
         Files.move(serviceExe, tmpServiceExe);
@@ -159,7 +159,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         sh.run(serviceScript + " install");
         assertService(DEFAULT_ID, "Stopped", displayName);
         sh.run(serviceScript + " remove");
-    }
+    }*/
 
     // NOTE: service description is not attainable through any powershell api, so checking it is not possible...
 
@@ -171,18 +171,30 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
 
         assertCommand(serviceScript + " stop");
         assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);
-        Result result = sh.run("sc.exe Delete \"elasticsearch-service-x64\"");
+        assertCommand("$p = Get-Process -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
+            "i = 0;" +
+            "do {" +
+                "echo \"$p\";" +
+                "if ($p -eq $Null) {" +
+                "  exit 0;" +
+                "} else {" +
+                "  exit 1;" +
+                "}" +
+                "Start-Sleep -Seconds 1;" +
+                "i += 1;" +
+            "} while (i < 30);");
+        /*Result result = sh.run("sc.exe Delete \"elasticsearch-service-x64\"");
         System.out.println("sc.exe\n" + "stdout: \n" + result.stdout); // double because first line is lost in output....
         System.out.println("sc.exe\n" + "stdout: \n" + result.stdout);
-        System.out.println("stderr: \n" + result.stderr);
+        System.out.println("stderr: \n" + result.stderr);*/
         //assertCommand(serviceScript + " remove");
-        assertCommand("$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
+        /*assertCommand("$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
             "echo \"$p\";" +
             "if ($p -eq $Null) {" +
             "  exit 0;" +
             "} else {" +
             "  exit 1;" +
-            "}");
+            "}");*/
 
         result = sh.runIgnoreExitCode("& C:\\project\\procdump64.exe -accepteula -mp -l elasticsearch-service-x64 C:\\project\\es-service.dmp");
         System.out.println("procdump\n" + "stdout: \n" + result.stdout);
@@ -194,7 +206,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         System.out.println("---------------- END DUMP FILE ---------------");
     }
 
-    public void test31StartNotInstalled() throws IOException {
+    /*public void test31StartNotInstalled() throws IOException {
         Result result = sh.runIgnoreExitCode(serviceScript + " start");
         assertThat(result.stdout, result.exitCode, equalTo(1));
         assertThat(result.stdout, containsString("Failed starting '" + DEFAULT_ID + "' service"));
@@ -204,7 +216,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         sh.run(serviceScript + " install");
         Result result = sh.run(serviceScript + " stop"); // stop is ok when not started
         assertThat(result.stdout, containsString("The service '" + DEFAULT_ID + "' has been stopped"));
-    }
+    }*/
 
     /*
     // TODO: need to make JAVA_HOME resolve at install time for this to work
@@ -218,7 +230,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         sh.run(serviceScript + " remove");
     }*/
 
-    public void test60Manager() throws IOException {
+    /*public void test60Manager() throws IOException {
         Path serviceMgr = installation.bin("elasticsearch-service-mgr.exe");
         Path tmpServiceMgr = serviceMgr.getParent().resolve(serviceMgr.getFileName() + ".tmp");
         Files.move(serviceMgr, tmpServiceMgr);
@@ -240,7 +252,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         Result result = sh.runIgnoreExitCode(serviceScript + " bogus");
         assertThat(result.exitCode, equalTo(1));
         assertThat(result.stdout, containsString("Unknown option \"bogus\""));
-    }
+    }*/
 
     // TODO:
     // custom SERVICE_USERNAME/SERVICE_PASSWORD

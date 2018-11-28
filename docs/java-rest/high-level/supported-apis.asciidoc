@@ -334,13 +334,18 @@ include::ml/delete-expired-data.asciidoc[]
 
 == Migration APIs
 
+:upid: {mainid}-migration
+:doc-tests-file: {doc-tests}/MigrationClientDocumentationIT.java
+
 The Java High Level REST Client supports the following Migration APIs:
 
 * <<java-rest-high-migration-get-assistance>>
-* <<java-rest-high-migration-upgrade>>
+* <<{upid}-upgrade>>
+* <<{upid}-get-deprecation-info>>
 
 include::migration/get-assistance.asciidoc[]
 include::migration/upgrade.asciidoc[]
+include::migration/get-deprecation-info.asciidoc[]
 
 == Rollup APIs
 

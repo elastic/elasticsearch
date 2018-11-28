@@ -5,13 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-class JdbcException extends RuntimeException {
-    
-    JdbcException(String message) {
-        super(message);
-    }
+final class ParameterMetaDataProxy extends DebuggingInvoker {
 
-    JdbcException(Throwable cause, String message) {
-        super(message, cause);
+    ParameterMetaDataProxy(DebugLog log, Object target) {
+        super(log, target, null);
     }
 }

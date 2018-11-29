@@ -20,12 +20,14 @@ import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -66,7 +68,11 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class ApiKeyService {
 
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private static final String TYPE = "doc";
+    private static final String API_KEY_ID_KEY = "_security_api_key_id";
+    private static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
+    private static final String API_KEY_ROLE_KEY = "_security_api_key_role";
 
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
         "xpack.security.authc.api_key_hashing.algorithm", "pbkdf2", Function.identity(), (v, s) -> {
@@ -83,9 +89,6 @@ public class ApiKeyService {
             }
         }
     }, Setting.Property.NodeScope);
-    public static final String API_KEY_ID_KEY = "_security_api_key_id";
-    public static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
-    public static final String API_KEY_ROLE_KEY = "_security_api_key_role";
 
     private final Clock clock;
     private final Client client;
@@ -141,8 +144,12 @@ public class ApiKeyService {
                     }
                 }
 
-                builder.array("role_descriptors", request.getRoleDescriptors())
-                    .field("name", request.getName())
+                builder.startArray("role_descriptors");
+                for (RoleDescriptor descriptor : request.getRoleDescriptors()) {
+                    descriptor.toXContent(builder, ToXContent.EMPTY_PARAMS, true);
+                }
+                builder.endArray();
+                builder.field("name", request.getName())
                     .field("version", version.id)
                     .startObject("creator")
                     .field("principal", authentication.getUser().principal())
@@ -221,14 +228,15 @@ public class ApiKeyService {
             listener.onResponse(preBuiltRole);
         } else {
             final Map<String, Object> metadata = authentication.getMetadata();
+            final String apiKeyId = (String) metadata.get(API_KEY_ID_KEY);
             final List<Map<String, Object>> roleDescriptors = (List<Map<String, Object>>) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
             final List<RoleDescriptor> roleDescriptorList = roleDescriptors.stream()
                 .map(rdMap -> {
                     try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                         builder.map(rdMap);
-                        // TODO log instead of throw
                         try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(builder).streamInput())) {
+                            new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId),
+                            BytesReference.bytes(builder).streamInput())) {
                             return RoleDescriptor.parse((String) rdMap.get("name"), parser, false);
                         }
                     } catch (IOException e) {
@@ -271,6 +279,7 @@ public class ApiKeyService {
                 final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
                 final Map<String, Object> authResultMetadata = new HashMap<>();
                 authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);
+                authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
                 listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
             } else {
                 listener.onResponse(AuthenticationResult.terminate("api key is expired", null));
@@ -359,6 +368,29 @@ public class ApiKeyService {
         @Override
         public void close() {
             key.close();
+        }
+    }
+
+    private static class ApiKeyLoggingDeprecationHandler implements DeprecationHandler {
+
+        private final DeprecationLogger deprecationLogger;
+        private final String apiKeyId;
+
+        private ApiKeyLoggingDeprecationHandler(DeprecationLogger logger, String apiKeyId) {
+            this.deprecationLogger = logger;
+            this.apiKeyId = apiKeyId;
+        }
+
+        @Override
+        public void usedDeprecatedName(String usedName, String modernName) {
+            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], expected [{}] instead",
+                usedName, apiKeyId, modernName);
+        }
+
+        @Override
+        public void usedDeprecatedField(String usedName, String replacedWith) {
+            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], replaced by [{}]",
+                usedName, apiKeyId, replacedWith);
         }
     }
 }

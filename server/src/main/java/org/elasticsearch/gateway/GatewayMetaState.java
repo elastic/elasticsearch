@@ -105,12 +105,10 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         MetaData metaData = manifestAndMetaData.v2();
         ClusterBlocks.Builder blocks = ClusterBlocks.builder();
         blocks.addGlobalBlock(STATE_NOT_RECOVERED_BLOCK);
-        if (MetaData.SETTING_READ_ONLY_SETTING.get(metaData.settings())
-                || MetaData.SETTING_READ_ONLY_SETTING.get(metaData.settings())) {
+        if (MetaData.SETTING_READ_ONLY_SETTING.get(metaData.settings())) {
             blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
         }
-        if (MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metaData.settings())
-                || MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metaData.settings())) {
+        if (MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metaData.settings())) {
             blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
         }
 

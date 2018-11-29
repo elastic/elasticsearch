@@ -55,12 +55,19 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
         return new XContentObjectTransformer<>(searchRegistry, AbstractQueryBuilder::parseInnerQueryBuilder);
     }
 
+    public static XContentObjectTransformer withSearchRegistry(CheckedFunction<XContentParser, ToXContentObject, IOException> parserFunction) {
+        return new  XContentObjectTransformer<>(searchRegistry, parserFunction);
+    }
+
     XContentObjectTransformer(NamedXContentRegistry registry, CheckedFunction<XContentParser, T, IOException> parserFunction) {
         this.parserFunction = parserFunction;
         this.registry = registry;
     }
 
     public T fromMap(Map<String, Object> stringObjectMap) throws IOException {
+        if (stringObjectMap == null) {
+            return null;
+        }
         LoggingDeprecationAccumulationHandler deprecationLogger = new LoggingDeprecationAccumulationHandler();
         try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(stringObjectMap);
             XContentParser parser = XContentType.JSON
@@ -74,6 +81,9 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
     }
 
     public Map<String, Object> toMap(T object) throws IOException {
+        if (object == null) {
+            return null;
+        }
         try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = object.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             return XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON).v2();

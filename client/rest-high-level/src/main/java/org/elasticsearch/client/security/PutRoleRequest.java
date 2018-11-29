@@ -21,6 +21,7 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.security.user.privileges.Role;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -33,18 +34,24 @@ import java.util.Objects;
 public final class PutRoleRequest implements Validatable, ToXContentObject {
 
     private final Role role;
+    private final RefreshPolicy refreshPolicy;
 
-    public PutRoleRequest(Role role) {
+    public PutRoleRequest(Role role, @Nullable final RefreshPolicy refreshPolicy) {
         this.role = Objects.requireNonNull(role);
+        this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.getDefault() : refreshPolicy;
     }
 
     public Role getRole() {
         return role;
     }
 
+    public RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(role);
+        return Objects.hash(role, refreshPolicy);
     }
 
     @Override
@@ -59,7 +66,9 @@ public final class PutRoleRequest implements Validatable, ToXContentObject {
             return false;
         }
         final PutRoleRequest other = (PutRoleRequest) obj;
-        return Objects.equals(role, other.role);
+
+        return (refreshPolicy == other.getRefreshPolicy()) &&
+               Objects.equals(role, other.role);
     }
 
     @Override

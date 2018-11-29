@@ -35,12 +35,16 @@ import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
+import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
+import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
+import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -50,6 +54,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.client.RequestConvertersTests.assertToXContentBody;
 
@@ -331,5 +336,38 @@ public class SecurityRequestConvertersTests extends ESTestCase {
             request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
+    }
+
+    public void testPutRole() throws IOException {
+        final String roleName = randomAlphaOfLengthBetween(4, 7);
+        final List<String> clusterPrivileges = randomSubsetOf(3, Role.ClusterPrivilegeName.ARRAY);
+        final Map<String, Object> metadata = Collections.singletonMap(randomAlphaOfLengthBetween(4, 7), randomAlphaOfLengthBetween(4, 7));
+        final String[] runAsPrivilege = randomArray(3, String[]::new, () -> randomAlphaOfLength(5));
+        final List<String> applicationPrivilegeNames = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(5)));
+        final List<String> applicationResouceNames = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(5)));
+        final ApplicationResourcePrivileges applicationResourcePrivilege = new ApplicationResourcePrivileges(
+                randomAlphaOfLengthBetween(4, 7), applicationPrivilegeNames, applicationResouceNames);
+        final List<String> indicesName = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(5)));
+        final List<String> indicesPrivilegeName = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(5)));
+        final List<String> indicesPrivilegeGrantedName = Arrays.asList(randomArray(3, String[]::new, () -> randomAlphaOfLength(5)));
+        final List<String> indicesPrivilegeDeniedName = Arrays.asList(randomArray(3, String[]::new, () -> randomAlphaOfLength(5)));
+        final String indicesPrivilegeQuery = randomAlphaOfLengthBetween(0, 7);
+        final IndicesPrivileges indicesPrivilege = IndicesPrivileges.builder().indices(indicesName).privileges(indicesPrivilegeName)
+                .grantedFields(indicesPrivilegeGrantedName).deniedFields(indicesPrivilegeDeniedName).query(indicesPrivilegeQuery).build();
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams;
+        if (refreshPolicy != RefreshPolicy.NONE) {
+            expectedParams = Collections.singletonMap("refresh", refreshPolicy.getValue());
+        } else {
+            expectedParams = Collections.emptyMap();
+        }
+        final Role role = Role.builder().name(roleName).clusterPrivileges(clusterPrivileges).indicesPrivileges(indicesPrivilege)
+                .applicationResourcePrivileges(applicationResourcePrivilege).runAsPrivilege(runAsPrivilege).metadata(metadata).build();
+        final PutRoleRequest putRoleRequest = new PutRoleRequest(role, refreshPolicy);
+        final Request request = SecurityRequestConverters.putRole(putRoleRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/role/" + roleName, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(putRoleRequest, request.getEntity());
     }
 }

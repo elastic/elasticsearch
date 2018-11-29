@@ -33,8 +33,48 @@ rest of Elasticsearc's APIs and Elasticsearch will raise a deprecation warning
 if those are used on any APIs. We plan to drop support for `_source_exclude` and
 `_source_include` in 7.0.
 
-
 [float]
 ==== Boosts on inner span queries are not allowed.
 
 Attempts to set `boost` on inner span queries will now throw a parsing exception.
+
+[float]
+==== Deprecate `.values` and `.getValues()` on doc values in scripts
+
+In scripts `.values` and `.getValues()` hasn't been needed for a long, long
+time because the doc values objects themselves are Lists. So instead of:
+
+[source,js]
+--------------------------------------------------
+GET /stackoverflow/_search
+{
+  "script_fields": {
+    "tags_count": {
+      "script" : {
+        "source": "doc['tags'].values.size()"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:stackoverflow]
+// TEST[warning:Deprecated getValues used, the field is a list and should be accessed directly. For example, use doc['foo'] instead of doc['foo'].values.]
+
+do 
+
+[source,js]
+--------------------------------------------------
+GET /stackoverflow/_search
+{
+  "script_fields": {
+    "tags_count": {
+      "script" : {
+        "source": "doc['tags'].size()"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:stackoverflow]

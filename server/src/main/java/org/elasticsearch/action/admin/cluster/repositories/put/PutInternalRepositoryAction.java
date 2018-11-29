@@ -52,5 +52,4 @@ public class PutInternalRepositoryAction extends Action<AcknowledgedResponse> {
             return acknowledgedResponse;
         };
     }
-
 }

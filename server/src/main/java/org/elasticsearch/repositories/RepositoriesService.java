@@ -426,24 +426,6 @@ public class RepositoriesService implements ClusterStateApplier {
     }
 
     /**
-     * Creates internal repository holder. This method does not start the repository.
-     */
-    private Repository createInternalRepository(RepositoryMetaData repositoryMetaData) {
-        logger.debug("creating internal repository [{}][{}]", repositoryMetaData.type(), repositoryMetaData.name());
-        Repository.Factory factory = internalTypesRegistry.get(repositoryMetaData.type());
-        if (factory == null) {
-            throw new RepositoryException(repositoryMetaData.name(),
-                "internal repository type [" + repositoryMetaData.type() + "] does not exist");
-        }
-        try {
-            return factory.create(repositoryMetaData, internalTypesRegistry::get);
-        } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("failed to internal create repository [{}][{}]", repositoryMetaData.type(), repositoryMetaData.name()), e);
-            throw new RepositoryException(repositoryMetaData.name(), "failed to internal create repository", e);
-        }
-    }
-
-    /**
      * Creates repository holder. This method starts the repository
      */
     private Repository createRepository(RepositoryMetaData repositoryMetaData, Map<String, Repository.Factory> factories) {
@@ -454,7 +436,7 @@ public class RepositoriesService implements ClusterStateApplier {
                 "repository type [" + repositoryMetaData.type() + "] does not exist");
         }
         try {
-            Repository repository = factory.create(repositoryMetaData, typesRegistry::get);
+            Repository repository = factory.create(repositoryMetaData, factories::get);
             repository.start();
             return repository;
         } catch (Exception e) {

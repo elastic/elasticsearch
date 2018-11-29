@@ -48,12 +48,12 @@ public class DeleteInternalRepositoryRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("DeleteInternalRepositoryRequest cannot be serialized for sending across the wire.");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("DeleteInternalRepositoryRequest cannot be serialized for sending across the wire.");
     }
 
     public String getName() {

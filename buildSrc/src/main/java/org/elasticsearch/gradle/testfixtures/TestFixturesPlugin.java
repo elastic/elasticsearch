@@ -30,6 +30,7 @@ import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskContainer;
+import org.gradle.internal.os.OperatingSystem;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -148,7 +149,9 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
     @Input
     public boolean dockerComposeSupported(Project project) {
-        // Don't look for docker-compose on the PATH yet that would pick up on Windows as well
+        if (OperatingSystem.current().isWindows()) {
+            return false;
+        }
         return
             project.file("/usr/local/bin/docker-compose").exists() == false &&
             project.file("/usr/bin/docker-compose").exists() == false &&

@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.gateway;
 
+import java.io.IOError;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * This exception is thrown when there is a problem of writing state to disk.
@@ -37,5 +39,16 @@ public class WriteStateException extends IOException {
      */
     public boolean isDirty() {
         return dirty;
+    }
+
+    public void rethrowAsErrorOrUncheckedException(String msg) {
+        if (isDirty()) {
+            // IOError is the best thing we have in java library to indicate that serious IO problem has occurred.
+            // IOError will be caught by ElasticsearchUncaughtExceptionHandler and JVM will be halted.
+            // Sadly, it has no constructor that accepts error message, so we first wrap WriteStateException with IOException.
+            throw new IOError(new IOException(msg + ", storage is dirty", this));
+        } else {
+            throw new UncheckedIOException(msg, this);
+        }
     }
 }

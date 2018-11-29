@@ -208,8 +208,8 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
             metaStateService.writeManifestAndCleanup("current term changed", manifest);
             previousManifest = manifest;
         } catch (WriteStateException e) {
-            logger.warn("Exception occurred when setting current term", e);
-            //TODO re-throw exception
+            logger.error("Failed to set current term to {}", currentTerm);
+            e.rethrowAsErrorOrUncheckedException("setCurrentTerm failed");
         }
     }
 
@@ -221,8 +221,8 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
             incrementalWrite = previousClusterState.term() == clusterState.term();
             updateClusterState(clusterState, previousClusterState);
         } catch (WriteStateException e) {
-            logger.warn("Exception occurred when setting last accepted state", e);
-            //TODO re-throw exception
+            logger.error("Failed to set last accepted state with version {}", clusterState.version());
+            e.rethrowAsErrorOrUncheckedException("setLastAcceptedState failed");
         }
     }
 

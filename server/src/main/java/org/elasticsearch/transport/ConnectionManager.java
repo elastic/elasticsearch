@@ -27,10 +27,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,13 +50,13 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * the connection when the connection manager is closed.
  */
 public class ConnectionManager implements Closeable {
+
     private static final Logger logger = LogManager.getLogger(ConnectionManager.class);
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
     private final KeyedLock<String> connectionLock = new KeyedLock<>();
     private final Transport transport;
     private final ThreadPool threadPool;
-    private final TimeValue pingSchedule;
     private final ConnectionProfile defaultProfile;
     private final Lifecycle lifecycle = new Lifecycle();
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -67,18 +64,14 @@ public class ConnectionManager implements Closeable {
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
     public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool) {
-        this(settings, transport, threadPool, TcpTransport.PING_SCHEDULE.get(settings));
+        this(ConnectionProfile.buildDefaultConnectionProfile(settings), transport, threadPool);
     }
 
-    public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool, TimeValue pingSchedule) {
+    public ConnectionManager(ConnectionProfile connectionProfile, Transport transport, ThreadPool threadPool) {
         this.transport = transport;
         this.threadPool = threadPool;
-        this.pingSchedule = pingSchedule;
-        this.defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(settings);
+        this.defaultProfile = connectionProfile;
         this.lifecycle.moveToStarted();
-        if (pingSchedule.millis() > 0) {
-            threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, new ScheduledPing());
-        }
     }
 
     public void addListener(TransportConnectionListener listener) {
@@ -251,47 +244,8 @@ public class ConnectionManager implements Closeable {
         }
     }
 
-    TimeValue getPingSchedule() {
-        return pingSchedule;
-    }
-
-    private class ScheduledPing extends AbstractLifecycleRunnable {
-
-        private ScheduledPing() {
-            super(lifecycle, logger);
-        }
-
-        @Override
-        protected void doRunInLifecycle() {
-            for (Map.Entry<DiscoveryNode, Transport.Connection> entry : connectedNodes.entrySet()) {
-                Transport.Connection connection = entry.getValue();
-                if (connection.sendPing() == false) {
-                    logger.warn("attempted to send ping to connection without support for pings [{}]", connection);
-                }
-            }
-        }
-
-        @Override
-        protected void onAfterInLifecycle() {
-            try {
-                threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, this);
-            } catch (EsRejectedExecutionException ex) {
-                if (ex.isExecutorShutdown()) {
-                    logger.debug("couldn't schedule new ping execution, executor is shutting down", ex);
-                } else {
-                    throw ex;
-                }
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            if (lifecycle.stoppedOrClosed()) {
-                logger.trace("failed to send ping transport message", e);
-            } else {
-                logger.warn("failed to send ping transport message", e);
-            }
-        }
+    ConnectionProfile getConnectionProfile() {
+        return defaultProfile;
     }
 
     private static final class DelegatingNodeConnectionListener implements TransportConnectionListener {

@@ -73,13 +73,11 @@ public class TestFixturesPlugin implements Plugin<Project> {
             project.getTasks().getByName("clean").dependsOn("composeDown");
 
             // convenience boilerplate with build plugin
-            project.getPluginManager().withPlugin("elasticsearch.build", (appliedPlugin) -> {
-                // Can't reference tasks that are implemented in Groovy, use reflection  instead
-                disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.precommit.LicenseHeadersTask"));
-                disableTaskByType(tasks, getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"));
-                disableTaskByType(tasks, ThirdPartyAuditTask.class);
-                disableTaskByType(tasks, JarHellTask.class);
-            });
+            // Can't reference tasks that are implemented in Groovy, use reflection  instead
+            disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.precommit.LicenseHeadersTask"));
+            disableTaskByType(tasks, getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"));
+            disableTaskByType(tasks, ThirdPartyAuditTask.class);
+            disableTaskByType(tasks, JarHellTask.class);
         } else {
             tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
                 extension.fixtures.all(fixtureProject -> {
@@ -113,7 +111,10 @@ public class TestFixturesPlugin implements Plugin<Project> {
     }
 
     private void disableTaskByType(TaskContainer tasks, Class<? extends Task> type) {
-        tasks.withType(type, task -> task.setEnabled(false));
+        tasks.withType(type, task -> {
+            task.getLogger().info("test fixtures: Disabling tasks of type {}", type);
+            task.setEnabled(false);
+        });
     }
 
     @SuppressWarnings("unchecked")

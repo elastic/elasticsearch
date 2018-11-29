@@ -1,5 +1,2 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.test.fixtures'
-
-// TODO: elasticsearch.test.fixtures should disable this but it sometimes doesn't
-jarHell.enabled  = false

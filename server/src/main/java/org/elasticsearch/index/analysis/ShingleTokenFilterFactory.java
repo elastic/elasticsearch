@@ -19,14 +19,19 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(LogManager.getLogger(ShingleTokenFilterFactory.class));
 
     private final Factory factory;
 
@@ -47,8 +52,8 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         }
         String tokenSeparator = settings.get("token_separator", ShingleFilter.DEFAULT_TOKEN_SEPARATOR);
         String fillerToken = settings.get("filler_token", ShingleFilter.DEFAULT_FILLER_TOKEN);
-        factory = new Factory("shingle", minShingleSize, maxShingleSize, outputUnigrams, outputUnigramsIfNoShingles,
-            tokenSeparator, fillerToken);
+        factory = new Factory("shingle", minShingleSize, maxShingleSize,
+            outputUnigrams, outputUnigramsIfNoShingles, tokenSeparator, fillerToken);
     }
 
 
@@ -57,6 +62,12 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         return factory.create(tokenStream);
     }
 
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+                + "] will not be usable to parse synonyms after v7.0");
+        return this;
+    }
 
     public Factory getInnerFactory() {
         return this.factory;

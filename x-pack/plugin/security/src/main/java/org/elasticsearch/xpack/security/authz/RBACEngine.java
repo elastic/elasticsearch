@@ -46,6 +46,8 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
+
 public class RBACEngine implements AuthorizationEngine {
 
     private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
@@ -319,7 +321,7 @@ public class RBACEngine implements AuthorizationEngine {
         RBACAuthorizationInfo(Role role, Role authenticatedUserRole) {
             this.role = role;
             this.authenticatedUserRole = authenticatedUserRole;
-            this.info = Collections.singletonMap("roles", Arrays.asList(role.names()));
+            this.info = Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, role.names());
         }
 
         Role getRole() {

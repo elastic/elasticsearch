@@ -43,8 +43,6 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlQueryAction.class));
 
-    private static String CLIENT_ID = "client.id";
-
     RestSqlQueryAction(Settings settings, RestController controller) {
         super(settings);
         // TODO: remove deprecated endpoint in 8.0.0
@@ -60,17 +58,21 @@ public class RestSqlQueryAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SqlQueryRequest sqlRequest;
-        try (XContentParser parser = request.contentOrSourceParamParser()) {
-            String clientId = request.param(CLIENT_ID);
-            if (clientId != null) {
-                clientId = clientId.toLowerCase(Locale.ROOT);
-                if (!clientId.equals(CLI) && !clientId.equals(CANVAS)) {
-                    clientId = null;
-                }
+        try (XContentParser parser = request.contentParser()) {
+            sqlRequest = SqlQueryRequest.fromXContent(parser);
+        }
+        
+        // no mode specified, default to "PLAIN"
+        if (sqlRequest.requestInfo() == null) {
+            sqlRequest.requestInfo(new RequestInfo(Mode.PLAIN));
+        }
+        
+        if (sqlRequest.requestInfo().clientId() != null) {
+            String clientId = sqlRequest.requestInfo().clientId().toLowerCase(Locale.ROOT);
+            if (!clientId.equals(CLI) && !clientId.equals(CANVAS)) {
+                clientId = null;
             }
-            
-            sqlRequest = SqlQueryRequest.fromXContent(parser,
-                    new RequestInfo(Mode.fromString(request.param("mode")), clientId));
+            sqlRequest.requestInfo().clientId(clientId);
         }
 
         /*

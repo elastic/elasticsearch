@@ -114,9 +114,8 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
             pageTimeout(), filter(), cursor(), requestInfo()).toXContent(builder, params);
     }
 
-    public static SqlQueryRequest fromXContent(XContentParser parser, RequestInfo requestInfo) {
+    public static SqlQueryRequest fromXContent(XContentParser parser) {
         SqlQueryRequest request = PARSER.apply(parser, null);
-        request.requestInfo(requestInfo);
         return request;
     }
 }

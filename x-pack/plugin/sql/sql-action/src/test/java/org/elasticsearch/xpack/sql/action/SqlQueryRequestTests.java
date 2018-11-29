@@ -96,7 +96,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
 
     @Override
     protected SqlQueryRequest doParseInstance(XContentParser parser) {
-        return SqlQueryRequest.fromXContent(parser, requestInfo);
+        return SqlQueryRequest.fromXContent(parser);
     }
 
     @Override

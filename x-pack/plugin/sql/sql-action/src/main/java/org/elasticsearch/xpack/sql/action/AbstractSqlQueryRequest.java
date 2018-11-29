@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -58,18 +59,33 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
 
     protected static <R extends AbstractSqlQueryRequest> ObjectParser<R, Void> objectParser(Supplier<R> supplier) {
         // TODO: convert this into ConstructingObjectParser
-        ObjectParser<R, Void> parser = new ObjectParser<>("sql/query", true, supplier);
-        parser.declareString(AbstractSqlQueryRequest::query, new ParseField("query"));
-        parser.declareObjectArray(AbstractSqlQueryRequest::params, (p, c) -> SqlTypedParamValue.fromXContent(p), new ParseField("params"));
-        parser.declareString((request, zoneId) -> request.timeZone(TimeZone.getTimeZone(zoneId)), new ParseField("time_zone"));
-        parser.declareInt(AbstractSqlQueryRequest::fetchSize, new ParseField("fetch_size"));
+        ObjectParser<R, Void> parser = new ObjectParser<>("sql/query", false, supplier);
+        parser.declareString(AbstractSqlQueryRequest::query, Field.QUERY);
+        parser.declareString((request, mode) -> {
+            Mode m = Mode.fromString(mode);
+            if (request.requestInfo() != null) {
+                request.requestInfo().mode(m);
+            } else {
+                request.requestInfo(new RequestInfo(m));
+            }
+        }, Field.MODE);
+        parser.declareString((request, clientId) -> {
+            if (request.requestInfo() != null) {
+                request.requestInfo().clientId(clientId);
+            } else {
+                request.requestInfo(new RequestInfo(Mode.PLAIN, clientId));
+            }
+        }, Field.CLIENT_ID);
+        parser.declareObjectArray(AbstractSqlQueryRequest::params, (p, c) -> SqlTypedParamValue.fromXContent(p), Field.PARAMS);
+        parser.declareString((request, zoneId) -> request.timeZone(TimeZone.getTimeZone(zoneId)), Field.TIME_ZONE);
+        parser.declareInt(AbstractSqlQueryRequest::fetchSize, Field.FETCH_SIZE);
         parser.declareString((request, timeout) -> request.requestTimeout(TimeValue.parseTimeValue(timeout, Protocol.REQUEST_TIMEOUT,
-            "request_timeout")), new ParseField("request_timeout"));
+            "request_timeout")), Field.REQUEST_TIMEOUT);
         parser.declareString(
                 (request, timeout) -> request.pageTimeout(TimeValue.parseTimeValue(timeout, Protocol.PAGE_TIMEOUT, "page_timeout")),
-                new ParseField("page_timeout"));
+                Field.PAGE_TIMEOUT);
         parser.declareObject(AbstractSqlQueryRequest::filter,
-                (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), new ParseField("filter"));
+                (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), Field.FILTER);
         return parser;
     }
 
@@ -234,5 +250,18 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), query, timeZone, fetchSize, requestTimeout, pageTimeout, filter);
+    }
+    
+    public interface Field {
+        ParseField QUERY = new ParseField("query");
+        ParseField CURSOR = new ParseField("cursor");
+        ParseField PARAMS = new ParseField("params");
+        ParseField TIME_ZONE = new ParseField("time_zone");
+        ParseField FETCH_SIZE = new ParseField("fetch_size");
+        ParseField REQUEST_TIMEOUT = new ParseField("request_timeout");
+        ParseField PAGE_TIMEOUT = new ParseField("page_timeout");
+        ParseField FILTER = new ParseField("filter");
+        ParseField MODE = new ParseField("mode");
+        ParseField CLIENT_ID = new ParseField("client.id");
     }
 }

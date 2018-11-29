@@ -19,10 +19,14 @@ import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CANVAS;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
 
 public class RestSqlClearCursorAction extends BaseRestHandler {
 
@@ -40,7 +44,19 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SqlClearCursorRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            sqlRequest = SqlClearCursorRequest.fromXContent(parser, Mode.fromString(request.param("mode")));
+            sqlRequest = SqlClearCursorRequest.fromXContent(parser);
+        }
+        
+        // no mode specified, default to "PLAIN"
+        if (sqlRequest.requestInfo() == null) {
+            sqlRequest.requestInfo(new RequestInfo(Mode.PLAIN));
+        }
+        if (sqlRequest.requestInfo().clientId() != null) {
+            String clientId = sqlRequest.requestInfo().clientId().toLowerCase(Locale.ROOT);
+            if (!clientId.equals(CLI) && !clientId.equals(CANVAS)) {
+                clientId = null;
+            }
+            sqlRequest.requestInfo().clientId(clientId);
         }
         return channel -> client.executeLocally(SqlClearCursorAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
     }

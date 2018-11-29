@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.sql.proto.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.proto.RequestInfo;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -37,7 +37,6 @@ import java.util.TimeZone;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
-import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.CLIENT_ID;
 
 /**
  * A specialized high-level REST client with support for SQL-related functions.
@@ -95,9 +94,7 @@ public class HttpClient {
             CheckedFunction<XContentParser, Response, IOException> responseParser)
             throws SQLException {
         byte[] requestBytes = toXContent(request);
-        String query = "error_trace&mode=" +
-                        request.mode() +
-                        (request.clientId() != null ? "&" + CLIENT_ID + "=" + request.clientId() : "");
+        String query = "error_trace";
         Tuple<XContentType, byte[]> response =
             AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Tuple<XContentType, byte[]>>>) () ->
                 JreHttpUrlConnection.http(path, query, cfg, con ->

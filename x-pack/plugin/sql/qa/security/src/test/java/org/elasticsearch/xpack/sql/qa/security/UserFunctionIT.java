@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
+import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
+import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.randomMode;
 
 public class UserFunctionIT extends ESRestTestCase {
 
@@ -174,14 +176,11 @@ public class UserFunctionIT extends ESRestTestCase {
     }
     
     private Map<String, Object> runSql(String asUser, String mode, String sql) throws IOException {
-        return runSql(asUser, mode, new StringEntity("{\"query\": \"" + sql + "\"}", ContentType.APPLICATION_JSON));
+        return runSql(asUser, new StringEntity("{\"query\": \"" + sql + "\"" + mode(mode) + "}", ContentType.APPLICATION_JSON));
     }
     
-    private Map<String, Object> runSql(String asUser, String mode, HttpEntity entity) throws IOException {
+    private Map<String, Object> runSql(String asUser, HttpEntity entity) throws IOException {
         Request request = new Request("POST", "/_sql");
-        if (false == mode.isEmpty()) {
-            request.addParameter("mode", mode);
-        }
         if (asUser != null) {
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("es-security-runas-user", asUser);
@@ -203,10 +202,6 @@ public class UserFunctionIT extends ESRestTestCase {
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
-    }
-
-    private String randomMode() {
-        return randomFrom("plain", "jdbc", "");
     }
 
     private void index(String... docs) throws IOException {

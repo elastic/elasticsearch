@@ -97,10 +97,10 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         for (int i = 0; i < 20; i += 2) {
             Map<String, Object> response;
             if (i == 0) {
-                response = runSql(mode, new StringEntity(sqlRequest, ContentType.APPLICATION_JSON));
+                response = runSql(new StringEntity(sqlRequest, ContentType.APPLICATION_JSON), "");
             } else {
-                response = runSql(mode, new StringEntity("{\"cursor\":\"" + cursor + "\"}",
-                        ContentType.APPLICATION_JSON));
+                response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(mode) + "}",
+                        ContentType.APPLICATION_JSON), "");
             }
 
             Map<String, Object> expected = new HashMap<>();
@@ -120,8 +120,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         }
         Map<String, Object> expected = new HashMap<>();
         expected.put("rows", emptyList());
-        assertResponse(expected, runSql(mode, new StringEntity("{ \"cursor\":\"" + cursor + "\"}",
-                ContentType.APPLICATION_JSON)));
+        assertResponse(expected, runSql(new StringEntity("{ \"cursor\":\"" + cursor + "\"" + mode(mode) + "}",
+                ContentType.APPLICATION_JSON), ""));
     }
 
     @AwaitsFix(bugUrl = "Unclear status, https://github.com/elastic/x-pack-elasticsearch/issues/2074")
@@ -136,8 +136,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         expected.put("size", 2);
 
         // Default TimeZone is UTC
-        assertResponse(expected, runSql(mode, new StringEntity("{\"query\":\"SELECT DAY_OF_YEAR(test), COUNT(*) FROM test\"}",
-                        ContentType.APPLICATION_JSON)));
+        assertResponse(expected, runSql(mode, "SELECT DAY_OF_YEAR(test), COUNT(*) FROM test"));
     }
 
     public void testScoreWithFieldNamedScore() throws IOException {
@@ -306,23 +305,16 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     private Map<String, Object> runSql(String mode, String sql, String suffix) throws IOException {
-        return runSql(mode, new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON), suffix);
+        return runSql(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) + "}", ContentType.APPLICATION_JSON), suffix);
     }
 
-    private Map<String, Object> runSql(String mode, HttpEntity sql) throws IOException {
-        return runSql(mode, sql, "");
-    }
-
-    private Map<String, Object> runSql(String mode, HttpEntity sql, String suffix) throws IOException {
+    private Map<String, Object> runSql(HttpEntity sql, String suffix) throws IOException {
         Request request = new Request("POST", "/_sql" + suffix);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         if (randomBoolean()) {
             // We default to JSON but we force it randomly for extra coverage
             request.addParameter("format", "json");
-        }
-        if (false == mode.isEmpty()) {
-            request.addParameter("mode", mode);        // JDBC or PLAIN mode
         }
         if (randomBoolean()) {
             // JSON is the default but randomly set it sometime for extra coverage
@@ -331,6 +323,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             request.setOptions(options);
         }
         request.setEntity(sql);
+
         Response response = client().performRequest(request);
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
@@ -357,9 +350,9 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", singletonList(columnInfo(mode, "test", "text", JDBCType.VARCHAR, 0)));
         expected.put("rows", singletonList(singletonList("foo")));
-        assertResponse(expected, runSql(mode, new StringEntity("{\"query\":\"SELECT * FROM test\", " +
-                                "\"filter\":{\"match\": {\"test\": \"foo\"}}}",
-                ContentType.APPLICATION_JSON)));
+        assertResponse(expected, runSql(new StringEntity("{\"query\":\"SELECT * FROM test\", " +
+                "\"filter\":{\"match\": {\"test\": \"foo\"}}" + mode(mode) + "}",
+                ContentType.APPLICATION_JSON), ""));
     }
 
     public void testBasicQueryWithParameters() throws IOException {
@@ -373,16 +366,16 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 columnInfo(mode, "param", "integer", JDBCType.INTEGER, 11)
         ));
         expected.put("rows", singletonList(Arrays.asList("foo", 10)));
-        assertResponse(expected, runSql(mode, new StringEntity("{\"query\":\"SELECT test, ? param FROM test WHERE test = ?\", " +
-                "\"params\":[{\"type\": \"integer\", \"value\": 10}, {\"type\": \"keyword\", \"value\": \"foo\"}]}",
-                ContentType.APPLICATION_JSON)));
+        assertResponse(expected, runSql(new StringEntity("{\"query\":\"SELECT test, ? param FROM test WHERE test = ?\", " +
+                "\"params\":[{\"type\": \"integer\", \"value\": 10}, {\"type\": \"keyword\", \"value\": \"foo\"}]"
+                + mode(mode) + "}", ContentType.APPLICATION_JSON), ""));
     }
 
     public void testBasicTranslateQueryWithFilter() throws IOException {
         index("{\"test\":\"foo\"}",
             "{\"test\":\"bar\"}");
 
-        Map<String, Object> response = runSql("",
+        Map<String, Object> response = runSql(
                 new StringEntity("{\"query\":\"SELECT * FROM test\", \"filter\":{\"match\": {\"test\": \"foo\"}}}",
                 ContentType.APPLICATION_JSON), "/translate/"
         );
@@ -424,7 +417,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         index("{\"salary\":100}",
             "{\"age\":20}");
 
-        Map<String, Object> response = runSql("",
+        Map<String, Object> response = runSql(
             new StringEntity("{\"query\":\"SELECT avg(salary) FROM test GROUP BY abs(age) HAVING avg(salary) > 50 LIMIT 10\"}",
                 ContentType.APPLICATION_JSON), "/translate/"
         );
@@ -570,9 +563,9 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         }
         Map<String, Object> expected = new HashMap<>();
         expected.put("rows", emptyList());
-        assertResponse(expected, runSql("", new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON)));
+        assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON), ""));
 
-        Map<String, Object> response = runSql("", new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
+        Map<String, Object> response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
                 "/close");
         assertEquals(true, response.get("succeeded"));
 
@@ -717,6 +710,10 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
     public static String randomMode() {
         return randomFrom("", "jdbc", "plain");
+    }
+    
+    public static String mode(String mode) {
+        return mode.isEmpty() ? "" : ",\"mode\":\"" + mode + "\"";
     }
 
     private void index(String... docs) throws IOException {

@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,10 +35,10 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
 
     @Override
     protected SqlQueryResponse createTestInstance() {
-        return createRandomInstance(randomStringCursor());
+        return createRandomInstance(randomStringCursor(), randomFrom(Mode.values()));
     }
 
-    public static SqlQueryResponse createRandomInstance(String cursor) {
+    public static SqlQueryResponse createRandomInstance(String cursor, Mode mode) {
         int columnCount = between(1, 10);
 
         List<ColumnInfo> columns = null;
@@ -69,7 +70,7 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
                 rows.add(row);
             }
         }
-        return new SqlQueryResponse(cursor, columns, rows);
+        return new SqlQueryResponse(cursor, mode, columns, rows);
     }
 
     @Override
@@ -108,7 +109,7 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
         }
 
         if (testInstance.cursor().equals("") == false) {
-            assertEquals(rootMap.get(SqlQueryRequest.CURSOR.getPreferredName()), testInstance.cursor());
+            assertEquals(rootMap.get(AbstractSqlQueryRequest.Field.CURSOR.getPreferredName()), testInstance.cursor());
         }
     }
 
@@ -116,6 +117,6 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
     protected SqlQueryResponse doParseInstance(XContentParser parser) {
         org.elasticsearch.xpack.sql.proto.SqlQueryResponse response =
             org.elasticsearch.xpack.sql.proto.SqlQueryResponse.fromXContent(parser);
-        return new SqlQueryResponse(response.cursor(), response.columns(), response.rows());
+        return new SqlQueryResponse(response.cursor(), Mode.JDBC, response.columns(), response.rows());
     }
 }

@@ -18,11 +18,15 @@ import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.action.SqlTranslateRequest;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CANVAS;
+import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
 
 /**
  * REST action for translating SQL queries into ES requests
@@ -47,8 +51,22 @@ public class RestSqlTranslateAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SqlTranslateRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            sqlRequest = SqlTranslateRequest.fromXContent(parser, Mode.fromString(request.param("mode")));
+            sqlRequest = SqlTranslateRequest.fromXContent(parser);
         }
+        
+        // no mode specified, default to "PLAIN"
+        if (sqlRequest.requestInfo() == null) {
+            sqlRequest.requestInfo(new RequestInfo(Mode.PLAIN));
+        }
+        
+        if (sqlRequest.requestInfo().clientId() != null) {
+            String clientId = sqlRequest.requestInfo().clientId().toLowerCase(Locale.ROOT);
+            if (!clientId.equals(CLI) && !clientId.equals(CANVAS)) {
+                clientId = null;
+            }
+            sqlRequest.requestInfo().clientId(clientId);
+        }
+        
         return channel -> client.executeLocally(SqlTranslateAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
     }
 

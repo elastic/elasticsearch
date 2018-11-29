@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
+
 public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     private List<IndexDocument> testData = Arrays.asList(
             new IndexDocument("used", "Don Quixote",     1072),
@@ -274,20 +276,15 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             // We default to JSON but we force it randomly for extra coverage
             request.addParameter("format", "json");
         }
-        if (false == mode.isEmpty()) {
-            request.addParameter("mode", mode);        // JDBC or PLAIN mode
-        }
-        // randomly use the "client.id" parameter or not
-        if (false == ignoreClientType) {
-            request.addParameter("client.id", restClient);
-        }
         if (randomBoolean()) {
             // JSON is the default but randomly set it sometime for extra coverage
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("Accept", randomFrom("*/*", "application/json"));
             request.setOptions(options);
         }
-        request.setEntity(new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON));
+        request.setEntity(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) +
+                (ignoreClientType ? "" : ",\"client.id\":\"" + restClient + "\"") + "}",
+                ContentType.APPLICATION_JSON));
         client().performRequest(request);
     }
     

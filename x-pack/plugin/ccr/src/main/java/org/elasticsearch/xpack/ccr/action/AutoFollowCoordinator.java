@@ -371,6 +371,10 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 if (autoFollowPattern.match(leaderIndexMetaData.getIndex().getName())) {
                     IndexRoutingTable indexRoutingTable = leaderClusterState.routingTable().index(leaderIndexMetaData.getIndex());
                     if (indexRoutingTable != null &&
+                        // Leader indices can be in the cluster state, but not all primary shards may be ready yet.
+                        // This checks ensures all primary shards have started, so that index following does not fail.
+                        // If not all primary shards are ready, then the next time the auto follow coordinator runs
+                        // this index will be auto followed.
                         indexRoutingTable.allPrimaryShardsActive() &&
                         followedIndexUUIDs.contains(leaderIndexMetaData.getIndex().getUUID()) == false) {
                         // TODO: iterate over the indices in the followerClusterState and check whether a IndexMetaData

@@ -62,7 +62,7 @@ public final class TermsSliceQuery extends SliceQuery {
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 final DocIdSet disi = build(context.reader());
                 final DocIdSetIterator leafIt = disi.iterator();
-                return new ConstantScoreScorer(this, score(), leafIt);
+                return new ConstantScoreScorer(this, score(), scoreMode, leafIt);
             }
 
             @Override

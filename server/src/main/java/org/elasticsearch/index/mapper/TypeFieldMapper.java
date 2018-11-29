@@ -43,7 +43,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -114,13 +113,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            if (hasDocValues()) {
-                return new DocValuesIndexFieldData.Builder();
-            } else {
-                // means the index has a single type and the type field is implicit
-                Function<MapperService, String> typeFunction = mapperService -> mapperService.documentMapper().type();
-                return new ConstantIndexFieldData.Builder(typeFunction);
-            }
+            Function<MapperService, String> typeFunction = mapperService -> mapperService.documentMapper().type();
+            return new ConstantIndexFieldData.Builder(typeFunction);
         }
 
         @Override

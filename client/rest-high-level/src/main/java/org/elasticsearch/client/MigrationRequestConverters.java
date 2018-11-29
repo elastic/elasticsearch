@@ -31,7 +31,7 @@ final class MigrationRequestConverters {
 
     static Request getMigrationAssistance(IndexUpgradeInfoRequest indexUpgradeInfoRequest) {
         RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack", "migration", "assistance")
+            .addPathPartAsIs("_migration", "assistance")
             .addCommaSeparatedPathParts(indexUpgradeInfoRequest.indices());
         String endpoint = endpointBuilder.build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -50,7 +50,7 @@ final class MigrationRequestConverters {
 
     private static Request prepareMigrateRequest(IndexUpgradeRequest indexUpgradeRequest, boolean waitForCompletion) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack", "migration", "upgrade")
+            .addPathPartAsIs("_migration", "upgrade")
             .addPathPart(indexUpgradeRequest.index())
             .build();
 

@@ -28,6 +28,7 @@ import org.mockito.InOrder;
 
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests {@link DeprecationRestHandler}.
@@ -112,6 +113,13 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         assertFalse(DeprecationRestHandler.validHeaderValue(blank));
 
         expectThrows(IllegalArgumentException.class, () -> DeprecationRestHandler.requireValidHeader(blank));
+    }
+
+    public void testSupportsContentStream() {
+        DeprecationRestHandler deprecationRestHandler = new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger);
+        when(handler.supportsContentStream()).thenReturn(true).thenReturn(false);
+        assertTrue(deprecationRestHandler.supportsContentStream());
+        assertFalse(deprecationRestHandler.supportsContentStream());
     }
 
     /**

@@ -40,8 +40,10 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.recordLeaderIndexAsFollowFunction;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.anyString;
@@ -382,6 +384,33 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         result.sort(Comparator.comparing(Index::getName));
         assertThat(result.get(0).getName(), equalTo("index1"));
         assertThat(result.get(1).getName(), equalTo("index2"));
+    }
+
+    public void testRecordLeaderIndexAsFollowFunction() {
+        AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(Collections.emptyMap(),
+            Collections.singletonMap("pattern1", Collections.emptyList()), Collections.emptyMap());
+        ClusterState clusterState = new ClusterState.Builder(new ClusterName("name"))
+            .metaData(new MetaData.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .build();
+        Function<ClusterState, ClusterState> function = recordLeaderIndexAsFollowFunction("pattern1", new Index("index1", "index1"));
+
+        ClusterState result = function.apply(clusterState);
+        AutoFollowMetadata autoFollowMetadataResult = result.metaData().custom(AutoFollowMetadata.TYPE);
+        assertThat(autoFollowMetadataResult.getFollowedLeaderIndexUUIDs().get("pattern1"), notNullValue());
+        assertThat(autoFollowMetadataResult.getFollowedLeaderIndexUUIDs().get("pattern1").size(), equalTo(1));
+        assertThat(autoFollowMetadataResult.getFollowedLeaderIndexUUIDs().get("pattern1").get(0), equalTo("index1"));
+    }
+
+    public void testRecordLeaderIndexAsFollowFunctionNoEntry() {
+        AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(),
+            Collections.emptyMap());
+        ClusterState clusterState = new ClusterState.Builder(new ClusterName("name"))
+            .metaData(new MetaData.Builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .build();
+        Function<ClusterState, ClusterState> function = recordLeaderIndexAsFollowFunction("pattern1", new Index("index1", "index1"));
+
+        ClusterState result = function.apply(clusterState);
+        assertThat(result, sameInstance(clusterState));
     }
 
     public void testGetFollowerIndexName() {

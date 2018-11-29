@@ -34,6 +34,7 @@ import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
@@ -68,7 +69,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
                 metadata.put(String.valueOf(i), randomAlphaOfLengthBetween(1, 12));
             }
         }
-        final User user = new User(username, roles, metadata, fullName, email);
+        final User user = new User(username, roles, metadata, true, fullName, email);
 
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
@@ -91,6 +92,19 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/security/user/" + name, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
+    }
+
+    public void testGetUsers() {
+        final String[] users = new String[] {"test"};
+        GetUsersRequest getUsersRequest = new GetUsersRequest(users);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
+        Request request = SecurityRequestConverters.getUsers(getUsersRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/user/test", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+
     }
 
     public void testPutRoleMapping() throws IOException {

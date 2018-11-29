@@ -37,7 +37,7 @@ public class PutUserRequestTests extends ESTestCase {
 
     public void testBuildRequestWithPassword() throws Exception {
         final User user = new User("hawkeye", Arrays.asList("kibana_user", "avengers"),
-            Collections.singletonMap("status", "active"), "Clinton Barton", null);
+            Collections.singletonMap("status", "active"), true, "Clinton Barton", null);
         final char[] password = "f@rmb0y".toCharArray();
         final PutUserRequest request = PutUserRequest.withPassword(user, password, true, RefreshPolicy.IMMEDIATE);
         String json = Strings.toString(request);
@@ -58,7 +58,7 @@ public class PutUserRequestTests extends ESTestCase {
 
     public void testBuildRequestWithPasswordHash() throws Exception {
         final User user = new User("hawkeye", Arrays.asList("kibana_user", "avengers"),
-            Collections.singletonMap("status", "active"), "Clinton Barton", null);
+            Collections.singletonMap("status", "active"), true, "Clinton Barton", null);
         final char[] passwordHash = "$2a$04$iu1G4x3ZKVDNi6egZIjkFuIPja6elQXiBF1LdRVauV4TGog6FYOpi".toCharArray();
         final PutUserRequest request = PutUserRequest.withPasswordHash(user, passwordHash, true, RefreshPolicy.IMMEDIATE);
         String json = Strings.toString(request);
@@ -79,7 +79,7 @@ public class PutUserRequestTests extends ESTestCase {
 
     public void testBuildRequestForUpdateOnly() throws Exception {
         final User user = new User("hawkeye", Arrays.asList("kibana_user", "avengers"),
-            Collections.singletonMap("status", "active"), "Clinton Barton", null);
+            Collections.singletonMap("status", "active"), true, "Clinton Barton", null);
         final char[] passwordHash = "$2a$04$iu1G4x3ZKVDNi6egZIjkFuIPja6elQXiBF1LdRVauV4TGog6FYOpi".toCharArray();
         final PutUserRequest request = PutUserRequest.updateUser(user, true, RefreshPolicy.IMMEDIATE);
         String json = Strings.toString(request);

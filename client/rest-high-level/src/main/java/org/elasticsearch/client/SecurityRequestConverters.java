@@ -32,6 +32,7 @@ import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
+import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -63,6 +64,15 @@ final class SecurityRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(changePasswordRequest.getRefreshPolicy());
         return request;
+    }
+
+    static Request getUsers(GetUsersRequest getUsersRequest) {
+        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack/security/user");
+        if (getUsersRequest.getUsernames().size() > 0) {
+            builder.addPathPart(Strings.collectionToCommaDelimitedString(getUsersRequest.getUsernames()));
+        }
+        return new Request(HttpGet.METHOD_NAME, builder.build());
     }
 
     static Request putUser(PutUserRequest putUserRequest) throws IOException {

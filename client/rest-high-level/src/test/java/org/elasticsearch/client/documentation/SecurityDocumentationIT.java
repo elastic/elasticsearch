@@ -58,6 +58,8 @@ import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.GetUsersRequest;
+import org.elasticsearch.client.security.GetUsersResponse;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
@@ -109,6 +111,17 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
+
+    public void testGetUsers() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        addUser(client, "testUser", "testPassword");
+
+        {
+            GetUsersRequest getUsersRequest = new GetUsersRequest();
+            GetUsersResponse getUsersResponse = client.security().getUsers(getUsersRequest, RequestOptions.DEFAULT);
+            assertNotNull(getUsersResponse.getUsers());
+        }
+    }
 
     public void testPutUser() throws Exception {
         RestHighLevelClient client = highLevelClient();
@@ -876,7 +889,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
         char[] newPassword = new char[]{'n', 'e', 'w', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-        User user = new User("change_password_user", Collections.singletonList("superuser"), Collections.emptyMap(), null, null);
+        User user = new User("change_password_user", Collections.singletonList("superuser"), Collections.emptyMap(), true, null, null);
         PutUserRequest putUserRequest = new PutUserRequest(user, password, true, RefreshPolicy.NONE);
         PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
         assertTrue(putUserResponse.isCreated());

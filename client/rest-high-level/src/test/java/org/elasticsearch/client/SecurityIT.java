@@ -24,6 +24,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DeleteUserResponse;
+import org.elasticsearch.client.security.GetUsersRequest;
+import org.elasticsearch.client.security.GetUsersResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
@@ -36,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsString;
 
@@ -75,6 +78,13 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(authenticateResponse.getUser(), is(putUserRequest.getUser()));
         assertThat(authenticateResponse.enabled(), is(true));
 
+        // get user
+        final GetUsersRequest getUsersRequest =
+            new GetUsersRequest(putUserRequest.getUser().getUsername());
+        final GetUsersResponse getUsersResponse =
+            execute(getUsersRequest, securityClient::getUsers, securityClient::getUsersAsync);
+        assertThat(getUsersResponse.getUsers().get(0), is(putUserRequest.getUser()));
+
         // delete user
         final DeleteUserRequest deleteUserRequest =
             new DeleteUserRequest(putUserRequest.getUser().getUsername(), putUserRequest.getRefreshPolicy());
@@ -103,6 +113,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         final List<String> roles = Arrays.asList(generateRandomStringArray(3, 3, false, true));
         final String fullName = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 3));
         final String email = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 3));
+        final boolean enabled = randomBoolean();
         final Map<String, Object> metadata;
         metadata = new HashMap<>();
         if (randomBoolean()) {
@@ -115,7 +126,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         } else {
             metadata.put("string_list", Arrays.asList(generateRandomStringArray(4, 4, false, true)));
         }
-        return new User(username, roles, metadata, fullName, email);
+        return new User(username, roles, metadata, enabled, fullName, email);
     }
 
     private static PutUserRequest randomPutUserRequest(boolean enabled) {

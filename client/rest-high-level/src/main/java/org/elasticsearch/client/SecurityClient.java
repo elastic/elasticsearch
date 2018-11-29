@@ -48,6 +48,8 @@ import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetSslCertificatesRequest;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.GetUsersRequest;
+import org.elasticsearch.client.security.GetUsersResponse;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
@@ -73,6 +75,34 @@ public final class SecurityClient {
 
     SecurityClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
+    }
+
+    /**
+     * Get a user, or list of users, in the native realm synchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user.html">
+     * the docs</a> for more information.
+     * @param request the request with the nuser's name
+     * @param options the request options (e.g., headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the get users call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetUsersResponse getUsers(GetUsersRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getUsers, options,
+            GetUsersResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Get a user, or list of users, in the native realm asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user.html">
+     * the docs</a> for more information.
+     * @param request the request with the nuser's name
+     * @param options the request options (e.g., headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the get users call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public void getUsersAsync(GetUsersRequest request, RequestOptions options, ActionListener<GetUsersResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getUsers, options,
+            GetUsersResponse::fromXContent, listener, emptySet());
     }
 
     /**

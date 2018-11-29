@@ -132,10 +132,10 @@ public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Respon
             this.jobConfigurations = jobConfigs;
         }
 
-        public Response(List<DataFrameJobConfig> jobResponses, List<TaskOperationFailure> taskFailures,
+        public Response(List<DataFrameJobConfig> jobConfigs, List<TaskOperationFailure> taskFailures,
                 List<? extends FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.jobConfigurations = jobResponses;
+            this.jobConfigurations = jobConfigs;
         }
 
         public Response() {

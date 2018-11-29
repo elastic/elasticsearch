@@ -19,7 +19,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import junit.framework.TestCase;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -30,18 +29,13 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Base64;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public abstract class WindowsServiceTestCase extends PackagingTestCase {
 
@@ -90,6 +84,9 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         assertThat(result.stdout, containsString("Name        : " + id));
         assertThat(result.stdout, containsString("Status      : " + status));
         assertThat(result.stdout, containsString("DisplayName : " + displayName));
+        /*System.out.println("SERVICE INFO");
+        System.out.println("stdout: \n" + result.stdout);
+        System.out.println("stderr: \n" + result.stderr);*/
     }
 
     // runs the service command, dumping all log files on failure
@@ -171,39 +168,28 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
 
         assertCommand(serviceScript + " stop");
         assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);
-        assertCommand("$p = Get-Process -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
-            "i = 0;" +
+        assertCommand("$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
+            "$i = 0;" +
             "do {" +
-                "echo \"$p\";" +
-                "if ($p -eq $Null) {" +
-                "  exit 0;" +
-                "} else {" +
-                "  exit 1;" +
-                "}" +
-                "Start-Sleep -Seconds 1;" +
-                "i += 1;" +
-            "} while (i < 30);");
-        /*Result result = sh.run("sc.exe Delete \"elasticsearch-service-x64\"");
-        System.out.println("sc.exe\n" + "stdout: \n" + result.stdout); // double because first line is lost in output....
-        System.out.println("sc.exe\n" + "stdout: \n" + result.stdout);
-        System.out.println("stderr: \n" + result.stderr);*/
-        //assertCommand(serviceScript + " remove");
-        /*assertCommand("$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
+              "$p = Get-Process -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
+              "echo \"$p\";" +
+              "if ($p -eq $Null) {" +
+              "  exit 0;" +
+              "} else {" +
+              "  Clear-Item $p;" +
+              "}" +
+              "Start-Sleep -Seconds 1;" +
+              "$i += 1;" +
+            "} while ($i -lt 300);" +
+            "exit 9;");
+        assertCommand(serviceScript + " remove");
+        assertCommand("$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
             "echo \"$p\";" +
             "if ($p -eq $Null) {" +
             "  exit 0;" +
             "} else {" +
             "  exit 1;" +
-            "}");*/
-
-        result = sh.runIgnoreExitCode("& C:\\project\\procdump64.exe -accepteula -mp -l elasticsearch-service-x64 C:\\project\\es-service.dmp");
-        System.out.println("procdump\n" + "stdout: \n" + result.stdout);
-        System.out.println("stderr: \n" + result.stderr);
-
-        byte[] bytes = Files.readAllBytes(Paths.get("C:\\project\\es-service.dmp"));
-        System.out.println("----------------- DUMP FILE ----------------");
-        System.out.println(Base64.getEncoder().encodeToString(bytes));
-        System.out.println("---------------- END DUMP FILE ---------------");
+            "}");
     }
 
     /*public void test31StartNotInstalled() throws IOException {

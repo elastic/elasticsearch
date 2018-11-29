@@ -276,7 +276,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         @Override
         public void onFailure(String source, Exception e) {
             logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-            GatewayService.this.onFailure("failed to updated cluster state");
+            GatewayService.this.onFailure("failed to update cluster state");
         }
     }
 

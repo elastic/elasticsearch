@@ -86,6 +86,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -229,7 +230,9 @@ public class JobManagerTests extends ESTestCase {
     }
 
     public void testExpandJob_GivenDuplicateConfig() throws IOException {
-        Job csJob = buildJobBuilder("dupe").build();
+        Job csJob = buildJobBuilder("dupe")
+                .setCustomSettings(Collections.singletonMap("job-saved-in-clusterstate", Boolean.TRUE))
+                .build();
 
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         mlMetadata.putJob(csJob, false);
@@ -258,7 +261,7 @@ public class JobManagerTests extends ESTestCase {
 
         assertThat(jobsHolder.get().results(), hasSize(1));
         Job foundJob = jobsHolder.get().results().get(0);
-        assertTrue((Boolean)foundJob.getCustomSettings().get("job-saved-in-index"));
+        assertTrue((Boolean)foundJob.getCustomSettings().get("job-saved-in-clusterstate"));
         assertNull(exceptionHolder.get());
     }
 
@@ -894,6 +897,7 @@ public class JobManagerTests extends ESTestCase {
 
         jobManager.revertSnapshot(request, mock(ActionListener.class), modelSnapshot);
         verify(clusterService, times(1)).submitStateUpdateTask(eq("revert-snapshot-cs-revert"), any(AckedClusterStateUpdateTask.class));
+        verify(jobConfigProvider, never()).updateJob(any(), any(), any(), any());
     }
 
     private Job.Builder createJob() {

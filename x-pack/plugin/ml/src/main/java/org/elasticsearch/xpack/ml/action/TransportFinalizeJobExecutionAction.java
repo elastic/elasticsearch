@@ -73,7 +73,6 @@ public class TransportFinalizeJobExecutionAction extends
     @Override
     protected void masterOperation(FinalizeJobExecutionAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
-
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
         Set<String> jobsInClusterState = Arrays.stream(request.getJobIds())
                 .filter(id -> mlMetadata.getJobs().containsKey(id))
@@ -83,14 +82,19 @@ public class TransportFinalizeJobExecutionAction extends
             finalizeIndexJobs(Arrays.asList(request.getJobIds()), listener);
         } else {
             ActionListener<AcknowledgedResponse> finalizeClusterStateJobsListener = ActionListener.wrap(
-                    ack -> finalizeClusterStateJobs(jobsInClusterState, listener),
+                    ack -> {
+                        Set<String> jobsInIndex = new HashSet<>(Arrays.asList(request.getJobIds()));
+                        jobsInIndex.removeAll(jobsInClusterState);
+                        if (jobsInIndex.isEmpty()) {
+                            listener.onResponse(ack);
+                        } else {
+                            finalizeIndexJobs(jobsInIndex, listener);
+                        }
+                    },
                     listener::onFailure
             );
 
-            Set<String> jobsInIndex = new HashSet<>(Arrays.asList(request.getJobIds()));
-            jobsInIndex.removeAll(jobsInClusterState);
-
-            finalizeIndexJobs(jobsInIndex, finalizeClusterStateJobsListener);
+            finalizeClusterStateJobs(jobsInClusterState, finalizeClusterStateJobsListener);
         }
     }
 

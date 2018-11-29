@@ -28,9 +28,11 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -46,12 +48,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJobAction.JobTask, CloseJobAction.Request,
         CloseJobAction.Response, CloseJobAction.Response> {
@@ -112,7 +115,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
             PersistentTasksCustomMetaData tasksMetaData = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             jobManager.expandJobIds(request.getJobId(), request.allowNoJobs(), ActionListener.wrap(
                     expandedJobIds -> {
-                        validate(expandedJobIds, request.isForce(), tasksMetaData, ActionListener.wrap(
+                        validate(expandedJobIds, request.isForce(), MlMetadata.getMlMetadata(state), tasksMetaData, ActionListener.wrap(
                                 response -> {
                                     request.setOpenJobIds(response.openJobIds.toArray(new String[0]));
                                     if (response.openJobIds.isEmpty() && response.closingJobIds.isEmpty()) {
@@ -173,13 +176,14 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
      *
      * @param expandedJobIds The job ids
      * @param forceClose Force close the job(s)
+     * @param mlMetadata The ML metadata for un-migrated jobs
      * @param tasksMetaData Persistent tasks
      * @param listener Resolved job Ids listener
      */
-    void validate(Collection<String> expandedJobIds, boolean forceClose, PersistentTasksCustomMetaData tasksMetaData,
-                          ActionListener<OpenAndClosingIds> listener) {
+    void validate(Collection<String> expandedJobIds, boolean forceClose, MlMetadata mlMetadata,
+                  PersistentTasksCustomMetaData tasksMetaData, ActionListener<OpenAndClosingIds> listener) {
 
-        checkDatafeedsHaveStopped(expandedJobIds, tasksMetaData, ActionListener.wrap(
+        checkDatafeedsHaveStopped(expandedJobIds, tasksMetaData, mlMetadata, ActionListener.wrap(
                 response -> {
                     OpenAndClosingIds ids = new OpenAndClosingIds();
                     List<String> failedJobs = new ArrayList<>();
@@ -209,14 +213,27 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
     }
 
     void checkDatafeedsHaveStopped(Collection<String> jobIds, PersistentTasksCustomMetaData tasksMetaData,
-                                           ActionListener<Boolean> listener) {
+                                   MlMetadata mlMetadata, ActionListener<Boolean> listener) {
+
+        for (String jobId: jobIds) {
+            Optional<DatafeedConfig> datafeed = mlMetadata.getDatafeedByJobId(jobId);
+            if (datafeed.isPresent()) {
+                DatafeedState datafeedState = MlTasks.getDatafeedState(datafeed.get().getId(), tasksMetaData);
+                if (datafeedState != DatafeedState.STOPPED) {
+                    listener.onFailure(
+                            ExceptionsHelper.conflictStatusException(
+                                    Messages.getMessage(Messages.JOB_CANNOT_CLOSE_BECAUSE_DATAFEED, datafeed.get().getId())));
+                    return;
+                }
+            }
+        }
         datafeedConfigProvider.findDatafeedsForJobIds(jobIds, ActionListener.wrap(
                 datafeedIds -> {
                     for (String datafeedId : datafeedIds) {
                         DatafeedState datafeedState = MlTasks.getDatafeedState(datafeedId, tasksMetaData);
                         if (datafeedState != DatafeedState.STOPPED) {
                             listener.onFailure(ExceptionsHelper.conflictStatusException(
-                                            "cannot close job datafeed [{}] hasn't been stopped", datafeedId));
+                                    Messages.getMessage(Messages.JOB_CANNOT_CLOSE_BECAUSE_DATAFEED, datafeedId)));
                             return;
                         }
                     }

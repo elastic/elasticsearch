@@ -140,32 +140,28 @@ public class DatafeedConfigReaderTests extends ESTestCase {
         assertEquals("ll-df", configHolder.get().get(2).getId());
     }
 
-    public void testExpandDatafeedConfigs_DuplicateConfigReturnsIndexDocument() {
+    public void testExpandDatafeedConfigs_DuplicateConfigReturnsClusterStateConfig() {
+        // TODO
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         mlMetadata.putJob(buildJobBuilder("datafeed-in-clusterstate").build(), false);
         mlMetadata.putDatafeed(createDatafeedConfig("df1", "datafeed-in-clusterstate"), Collections.emptyMap());
-
         ClusterState clusterState = ClusterState.builder(new ClusterName("datafeedconfigreadertests"))
                 .metaData(MetaData.builder()
                         .putCustom(MlMetadata.TYPE, mlMetadata.build()))
                 .build();
-
         DatafeedConfig.Builder indexConfig1 = createDatafeedConfigBuilder("df1", "datafeed-in-index");
         DatafeedConfig.Builder indexConfig2 = createDatafeedConfigBuilder("df2", "job-c");
         DatafeedConfigProvider provider = mock(DatafeedConfigProvider.class);
         mockProviderWithExpectedConfig(provider, "_all", Arrays.asList(indexConfig1, indexConfig2));
-
         DatafeedConfigReader reader = new DatafeedConfigReader(provider);
-
         AtomicReference<List<DatafeedConfig>> configHolder = new AtomicReference<>();
         reader.expandDatafeedConfigs("_all", true, clusterState, ActionListener.wrap(
                 configHolder::set,
                 e -> fail(e.getMessage())
         ));
-
         assertThat(configHolder.get(), hasSize(2));
         assertEquals("df1", configHolder.get().get(0).getId());
-        assertEquals("datafeed-in-index", configHolder.get().get(0).getJobId());
+        assertEquals("datafeed-in-clusterstate", configHolder.get().get(0).getJobId());
         assertEquals("df2", configHolder.get().get(1).getId());
     }
 

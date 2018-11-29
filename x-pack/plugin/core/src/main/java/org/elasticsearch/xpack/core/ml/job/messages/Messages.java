@@ -91,6 +91,8 @@ public final class Messages {
     public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT = "Job memory status changed to hard_limit at {0}; adjust the " +
             "analysis_limits.model_memory_limit setting to ensure all data is analyzed";
 
+    public static final String JOB_CANNOT_CLOSE_BECAUSE_DATAFEED = "cannot close job datafeed [{0}] hasn''t been stopped";
+
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES = "categorization_filters contain duplicates";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY =
             "categorization_filters are not allowed to contain empty strings";

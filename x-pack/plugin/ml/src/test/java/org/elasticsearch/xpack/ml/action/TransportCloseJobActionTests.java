@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction.Request;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -109,7 +110,8 @@ public class TransportCloseJobActionTests extends ESTestCase {
                 exceptionHolder::set
         );
 
-        closeJobAction.validate(Collections.singletonList(jobId), false, startDataFeedTaskBuilder.build(), listener);
+        closeJobAction.validate(Collections.singletonList(jobId), false, MlMetadata.EMPTY_METADATA,
+                startDataFeedTaskBuilder.build(), listener);
 
         assertNull(responseHolder.get());
         assertNotNull(exceptionHolder.get());
@@ -125,11 +127,46 @@ public class TransportCloseJobActionTests extends ESTestCase {
         }
 
         exceptionHolder.set(null);
-        closeJobAction.validate(Collections.singletonList(jobId), false, dataFeedNotStartedTaskBuilder.build(), listener);
+        closeJobAction.validate(Collections.singletonList(jobId), false, MlMetadata.EMPTY_METADATA,
+                dataFeedNotStartedTaskBuilder.build(), listener);
         assertNull(exceptionHolder.get());
         assertNotNull(responseHolder.get());
         assertThat(responseHolder.get().openJobIds, contains(jobId));
         assertThat(responseHolder.get().closingJobIds, empty());
+    }
+
+    public void testValidate_datafeedNotStoppedAndConfigInClusterState() {
+        final PersistentTasksCustomMetaData.Builder startDataFeedTaskBuilder =  PersistentTasksCustomMetaData.builder();
+        String jobId = "job-with-started-df";
+        String datafeedId = "df1";
+        addJobTask(jobId, null, JobState.OPENED, startDataFeedTaskBuilder);
+        addTask(datafeedId, 0L, null, DatafeedState.STARTED, startDataFeedTaskBuilder);
+
+        mockDatafeedConfigFindDatafeeds(Collections.emptySet());
+        DatafeedConfig.Builder dfBuilder = new DatafeedConfig.Builder(datafeedId, jobId);
+        dfBuilder.setIndices(Collections.singletonList("beats*"));
+        MlMetadata.Builder mlBuilder = new MlMetadata.Builder()
+                .putJob(BaseMlIntegTestCase.createFareQuoteJob(jobId).build(new Date()), false)
+                .putDatafeed(dfBuilder.build(), Collections.emptyMap());
+
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<TransportCloseJobAction.OpenAndClosingIds> responseHolder = new AtomicReference<>();
+        ActionListener<TransportCloseJobAction.OpenAndClosingIds> listener = ActionListener.wrap(
+                responseHolder::set,
+                exceptionHolder::set
+        );
+
+        TransportCloseJobAction closeJobAction = createAction();
+
+        closeJobAction.validate(Collections.singletonList(jobId), false, mlBuilder.build(),
+                startDataFeedTaskBuilder.build(), listener);
+
+        assertNull(responseHolder.get());
+        assertNotNull(exceptionHolder.get());
+        assertThat(exceptionHolder.get(), instanceOf(ElasticsearchStatusException.class));
+        ElasticsearchStatusException esException = (ElasticsearchStatusException) exceptionHolder.get();
+        assertEquals(RestStatus.CONFLICT, esException.status());
+        assertEquals("cannot close job datafeed [df1] hasn't been stopped", esException.getMessage());
     }
 
     public void testValidate_givenFailedJob() {
@@ -148,7 +185,8 @@ public class TransportCloseJobActionTests extends ESTestCase {
         );
 
         // force close so not an error for the failed job
-        closeJobAction.validate(Collections.singletonList("job_id_failed"), true, tasksBuilder.build(), listener);
+        closeJobAction.validate(Collections.singletonList("job_id_failed"), true, MlMetadata.EMPTY_METADATA,
+                tasksBuilder.build(), listener);
         assertNull(exceptionHolder.get());
         assertNotNull(responseHolder.get());
         assertThat(responseHolder.get().openJobIds, contains("job_id_failed"));
@@ -156,7 +194,8 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
         // not a force close so is an error
         responseHolder.set(null);
-        closeJobAction.validate(Collections.singletonList("job_id_failed"), false, tasksBuilder.build(), listener);
+        closeJobAction.validate(Collections.singletonList("job_id_failed"), false, MlMetadata.EMPTY_METADATA,
+                tasksBuilder.build(), listener);
         assertNull(responseHolder.get());
         assertNotNull(exceptionHolder.get());
         assertThat(exceptionHolder.get(), instanceOf(ElasticsearchStatusException.class));
@@ -182,25 +221,26 @@ public class TransportCloseJobActionTests extends ESTestCase {
         );
 
         TransportCloseJobAction closeJobAction = createAction();
-        closeJobAction.validate(Arrays.asList("job_id_closing", "job_id_open-1", "job_id_open-2"), false, tasks, listener);
+        closeJobAction.validate(Arrays.asList("job_id_closing", "job_id_open-1", "job_id_open-2"), false, MlMetadata.EMPTY_METADATA,
+                tasks, listener);
         assertNull(exceptionHolder.get());
         assertNotNull(responseHolder.get());
         assertEquals(Arrays.asList("job_id_open-1", "job_id_open-2"), responseHolder.get().openJobIds);
         assertEquals(Collections.singletonList("job_id_closing"), responseHolder.get().closingJobIds);
 
-        closeJobAction.validate(Arrays.asList("job_id_open-1", "job_id_open-2"), false, tasks, listener);
+        closeJobAction.validate(Arrays.asList("job_id_open-1", "job_id_open-2"), false, MlMetadata.EMPTY_METADATA, tasks, listener);
         assertNull(exceptionHolder.get());
         assertNotNull(responseHolder.get());
         assertEquals(Arrays.asList("job_id_open-1", "job_id_open-2"), responseHolder.get().openJobIds);
         assertEquals(Collections.emptyList(), responseHolder.get().closingJobIds);
 
-        closeJobAction.validate(Collections.singletonList("job_id_closing"), false, tasks, listener);
+        closeJobAction.validate(Collections.singletonList("job_id_closing"), false, MlMetadata.EMPTY_METADATA, tasks, listener);
         assertNull(exceptionHolder.get());
         assertNotNull(responseHolder.get());
         assertEquals(Collections.emptyList(), responseHolder.get().openJobIds);
         assertEquals(Collections.singletonList("job_id_closing"), responseHolder.get().closingJobIds);
 
-        closeJobAction.validate(Collections.singletonList("job_id_open-1"), false, tasks, listener);
+        closeJobAction.validate(Collections.singletonList("job_id_open-1"), false, MlMetadata.EMPTY_METADATA, tasks, listener);
         assertNull(exceptionHolder.get());
         assertNotNull(responseHolder.get());
         assertEquals(Collections.singletonList("job_id_open-1"), responseHolder.get().openJobIds);

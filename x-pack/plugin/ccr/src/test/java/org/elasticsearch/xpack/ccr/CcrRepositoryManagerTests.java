@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -44,7 +45,7 @@ public class CcrRepositoryManagerTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         repositoriesService = new RepositoriesService(settings, clusterService,
             transportService, null, threadPool);
-        CcrRepositoryManager repositoryManager = new CcrRepositoryManager(settings, clusterService, repositoriesService);
+        CcrRepositoryManager repositoryManager = new CcrRepositoryManager(settings, clusterService, new NodeClient(Settings.EMPTY, threadPool));
     }
 
     public void testRepositoryIsRegistered() {

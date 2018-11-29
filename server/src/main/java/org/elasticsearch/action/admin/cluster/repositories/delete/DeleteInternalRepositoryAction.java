@@ -41,6 +41,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class DeleteInternalRepositoryAction extends Action<AcknowledgedResponse> {
 
+    public static final DeleteInternalRepositoryAction INSTANCE = new DeleteInternalRepositoryAction();
     public static final String NAME = "cluster:admin/internal_repository/delete";
 
     protected DeleteInternalRepositoryAction() {
@@ -109,13 +110,13 @@ public class DeleteInternalRepositoryAction extends Action<AcknowledgedResponse>
         }
     }
 
-    public static class DeleteInternalRepositoryTransportAction
+    public static class TransportDeleteInternalRepositoryAction
         extends TransportAction<DeleteInternalRepositoryRequest, AcknowledgedResponse> {
 
         private final RepositoriesService repositoriesService;
 
         @Inject
-        public DeleteInternalRepositoryTransportAction(RepositoriesService repositoriesService, ActionFilters actionFilters,
+        public TransportDeleteInternalRepositoryAction(RepositoriesService repositoriesService, ActionFilters actionFilters,
                                                        TransportService transportService) {
             super(NAME, actionFilters, transportService.getTaskManager());
             this.repositoriesService = repositoriesService;

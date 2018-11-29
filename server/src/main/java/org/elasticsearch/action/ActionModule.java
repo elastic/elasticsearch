@@ -44,10 +44,12 @@ import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodesUsageAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteInternalRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.TransportDeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutInternalRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.verify.TransportVerifyRepositoryAction;
@@ -435,6 +437,10 @@ public class ActionModule extends AbstractModule {
         actions.register(GetRepositoriesAction.INSTANCE, TransportGetRepositoriesAction.class);
         actions.register(DeleteRepositoryAction.INSTANCE, TransportDeleteRepositoryAction.class);
         actions.register(VerifyRepositoryAction.INSTANCE, TransportVerifyRepositoryAction.class);
+        actions.register(PutInternalRepositoryAction.INSTANCE,
+            PutInternalRepositoryAction.TransportPutInternalRepositoryAction.class);
+        actions.register(DeleteInternalRepositoryAction.INSTANCE,
+            DeleteInternalRepositoryAction.TransportDeleteInternalRepositoryAction.class);
         actions.register(GetSnapshotsAction.INSTANCE, TransportGetSnapshotsAction.class);
         actions.register(DeleteSnapshotAction.INSTANCE, TransportDeleteSnapshotAction.class);
         actions.register(CreateSnapshotAction.INSTANCE, TransportCreateSnapshotAction.class);

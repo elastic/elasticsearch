@@ -573,8 +573,6 @@ public class Node implements Closeable {
             actionModule.initRestHandlers(() -> clusterService.state().nodes());
             logger.info("initialized");
 
-            repositoriesModule.initRepositoryPlugins(injector.getInstance(RepositoriesService.class));
-
             success = true;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);

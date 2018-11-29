@@ -43,13 +43,4 @@ public interface RepositoryPlugin {
     default Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
         return Collections.emptyMap();
     }
-
-    /**
-     * Passes the {@link RepositoriesService} to the plugin.
-     *
-     * @param repositoriesService instance for the plugin to optionally use
-     */
-    default void supplyRepositoriesService(RepositoriesService repositoriesService) {
-
-    }
 }

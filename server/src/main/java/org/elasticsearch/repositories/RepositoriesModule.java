@@ -41,10 +41,8 @@ import java.util.Map;
 public class RepositoriesModule extends AbstractModule {
 
     private final Map<String, Repository.Factory> repositoryTypes;
-    private final List<RepositoryPlugin> repoPlugins;
 
     public RepositoriesModule(Environment env, List<RepositoryPlugin> repoPlugins, NamedXContentRegistry namedXContentRegistry) {
-        this.repoPlugins = repoPlugins;
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(FsRepository.TYPE, (metadata) -> new FsRepository(metadata, env, namedXContentRegistry));
 
@@ -68,11 +66,5 @@ public class RepositoriesModule extends AbstractModule {
         bind(RestoreService.class).asEagerSingleton();
         MapBinder<String, Repository.Factory> typesBinder = MapBinder.newMapBinder(binder(), String.class, Repository.Factory.class);
         repositoryTypes.forEach((k, v) -> typesBinder.addBinding(k).toInstance(v));
-    }
-
-    public void initRepositoryPlugins(RepositoriesService repositoriesService) {
-        for (RepositoryPlugin plugin : repoPlugins) {
-            plugin.supplyRepositoriesService(repositoriesService);
-        }
     }
 }

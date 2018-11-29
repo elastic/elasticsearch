@@ -10,6 +10,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -148,6 +149,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         }
 
         this.clusterService.set(clusterService);
+        this.repositoryManager.set(new CcrRepositoryManager(settings, clusterService, (NodeClient) client));
 
         return Arrays.asList(
             ccrLicenseChecker,
@@ -264,13 +266,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         }
 
         return Collections.singletonList(new FixedExecutorBuilder(settings, CCR_THREAD_POOL_NAME, 32, 100, "xpack.ccr.ccr_thread_pool"));
-    }
-
-    @Override
-    public void supplyRepositoriesService(RepositoriesService repositoriesService) {
-        ClusterService clusterService = this.clusterService.get();
-        assert clusterService != null : "ClusterService not set.";
-        repositoryManager.set(new CcrRepositoryManager(settings, clusterService, repositoriesService));
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }

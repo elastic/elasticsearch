@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -41,9 +42,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class PutInternalRepositoryAction extends Action<AcknowledgedResponse> {
 
+    public static final PutInternalRepositoryAction INSTANCE = new PutInternalRepositoryAction();
     public static final String NAME = "cluster:admin/internal_repository/put";
 
-    protected PutInternalRepositoryAction() {
+    private PutInternalRepositoryAction() {
         super(NAME);
     }
 
@@ -65,10 +67,16 @@ public class PutInternalRepositoryAction extends Action<AcknowledgedResponse> {
 
         private String name;
         private String type;
+        private Settings settings;
 
         public PutInternalRepositoryRequest(String name, String type) {
+            this(name, type, Settings.EMPTY);
+        }
+
+        public PutInternalRepositoryRequest(String name, String type, Settings settings) {
             this.name = name;
             this.type = type;
+            this.settings = settings;
         }
 
         @Override
@@ -99,12 +107,13 @@ public class PutInternalRepositoryAction extends Action<AcknowledgedResponse> {
             if (o == null || getClass() != o.getClass()) return false;
             PutInternalRepositoryRequest that = (PutInternalRepositoryRequest) o;
             return Objects.equals(name, that.name) &&
-                Objects.equals(type, that.type);
+                Objects.equals(type, that.type) &&
+                Objects.equals(settings, that.settings);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, type);
+            return Objects.hash(name, type, settings);
         }
 
         @Override
@@ -112,16 +121,17 @@ public class PutInternalRepositoryAction extends Action<AcknowledgedResponse> {
             return "PutInternalRepositoryRequest{" +
                 "name='" + name + '\'' +
                 ", type='" + type + '\'' +
+                ", settings=" + settings +
                 '}';
         }
     }
 
-    public static class PutInternalRepositoryTransportAction extends TransportAction<PutInternalRepositoryRequest, AcknowledgedResponse> {
+    public static class TransportPutInternalRepositoryAction extends TransportAction<PutInternalRepositoryRequest, AcknowledgedResponse> {
 
         private final RepositoriesService repositoriesService;
 
         @Inject
-        public PutInternalRepositoryTransportAction(RepositoriesService repositoriesService, ActionFilters actionFilters,
+        public TransportPutInternalRepositoryAction(RepositoriesService repositoriesService, ActionFilters actionFilters,
                                                     TransportService transportService) {
             super(NAME, actionFilters, transportService.getTaskManager());
             this.repositoriesService = repositoriesService;
@@ -129,7 +139,7 @@ public class PutInternalRepositoryAction extends Action<AcknowledgedResponse> {
 
         @Override
         protected void doExecute(Task task, PutInternalRepositoryRequest request, ActionListener<AcknowledgedResponse> listener) {
-            repositoriesService.registerInternalRepository(request.name, request.type);
+            repositoriesService.registerInternalRepository(request.name, request.type, request.settings);
             listener.onResponse(new AcknowledgedResponse(true));
         }
     }

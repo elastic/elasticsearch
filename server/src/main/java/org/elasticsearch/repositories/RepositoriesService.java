@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -70,7 +69,6 @@ public class RepositoriesService implements ClusterStateApplier {
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
     private volatile Map<String, Repository> internalRepositories = ConcurrentCollections.newConcurrentMap();
 
-    @Inject
     public RepositoriesService(Settings settings, ClusterService clusterService, TransportService transportService,
                                Map<String, Repository.Factory> typesRegistry,
                                ThreadPool threadPool) {

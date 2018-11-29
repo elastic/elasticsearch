@@ -10,6 +10,8 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
+import java.util.Collections;
+
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.is;
 
@@ -81,7 +83,7 @@ public class NotificationServiceTests extends ESTestCase {
     private static class TestNotificationService extends NotificationService<String> {
 
         TestNotificationService(Settings settings) {
-            super(settings, "test");
+            super("test", settings, Collections.emptyList());
             reload(settings);
         }
 

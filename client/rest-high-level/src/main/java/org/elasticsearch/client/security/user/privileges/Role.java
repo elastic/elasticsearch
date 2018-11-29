@@ -226,7 +226,6 @@ public final class Role {
         private @Nullable Collection<ApplicationResourcePrivileges> applicationResourcePrivileges = null;
         private @Nullable Collection<String> runAsPrivilege = null;
         private @Nullable Map<String, Object> metadata = null;
-        private @Nullable Map<String, Object> transientMetadata = null;
 
         private Builder() {
         }
@@ -294,15 +293,9 @@ public final class Role {
             return this;
         }
 
-        public Builder transientMetadata(Map<String, Object> transientMetadata) {
-            this.transientMetadata =
-                Objects.requireNonNull(transientMetadata, "Transient metadata cannot be null. Pass an empty map instead.");
-            return this;
-        }
-
         public Role build() {
             return new Role(name, clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
-                runAsPrivilege, metadata, transientMetadata);
+                runAsPrivilege, metadata, null);
         }
     }
 

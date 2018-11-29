@@ -123,6 +123,7 @@ dependencies {
   compile "org.elasticsearch:jna:4.5.1"
   compile 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
   compile 'de.thetaphi:forbiddenapis:2.6'
+  compile 'com.avast.gradle:docker-compose-gradle-plugin:0.4.5'
   testCompile "junit:junit:${props.getProperty('junit')}"
 }
 

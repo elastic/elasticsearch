@@ -474,7 +474,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeRollupJobs() throws IOException, InterruptedException {
-        Response response = adminClient().performRequest(new Request("GET", "/_xpack/rollup/job/_all"));
+        String rollupPrefix = nodeVersions.stream().anyMatch(node -> node.before(Version.V_7_0_0)) ? "/_xpack/rollup" : "/_rollup";
+
+        Response response = adminClient().performRequest(new Request("GET", rollupPrefix + "/job/_all"));
         Map<String, Object> jobs = entityAsMap(response);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> jobConfigs =
@@ -487,7 +489,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         for (Map<String, Object> jobConfig : jobConfigs) {
             @SuppressWarnings("unchecked")
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
-            Request request = new Request("POST", "/_xpack/rollup/job/" + jobId + "/_stop");
+            Request request = new Request("POST", rollupPrefix + "/job/" + jobId + "/_stop");
             request.addParameter("ignore", "404");
             request.addParameter("wait_for_completion", "true");
             request.addParameter("timeout", "10s");
@@ -498,7 +500,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         for (Map<String, Object> jobConfig : jobConfigs) {
             @SuppressWarnings("unchecked")
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
-            Request request = new Request("DELETE", "/_xpack/rollup/job/" + jobId);
+            Request request = new Request("DELETE", rollupPrefix + "/job/" + jobId);
             request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
             logger.debug("deleting rollup job [{}]", jobId);
             adminClient().performRequest(request);

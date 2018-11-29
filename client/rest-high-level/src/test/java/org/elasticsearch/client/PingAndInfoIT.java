@@ -52,7 +52,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertEquals(versionMap.get("build_hash"), info.getBuild().shortHash());
         assertEquals(versionMap.get("build_date"), info.getBuild().date());
         assertEquals(versionMap.get("build_snapshot"), info.getBuild().isSnapshot());
-        assertEquals(versionMap.get("number"), info.getVersion().toString());
+        assertTrue(versionMap.get("number").toString().startsWith(info.getVersion().toString()));
         assertEquals(versionMap.get("lucene_version"), info.getVersion().luceneVersion.toString());
     }
 

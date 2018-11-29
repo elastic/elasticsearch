@@ -29,6 +29,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
@@ -147,10 +148,10 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         });
 
         // Cleanup:
-        // TODO: replace with hlrc delete auto follow pattern when it is available:
-        final Request deleteAutoFollowPatternRequest = new Request("DELETE", "/_ccr/auto_follow/pattern1");
-        Map<?, ?> deleteAutoFollowPatternResponse = toMap(client().performRequest(deleteAutoFollowPatternRequest));
-        assertThat(deleteAutoFollowPatternResponse.get("acknowledged"), is(true));
+        final DeleteAutoFollowPatternRequest deleteAutoFollowPatternRequest = new DeleteAutoFollowPatternRequest("pattern1");
+        AcknowledgedResponse deleteAutoFollowPatternResponse =
+            execute(deleteAutoFollowPatternRequest, ccrClient::deleteAutoFollowPattern, ccrClient::deleteAutoFollowPatternAsync);
+        assertThat(deleteAutoFollowPatternResponse.isAcknowledged(), is(true));
 
         PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("copy-logs-20200101");
         AcknowledgedResponse pauseFollowResponse = ccrClient.pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);

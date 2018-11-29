@@ -3,8 +3,8 @@
     "documentation": "https://www.elastic.co/guide/en/x-pack/current/license-management.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_xpack/license/basic_status",
-      "paths": ["/_xpack/license/basic_status"],
+      "path": "/_license/basic_status",
+      "paths": ["/_license/basic_status"],
       "parts" : {
       },
       "params": {

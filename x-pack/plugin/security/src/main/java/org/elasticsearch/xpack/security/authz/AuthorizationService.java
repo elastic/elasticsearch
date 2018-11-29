@@ -459,7 +459,7 @@ public class AuthorizationService {
         }
     }
 
-    public void roles(User user, ActionListener<Role> roleActionListener) {
+    public void roles(User user, Authentication authentication, ActionListener<Role> roleActionListener) {
         // we need to special case the internal users in this method, if we apply the anonymous roles to every user including these system
         // user accounts then we run into the chance of a deadlock because then we need to get a role that we may be trying to get as the
         // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
@@ -478,8 +478,6 @@ public class AuthorizationService {
             return;
         }
 
-        // TODO don't look Authentication up from the context. This can be cleaned up with authz engine work!
-        final Authentication authentication = Authentication.getAuthentication(threadContext);
         final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
         if (authType == Authentication.AuthenticationType.API_KEY) {
             apiKeyService.getRoleForApiKey(authentication, threadContext, rolesStore, fieldPermissionsCache, roleActionListener);

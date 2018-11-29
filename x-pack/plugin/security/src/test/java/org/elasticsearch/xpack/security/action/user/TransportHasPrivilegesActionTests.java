@@ -86,10 +86,10 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
 
         AuthorizationService authorizationService = mock(AuthorizationService.class);
         Mockito.doAnswer(invocationOnMock -> {
-            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[1];
+            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[2];
             listener.onResponse(role);
             return null;
-        }).when(authorizationService).roles(eq(user), any(ActionListener.class));
+        }).when(authorizationService).roles(eq(user), any(Authentication.class), any(ActionListener.class));
 
         applicationPrivileges = new ArrayList<>();
         NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);

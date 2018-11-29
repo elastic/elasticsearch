@@ -991,8 +991,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testDefaultRoleUserWithoutRoles() throws IOException {
         PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
         final User user = new User("no role user");
-        createAuthentication(user);
-        authorizationService.roles(user, rolesFuture);
+        authorizationService.roles(user, createAuthentication(user), rolesFuture);
         final Role roles = rolesFuture.actionGet();
         assertEquals(Role.EMPTY, roles);
     }
@@ -1006,9 +1005,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null));
         mockEmptyMetaData();
         final User user = new User("no role user");
-        createAuthentication(user);
         PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
-        authorizationService.roles(user, rolesFuture);
+        authorizationService.roles(user, createAuthentication(user), rolesFuture);
         final Role roles = rolesFuture.actionGet();
         assertThat(Arrays.asList(roles.names()), hasItem("anonymous_user_role"));
     }
@@ -1345,7 +1343,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testDoesNotUseRolesStoreForXPackUser() {
         PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
-        authorizationService.roles(XPackUser.INSTANCE, rolesFuture);
+        authorizationService.roles(XPackUser.INSTANCE, null, rolesFuture);
         final Role roles = rolesFuture.actionGet();
         assertThat(roles, equalTo(XPackUser.ROLE));
         verifyZeroInteractions(rolesStore);
@@ -1353,7 +1351,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testGetRolesForSystemUserThrowsException() {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> authorizationService.roles(SystemUser.INSTANCE,
-            null));
+            null, null));
         assertEquals("the user [_system] is the system user and we should never try to get its roles", iae.getMessage());
     }
 

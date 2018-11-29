@@ -48,6 +48,8 @@ public class FeatureTest {
     private int y;
     public int z;
 
+    private Integer i;
+
     /** empty ctor */
     public FeatureTest() {
     }
@@ -76,6 +78,16 @@ public class FeatureTest {
     /** setter for y */
     public void setY(int y) {
         this.y = y;
+    }
+
+    /** getter for i */
+    public Integer getI() {
+        return i;
+    }
+
+    /** setter for y */
+    public void setI(Integer I) {
+        this.i = i;
     }
 
     /** method taking two functions! */

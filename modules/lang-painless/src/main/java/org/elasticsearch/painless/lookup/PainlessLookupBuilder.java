@@ -20,6 +20,8 @@
 package org.elasticsearch.painless.lookup;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.painless.Def;
+import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistClass;
@@ -30,7 +32,6 @@ import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.lang.invoke.MethodHandle;
@@ -54,6 +55,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_BYTE_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_CHARACTER_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_DOUBLE_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_FLOAT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_INTEGER_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_LONG_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_SHORT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
 import static org.elasticsearch.painless.WriterConstants.OBJECT_TYPE;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.DEF_CLASS_NAME;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessConstructorKey;
@@ -70,6 +79,11 @@ public final class PainlessLookupBuilder {
             super(parent);
         }
 
+        @Override
+        public Class<?> findClass(String name) throws ClassNotFoundException {
+            return Def.class.getName().equals(name) ? Def.class : super.findClass(name);
+        }
+
         Class<?> defineBridge(String name, byte[] bytes) {
             return defineClass(name, bytes, 0, bytes.length, CODESOURCE);
         }
@@ -82,6 +96,7 @@ public final class PainlessLookupBuilder {
     private static final Map<PainlessField          , PainlessField>           painlessFieldCache           = new HashMap<>();
     private static final Map<PainlessClassBinding   , PainlessClassBinding>    painlessClassBindingCache    = new HashMap<>();
     private static final Map<PainlessInstanceBinding, PainlessInstanceBinding> painlessInstanceBindingCache = new HashMap<>();
+    private static final Map<PainlessMethod         , PainlessMethod>          painlessBridgeCache          = new HashMap<>();
 
     private static final Pattern CLASS_NAME_PATTERN  = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
     private static final Pattern METHOD_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
@@ -1170,9 +1185,9 @@ public final class PainlessLookupBuilder {
 
     public PainlessLookup build() {
         copyPainlessClassMembers();
-        cacheRuntimeHandles();
-        generateRuntimeHandles();
         setFunctionalInterfaceMethods();
+        generateRuntimeMethods();
+        cacheRuntimeHandles();
 
         Map<Class<?>, PainlessClass> classesToPainlessClasses = new HashMap<>(classesToPainlessClassBuilders.size());
 
@@ -1269,133 +1284,6 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    private void cacheRuntimeHandles() {
-        for (PainlessClassBuilder painlessClassBuilder : classesToPainlessClassBuilders.values()) {
-            cacheRuntimeHandles(painlessClassBuilder);
-        }
-    }
-
-    private void cacheRuntimeHandles(PainlessClassBuilder painlessClassBuilder) {
-        for (PainlessMethod painlessMethod : painlessClassBuilder.methods.values()) {
-            String methodName = painlessMethod.javaMethod.getName();
-            int typeParametersSize = painlessMethod.typeParameters.size();
-
-            if (typeParametersSize == 0 && methodName.startsWith("get") && methodName.length() > 3 &&
-                    Character.isUpperCase(methodName.charAt(3))) {
-                painlessClassBuilder.getterMethodHandles.putIfAbsent(
-                        Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4), painlessMethod.methodHandle);
-            } else if (typeParametersSize == 0 && methodName.startsWith("is") && methodName.length() > 2 &&
-                    Character.isUpperCase(methodName.charAt(2))) {
-                painlessClassBuilder.getterMethodHandles.putIfAbsent(
-                        Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3), painlessMethod.methodHandle);
-            } else if (typeParametersSize == 1 && methodName.startsWith("set") && methodName.length() > 3 &&
-                    Character.isUpperCase(methodName.charAt(3))) {
-                painlessClassBuilder.setterMethodHandles.putIfAbsent(
-                        Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4), painlessMethod.methodHandle);
-            }
-        }
-
-        for (PainlessField painlessField : painlessClassBuilder.fields.values()) {
-            painlessClassBuilder.getterMethodHandles.put(painlessField.javaField.getName(), painlessField.getterMethodHandle);
-            painlessClassBuilder.setterMethodHandles.put(painlessField.javaField.getName(), painlessField.setterMethodHandle);
-        }
-    }
-
-    private void generateRuntimeHandles() {
-        for (PainlessClassBuilder painlessClassBuilder : classesToPainlessClassBuilders.values()) {
-            for (PainlessMethod painlessMethod : painlessClassBuilder.methods.values()) {
-                for (Class<?> typeParameter : painlessMethod.typeParameters) {
-                    if (Number.class.isAssignableFrom(typeParameter) || typeParameter == Character.class) {
-                        generateRuntimeHandle(painlessClassBuilder, painlessMethod);
-                    }
-                }
-            }
-        }
-    }
-
-    private void generateRuntimeHandle(PainlessClassBuilder painlessClassBuilder, PainlessMethod painlessMethod) {
-        Method javaMethod = painlessMethod.javaMethod;
-        BridgeLoader bridgeLoader = AccessController.doPrivileged(new PrivilegedAction<BridgeLoader>() {
-            @Override
-            public BridgeLoader run() {
-                return new BridgeLoader(javaMethod.getDeclaringClass().getClassLoader());
-            }
-        });
-
-        int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
-        int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER| Opcodes.ACC_FINAL;
-        String className = "org/elasticsearch/painless/Bridge";
-
-        ClassWriter writer = new ClassWriter(classFrames);
-        writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), null);
-
-        org.objectweb.asm.commons.Method init =
-                new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class).toMethodDescriptorString());
-
-        GeneratorAdapter constructor = new GeneratorAdapter(Opcodes.ASM5, init,
-                writer.visitMethod(Opcodes.ACC_PRIVATE, init.getName(), init.getDescriptor(), null, null));
-        constructor.visitCode();
-        constructor.loadThis();
-        constructor.invokeConstructor(OBJECT_TYPE, init);
-        constructor.returnValue();
-        constructor.endMethod();
-
-        List<Class<?>> bridgeTypeParameters = new ArrayList<>(javaMethod.getParameterTypes().length);
-
-        for (Class<?> typeParameter : javaMethod.getParameterTypes()) {
-            if (
-                    typeParameter == Byte.class      ||
-                    typeParameter == Short.class     ||
-                    typeParameter == Character.class ||
-                    typeParameter == Integer.class   ||
-                    typeParameter == Long.class      ||
-                    typeParameter == Float.class     ||
-                    typeParameter == Double.class
-            ) {
-                bridgeTypeParameters.add(Object.class);
-            } else {
-                bridgeTypeParameters.add(typeParameter);
-            }
-        }
-
-        MethodType bridgeType = MethodType.methodType(painlessMethod.returnType, bridgeTypeParameters);
-        org.objectweb.asm.commons.Method bridge = new org.objectweb.asm.commons.Method("bridge", bridgeType.toMethodDescriptorString());
-        org.objectweb.asm.commons.Method call = new org.objectweb.asm.commons.Method(javaMethod.getName(),
-                MethodType.methodType(javaMethod.getReturnType(), javaMethod.getParameterTypes()).toMethodDescriptorString());
-
-        GeneratorAdapter adapter = new GeneratorAdapter(Opcodes.ASM5, bridge,
-                writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
-                        bridge.getName(), bridge.getDescriptor(), null, null));
-        adapter.visitCode();
-
-        for (int typeParameterCount = 0; typeParameterCount < javaMethod.getParameterTypes().length; ++typeParameterCount) {
-            adapter.loadArg(typeParameterCount);
-            Class<?> typeParameter = javaMethod.getParameterTypes()[typeParameterCount];
-
-            if (typeParameter == Byte.class) {
-
-            }
-        }
-
-        adapter.invokeVirtual(Type.getType(javaMethod.getDeclaringClass()), call);
-
-        if (painlessMethod.returnType != void.class) {
-            adapter.returnValue();
-        }
-
-        adapter.endMethod();
-
-        /*try {
-            Class<?> bridgeClass = bridgeLoader.defineBridge(className.replace('/', '.'), writer.toByteArray());
-            MethodHandle bridgeHandle = MethodHandles.publicLookup().in(bridgeClass).unreflect(bridgeClass.getMethods()[0]);
-            painlessClassBuilder.bridgeMethodHandles.put(
-                    buildPainlessMethodKey(painlessMethod.javaMethod.getName(), painlessMethod.typeParameters.size()), bridgeHandle);
-        } catch (Exception exception) {
-            throw new IllegalStateException(
-                    "internal error occurred attempting to define a bridge class [" + className + "]", exception);
-        }*/
-    }
-
     private void setFunctionalInterfaceMethods() {
         for (Map.Entry<Class<?>, PainlessClassBuilder> painlessClassBuilderEntry : classesToPainlessClassBuilders.entrySet()) {
             setFunctionalInterfaceMethod(painlessClassBuilderEntry.getKey(), painlessClassBuilderEntry.getValue());
@@ -1424,6 +1312,165 @@ public final class PainlessLookupBuilder {
                 String painlessMethodKey = buildPainlessMethodKey(javaMethod.getName(), javaMethod.getParameterCount());
                 painlessClassBuilder.functionalInterfaceMethod = painlessClassBuilder.methods.get(painlessMethodKey);
             }
+        }
+    }
+
+    private void generateRuntimeMethods() {
+        for (PainlessClassBuilder painlessClassBuilder : classesToPainlessClassBuilders.values()) {
+            painlessClassBuilder.runtimeMethods.putAll(painlessClassBuilder.methods);
+
+            for (PainlessMethod painlessMethod : painlessClassBuilder.runtimeMethods.values()) {
+                for (Class<?> typeParameter : painlessMethod.typeParameters) {
+                    if (
+                            typeParameter == Byte.class      ||
+                            typeParameter == Short.class     ||
+                            typeParameter == Character.class ||
+                            typeParameter == Integer.class   ||
+                            typeParameter == Long.class      ||
+                            typeParameter == Float.class     ||
+                            typeParameter == Double.class
+                    ) {
+                        generateBridgeMethod(painlessClassBuilder, painlessMethod);
+                    }
+                }
+            }
+        }
+    }
+
+    private void generateBridgeMethod(PainlessClassBuilder painlessClassBuilder, PainlessMethod painlessMethod) {
+        String painlessMethodKey = buildPainlessMethodKey(painlessMethod.javaMethod.getName(), painlessMethod.typeParameters.size());
+        PainlessMethod bridgePainlessMethod = painlessBridgeCache.get(painlessMethod);
+
+        if (bridgePainlessMethod == null) {
+            Method javaMethod = painlessMethod.javaMethod;
+            boolean isStatic = Modifier.isStatic(painlessMethod.javaMethod.getModifiers());
+
+            int bridgeClassFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
+            int bridgeClassAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
+            String bridgeClassName =
+                    "org/elasticsearch/painless/Bridge$" + javaMethod.getDeclaringClass().getSimpleName() + javaMethod.getName();
+            ClassWriter bridgeClassWriter = new ClassWriter(bridgeClassFrames);
+            bridgeClassWriter.visit(
+                    WriterConstants.CLASS_VERSION, bridgeClassAccess, bridgeClassName, null, OBJECT_TYPE.getInternalName(), null);
+
+            org.objectweb.asm.commons.Method bridgeConstructorType =
+                    new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class).toMethodDescriptorString());
+            GeneratorAdapter bridgeConstructorWriter =
+                    new GeneratorAdapter(Opcodes.ASM5, bridgeConstructorType, bridgeClassWriter.visitMethod(
+                            Opcodes.ACC_PRIVATE, bridgeConstructorType.getName(), bridgeConstructorType.getDescriptor(), null, null));
+            bridgeConstructorWriter.visitCode();
+            bridgeConstructorWriter.loadThis();
+            bridgeConstructorWriter.invokeConstructor(OBJECT_TYPE, bridgeConstructorType);
+            bridgeConstructorWriter.returnValue();
+            bridgeConstructorWriter.endMethod();
+
+            int bridgeTypeParameterOffset = isStatic ? 0 : 1;
+            List<Class<?>> bridgeTypeParameters = new ArrayList<>(javaMethod.getParameterTypes().length + bridgeTypeParameterOffset);
+
+            if (isStatic == false) {
+                bridgeTypeParameters.add(javaMethod.getDeclaringClass());
+            }
+
+            for (Class<?> typeParameter : javaMethod.getParameterTypes()) {
+                if (
+                        typeParameter == Byte.class      ||
+                        typeParameter == Short.class     ||
+                        typeParameter == Character.class ||
+                        typeParameter == Integer.class   ||
+                        typeParameter == Long.class      ||
+                        typeParameter == Float.class     ||
+                        typeParameter == Double.class
+                ) {
+                    bridgeTypeParameters.add(Object.class);
+                } else {
+                    bridgeTypeParameters.add(typeParameter);
+                }
+            }
+
+            MethodType bridgeMethodType = MethodType.methodType(painlessMethod.returnType, bridgeTypeParameters);
+            MethodWriter bridgeMethodWriter =
+                    new MethodWriter(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                            new org.objectweb.asm.commons.Method(
+                                    painlessMethod.javaMethod.getName(), bridgeMethodType.toMethodDescriptorString()),
+                            bridgeClassWriter, null, null);
+            bridgeMethodWriter.visitCode();
+
+            if (isStatic == false) {
+                bridgeMethodWriter.loadArg(0);
+            }
+
+            for (int typeParameterCount = 0; typeParameterCount < javaMethod.getParameterTypes().length; ++typeParameterCount) {
+                bridgeMethodWriter.loadArg(typeParameterCount + bridgeTypeParameterOffset);
+                Class<?> typeParameter = javaMethod.getParameterTypes()[typeParameterCount];
+
+                if      (typeParameter == Byte.class)      bridgeMethodWriter.invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BYTE_IMPLICIT);
+                else if (typeParameter == Short.class)     bridgeMethodWriter.invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_SHORT_IMPLICIT);
+                else if (typeParameter == Character.class) bridgeMethodWriter.invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_CHARACTER_IMPLICIT);
+                else if (typeParameter == Integer.class)   bridgeMethodWriter.invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_INTEGER_IMPLICIT);
+                else if (typeParameter == Long.class)      bridgeMethodWriter.invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_LONG_IMPLICIT);
+                else if (typeParameter == Float.class)     bridgeMethodWriter.invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_IMPLICIT);
+                else if (typeParameter == Double.class)    bridgeMethodWriter.invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_IMPLICIT);
+            }
+
+            bridgeMethodWriter.invokeMethodCall(painlessMethod);
+            bridgeMethodWriter.returnValue();
+            bridgeMethodWriter.endMethod();
+
+            bridgeClassWriter.visitEnd();
+
+            try {
+                BridgeLoader bridgeLoader = AccessController.doPrivileged(new PrivilegedAction<BridgeLoader>() {
+                    @Override
+                    public BridgeLoader run() {
+                        return new BridgeLoader(javaMethod.getDeclaringClass().getClassLoader());
+                    }
+                });
+
+                Class<?> bridgeClass = bridgeLoader.defineBridge(bridgeClassName.replace('/', '.'), bridgeClassWriter.toByteArray());
+                Method bridgeMethod = bridgeClass.getMethod(
+                        painlessMethod.javaMethod.getName(), bridgeTypeParameters.toArray(new Class<?>[0]));
+                MethodHandle bridgeHandle = MethodHandles.publicLookup().in(bridgeClass).unreflect(bridgeClass.getMethods()[0]);
+                painlessClassBuilder.runtimeMethods.put(painlessMethodKey,
+                        new PainlessMethod(bridgeMethod, bridgeClass,
+                                painlessMethod.returnType, bridgeTypeParameters, bridgeHandle, bridgeMethodType));
+            } catch (Exception exception) {
+                throw new IllegalStateException(
+                        "internal error occurred attempting to generate a bridge method [" + bridgeClassName + "]", exception);
+            }
+        } else {
+            painlessClassBuilder.runtimeMethods.put(painlessMethodKey, bridgePainlessMethod);
+        }
+    }
+
+    private void cacheRuntimeHandles() {
+        for (PainlessClassBuilder painlessClassBuilder : classesToPainlessClassBuilders.values()) {
+            cacheRuntimeHandles(painlessClassBuilder);
+        }
+    }
+
+    private void cacheRuntimeHandles(PainlessClassBuilder painlessClassBuilder) {
+        for (PainlessMethod painlessMethod : painlessClassBuilder.runtimeMethods.values()) {
+            String methodName = painlessMethod.javaMethod.getName();
+            int typeParametersSize = painlessMethod.typeParameters.size();
+
+            if (typeParametersSize == 0 && methodName.startsWith("get") && methodName.length() > 3 &&
+                    Character.isUpperCase(methodName.charAt(3))) {
+                painlessClassBuilder.getterMethodHandles.putIfAbsent(
+                        Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4), painlessMethod.methodHandle);
+            } else if (typeParametersSize == 0 && methodName.startsWith("is") && methodName.length() > 2 &&
+                    Character.isUpperCase(methodName.charAt(2))) {
+                painlessClassBuilder.getterMethodHandles.putIfAbsent(
+                        Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3), painlessMethod.methodHandle);
+            } else if (typeParametersSize == 1 && methodName.startsWith("set") && methodName.length() > 3 &&
+                    Character.isUpperCase(methodName.charAt(3))) {
+                painlessClassBuilder.setterMethodHandles.putIfAbsent(
+                        Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4), painlessMethod.methodHandle);
+            }
+        }
+
+        for (PainlessField painlessField : painlessClassBuilder.fields.values()) {
+            painlessClassBuilder.getterMethodHandles.put(painlessField.javaField.getName(), painlessField.getterMethodHandle);
+            painlessClassBuilder.setterMethodHandles.put(painlessField.javaField.getName(), painlessField.setterMethodHandle);
         }
     }
 }

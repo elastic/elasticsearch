@@ -41,7 +41,7 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
     private final HttpClient httpClient;
 
     public PagerDutyService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
-        super("pagerduty", settings, clusterSettings, getClusterSettings());
+        super("pagerduty", settings, clusterSettings, getDynamicSettings());
         this.httpClient = httpClient;
         // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
@@ -56,12 +56,12 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
         return new PagerDutyAccount(name, accountSettings, accountSettings, httpClient);
     }
 
-    private static List<Setting<?>> getClusterSettings() {
+    private static List<Setting<?>> getDynamicSettings() {
         return Arrays.asList(SETTING_SERVICE_API_KEY, SETTING_DEFAULTS, SETTING_DEFAULT_ACCOUNT);
     }
 
     public static List<Setting<?>> getSettings() {
-        List<Setting<?>> allSettings = new ArrayList<Setting<?>>(getClusterSettings());
+        List<Setting<?>> allSettings = new ArrayList<Setting<?>>(getDynamicSettings());
         allSettings.add(SETTING_SECURE_SERVICE_API_KEY);
         return allSettings;
     }

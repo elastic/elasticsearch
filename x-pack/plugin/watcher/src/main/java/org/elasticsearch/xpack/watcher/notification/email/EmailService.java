@@ -110,7 +110,7 @@ public class EmailService extends NotificationService<Account> {
     private final CryptoService cryptoService;
 
     public EmailService(Settings settings, @Nullable CryptoService cryptoService, ClusterSettings clusterSettings) {
-        super("email", settings, clusterSettings, getClusterSettings());
+        super("email", settings, clusterSettings, getDynamicSettings());
         this.cryptoService = cryptoService;
         // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
@@ -180,7 +180,7 @@ public class EmailService extends NotificationService<Account> {
         }
     }
 
-    private static List<Setting<?>> getClusterSettings() {
+    private static List<Setting<?>> getDynamicSettings() {
         return Arrays.asList(SETTING_DEFAULT_ACCOUNT, SETTING_PROFILE, SETTING_EMAIL_DEFAULTS, SETTING_SMTP_AUTH, SETTING_SMTP_HOST,
                 SETTING_SMTP_PASSWORD, SETTING_SMTP_PORT, SETTING_SMTP_STARTTLS_ENABLE, SETTING_SMTP_USER, SETTING_SMTP_STARTTLS_REQUIRED,
                 SETTING_SMTP_TIMEOUT, SETTING_SMTP_CONNECTION_TIMEOUT, SETTING_SMTP_WRITE_TIMEOUT, SETTING_SMTP_LOCAL_ADDRESS,
@@ -188,7 +188,7 @@ public class EmailService extends NotificationService<Account> {
     }
 
     public static List<Setting<?>> getSettings() {
-        List<Setting<?>> allSettings = new ArrayList<Setting<?>>(getClusterSettings());
+        List<Setting<?>> allSettings = new ArrayList<Setting<?>>(getDynamicSettings());
         allSettings.add(SETTING_SECURE_PASSWORD);
         return allSettings;
     }

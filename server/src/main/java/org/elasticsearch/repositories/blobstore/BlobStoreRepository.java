@@ -1506,6 +1506,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     IndexWriter writer = new IndexWriter(store.directory(), new IndexWriterConfig(null)
                         .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                         .setOpenMode(IndexWriterConfig.OpenMode.CREATE)
+                        .setIndexCreatedVersionMajor(version.luceneVersion.major)
                         .setCommitOnClose(true));
                     writer.close();
                     return;

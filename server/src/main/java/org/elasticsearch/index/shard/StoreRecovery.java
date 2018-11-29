@@ -417,7 +417,7 @@ final class StoreRecovery {
                     logger.debug("failed to list file details", e);
                 }
             } else {
-                store.createEmpty();
+                store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
                 final String translogUUID = Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(), SequenceNumbers.NO_OPS_PERFORMED, shardId,
                     indexShard.getPendingPrimaryTerm());

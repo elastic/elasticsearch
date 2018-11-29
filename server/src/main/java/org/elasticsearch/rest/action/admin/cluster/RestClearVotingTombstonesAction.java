@@ -44,10 +44,8 @@ public class RestClearVotingTombstonesAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        return channel -> client.execute(
-            ClearVotingTombstonesAction.INSTANCE,
-            new ClearVotingTombstonesRequest(),
-            new RestToXContentListener<>(channel)
-        );
+        ClearVotingTombstonesRequest req = new ClearVotingTombstonesRequest();
+        req.setWaitForRemoval(false);
+        return channel -> client.execute(ClearVotingTombstonesAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
 }

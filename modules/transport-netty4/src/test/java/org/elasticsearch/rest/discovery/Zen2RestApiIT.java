@@ -21,7 +21,6 @@ package org.elasticsearch.rest.discovery;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.ESNetty4IntegTestCase;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Node;
@@ -56,7 +55,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
-            .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
+            .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
             .put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 2)
             .build();
     }
@@ -127,12 +126,12 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     public void testBasicRestApi() throws Exception {
         List<String> nodes = internalCluster().startNodes(3);
         RestClient restClient = getRestClient();
+        Response response = restClient.performRequest(new Request("POST", "/_cluster/withdrawn_votes/" + nodes.get(2)));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertThat(response.getEntity().getContentLength(), is(0L));
         Response deleteResponse = restClient.performRequest(new Request("DELETE", "/_cluster/withdrawn_votes"));
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
         assertThat(deleteResponse.getEntity().getContentLength(), is(0L));
-        Response response = restClient.performRequest(new Request("POST", "/_cluster/withdrawn_votes/" + nodes.get(0)));
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
-        assertThat(response.getEntity().getContentLength(), is(0L));
         try {
             restClient.performRequest(new Request("POST", "/_cluster/withdrawn_votes/invalid"));
             fail("Invalid node name should throw.");

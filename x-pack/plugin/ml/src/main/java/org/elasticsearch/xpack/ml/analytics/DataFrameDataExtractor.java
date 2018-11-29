@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -29,6 +30,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -68,18 +70,18 @@ public class DataFrameDataExtractor {
         isCancelled = true;
     }
 
-    public Optional<List<String[]>> next() throws IOException {
+    public Optional<List<Row>> next() throws IOException {
         if (!hasNext()) {
             throw new NoSuchElementException();
         }
-        Optional<List<String[]>> records = scrollId == null ? Optional.ofNullable(initScroll()) : Optional.ofNullable(continueScroll());
-        if (!records.isPresent()) {
+        Optional<List<Row>> hits = scrollId == null ? Optional.ofNullable(initScroll()) : Optional.ofNullable(continueScroll());
+        if (!hits.isPresent()) {
             hasNext = false;
         }
-        return records;
+        return hits;
     }
 
-    protected List<String[]> initScroll() throws IOException {
+    protected List<Row> initScroll() throws IOException {
         LOGGER.debug("[{}] Initializing scroll", "analytics");
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest());
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
@@ -106,7 +108,7 @@ public class DataFrameDataExtractor {
         return searchRequestBuilder;
     }
 
-    private List<String[]> processSearchResponse(SearchResponse searchResponse) throws IOException {
+    private List<Row> processSearchResponse(SearchResponse searchResponse) throws IOException {
 
         if (searchResponse.getFailedShards() > 0 && searchHasShardFailure == false) {
             LOGGER.debug("[{}] Resetting scroll search after shard failure", context.jobId);
@@ -123,29 +125,35 @@ public class DataFrameDataExtractor {
         }
 
         SearchHit[] hits = searchResponse.getHits().getHits();
-        List<String[]> records = new ArrayList<>(hits.length);
+        List<Row> rows = new ArrayList<>(hits.length);
         for (SearchHit hit : hits) {
             if (isCancelled) {
                 hasNext = false;
                 clearScroll(scrollId);
                 break;
             }
-            records.add(toStringArray(hit));
+            rows.add(createRow(hit));
         }
-        return records;
+        return rows;
+
     }
 
-    private String[] toStringArray(SearchHit hit) {
-        String[] result = new String[context.extractedFields.getAllFields().size()];
-        for (int i = 0; i < result.length; ++i) {
+    private Row createRow(SearchHit hit) {
+        String[] extractedValues = new String[context.extractedFields.getAllFields().size()];
+        for (int i = 0; i < extractedValues.length; ++i) {
             ExtractedField field = context.extractedFields.getAllFields().get(i);
             Object[] values = field.value(hit);
-            result[i] = (values.length == 1) ? Objects.toString(values[0]) : "";
+            if (values.length == 1 && values[0] instanceof Number) {
+                extractedValues[i] = Objects.toString(values[0]);
+            } else {
+                extractedValues = null;
+                break;
+            }
         }
-        return result;
+        return new Row(extractedValues);
     }
 
-    private List<String[]> continueScroll() throws IOException {
+    private List<Row> continueScroll() throws IOException {
         LOGGER.debug("[{}] Continuing scroll with id [{}]", context.jobId, scrollId);
         SearchResponse searchResponse = executeSearchScrollRequest(scrollId);
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
@@ -208,6 +216,21 @@ public class DataFrameDataExtractor {
         public DataSummary(long rows, long cols) {
             this.rows = rows;
             this.cols = cols;
+        }
+    }
+
+    public static class Row {
+
+        @Nullable
+        private String[] values;
+
+        private Row(String[] values) {
+            this.values = values;
+        }
+
+        @Nullable
+        public String[] getValues() {
+            return values;
         }
     }
 }

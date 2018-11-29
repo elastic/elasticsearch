@@ -222,16 +222,25 @@ This set is limited in size by the following setting:
     to `10`.
 
 Since voting tombstones are persistent and limited in number, they must be
-cleaned up from time to time. If a node's vote is withdrawn because it is to be
-shut down permanently then its tombstone can be removed once it is certain
-never to return to the cluster. Tombstones can also be removed if they were
-created in error or were only required temporarily:
+cleaned up. Normally a vote is withdrawn when performing some maintenance on
+the cluster, and the voting tombstones should be cleaned up when the
+maintenance is complete. Clusters should have no voting tombstones in normal
+operation.
+
+If a node's vote is withdrawn because it is to be shut down permanently then
+its tombstone can be removed once it has shut down and been removed from the
+cluster. Tombstones can also be removed if they were created in error or were
+only required temporarily:
 
 [source,js]
 --------------------------------------------------
-# Remove all previous withdrawals of votes, allowing any node to return to the
+# Wait for all the nodes with withdrawn votes to be removed from the cluster
+# and then remove all the voting tombstones, allowing any node to return to the
 # voting configuration in future.
 DELETE /_cluster/withdrawn_votes
+# Immediately remove all the voting tombstones, allowing any node to return to
+# the voting configuration in future.
+DELETE /_cluster/withdrawn_votes?wait_for_removal=false
 --------------------------------------------------
 // CONSOLE
 

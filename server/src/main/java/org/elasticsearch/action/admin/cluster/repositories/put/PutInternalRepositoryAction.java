@@ -20,15 +20,8 @@
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
 
 public class PutInternalRepositoryAction extends Action<AcknowledgedResponse> {
 

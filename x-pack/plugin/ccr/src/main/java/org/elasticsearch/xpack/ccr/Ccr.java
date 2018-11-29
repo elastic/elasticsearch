@@ -35,7 +35,6 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;

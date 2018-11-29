@@ -20,31 +20,15 @@
 package org.elasticsearch.action.admin.cluster.repositories.delete;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
-import java.util.Objects;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class DeleteInternalRepositoryAction extends Action<AcknowledgedResponse> {
 
     public static final DeleteInternalRepositoryAction INSTANCE = new DeleteInternalRepositoryAction();
     public static final String NAME = "cluster:admin/internal_repository/delete";
 
-    protected DeleteInternalRepositoryAction() {
+    private DeleteInternalRepositoryAction() {
         super(NAME);
     }
 

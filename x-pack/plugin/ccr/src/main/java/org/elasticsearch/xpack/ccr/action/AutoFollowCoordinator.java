@@ -154,7 +154,8 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                     final ClusterStateRequest request = new ClusterStateRequest();
                     request.clear();
                     request.metaData(true);
-                    request.routingTable(true);// TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
+                    request.routingTable(true);
+                    // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
                     ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                         client,
                         remoteCluster,

@@ -1465,8 +1465,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                             }
 
                             @Override
-                            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                                throws IOException, TransportException {
+                            public void sendRequest(long requestId, String action, TransportRequest request,
+                                                    TransportRequestOptions options) throws IOException, TransportException {
                                 connection.sendRequest(requestId, action, request, options);
                             }
 

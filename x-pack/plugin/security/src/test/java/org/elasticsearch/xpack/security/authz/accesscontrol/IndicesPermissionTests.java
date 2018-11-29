@@ -365,6 +365,9 @@ public class IndicesPermissionTests extends ESTestCase {
                 group(fieldPermissions(new String[] { "f1", "f2" }, null), null,
                         IndexPrivilege.ALL, "index-1-*"),
                 group(fieldPermissions(new String[] { "f1", "f2" }, null),
+                        Sets.newHashSet(new BytesArray("{baz}")),
+                        IndexPrivilege.ALL, "index-1-1-*"),
+                group(fieldPermissions(new String[] { "f1", "f2" }, null),
                         Sets.newHashSet(new BytesArray("{foo}"), new BytesArray("{bar}")),
                         IndexPrivilege.READ, "index-2-*"));
 

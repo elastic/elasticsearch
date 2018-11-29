@@ -149,7 +149,8 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
                     final SubsetResult result = thisGroup.isSubsetOf(otherGroup);
                     if (result.result() == Result.YES) {
                         granted = true;
-                    } else if (result.result() == Result.MAYBE) {
+                        maybeGroupIndices.clear();
+                    } else if (granted == false && result.result() == Result.MAYBE) {
                         maybeGroupIndices = Sets.union(maybeGroupIndices, result.setOfIndexNamesForCombiningDLSQueries());
                         granted = true;
                     }

@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -416,7 +417,7 @@ public class ApiKeyService {
                             && indicesPriv.getQuery() != null) {
                         final String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(indicesPriv.getQuery().utf8ToString(),
                                 scriptService, user);
-                        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
+                        try (XContentParser parser = XContentFactory.xContent(templateResult).createParser(xContentRegistry,
                                 LoggingDeprecationHandler.INSTANCE, templateResult)) {
                             parentFilterQueryBuilder.should(AbstractQueryBuilder.parseInnerQueryBuilder(parser));
                         }
@@ -434,7 +435,7 @@ public class ApiKeyService {
                     if (Sets.newHashSet(ip.getIndices()).equals(indexNamePattern) && ip.getQuery() != null) {
                         final String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(ip.getQuery().utf8ToString(),
                                 scriptService, user);
-                        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
+                        try (XContentParser parser = XContentFactory.xContent(templateResult).createParser(xContentRegistry,
                                 LoggingDeprecationHandler.INSTANCE, templateResult)) {
                             outerBoolQueryBuilder.should(AbstractQueryBuilder.parseInnerQueryBuilder(parser));
                         }

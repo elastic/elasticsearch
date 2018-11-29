@@ -456,10 +456,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
 
-        authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
-                anonymousUser, tokenService, apiKeyService));
-        components.add(authcService.get());
-
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
         components.add(privilegeStore);
 
@@ -486,6 +482,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService,
                 authzService, scriptService, xContentRegistry);
         components.add(apiKeyService);
+
+        // TODO: remove depedency of api key service on authz service, till that time.
+        authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
+                anonymousUser, tokenService, apiKeyService));
+        components.add(authcService.get());
 
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());

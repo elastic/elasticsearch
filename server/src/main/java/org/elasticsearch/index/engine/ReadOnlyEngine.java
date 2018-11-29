@@ -419,4 +419,9 @@ public class ReadOnlyEngine extends Engine {
     protected void processReaders(IndexReader reader, IndexReader previousReader) {
         searcherFactory.processReaders(reader, previousReader);
     }
+
+    @Override
+    public boolean refreshNeeded() {
+        return false;
+    }
 }

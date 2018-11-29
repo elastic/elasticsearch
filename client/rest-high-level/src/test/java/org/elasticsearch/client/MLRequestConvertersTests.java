@@ -28,10 +28,13 @@ import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.FindFileStructureRequest;
+import org.elasticsearch.client.ml.FindFileStructureRequestTests;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
@@ -47,6 +50,7 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
@@ -69,6 +73,7 @@ import org.elasticsearch.client.ml.calendars.ScheduledEvent;
 import org.elasticsearch.client.ml.calendars.ScheduledEventTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
+import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
@@ -87,6 +92,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -177,6 +183,14 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + ",otherjobs*/_close", request.getEndpoint());
         assertEquals("{\"job_id\":\"somejobid,otherjobs*\",\"timeout\":\"10m\",\"force\":true,\"allow_no_jobs\":false}",
             requestEntityToString(request));
+    }
+
+    public void testDeleteExpiredData() {
+        DeleteExpiredDataRequest deleteExpiredDataRequest = new DeleteExpiredDataRequest();
+
+        Request request = MLRequestConverters.deleteExpiredData(deleteExpiredDataRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/_delete_expired_data", request.getEndpoint());
     }
 
     public void testDeleteJob() {
@@ -713,6 +727,95 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_xpack/ml/filters/foo"));
         assertNull(request.getEntity());
+    }
+
+    public void testMlInfo() {
+        MlInfoRequest infoRequest = new MlInfoRequest();
+
+        Request request = MLRequestConverters.mlInfo(infoRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/info"));
+        assertNull(request.getEntity());
+    }
+
+    public void testFindFileStructure() throws Exception {
+
+        String sample = randomAlphaOfLength(randomIntBetween(1000, 2000));
+        FindFileStructureRequest findFileStructureRequest = FindFileStructureRequestTests.createTestRequestWithoutSample();
+        findFileStructureRequest.setSample(sample.getBytes(StandardCharsets.UTF_8));
+        Request request = MLRequestConverters.findFileStructure(findFileStructureRequest);
+
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/find_file_structure", request.getEndpoint());
+        if (findFileStructureRequest.getLinesToSample() != null) {
+            assertEquals(findFileStructureRequest.getLinesToSample(), Integer.valueOf(request.getParameters().get("lines_to_sample")));
+        } else {
+            assertNull(request.getParameters().get("lines_to_sample"));
+        }
+        if (findFileStructureRequest.getTimeout() != null) {
+            assertEquals(findFileStructureRequest.getTimeout().toString(), request.getParameters().get("timeout"));
+        } else {
+            assertNull(request.getParameters().get("timeout"));
+        }
+        if (findFileStructureRequest.getCharset() != null) {
+            assertEquals(findFileStructureRequest.getCharset(), request.getParameters().get("charset"));
+        } else {
+            assertNull(request.getParameters().get("charset"));
+        }
+        if (findFileStructureRequest.getFormat() != null) {
+            assertEquals(findFileStructureRequest.getFormat(), FileStructure.Format.fromString(request.getParameters().get("format")));
+        } else {
+            assertNull(request.getParameters().get("format"));
+        }
+        if (findFileStructureRequest.getColumnNames() != null) {
+            assertEquals(findFileStructureRequest.getColumnNames(),
+                Arrays.asList(Strings.splitStringByCommaToArray(request.getParameters().get("column_names"))));
+        } else {
+            assertNull(request.getParameters().get("column_names"));
+        }
+        if (findFileStructureRequest.getHasHeaderRow() != null) {
+            assertEquals(findFileStructureRequest.getHasHeaderRow(), Boolean.valueOf(request.getParameters().get("has_header_row")));
+        } else {
+            assertNull(request.getParameters().get("has_header_row"));
+        }
+        if (findFileStructureRequest.getDelimiter() != null) {
+            assertEquals(findFileStructureRequest.getDelimiter().toString(), request.getParameters().get("delimiter"));
+        } else {
+            assertNull(request.getParameters().get("delimiter"));
+        }
+        if (findFileStructureRequest.getQuote() != null) {
+            assertEquals(findFileStructureRequest.getQuote().toString(), request.getParameters().get("quote"));
+        } else {
+            assertNull(request.getParameters().get("quote"));
+        }
+        if (findFileStructureRequest.getShouldTrimFields() != null) {
+            assertEquals(findFileStructureRequest.getShouldTrimFields(),
+                Boolean.valueOf(request.getParameters().get("should_trim_fields")));
+        } else {
+            assertNull(request.getParameters().get("should_trim_fields"));
+        }
+        if (findFileStructureRequest.getGrokPattern() != null) {
+            assertEquals(findFileStructureRequest.getGrokPattern(), request.getParameters().get("grok_pattern"));
+        } else {
+            assertNull(request.getParameters().get("grok_pattern"));
+        }
+        if (findFileStructureRequest.getTimestampFormat() != null) {
+            assertEquals(findFileStructureRequest.getTimestampFormat(), request.getParameters().get("timestamp_format"));
+        } else {
+            assertNull(request.getParameters().get("timestamp_format"));
+        }
+        if (findFileStructureRequest.getTimestampField() != null) {
+            assertEquals(findFileStructureRequest.getTimestampField(), request.getParameters().get("timestamp_field"));
+        } else {
+            assertNull(request.getParameters().get("timestamp_field"));
+        }
+        if (findFileStructureRequest.getExplain() != null) {
+            assertEquals(findFileStructureRequest.getExplain(), Boolean.valueOf(request.getParameters().get("explain")));
+        } else {
+            assertNull(request.getParameters().get("explain"));
+        }
+        assertEquals(sample, requestEntityToString(request));
     }
 
     private static Job createValidJob(String jobId) {

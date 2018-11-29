@@ -203,7 +203,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         }
     }
 
-    private static final class CachedScorable extends Scorable {
+    private static class CachedScorable extends Scorable {
         int doc;
         float score;
 

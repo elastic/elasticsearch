@@ -34,6 +34,27 @@ import static org.hamcrest.CoreMatchers.sameInstance;
 
 public class FuzzinessTests extends ESTestCase {
 
+    public void testFromString() {
+        assertSame(Fuzziness.AUTO, Fuzziness.fromString("AUTO"));
+        assertSame(Fuzziness.AUTO, Fuzziness.fromString("auto"));
+        assertSame(Fuzziness.ZERO, Fuzziness.fromString("0"));
+        assertSame(Fuzziness.ZERO, Fuzziness.fromString("0.0"));
+        assertSame(Fuzziness.ONE, Fuzziness.fromString("1"));
+        assertSame(Fuzziness.ONE, Fuzziness.fromString("1.0"));
+        assertSame(Fuzziness.TWO, Fuzziness.fromString("2"));
+        assertSame(Fuzziness.TWO, Fuzziness.fromString("2.0"));
+
+        // cases that should throw exceptions
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> Fuzziness.fromString(null));
+        assertEquals("fuzziness cannot be null or empty.", ex.getMessage());
+        ex = expectThrows(IllegalArgumentException.class, () -> Fuzziness.fromString(""));
+        assertEquals("fuzziness cannot be null or empty.", ex.getMessage());
+        ex = expectThrows(IllegalArgumentException.class, () -> Fuzziness.fromString("foo"));
+        assertEquals("fuzziness cannot be [foo].", ex.getMessage());
+        ex = expectThrows(IllegalArgumentException.class, () -> Fuzziness.fromString("1.2"));
+        assertEquals("fuzziness needs to be one of 0.0, 1.0 or 2.0 but was 1.2", ex.getMessage());
+    }
+
     public void testNumericConstants() {
         assertSame(Fuzziness.ZERO, Fuzziness.fromEdits(0));
         assertSame(Fuzziness.ZERO, Fuzziness.fromString("0"));

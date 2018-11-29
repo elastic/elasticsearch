@@ -98,7 +98,11 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
         } else {
             // should be a float or int representing a valid edit distance, otherwise throw error
             try {
-                return fromEdits((int) Float.parseFloat(upperCase));
+                float parsedFloat = Float.parseFloat(upperCase);
+                if (parsedFloat % 1 > 0) {
+                    throw new IllegalArgumentException("fuzziness needs to be one of 0.0, 1.0 or 2.0 but was " + parsedFloat);
+                }
+                return fromEdits((int) parsedFloat);
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("fuzziness cannot be [" + fuzzinessString + "].", e);
             }

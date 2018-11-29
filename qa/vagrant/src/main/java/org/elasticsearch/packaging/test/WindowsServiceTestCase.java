@@ -88,9 +88,6 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         assertThat(result.stdout, containsString("Name        : " + id));
         assertThat(result.stdout, containsString("Status      : " + status));
         assertThat(result.stdout, containsString("DisplayName : " + displayName));
-        /*System.out.println("SERVICE INFO");
-        System.out.println("stdout: \n" + result.stdout);
-        System.out.println("stderr: \n" + result.stderr);*/
     }
 
     // runs the service command, dumping all log files on failure

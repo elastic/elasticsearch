@@ -69,7 +69,7 @@ public class HipChatService extends NotificationService<HipChatAccount> {
     private HipChatServer defaultServer;
 
     public HipChatService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
-        super("hipchat", settings, clusterSettings, getDynamicSettings());
+        super("hipchat", settings, clusterSettings, HipChatService.getDynamicSettings(), HipChatService.getSecureSettings());
         this.httpClient = httpClient;
         // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
@@ -105,9 +105,13 @@ public class HipChatService extends NotificationService<HipChatAccount> {
                 SETTING_DEFAULT_HOST, SETTING_DEFAULT_PORT, SETTING_HOST, SETTING_PORT);
     }
 
+    private static List<Setting<?>> getSecureSettings() {
+        return Arrays.asList(SETTING_AUTH_TOKEN_SECURE);
+    }
+
     public static List<Setting<?>> getSettings() {
         List<Setting<?>> allSettings = new ArrayList<Setting<?>>(getDynamicSettings());
-        allSettings.add(SETTING_AUTH_TOKEN_SECURE);
+        allSettings.addAll(getSecureSettings());
         return allSettings;
     }
 }

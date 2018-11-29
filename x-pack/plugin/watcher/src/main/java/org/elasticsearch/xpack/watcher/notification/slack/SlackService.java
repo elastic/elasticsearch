@@ -44,7 +44,7 @@ public class SlackService extends NotificationService<SlackAccount> {
     private final HttpClient httpClient;
 
     public SlackService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
-        super("slack", settings, clusterSettings, getDynamicSettings());
+        super("slack", settings, clusterSettings, SlackService.getDynamicSettings(), SlackService.getSecureSettings());
         this.httpClient = httpClient;
         // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
@@ -63,9 +63,13 @@ public class SlackService extends NotificationService<SlackAccount> {
         return Arrays.asList(SETTING_URL, SETTING_DEFAULT_ACCOUNT, SETTING_DEFAULTS);
     }
 
+    private static List<Setting<?>> getSecureSettings() {
+        return Arrays.asList(SETTING_URL_SECURE);
+    }
+
     public static List<Setting<?>> getSettings() {
         List<Setting<?>> allSettings = new ArrayList<Setting<?>>(getDynamicSettings());
-        allSettings.add(SETTING_URL_SECURE);
+        allSettings.addAll(getSecureSettings());
         return allSettings;
     }
 }

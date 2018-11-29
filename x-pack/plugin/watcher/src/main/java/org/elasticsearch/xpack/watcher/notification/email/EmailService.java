@@ -110,7 +110,7 @@ public class EmailService extends NotificationService<Account> {
     private final CryptoService cryptoService;
 
     public EmailService(Settings settings, @Nullable CryptoService cryptoService, ClusterSettings clusterSettings) {
-        super("email", settings, clusterSettings, getDynamicSettings());
+        super("email", settings, clusterSettings, EmailService.getDynamicSettings(), EmailService.getSecureSettings());
         this.cryptoService = cryptoService;
         // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
@@ -187,9 +187,13 @@ public class EmailService extends NotificationService<Account> {
                 SETTING_SMTP_LOCAL_PORT, SETTING_SMTP_SEND_PARTIAL, SETTING_SMTP_WAIT_ON_QUIT, SETTING_SMTP_SSL_TRUST_ADDRESS);
     }
 
+    private static List<Setting<?>> getSecureSettings() {
+        return Arrays.asList(SETTING_SECURE_PASSWORD);
+    }
+
     public static List<Setting<?>> getSettings() {
-        List<Setting<?>> allSettings = new ArrayList<Setting<?>>(getDynamicSettings());
-        allSettings.add(SETTING_SECURE_PASSWORD);
+        List<Setting<?>> allSettings = new ArrayList<Setting<?>>(EmailService.getDynamicSettings());
+        allSettings.addAll(EmailService.getSecureSettings());
         return allSettings;
     }
 

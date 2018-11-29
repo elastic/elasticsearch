@@ -63,7 +63,7 @@ public class JiraService extends NotificationService<JiraAccount> {
     private final HttpClient httpClient;
 
     public JiraService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
-        super("jira", settings, clusterSettings, getDynamicSettings());
+        super("jira", settings, clusterSettings, JiraService.getDynamicSettings(), JiraService.getSecureSettings());
         this.httpClient = httpClient;
         // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
@@ -85,11 +85,13 @@ public class JiraService extends NotificationService<JiraAccount> {
         return Arrays.asList(SETTING_DEFAULT_ACCOUNT, SETTING_ALLOW_HTTP, SETTING_URL, SETTING_USER, SETTING_PASSWORD, SETTING_DEFAULTS);
     }
 
+    private static List<Setting<?>> getSecureSettings() {
+        return Arrays.asList(SETTING_SECURE_USER, SETTING_SECURE_PASSWORD, SETTING_SECURE_URL);
+    }
+
     public static List<Setting<?>> getSettings() {
         List<Setting<?>> allSettings = new ArrayList<Setting<?>>(getDynamicSettings());
-        allSettings.add(SETTING_SECURE_USER);
-        allSettings.add(SETTING_SECURE_PASSWORD);
-        allSettings.add(SETTING_SECURE_URL);
+        allSettings.addAll(getSecureSettings());
         return allSettings;
     }
 }

@@ -33,6 +33,7 @@ public abstract class NotificationService<Account> {
     private final String type;
     private final Logger logger;
     private final Settings bootSettings;
+    private final List<Setting<?>> pluginSecureSettings;
     // all are guarded by this
     private volatile Map<String, Account> accounts;
     private volatile Account defaultAccount;
@@ -43,17 +44,19 @@ public abstract class NotificationService<Account> {
     // using the new updated cluster settings
     private volatile SecureSettings cachedSecureSettings;
 
-    public NotificationService(String type, Settings settings, ClusterSettings clusterSettings, List<Setting<?>> pluginClusterSettings) {
-        this(type, settings);
+    public NotificationService(String type, Settings settings, ClusterSettings clusterSettings, List<Setting<?>> pluginDynamicSettings,
+            List<Setting<?>> pluginSecureSettings) {
+        this(type, settings, pluginSecureSettings);
         // register a grand updater for the whole group, as settings are usable together
-        clusterSettings.addSettingsUpdateConsumer(this::clusterSettingsConsumer, pluginClusterSettings);
+        clusterSettings.addSettingsUpdateConsumer(this::clusterSettingsConsumer, pluginDynamicSettings);
     }
 
     // Used for testing only
-    NotificationService(String type, Settings settings) {
+    NotificationService(String type, Settings settings, List<Setting<?>> pluginSecureSettings) {
         this.type = type;
         this.logger = LogManager.getLogger();
         this.bootSettings = settings;
+        this.pluginSecureSettings = pluginSecureSettings;
     }
 
     private synchronized void clusterSettingsConsumer(Settings settings) {
@@ -68,7 +71,7 @@ public abstract class NotificationService<Account> {
         // `SecureSettings` are available here! cache them as they will be needed
         // whenever dynamic cluster settings change and we have to rebuild the accounts
         try {
-            this.cachedSecureSettings = extractSecureSettings(settings);
+            this.cachedSecureSettings = extractSecureSettings(settings, pluginSecureSettings);
         } catch (GeneralSecurityException e) {
             logger.error("Keystore exception while reloading watcher notification service", e);
             return;
@@ -159,25 +162,30 @@ public abstract class NotificationService<Account> {
     }
 
     /**
-     * Extracts the {@link SecureSettings}` out of the passed in {@link Settings} object. The
-     * {@code Setting} argument has to have the {@code SecureSettings} open/available. Normally
-     * {@code SecureSettings} are available only under specific callstacks (eg. during node
-     * initialization or during a `reload` call). The returned copy can be reused freely as it
-     * will never be closed (this is a bit of cheating, but it is necessary in this specific
-     * circumstance). Only works for secure settings of type string (not file). 
+     * Extracts the {@link SecureSettings}` out of the passed in {@link Settings} object. The {@code Setting} argument has to have the
+     * {@code SecureSettings} open/available. Normally {@code SecureSettings} are available only under specific callstacks (eg. during node
+     * initialization or during a `reload` call). The returned copy can be reused freely as it will never be closed (this is a bit of
+     * cheating, but it is necessary in this specific circumstance). Only works for secure settings of type string (not file).
      * 
      * @param source
      *            A {@code Settings} object with its {@code SecureSettings} open/available.
+     * @param securePluginSettings
+     *            The list of settings to copy.
      * @return A copy of the {@code SecureSettings} of the passed in {@code Settings} argument.
      */
-    private static SecureSettings extractSecureSettings(Settings source) throws GeneralSecurityException {
+    private static SecureSettings extractSecureSettings(Settings source, List<Setting<?>> securePluginSettings)
+            throws GeneralSecurityException {
         // get the secure settings out
         final SecureSettings sourceSecureSettings = Settings.builder().put(source, true).getSecureSettings();
-        // cache them...
+        // filter and cache them...
         final Map<String, SecureString> cache = new HashMap<>();
-        if (sourceSecureSettings != null) {
+        if (sourceSecureSettings != null && securePluginSettings != null) {
             for (final String settingKey : sourceSecureSettings.getSettingNames()) {
-                cache.put(settingKey, sourceSecureSettings.getString(settingKey));
+                for (final Setting<?> secureSetting : securePluginSettings) {
+                    if (secureSetting.match(settingKey)) {
+                        cache.put(settingKey, sourceSecureSettings.getString(settingKey));
+                    }
+                }
             }
         }
         return new SecureSettings() {

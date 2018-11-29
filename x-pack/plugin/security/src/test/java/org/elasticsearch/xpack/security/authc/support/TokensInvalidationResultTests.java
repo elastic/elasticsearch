@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -13,40 +14,57 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 
+import java.util.Arrays;
+import java.util.Collections;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class TokensInvalidationResultTests extends ESTestCase {
 
     public void testToXcontent() throws Exception{
-        TokensInvalidationResult result =
-            new TokensInvalidationResult(
-                new String[]{"tokens1", "tokens2"}, new String[]{"tokens3", "tokens4"}, new String[]{"error1", "error2"}, 0);
+        TokensInvalidationResult result = new TokensInvalidationResult(new String[]{"token1", "token2"}, new String[]{"token3", "token4"},
+            Arrays.asList(new ElasticsearchException("foo", new IllegalStateException("bar")),
+                new ElasticsearchException("boo", new IllegalStateException("far"))),
+            randomIntBetween(0, 5));
+
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertThat(Strings.toString(builder),
                 equalTo(
                     "{\"invalidated_tokens\":2," +
-                             "\"prev_invalidated_tokens\":2," +
-                             "\"errors\":" +
-                               "{\"size\":2," +
-                                 "\"error_messages\":" +
-                                 "[\"error1\"," +
-                                   "\"error2\"]" +
-                               "}" +
-                            "}"));
+                        "\"previously_invalidated_tokens\":2," +
+                        "\"errors\":{" +
+                        "\"size\":2," +
+                        "\"error_details\":[" +
+                        "{\"type\":\"exception\"," +
+                        "\"reason\":\"foo\"," +
+                        "\"caused_by\":{" +
+                        "\"type\":\"illegal_state_exception\"," +
+                        "\"reason\":\"bar\"" +
+                        "}" +
+                        "}," +
+                        "{\"type\":\"exception\"," +
+                        "\"reason\":\"boo\"," +
+                        "\"caused_by\":{" +
+                        "\"type\":\"illegal_state_exception\"," +
+                        "\"reason\":\"far\"" +
+                        "}" +
+                        "}" +
+                        "]" +
+                        "}" +
+                        "}"));
         }
     }
 
     public void testToXcontentWithNoErrors() throws Exception{
-        TokensInvalidationResult result =
-            new TokensInvalidationResult(
-                new String[]{"tokens1", "tokens2"}, new String[]{"tokens3", "tokens4"}, new String[0], 0);
+        TokensInvalidationResult result = new TokensInvalidationResult(new String[]{"token1", "token2"}, new String[]{"token3", "token4"},
+            Collections.emptyList(), randomIntBetween(0, 5));
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertThat(Strings.toString(builder),
                 equalTo(
                     "{\"invalidated_tokens\":2," +
-                             "\"prev_invalidated_tokens\":2," +
+                             "\"previously_invalidated_tokens\":2," +
                              "\"errors\":" +
                                "{\"size\":0}" +
                              "}"));

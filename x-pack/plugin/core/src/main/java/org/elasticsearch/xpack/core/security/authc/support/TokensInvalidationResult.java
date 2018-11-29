@@ -6,14 +6,19 @@
 
 package org.elasticsearch.xpack.core.security.authc.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -27,83 +32,119 @@ import java.util.Objects;
 public class TokensInvalidationResult implements ToXContentObject {
 
     private final String[] invalidatedTokens;
-    private final String[] prevInvalidatedTokens;
-    private final String[] errors;
-    private final int attemptCounter;
+    private final String[] previouslyInvalidatedTokens;
+    private final List<ElasticsearchException> errors;
+    private final int attemptCount;
 
-
-    public TokensInvalidationResult(String[] invalidatedTokens, String[] notInvalidatedTokens,
-                                    @Nullable String[] errors, int attemptCounter) {
+    public TokensInvalidationResult(String[] invalidatedTokens, String[] previouslyInvalidatedTokens,
+                                    @Nullable List<ElasticsearchException> errors, int attemptCount) {
         Objects.requireNonNull(invalidatedTokens, "invalidated_tokens must be provided");
         this.invalidatedTokens = invalidatedTokens;
-        Objects.requireNonNull(notInvalidatedTokens, "not_invalidated_must be provided");
-        this.prevInvalidatedTokens = notInvalidatedTokens;
+        Objects.requireNonNull(previouslyInvalidatedTokens, "previously_invalidated_tokens must be provided");
+        this.previouslyInvalidatedTokens = previouslyInvalidatedTokens;
         if (null != errors) {
             this.errors = errors;
         } else {
-            this.errors = new String[0];
+            this.errors = Collections.emptyList();
         }
-        this.attemptCounter = attemptCounter;
+        this.attemptCount = attemptCount;
     }
 
-    public static TokensInvalidationResult emptyResult(){
-        return new TokensInvalidationResult(new String[0], new String[0], new String[0], 0);
+    public static TokensInvalidationResult emptyResult() {
+        return new TokensInvalidationResult(new String[0], new String[0], Collections.emptyList(), 0);
+    }
+
+    public static TokensInvalidationResult emptyResultWithCounter(int attemptCount) {
+        return new TokensInvalidationResult(new String[0], new String[0], Collections.emptyList(), attemptCount);
     }
 
     public String[] getInvalidatedTokens() {
         return invalidatedTokens;
     }
 
-    public String[] getPrevInvalidatedTokens() {
-        return prevInvalidatedTokens;
+    public String[] getPreviouslyInvalidatedTokens() {
+        return previouslyInvalidatedTokens;
     }
 
-    public String[] getErrors() {
+    public List<ElasticsearchException> getErrors() {
         return errors;
     }
 
-    public int getAttemptCounter() {
-        return attemptCounter;
+    public int getAttemptCount() {
+        return attemptCount;
     }
 
     public static void writeTo(TokensInvalidationResult result, StreamOutput out) throws IOException {
         out.writeVInt(result.getInvalidatedTokens().length);
         out.writeStringArray(result.getInvalidatedTokens());
-        out.writeVInt(result.getPrevInvalidatedTokens().length);
-        out.writeStringArray(result.getPrevInvalidatedTokens());
-        out.writeVInt(result.getErrors().length);
-        out.writeStringArray(result.getErrors());
-        out.writeVInt(result.getAttemptCounter());
+        out.writeVInt(result.getPreviouslyInvalidatedTokens().length);
+        out.writeStringArray(result.getPreviouslyInvalidatedTokens());
+        out.writeVInt(result.getErrors().size());
+        for (Exception e : result.getErrors()) {
+            out.writeException(e);
+        }
+        out.writeVInt(result.getAttemptCount());
     }
 
     public static TokensInvalidationResult readFrom(StreamInput in) throws IOException {
         int invalidatedTokensSize = in.readVInt();
         String[] invalidatedTokens = in.readStringArray();
-        int prevInvalidatedTokensSize = in.readVInt();
-        String[] prevUnvalidatedTokens = in.readStringArray();
+        int previouslyInvalidatedTokensSize = in.readVInt();
+        String[] previouslyUnvalidatedTokens = in.readStringArray();
         int errorsSize = in.readVInt();
-        String[] errors = in.readStringArray();
+        List<ElasticsearchException> errors = new ArrayList<>(errorsSize);
+        for (int i = 0; i < errorsSize; i++) {
+            errors.add(in.readException());
+        }
         int attemptCounter = in.readVInt();
-        return new TokensInvalidationResult(invalidatedTokens, prevUnvalidatedTokens, errors, attemptCounter);
+        return new TokensInvalidationResult(invalidatedTokens, previouslyUnvalidatedTokens, errors, attemptCounter);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
             .field("invalidated_tokens", invalidatedTokens.length)
-            .field("prev_invalidated_tokens", prevInvalidatedTokens.length)
+            .field("previously_invalidated_tokens", previouslyInvalidatedTokens.length)
             .startObject("errors")
-            .field("size", errors.length);
-        if (errors.length > 0) {
-            builder.field("error_messages");
+            .field("size", errors.size());
+        if (errors.isEmpty() == false) {
+            builder.field("error_details");
             builder.startArray();
-            for (String error : errors) {
-                builder.value(error);
+            for (ElasticsearchException e : errors) {
+                builder.startObject();
+                e.toXContent(builder, params);
+                builder.endObject();
             }
             builder.endArray();
         }
-        builder.endObject()
-            .endObject();
-        return builder;
+        builder.endObject();
+        return builder.endObject();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TokensInvalidationResult that = (TokensInvalidationResult) o;
+        if (errors.size() != that.errors.size()) {
+            return false;
+        }
+        for (Exception e : errors) {
+            // ElasticsearchException#toString contains the class name and the detailed message
+            if (that.errors.stream().anyMatch(e1 -> e1.toString().equals(e.toString())) == false) {
+                return false;
+            }
+        }
+        return attemptCount == that.attemptCount &&
+            Arrays.equals(invalidatedTokens, that.invalidatedTokens) &&
+            Arrays.equals(previouslyInvalidatedTokens, that.previouslyInvalidatedTokens);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(errors, attemptCount);
+        result = 31 * result + Arrays.hashCode(invalidatedTokens);
+        result = 31 * result + Arrays.hashCode(previouslyInvalidatedTokens);
+        return result;
     }
 }

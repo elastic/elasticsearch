@@ -145,8 +145,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
                 .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().length, equalTo(1));
-        assertThat(invalidateResponse.getResult().getPrevInvalidatedTokens().length, equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().length, equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().length, equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
             SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
@@ -209,8 +209,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .setUserName(SecuritySettingsSource.TEST_USER_NAME)
             .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().length, equalTo(2 * (numOfRequests)));
-        assertThat(invalidateResponse.getResult().getPrevInvalidatedTokens().length, equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().length, equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().length, equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
     }
 
     public void testInvalidateAllTokensForRealm() throws Exception{
@@ -231,8 +231,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .setRealmName("file")
             .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().length, equalTo(2 * (numOfRequests)));
-        assertThat(invalidateResponse.getResult().getPrevInvalidatedTokens().length, equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().length, equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().length, equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
     }
 
     public void testInvalidateAllTokensForRealmThatHasNone() {
@@ -253,8 +253,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .setRealmName("saml")
             .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().length, equalTo(0));
-        assertThat(invalidateResponse.getResult().getPrevInvalidatedTokens().length, equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().length, equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().length, equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
     }
 
     public void testExpireMultipleTimes() {
@@ -269,15 +269,15 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
                 .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().length, equalTo(1));
-        assertThat(invalidateResponse.getResult().getPrevInvalidatedTokens().length, equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().length, equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().length, equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
         InvalidateTokenResponse invalidateAgainResponse = securityClient()
             .prepareInvalidateToken(response.getTokenString())
             .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
             .get();
         assertThat(invalidateAgainResponse.getResult().getInvalidatedTokens().length, equalTo(0));
-        assertThat(invalidateAgainResponse.getResult().getPrevInvalidatedTokens().length, equalTo(1));
-        assertThat(invalidateAgainResponse.getResult().getErrors().length, equalTo(0));
+        assertThat(invalidateAgainResponse.getResult().getPreviouslyInvalidatedTokens().length, equalTo(1));
+        assertThat(invalidateAgainResponse.getResult().getErrors().size(), equalTo(0));
     }
 
     public void testRefreshingToken() {
@@ -321,8 +321,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
                 .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().length, equalTo(1));
-        assertThat(invalidateResponse.getResult().getPrevInvalidatedTokens().length, equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().length, equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().length, equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
                 () -> securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
@@ -439,8 +439,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             new InvalidateTokenRequest(createTokenResponse.getTokenString(), InvalidateTokenRequest.Type.ACCESS_TOKEN.getValue());
         securityClient.invalidateToken(invalidateTokenRequest, invalidateResponseFuture);
         assertThat(invalidateResponseFuture.get().getResult().getInvalidatedTokens().length, equalTo(1));
-        assertThat(invalidateResponseFuture.get().getResult().getPrevInvalidatedTokens().length, equalTo(0));
-        assertThat(invalidateResponseFuture.get().getResult().getErrors().length, equalTo(0));
+        assertThat(invalidateResponseFuture.get().getResult().getPreviouslyInvalidatedTokens().length, equalTo(0));
+        assertThat(invalidateResponseFuture.get().getResult().getErrors().size(), equalTo(0));
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
             PlainActionFuture<AuthenticateResponse> responseFuture = new PlainActionFuture<>();

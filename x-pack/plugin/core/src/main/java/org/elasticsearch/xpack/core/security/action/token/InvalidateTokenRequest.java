@@ -82,26 +82,21 @@ public final class InvalidateTokenRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (Strings.hasText(realmName)) {
+        if (Strings.hasText(realmName) || Strings.hasText(userName)) {
             if (Strings.hasText(tokenString)) {
-                validationException = addValidationError("token string must not be provided when realm name is specified", null);
+                validationException =
+                    addValidationError("token string must not be provided when realm name or username is specified", null);
             }
             if (tokenType != null) {
-                validationException = addValidationError("token type must not be provided when realm name is specified", null);
-            }
-        } else if (Strings.hasText(userName)) {
-            if (Strings.hasText(tokenString)) {
-                validationException = addValidationError("token string must not be provided when username is specified", null);
-            }
-            if (tokenType != null) {
-                validationException = addValidationError("token type must not be provided when username is specified", null);
+                validationException =
+                    addValidationError("token type must not be provided when realm name or username is specified", validationException);
             }
         } else {
             if (Strings.isNullOrEmpty(tokenString)) {
                 validationException =
                     addValidationError("token string must be provided when not specifying a realm name or a username", null);
             }
-            if (tokenType == null) {
+            else if (tokenType == null) {
                 validationException =
                     addValidationError("token type must be provided when a token string is specified", null);
             }
@@ -144,31 +139,52 @@ public final class InvalidateTokenRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalString(tokenString);
+        if (out.getVersion().before(Version.V_7_0_0)) {
+            out.writeString(tokenString);
+        } else {
+            out.writeOptionalString(tokenString);
+        }
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeOptionalVInt(tokenType == null ? null : tokenType.ordinal());
+            if (out.getVersion().before(Version.V_7_0_0)) {
+                if (tokenType == null) {
+                    throw new IllegalArgumentException("token type is not optional for versions > v6.2.0 and < v6.6.0");
+                }
+                out.writeVInt(tokenType.ordinal());
+            } else {
+                out.writeOptionalVInt(tokenType == null ? null : tokenType.ordinal());
+            }
         } else if (tokenType == Type.REFRESH_TOKEN) {
             throw new IllegalArgumentException("refresh token invalidation cannot be serialized with version [" + out.getVersion() + "]");
         }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeOptionalString(realmName);
             out.writeOptionalString(userName);
-        } else {
-            throw new IllegalArgumentException("realm token invalidation cannot be serialized with version [" + out.getVersion() + "]");
+        } else if (realmName != null || userName != null) {
+            throw new IllegalArgumentException(
+                "realm or user token invalidation cannot be serialized with version [" + out.getVersion() + "]");
         }
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        tokenString = in.readOptionalString();
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            tokenString = in.readString();
+        } else {
+            tokenString = in.readOptionalString();
+        }
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            Integer type = in.readOptionalVInt();
-            tokenType = type == null ? null : Type.values()[type];
+            if (in.getVersion().before(Version.V_7_0_0)) {
+                int type = in.readVInt();
+                tokenType = Type.values()[type];
+            } else {
+                Integer type = in.readOptionalVInt();
+                tokenType = type == null ? null : Type.values()[type];
+            }
         } else {
             tokenType = Type.ACCESS_TOKEN;
         }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             realmName = in.readOptionalString();
             userName = in.readOptionalString();
         }

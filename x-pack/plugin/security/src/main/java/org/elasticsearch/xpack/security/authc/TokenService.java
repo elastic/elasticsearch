@@ -591,9 +591,10 @@ public final class TokenService {
     private void invalidateAllTokens(Collection<String> accessTokenIds, ActionListener<TokensInvalidationResult> listener) {
         maybeStartTokenRemover();
         final long expirationEpochMilli = getExpirationTime().toEpochMilli();
-        // Invalidate the refresh tokens first
+        // Invalidate the refresh tokens first so that they cannot be used to get new
+        // access tokens while we invalidate the access tokens we currently know about
         indexInvalidation(accessTokenIds, ActionListener.wrap(result ->
-                indexBwcInvalidation(accessTokenIds, listener, new AtomicInteger(result.getAttemptCounter()),
+                indexBwcInvalidation(accessTokenIds, listener, new AtomicInteger(result.getAttemptCount()),
                     expirationEpochMilli, result),
             listener::onFailure), new AtomicInteger(0), "refresh_token", null);
     }
@@ -629,7 +630,8 @@ public final class TokenService {
             }
             bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
             final BulkRequest bulkRequest = bulkRequestBuilder.request();
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest,
+            securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", ex)),
+                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest,
                 ActionListener.<BulkResponse>wrap(bulkResponse -> {
                     List<String> retryTokenIds = new ArrayList<>();
                     for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
@@ -660,7 +662,7 @@ public final class TokenService {
                         listener.onFailure(e);
                     }
                 }),
-                client::bulk);
+                    client::bulk));
         }
     }
 
@@ -696,12 +698,12 @@ public final class TokenService {
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequestBuilder.request(),
                     ActionListener.<BulkResponse>wrap(bulkResponse -> {
                         ArrayList<String> retryTokenDocIds = new ArrayList<>();
-                        ArrayList<String> failedRequestResponses = new ArrayList<>();
+                        ArrayList<ElasticsearchException> failedRequestResponses = new ArrayList<>();
                         ArrayList<String> previouslyInvalidated = new ArrayList<>();
                         ArrayList<String> invalidated = new ArrayList<>();
                         if (null != previousResult) {
-                            failedRequestResponses.addAll(Arrays.asList(previousResult.getErrors()));
-                            previouslyInvalidated.addAll(Arrays.asList(previousResult.getPrevInvalidatedTokens()));
+                            failedRequestResponses.addAll((previousResult.getErrors()));
+                            previouslyInvalidated.addAll(Arrays.asList(previousResult.getPreviouslyInvalidatedTokens()));
                             invalidated.addAll(Arrays.asList(previousResult.getInvalidatedTokens()));
                         }
                         for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
@@ -711,7 +713,7 @@ public final class TokenService {
                                     retryTokenDocIds.add(getTokenIdFromDocumentId(bulkItemResponse.getFailure().getId()));
                                 }
                                 else {
-                                    failedRequestResponses.add("Error invalidating " + srcPrefix + ": " + cause.getMessage());
+                                    failedRequestResponses.add(new ElasticsearchException("Error invalidating " + srcPrefix + ": ", cause));
                                 }
                             } else {
                                 UpdateResponse updateResponse = bulkItemResponse.getResponse();
@@ -724,19 +726,12 @@ public final class TokenService {
                             }
                         }
                         if (retryTokenDocIds.isEmpty() == false) {
-                            TokensInvalidationResult incompleteResult =
-                                new TokensInvalidationResult(invalidated.toArray(new String[0]),
-                                    previouslyInvalidated.toArray(new String[0]),
-                                    failedRequestResponses.toArray(new String[0]),
-                                    attemptCount.get());
+                            TokensInvalidationResult incompleteResult = TokensInvalidationResult.emptyResultWithCounter(attemptCount.get());
                             attemptCount.incrementAndGet();
                             indexInvalidation(retryTokenDocIds, listener, attemptCount, srcPrefix, incompleteResult);
                         }
-                        TokensInvalidationResult result =
-                            new TokensInvalidationResult(invalidated.toArray(new String[0]),
-                                previouslyInvalidated.toArray(new String[0]),
-                                failedRequestResponses.toArray(new String[0]),
-                                attemptCount.get());
+                        TokensInvalidationResult result = TokensInvalidationResult.emptyResultWithCounter(attemptCount.get());
+                        attemptCount.incrementAndGet();
                         listener.onResponse(result);
                     }, e -> {
                         Throwable cause = ExceptionsHelper.unwrapCause(e);

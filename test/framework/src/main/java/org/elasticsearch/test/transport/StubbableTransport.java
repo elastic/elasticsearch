@@ -127,17 +127,28 @@ public final class StubbableTransport implements Transport {
     }
 
     @Override
-    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
         TransportAddress address = node.getAddress();
         OpenConnectionBehavior behavior = connectBehaviors.getOrDefault(address, defaultConnectBehavior);
-        Connection connection;
-        if (behavior == null) {
-            connection = delegate.openConnection(node, profile);
-        } else {
-            connection = behavior.openConnection(delegate, node, profile);
-        }
 
-        return new WrappedConnection(connection);
+        ActionListener<Connection> wrappedListener = new ActionListener<Connection>() {
+
+            @Override
+            public void onResponse(Connection connection) {
+                listener.onResponse(new WrappedConnection(connection));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        };
+
+        if (behavior == null) {
+            delegate.openConnection(node, profile, wrappedListener);
+        } else {
+            behavior.openConnection(delegate, node, profile, wrappedListener);
+        }
     }
 
     @Override
@@ -243,7 +254,9 @@ public final class StubbableTransport implements Transport {
 
     @FunctionalInterface
     public interface OpenConnectionBehavior {
-        Connection openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile);
+
+        void openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile,
+                            ActionListener<Connection> listener);
     }
 
     @FunctionalInterface

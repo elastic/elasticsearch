@@ -225,13 +225,13 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public Connection openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-            if (connectionProfile == null) {
+        public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+            if (profile == null) {
                 if (randomConnectionExceptions && randomBoolean()) {
-                    throw new ConnectTransportException(node, "simulated");
+                    listener.onFailure(new ConnectTransportException(node, "simulated"));
                 }
             }
-            Connection connection = new Connection() {
+            listener.onResponse(new Connection() {
                 @Override
                 public DiscoveryNode getNode() {
                     return node;
@@ -257,8 +257,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 public boolean isClosed() {
                     return false;
                 }
-            };
-            return connection;
+            });
         }
 
         @Override

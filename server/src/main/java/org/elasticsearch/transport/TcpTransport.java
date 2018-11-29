@@ -349,34 +349,23 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-        Objects.requireNonNull(connectionProfile, "connection profile cannot be null");
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
+        Objects.requireNonNull(profile, "connection profile cannot be null");
         if (node == null) {
             throw new ConnectTransportException(null, "can't open connection to a null node");
         }
-        connectionProfile = maybeOverrideConnectionProfile(connectionProfile);
+        profile = maybeOverrideConnectionProfile(profile);
         closeLock.readLock().lock(); // ensure we don't open connections while we are closing
         try {
             ensureOpen();
-            PlainActionFuture<NodeChannels> connectionFuture = PlainActionFuture.newFuture();
-            List<TcpChannel> pendingChannels = initiateConnection(node, connectionProfile, connectionFuture);
-
-            try {
-                return connectionFuture.actionGet();
-            } catch (IllegalStateException e) {
-                // If the future was interrupted we can close the channels to improve the shutdown of the MockTcpTransport
-                if (e.getCause() instanceof InterruptedException) {
-                    CloseableChannel.closeChannels(pendingChannels, false);
-                }
-                throw e;
-            }
+            List<TcpChannel> pendingChannels = initiateConnection(node, profile, listener);
         } finally {
             closeLock.readLock().unlock();
         }
     }
 
     private List<TcpChannel> initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                                ActionListener<NodeChannels> listener) {
+                                                ActionListener<Transport.Connection> listener) {
         int numConnections = connectionProfile.getNumConnections();
         assert numConnections > 0 : "A connection profile must be configured with at least one connection";
 
@@ -1581,11 +1570,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final DiscoveryNode node;
         private final ConnectionProfile connectionProfile;
         private final List<TcpChannel> channels;
-        private final ActionListener<NodeChannels> listener;
+        private final ActionListener<Transport.Connection> listener;
         private final CountDown countDown;
 
         private ChannelsConnectedListener(DiscoveryNode node, ConnectionProfile connectionProfile, List<TcpChannel> channels,
-                                          ActionListener<NodeChannels> listener) {
+                                          ActionListener<Transport.Connection> listener) {
             this.node = node;
             this.connectionProfile = connectionProfile;
             this.channels = channels;

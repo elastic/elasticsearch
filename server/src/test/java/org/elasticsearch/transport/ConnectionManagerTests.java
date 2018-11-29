@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
@@ -29,12 +30,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -82,7 +88,11 @@ public class ConnectionManagerTests extends ESTestCase {
 
         DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
         Transport.Connection connection = new TestConnect(node);
-        when(transport.openConnection(node, connectionProfile)).thenReturn(connection);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            listener.onResponse(connection);
+            return null;
+        }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));
 
         assertFalse(connectionManager.nodeConnected(node));
 
@@ -126,7 +136,11 @@ public class ConnectionManagerTests extends ESTestCase {
 
         DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
         Transport.Connection connection = new TestConnect(node);
-        when(transport.openConnection(node, connectionProfile)).thenReturn(connection);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            listener.onResponse(connection);
+            return null;
+        }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));
 
         assertFalse(connectionManager.nodeConnected(node));
 

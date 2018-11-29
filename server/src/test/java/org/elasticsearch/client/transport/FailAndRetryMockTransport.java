@@ -20,6 +20,7 @@
 package org.elasticsearch.client.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -79,8 +80,8 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     protected abstract ClusterState getMockClusterState(DiscoveryNode node);
 
     @Override
-    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-        return new CloseableConnection() {
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> connectionListener) {
+        connectionListener.onResponse(new CloseableConnection() {
 
             @Override
             public DiscoveryNode getNode() {
@@ -134,7 +135,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                     }
                 }
             }
-        };
+        });
     }
 
     protected abstract Response newResponse();

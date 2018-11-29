@@ -21,6 +21,7 @@ package org.elasticsearch.test.transport;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
@@ -99,7 +100,11 @@ public class CapturingTransport implements Transport {
         StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this, threadPool),
             settings, this, threadPool);
         connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> nodeConnected(discoveryNode));
-        connectionManager.setDefaultConnectBehavior((cm, discoveryNode) -> openConnection(discoveryNode, null));
+        connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> {
+            PlainActionFuture<Connection> future = PlainActionFuture.newFuture();
+            openConnection(discoveryNode, null, future);
+            return future.actionGet();
+        });
         return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
             connectionManager);
     }
@@ -223,8 +228,8 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-        return new Connection() {
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+        listener.onResponse(new Connection() {
             @Override
             public DiscoveryNode getNode() {
                 return node;
@@ -248,7 +253,7 @@ public class CapturingTransport implements Transport {
             @Override
             public void close() {
             }
-        };
+        });
     }
 
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {

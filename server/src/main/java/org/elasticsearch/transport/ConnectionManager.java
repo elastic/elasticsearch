@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.component.Lifecycle;
@@ -226,7 +227,9 @@ public class ConnectionManager implements Closeable {
     }
 
     private Transport.Connection internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-        Transport.Connection connection = transport.openConnection(node, connectionProfile);
+        PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+        transport.openConnection(node, connectionProfile, future);
+        Transport.Connection connection = future.actionGet();
         try {
             connectionListener.onConnectionOpened(connection);
         } finally {

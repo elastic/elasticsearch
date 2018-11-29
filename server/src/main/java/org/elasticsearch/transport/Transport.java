@@ -86,10 +86,10 @@ public interface Transport extends LifecycleComponent {
     }
 
     /**
-     * Opens a new connection to the given node and returns it. The returned connection is not managed by
-     * the transport implementation. This connection must be closed once it's not needed anymore.
+     * Opens a new connection to the given node. When the connection is fully connected, the listener is
+     * called.
      */
-    Connection openConnection(DiscoveryNode node, ConnectionProfile profile);
+    void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener);
 
     TransportStats getStats();
 

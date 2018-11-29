@@ -388,7 +388,7 @@ public class RepositoriesService implements ClusterStateApplier {
             closeRepository(repository);
             repository.close();
         } else {
-            logger.warn(() -> new ParameterizedMessage("Attempted to unregistering internal repository [{}][{}]. " +
+            logger.warn(() -> new ParameterizedMessage("Attempted to unregistered internal repository [{}][{}]. " +
                 "Repository could not found.", metadata.type(), name));
         }
     }

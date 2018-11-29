@@ -9,16 +9,12 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteInternalRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutInternalRepositoryAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
-import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 
 import java.util.List;
 import java.util.Set;
@@ -44,7 +40,8 @@ class CcrRepositoryManager extends RemoteClusterAware {
     protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress) {
         if (addresses.isEmpty()) {
             if (clusters.remove(clusterAlias)) {
-                DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request(clusterAlias);
+                DeleteInternalRepositoryAction.DeleteInternalRepositoryRequest request =
+                    new DeleteInternalRepositoryAction.DeleteInternalRepositoryRequest(clusterAlias);
                 client.execute(DeleteInternalRepositoryAction.INSTANCE, request);
             }
         } else {

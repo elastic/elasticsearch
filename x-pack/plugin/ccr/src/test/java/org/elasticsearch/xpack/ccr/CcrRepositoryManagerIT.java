@@ -4,13 +4,16 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.ccr.repository;
+package org.elasticsearch.xpack.ccr;
 
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
+import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -18,14 +21,15 @@ public class CcrRepositoryManagerIT extends CcrIntegTestCase {
 
     public void testThatRepositoryIsPutAndRemovedWhenRemoteClusterIsUpdated() throws Exception {
         assertBusy(() -> {
-            GetRepositoriesResponse response = followerClient()
-                .admin()
-                .cluster()
-                .prepareGetRepositories()
-                .get();
-            assertEquals(1, response.repositories().size());
-            assertEquals(CcrRepository.TYPE, response.repositories().get(0).type());
-            assertEquals("leader_cluster", response.repositories().get(0).name());
+            final RepositoriesService repositoriesService =
+                getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
+            try {
+                Repository repository = repositoriesService.repository("leader_cluster");
+                assertEquals(CcrRepository.TYPE, repository.getMetadata().type());
+                assertEquals("leader_cluster", repository.getMetadata().name());
+            } catch (RepositoryMissingException e) {
+                fail("need repository");
+            }
         });
 
         ClusterUpdateSettingsRequest putFollowerRequest = new ClusterUpdateSettingsRequest();
@@ -34,12 +38,15 @@ public class CcrRepositoryManagerIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().cluster().updateSettings(putFollowerRequest).actionGet());
 
         assertBusy(() -> {
-            GetRepositoriesResponse response = followerClient()
-                .admin()
-                .cluster()
-                .prepareGetRepositories()
-                .get();
-            assertEquals(2, response.repositories().size());
+            final RepositoriesService repositoriesService =
+                getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
+            try {
+                Repository repository = repositoriesService.repository("follower_cluster_copy");
+                assertEquals(CcrRepository.TYPE, repository.getMetadata().type());
+                assertEquals("follower_cluster_copy", repository.getMetadata().name());
+            } catch (RepositoryMissingException e) {
+                fail("need repository");
+            }
         });
 
         ClusterUpdateSettingsRequest deleteLeaderRequest = new ClusterUpdateSettingsRequest();
@@ -47,14 +54,9 @@ public class CcrRepositoryManagerIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().cluster().updateSettings(deleteLeaderRequest).actionGet());
 
         assertBusy(() -> {
-            GetRepositoriesResponse response = followerClient()
-                .admin()
-                .cluster()
-                .prepareGetRepositories()
-                .get();
-            assertEquals(1, response.repositories().size());
-            assertEquals(CcrRepository.TYPE, response.repositories().get(0).type());
-            assertEquals("follower_cluster_copy", response.repositories().get(0).name());
+            final RepositoriesService repositoriesService =
+                getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
+            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository("leader_cluster"));
         });
 
         ClusterUpdateSettingsRequest deleteFollowerRequest = new ClusterUpdateSettingsRequest();
@@ -62,12 +64,9 @@ public class CcrRepositoryManagerIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().cluster().updateSettings(deleteFollowerRequest).actionGet());
 
         assertBusy(() -> {
-            GetRepositoriesResponse response = followerClient()
-                .admin()
-                .cluster()
-                .prepareGetRepositories()
-                .get();
-            assertEquals(0, response.repositories().size());
+            final RepositoriesService repositoriesService =
+                getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
+            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository("follower_cluster_copy"));
         });
     }
 }

@@ -44,12 +44,17 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.core.MultiTermVectorsRequest;
+import org.elasticsearch.client.core.MultiTermVectorsResponse;
+import org.elasticsearch.client.core.TermVectorsRequest;
+import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.get.GetResult;
@@ -57,8 +62,6 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.index.reindex.ReindexAction;
-import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -72,7 +75,9 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -80,6 +85,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -197,6 +203,61 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             GetRequest getRequest = new GetRequest("index", "type", "does_not_exist").version(1);
             assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync,
                     highLevelClient()::exists, highLevelClient()::existsAsync));
+        }
+    }
+
+    public void testSourceExists() throws IOException {
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "id");
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+        IndexRequest index = new IndexRequest("index", "type", "id");
+        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", XContentType.JSON);
+        index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        highLevelClient().index(index, RequestOptions.DEFAULT);
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "id");
+            assertTrue(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "does_not_exist");
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "does_not_exist").version(1);
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+    }
+
+    public void testSourceDoesNotExist() throws IOException {
+        final String noSourceIndex = "no_source";
+        {
+            // Prepare
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            String mapping = "\"_doc\": { \"_source\": {\n" +
+                    "        \"enabled\": false\n" +
+                    "      }  }";
+            createIndex(noSourceIndex, settings, mapping);
+            assertEquals(
+                RestStatus.OK,
+                highLevelClient().bulk(
+                    new BulkRequest()
+                        .add(new IndexRequest(noSourceIndex, "_doc", "1")
+                            .source(Collections.singletonMap("foo", 1), XContentType.JSON))
+                        .add(new IndexRequest(noSourceIndex, "_doc", "2")
+                            .source(Collections.singletonMap("foo", 2), XContentType.JSON))
+                        .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
+                    RequestOptions.DEFAULT
+                ).status()
+            );
+        }
+        {
+            GetRequest getRequest = new GetRequest(noSourceIndex, "_doc", "1");
+            assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
     }
 
@@ -711,111 +772,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         validateBulkResponses(nbItems, errors, bulkResponse, bulkRequest);
     }
 
-    public void testReindex() throws Exception {
-        final String sourceIndex = "source1";
-        final String destinationIndex = "dest";
-        {
-            // Prepare
-            Settings settings = Settings.builder()
-                .put("number_of_shards", 1)
-                .put("number_of_replicas", 0)
-                .build();
-            createIndex(sourceIndex, settings);
-            createIndex(destinationIndex, settings);
-            BulkRequest bulkRequest = new BulkRequest()
-                    .add(new IndexRequest(sourceIndex, "type", "1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
-                    .add(new IndexRequest(sourceIndex, "type", "2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
-                    .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-            assertEquals(
-                RestStatus.OK,
-                highLevelClient().bulk(
-                    bulkRequest,
-                    RequestOptions.DEFAULT
-                ).status()
-            );
-        }
-        {
-            // test1: create one doc in dest
-            ReindexRequest reindexRequest = new ReindexRequest();
-            reindexRequest.setSourceIndices(sourceIndex);
-            reindexRequest.setDestIndex(destinationIndex);
-            reindexRequest.setSourceQuery(new IdsQueryBuilder().addIds("1").types("type"));
-            reindexRequest.setRefresh(true);
-            BulkByScrollResponse bulkResponse = execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync);
-            assertEquals(1, bulkResponse.getCreated());
-            assertEquals(1, bulkResponse.getTotal());
-            assertEquals(0, bulkResponse.getDeleted());
-            assertEquals(0, bulkResponse.getNoops());
-            assertEquals(0, bulkResponse.getVersionConflicts());
-            assertEquals(1, bulkResponse.getBatches());
-            assertTrue(bulkResponse.getTook().getMillis() > 0);
-            assertEquals(1, bulkResponse.getBatches());
-            assertEquals(0, bulkResponse.getBulkFailures().size());
-            assertEquals(0, bulkResponse.getSearchFailures().size());
-        }
-        {
-            // test2: create 1 and update 1
-            ReindexRequest reindexRequest = new ReindexRequest();
-            reindexRequest.setSourceIndices(sourceIndex);
-            reindexRequest.setDestIndex(destinationIndex);
-            BulkByScrollResponse bulkResponse = execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync);
-            assertEquals(1, bulkResponse.getCreated());
-            assertEquals(2, bulkResponse.getTotal());
-            assertEquals(1, bulkResponse.getUpdated());
-            assertEquals(0, bulkResponse.getDeleted());
-            assertEquals(0, bulkResponse.getNoops());
-            assertEquals(0, bulkResponse.getVersionConflicts());
-            assertEquals(1, bulkResponse.getBatches());
-            assertTrue(bulkResponse.getTook().getMillis() > 0);
-            assertEquals(1, bulkResponse.getBatches());
-            assertEquals(0, bulkResponse.getBulkFailures().size());
-            assertEquals(0, bulkResponse.getSearchFailures().size());
-        }
-        {
-            // test reindex rethrottling
-            ReindexRequest reindexRequest = new ReindexRequest();
-            reindexRequest.setSourceIndices(sourceIndex);
-            reindexRequest.setDestIndex(destinationIndex);
-
-            // this following settings are supposed to halt reindexing after first document
-            reindexRequest.setSourceBatchSize(1);
-            reindexRequest.setRequestsPerSecond(0.00001f);
-            final CountDownLatch reindexTaskFinished = new CountDownLatch(1);
-            highLevelClient().reindexAsync(reindexRequest, RequestOptions.DEFAULT, new ActionListener<BulkByScrollResponse>() {
-
-                @Override
-                public void onResponse(BulkByScrollResponse response) {
-                    reindexTaskFinished.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail(e.toString());
-                }
-            });
-
-            TaskId taskIdToRethrottle = findTaskToRethrottle(ReindexAction.NAME);
-            float requestsPerSecond = 1000f;
-            ListTasksResponse response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
-                    highLevelClient()::reindexRethrottle, highLevelClient()::reindexRethrottleAsync);
-            assertThat(response.getTasks(), hasSize(1));
-            assertEquals(taskIdToRethrottle, response.getTasks().get(0).getTaskId());
-            assertThat(response.getTasks().get(0).getStatus(), instanceOf(RawTaskStatus.class));
-            assertEquals(Float.toString(requestsPerSecond),
-                    ((RawTaskStatus) response.getTasks().get(0).getStatus()).toMap().get("requests_per_second").toString());
-            reindexTaskFinished.await(2, TimeUnit.SECONDS);
-
-            // any rethrottling after the reindex is done performed with the same taskId should result in a failure
-            response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
-                    highLevelClient()::reindexRethrottle, highLevelClient()::reindexRethrottleAsync);
-            assertTrue(response.getTasks().isEmpty());
-            assertFalse(response.getNodeFailures().isEmpty());
-            assertEquals(1, response.getNodeFailures().size());
-            assertEquals("Elasticsearch exception [type=resource_not_found_exception, reason=task [" + taskIdToRethrottle + "] is missing]",
-                    response.getNodeFailures().get(0).getCause().getMessage());
-        }
-    }
-
     private TaskId findTaskToRethrottle(String actionName) throws IOException {
         long start = System.nanoTime();
         ListTasksRequest request = new ListTasksRequest();
@@ -1220,5 +1176,146 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("id", getResponse.getId());
             assertEquals(routing, getResponse.getField("_routing").getValue());
         }
+    }
+
+    // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
+    public void testTermvectors() throws IOException {
+        final String sourceIndex = "index1";
+        {
+            // prepare : index docs
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            String mappings = "\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\"}}}";
+            createIndex(sourceIndex, settings, mappings);
+            assertEquals(
+                RestStatus.OK,
+                highLevelClient().bulk(
+                    new BulkRequest()
+                        .add(new IndexRequest(sourceIndex, "_doc", "1")
+                            .source(Collections.singletonMap("field", "value1"), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex, "_doc", "2")
+                            .source(Collections.singletonMap("field", "value2"), XContentType.JSON))
+                        .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
+                    RequestOptions.DEFAULT
+                ).status()
+            );
+        }
+        {
+            // test _termvectors on real documents
+            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, "_doc", "1");
+            tvRequest.setFields("field");
+            TermVectorsResponse tvResponse = execute(tvRequest, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync);
+
+            TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token(0, 6, 0, null);
+            TermVectorsResponse.TermVector.Term expectedTerm = new TermVectorsResponse.TermVector.Term(
+                "value1", 1, null, null, null, Collections.singletonList(expectedToken));
+            TermVectorsResponse.TermVector.FieldStatistics expectedFieldStats =
+                new TermVectorsResponse.TermVector.FieldStatistics(2, 2, 2);
+            TermVectorsResponse.TermVector expectedTV =
+                new TermVectorsResponse.TermVector("field", expectedFieldStats, Collections.singletonList(expectedTerm));
+            List<TermVectorsResponse.TermVector> expectedTVlist = Collections.singletonList(expectedTV);
+
+            assertThat(tvResponse.getIndex(), equalTo(sourceIndex));
+            assertThat(Integer.valueOf(tvResponse.getId()), equalTo(1));
+            assertTrue(tvResponse.getFound());
+            assertEquals(expectedTVlist, tvResponse.getTermVectorsList());
+        }
+        {
+            // test _termvectors on artificial documents
+            XContentBuilder docBuilder = XContentFactory.jsonBuilder();
+            docBuilder.startObject().field("field", "valuex").endObject();
+
+            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, "_doc", docBuilder);
+            TermVectorsResponse tvResponse = execute(tvRequest, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync);
+
+            TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token(0, 6, 0, null);
+            TermVectorsResponse.TermVector.Term expectedTerm = new TermVectorsResponse.TermVector.Term(
+                "valuex", 1, null, null, null, Collections.singletonList(expectedToken));
+            TermVectorsResponse.TermVector.FieldStatistics expectedFieldStats =
+                new TermVectorsResponse.TermVector.FieldStatistics(2, 2, 2);
+            TermVectorsResponse.TermVector expectedTV =
+                new TermVectorsResponse.TermVector("field", expectedFieldStats, Collections.singletonList(expectedTerm));
+            List<TermVectorsResponse.TermVector> expectedTVlist = Collections.singletonList(expectedTV);
+
+            assertThat(tvResponse.getIndex(), equalTo(sourceIndex));
+            assertTrue(tvResponse.getFound());
+            assertEquals(expectedTVlist, tvResponse.getTermVectorsList());
+        }
+    }
+
+    // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
+    public void testTermvectorsWithNonExistentIndex() {
+        TermVectorsRequest request = new TermVectorsRequest("non-existent", "non-existent", "non-existent");
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            () -> execute(request, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+    // Not entirely sure if _mtermvectors belongs to CRUD, and in the absence of a better place, will have it here
+    public void testMultiTermvectors() throws IOException {
+        final String sourceIndex = "index1";
+        {
+            // prepare : index docs
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            String mappings = "\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\"}}}";
+            createIndex(sourceIndex, settings, mappings);
+            assertEquals(
+                RestStatus.OK,
+                highLevelClient().bulk(
+                    new BulkRequest()
+                        .add(new IndexRequest(sourceIndex, "_doc", "1")
+                            .source(Collections.singletonMap("field", "value1"), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex, "_doc", "2")
+                            .source(Collections.singletonMap("field", "value2"), XContentType.JSON))
+                        .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
+                    RequestOptions.DEFAULT
+                ).status()
+            );
+        }
+        {
+            // test _mtermvectors where MultiTermVectorsRequest is constructed with ids and a template
+            String[] expectedIds = {"1", "2"};
+            TermVectorsRequest tvRequestTemplate = new TermVectorsRequest(sourceIndex, "_doc", "fake_id");
+            tvRequestTemplate.setFields("field");
+            MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest(expectedIds, tvRequestTemplate);
+
+            MultiTermVectorsResponse mtvResponse =
+                execute(mtvRequest, highLevelClient()::mtermvectors, highLevelClient()::mtermvectorsAsync);
+
+            List<String> ids = new ArrayList<>();
+            for (TermVectorsResponse tvResponse: mtvResponse.getTermVectorsResponses()) {
+                assertThat(tvResponse.getIndex(), equalTo(sourceIndex));
+                assertTrue(tvResponse.getFound());
+                ids.add(tvResponse.getId());
+            }
+            assertArrayEquals(expectedIds, ids.toArray());
+        }
+
+        {
+            // test _mtermvectors where MultiTermVectorsRequest constructed with adding each separate request
+            MultiTermVectorsRequest mtvRequest = new MultiTermVectorsRequest();
+            TermVectorsRequest tvRequest1 = new TermVectorsRequest(sourceIndex, "_doc", "1");
+            tvRequest1.setFields("field");
+            mtvRequest.add(tvRequest1);
+
+            XContentBuilder docBuilder = XContentFactory.jsonBuilder();
+            docBuilder.startObject().field("field", "valuex").endObject();
+            TermVectorsRequest tvRequest2 = new TermVectorsRequest(sourceIndex, "_doc", docBuilder);
+            mtvRequest.add(tvRequest2);
+
+            MultiTermVectorsResponse mtvResponse =
+                execute(mtvRequest, highLevelClient()::mtermvectors, highLevelClient()::mtermvectorsAsync);
+            for (TermVectorsResponse tvResponse: mtvResponse.getTermVectorsResponses()) {
+                assertThat(tvResponse.getIndex(), equalTo(sourceIndex));
+                assertTrue(tvResponse.getFound());
+            }
+        }
+
     }
 }

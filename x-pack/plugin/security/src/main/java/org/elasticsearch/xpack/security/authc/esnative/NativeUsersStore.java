@@ -83,6 +83,8 @@ public class NativeUsersStore extends AbstractComponent {
 
     private final Hasher hasher = Hasher.BCRYPT;
     public static final String RESERVED_USER_TYPE = "reserved-user";
+
+    private final Settings settings;
     private final Client client;
     private final boolean isTribeNode;
     private final ReservedUserInfo disabledDefaultUserInfo;
@@ -91,7 +93,7 @@ public class NativeUsersStore extends AbstractComponent {
     private final SecurityIndexManager securityIndex;
 
     public NativeUsersStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
-        super(settings);
+        this.settings = settings;
         this.client = client;
         this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);
         this.securityIndex = securityIndex;
@@ -349,7 +351,9 @@ public class NativeUsersStore extends AbstractComponent {
                     new ActionListener<UpdateResponse>() {
                         @Override
                         public void onResponse(UpdateResponse updateResponse) {
-                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
+                                || updateResponse.getResult() == DocWriteResponse.Result.NOOP
+                                : "Expected 'UPDATED' or 'NOOP' result [" + updateResponse + "] for request [" + putUserRequest + "]";
                             clearRealmCache(putUserRequest.username(), listener, false);
                         }
 

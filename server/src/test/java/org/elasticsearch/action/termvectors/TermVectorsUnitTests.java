@@ -310,7 +310,8 @@ public class TermVectorsUnitTests extends ESTestCase {
         } catch (MapperParsingException e) {
             exceptiontrown = true;
         }
-        assertThat("TypeParsers.parseTermVector should accept string with_positions_payloads but does not.", exceptiontrown, equalTo(false));
+        assertThat("TypeParsers.parseTermVector should accept string with_positions_payloads but does not.", exceptiontrown,
+            equalTo(false));
     }
 
     public void testTermVectorStringGenerationWithoutPositions() throws Exception {

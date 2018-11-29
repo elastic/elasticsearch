@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
@@ -28,11 +29,9 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -58,12 +57,13 @@ import java.util.function.LongSupplier;
 /**
  * Helper for translating an update request to an index, delete request or update response.
  */
-public class UpdateHelper extends AbstractComponent {
+public class UpdateHelper {
+
+    private static final Logger logger = LogManager.getLogger(UpdateHelper.class);
 
     private final ScriptService scriptService;
 
-    public UpdateHelper(Settings settings, ScriptService scriptService) {
-        super(settings);
+    public UpdateHelper(ScriptService scriptService) {
         this.scriptService = scriptService;
     }
 

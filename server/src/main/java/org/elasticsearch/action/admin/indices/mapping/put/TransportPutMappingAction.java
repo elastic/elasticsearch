@@ -49,7 +49,8 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     public TransportPutMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                      ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutMappingRequest::new);
+        super(settings, PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+            PutMappingRequest::new);
         this.metaDataMappingService = metaDataMappingService;
     }
 
@@ -76,9 +77,12 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     }
 
     @Override
-    protected void masterOperation(final PutMappingRequest request, final ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(final PutMappingRequest request, final ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) {
         try {
-            final Index[] concreteIndices = request.getConcreteIndex() == null ? indexNameExpressionResolver.concreteIndices(state, request) : new Index[] {request.getConcreteIndex()};
+            final Index[] concreteIndices = request.getConcreteIndex() == null ?
+                indexNameExpressionResolver.concreteIndices(state, request)
+                : new Index[] {request.getConcreteIndex()};
             PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
                     .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                     .indices(concreteIndices).type(request.type())
@@ -94,12 +98,14 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
 
                 @Override
                 public void onFailure(Exception t) {
-                    logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}], type [{}]", concreteIndices, request.type()), t);
+                    logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}], type [{}]",
+                        concreteIndices, request.type()), t);
                     listener.onFailure(t);
                 }
             });
         } catch (IndexNotFoundException ex) {
-            logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}], type [{}]", request.indices(), request.type()), ex);
+            logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}], type [{}]",
+                request.indices(), request.type()), ex);
             throw ex;
         }
     }

@@ -46,10 +46,6 @@ class S3Service extends AbstractComponent implements Closeable {
     private volatile Map<String, AmazonS3Reference> clientsCache = emptyMap();
     private volatile Map<String, S3ClientSettings> clientsSettings = emptyMap();
 
-    S3Service(Settings settings) {
-        super(settings);
-    }
-
     /**
      * Refreshes the settings for the AmazonS3 clients and clears the cache of
      * existing clients. New clients will be build using these new settings. Old

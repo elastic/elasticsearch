@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
@@ -14,15 +15,14 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
+import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -41,9 +41,8 @@ import java.util.concurrent.TimeUnit;
  */
 class ScrollDataExtractor implements DataExtractor {
 
-    private static final Logger LOGGER = Loggers.getLogger(ScrollDataExtractor.class);
+    private static final Logger LOGGER = LogManager.getLogger(ScrollDataExtractor.class);
     private static final TimeValue SCROLL_TIMEOUT = new TimeValue(30, TimeUnit.MINUTES);
-    private static final String EPOCH_MILLIS_FORMAT = "epoch_millis";
 
     private final Client client;
     private final ScrollDataExtractorContext context;
@@ -111,12 +110,8 @@ class ScrollDataExtractor implements DataExtractor {
                 .setQuery(ExtractorUtils.wrapInTimeRangeQuery(
                         context.query, context.extractedFields.timeField(), start, context.end));
 
-        for (String docValueField : context.extractedFields.getDocValueFields()) {
-            if (docValueField.equals(context.extractedFields.timeField())) {
-                searchRequestBuilder.addDocValueField(docValueField, EPOCH_MILLIS_FORMAT);
-            } else {
-                searchRequestBuilder.addDocValueField(docValueField, DocValueFieldsContext.USE_DEFAULT_FORMAT);
-            }
+        for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
+            searchRequestBuilder.addDocValueField(docValueField.getName(), docValueField.getDocValueFormat());
         }
         String[] sourceFields = context.extractedFields.getSourceFields();
         if (sourceFields.length == 0) {

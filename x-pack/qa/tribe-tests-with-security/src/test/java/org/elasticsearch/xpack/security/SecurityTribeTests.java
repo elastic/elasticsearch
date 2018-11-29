@@ -104,7 +104,7 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
         super.setUp();
         if (cluster2 == null) {
             SecuritySettingsSource cluster2SettingsSource =
-                    new SecuritySettingsSource(defaultMaxNumberOfNodes(), useSSL, createTempDir(), Scope.SUITE) {
+                    new SecuritySettingsSource(useSSL, createTempDir(), Scope.SUITE) {
                         @Override
                         public Settings nodeSettings(int nodeOrdinal) {
                             Settings.Builder builder = Settings.builder()
@@ -239,7 +239,7 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
 
     private void setupTribeNode(Settings settings) throws Exception {
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(1, useSSL, createTempDir(), Scope.TEST) {
+                new SecuritySettingsSource(useSSL, createTempDir(), Scope.TEST) {
                     @Override
                     public Settings nodeSettings(int nodeOrdinal) {
                         return Settings.builder()

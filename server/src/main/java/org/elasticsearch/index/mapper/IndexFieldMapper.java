@@ -80,7 +80,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+                                                      ParserContext parserContext) throws MapperParsingException {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha3)) {
                 throw new MapperParsingException(NAME + " is not configurable");
             }
@@ -135,7 +136,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             if (isSameIndex(value, context.getFullyQualifiedIndex().getName())) {
                 return Queries.newMatchAllQuery();
             } else {
-                return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + value);
+                return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName()
+                    + " vs. " + value);
             }
         }
 

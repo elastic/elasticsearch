@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 import io.netty.channel.Channel;
 import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
@@ -17,14 +18,13 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.netty4.NettyTcpChannel;
+import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
@@ -67,7 +67,7 @@ public interface ServerTransportFilter {
      * request is properly authenticated and authorized
      */
     class NodeProfile implements ServerTransportFilter {
-        private static final Logger logger = Loggers.getLogger(NodeProfile.class);
+        private static final Logger logger = LogManager.getLogger(NodeProfile.class);
 
         private final AuthenticationService authcService;
         private final AuthorizationService authzService;
@@ -117,8 +117,8 @@ public interface ServerTransportFilter {
             }
 
             if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel) &&
-                ((TcpTransportChannel) unwrappedChannel).getChannel() instanceof NettyTcpChannel) {
-                Channel channel = ((NettyTcpChannel) ((TcpTransportChannel) unwrappedChannel).getChannel()).getLowLevelChannel();
+                ((TcpTransportChannel) unwrappedChannel).getChannel() instanceof Netty4TcpChannel) {
+                Channel channel = ((Netty4TcpChannel) ((TcpTransportChannel) unwrappedChannel).getChannel()).getLowLevelChannel();
                 SslHandler sslHandler = channel.pipeline().get(SslHandler.class);
                 if (channel.isOpen()) {
                     assert sslHandler != null : "channel [" + channel + "] did not have a ssl handler. pipeline " + channel.pipeline();

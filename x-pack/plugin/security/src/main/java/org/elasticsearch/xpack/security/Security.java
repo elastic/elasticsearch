@@ -107,9 +107,9 @@ import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
@@ -125,6 +125,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSe
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -164,9 +165,9 @@ import org.elasticsearch.xpack.security.action.token.TransportRefreshTokenAction
 import org.elasticsearch.xpack.security.action.user.TransportAuthenticateAction;
 import org.elasticsearch.xpack.security.action.user.TransportChangePasswordAction;
 import org.elasticsearch.xpack.security.action.user.TransportDeleteUserAction;
+import org.elasticsearch.xpack.security.action.user.TransportGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.TransportGetUsersAction;
 import org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction;
-import org.elasticsearch.xpack.security.action.user.TransportGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -189,7 +190,6 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
@@ -361,7 +361,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 b.bind(CompositeRolesStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(NativeRoleMappingStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(AuditTrailService.class)
-                        .toInstance(new AuditTrailService(settings, Collections.emptyList(), getLicenseState()));
+                    .toInstance(new AuditTrailService(Collections.emptyList(), getLicenseState()));
             });
             return modules;
         }
@@ -440,7 +440,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             }
         }
         final AuditTrailService auditTrailService =
-                new AuditTrailService(settings, new ArrayList<>(auditTrails), getLicenseState());
+                new AuditTrailService(new ArrayList<>(auditTrails), getLicenseState());
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
@@ -512,16 +512,16 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final Set<RequestInterceptor> requestInterceptors;
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
             requestInterceptors = Collections.unmodifiableSet(Sets.newHashSet(
-                    new SearchRequestInterceptor(settings, threadPool, getLicenseState()),
-                    new UpdateRequestInterceptor(settings, threadPool, getLicenseState()),
-                    new BulkShardRequestInterceptor(settings, threadPool, getLicenseState()),
-                    new ResizeRequestInterceptor(settings, threadPool, getLicenseState(), auditTrailService),
+                    new SearchRequestInterceptor(threadPool, getLicenseState()),
+                    new UpdateRequestInterceptor(threadPool, getLicenseState()),
+                    new BulkShardRequestInterceptor(threadPool, getLicenseState()),
+                    new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
                     new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)));
         } else {
             requestInterceptors = Collections.emptySet();
         }
 
-        securityActionFilter.set(new SecurityActionFilter(settings, authcService.get(), authzService, getLicenseState(),
+        securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, getLicenseState(),
                 requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
 
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_ADMIN_FILTERED_FIELDS_SETTING,
@@ -1002,8 +1002,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (transportClientMode || enabled == false) { // don't register anything if we are not enabled, or in transport client mode
             return Collections.emptyMap();
         }
-        return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4ServerTransport(settings, threadPool, networkService,
-                bigArrays, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
+        return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4ServerTransport(settings, Version.CURRENT, threadPool,
+            networkService, bigArrays, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
     }
 
     @Override

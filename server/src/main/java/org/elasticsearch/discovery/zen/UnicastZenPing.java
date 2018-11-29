@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.zen;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -45,6 +45,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -89,7 +90,9 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
-public class UnicastZenPing extends AbstractComponent implements ZenPing {
+public class UnicastZenPing implements ZenPing {
+
+    private static final Logger logger = LogManager.getLogger(UnicastZenPing.class);
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
     public static final Setting<Integer> DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING =
@@ -116,11 +119,12 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     private final TimeValue resolveTimeout;
 
+    private final String nodeName;
+
     private volatile boolean closed = false;
 
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
                           UnicastHostsProvider unicastHostsProvider, PingContextProvider contextProvider) {
-        super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
@@ -130,6 +134,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         final int concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
 
         resolveTimeout = DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
+        nodeName = Node.NODE_NAME_SETTING.get(settings);
         logger.debug(
             "using concurrent_connects [{}], resolve_timeout [{}]",
             concurrentConnects,
@@ -140,7 +145,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_connect]");
         unicastZenPingExecutorService = EsExecutors.newScaling(
-                nodeName() + "/" + "unicast_connect",
+                nodeName + "/" + "unicast_connect",
                 0,
                 concurrentConnects,
                 60,

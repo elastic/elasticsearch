@@ -259,7 +259,7 @@ public class TransportWriteActionTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        ShardStateAction shardStateAction = new ShardStateAction(Settings.EMPTY, clusterService, transportService, null, null, threadPool);
+        ShardStateAction shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
         TestAction action = new TestAction(Settings.EMPTY, "internal:testAction", transportService,
                 clusterService, shardStateAction, threadPool);
         final String index = "test";

@@ -82,6 +82,9 @@ public final class RandomAliasActionsGenerator {
                     action.indexRouting(randomRouting().toString());
                 }
             }
+            if (randomBoolean()) {
+                action.writeIndex(randomBoolean());
+            }
         }
         return action;
     }

@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.license;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.rest.RestController;
@@ -18,11 +21,13 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteLicenseAction extends XPackRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestDeleteLicenseAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     public RestDeleteLicenseAction(Settings settings, RestController controller) {
         super(settings);
-        // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(DELETE, URI_BASE + "/license", this,
-                                                 DELETE, "/_license", deprecationLogger);
+        controller.registerHandler(DELETE, URI_BASE + "/license", this);
+        controller.registerHandler(DELETE, "/_license", this);
 
         // Remove _licenses support entirely in 6.0
         controller.registerAsDeprecatedHandler(DELETE, "/_licenses", this,

@@ -387,7 +387,7 @@ public class ActionModule extends AbstractModule {
         if (transportClient) {
             restController = null;
         } else {
-            restController = new RestController(settings, headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+            restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
         }
     }
 

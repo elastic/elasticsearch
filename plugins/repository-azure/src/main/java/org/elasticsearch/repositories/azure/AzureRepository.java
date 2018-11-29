@@ -25,6 +25,8 @@ import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.blobstore.AzureBlobStore;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
@@ -60,6 +62,7 @@ import static org.elasticsearch.cloud.azure.storage.AzureStorageService.MIN_CHUN
  * </dl>
  */
 public class AzureRepository extends BlobStoreRepository {
+    private static final Logger logger = LogManager.getLogger(AzureRepository.class);
 
     public static final String TYPE = "azure";
 
@@ -127,7 +130,7 @@ public class AzureRepository extends BlobStoreRepository {
      */
     @Override
     protected AzureBlobStore createBlobStore() throws URISyntaxException, StorageException {
-        final AzureBlobStore blobStore = new AzureBlobStore(metadata, environment.settings(), storageService);
+        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService);
 
         logger.debug((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
             "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",

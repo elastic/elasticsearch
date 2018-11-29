@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.action.interceptor;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -25,9 +24,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor<Request extends I
     private final ThreadContext threadContext;
     private final XPackLicenseState licenseState;
 
-    FieldAndDocumentLevelSecurityRequestInterceptor(Settings settings, ThreadContext threadContext,
-                                                           XPackLicenseState licenseState) {
-        super(settings);
+    FieldAndDocumentLevelSecurityRequestInterceptor(ThreadContext threadContext, XPackLicenseState licenseState) {
         this.threadContext = threadContext;
         this.licenseState = licenseState;
     }

@@ -21,7 +21,6 @@ package org.elasticsearch.painless;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
@@ -57,7 +56,7 @@ import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
 /**
  * Implementation of a ScriptEngine for the Painless language.
  */
-public final class PainlessScriptEngine extends AbstractComponent implements ScriptEngine {
+public final class PainlessScriptEngine implements ScriptEngine {
 
     /**
      * Standard name of the Painless language.
@@ -93,8 +92,6 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
      * @param settings The settings to initialize the engine with.
      */
     public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts) {
-        super(settings);
-
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
 
         Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();

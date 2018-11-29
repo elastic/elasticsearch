@@ -106,6 +106,8 @@ public class DoSection implements ExecutableSection {
             } else if (token.isValue()) {
                 if ("catch".equals(currentFieldName)) {
                     doSection.setCatch(parser.text());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "unsupported field [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("warnings".equals(currentFieldName)) {
@@ -180,7 +182,6 @@ public class DoSection implements ExecutableSection {
         return doSection;
     }
 
-
     private static final Logger logger = LogManager.getLogger(DoSection.class);
 
     private final XContentLocation location;
@@ -204,7 +205,7 @@ public class DoSection implements ExecutableSection {
         return apiCallSection;
     }
 
-    public void setApiCallSection(ApiCallSection apiCallSection) {
+    void setApiCallSection(ApiCallSection apiCallSection) {
         this.apiCallSection = apiCallSection;
     }
 
@@ -212,7 +213,7 @@ public class DoSection implements ExecutableSection {
      * Warning headers that we expect from this response. If the headers don't match exactly this request is considered to have failed.
      * Defaults to emptyList.
      */
-    public List<String> getExpectedWarningHeaders() {
+    List<String> getExpectedWarningHeaders() {
         return expectedWarningHeaders;
     }
 
@@ -220,7 +221,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers that we expect from this response. If the headers don't match exactly this request is considered to have
      * failed. Defaults to emptyList.
      */
-    public void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
+    void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
         this.expectedWarningHeaders = expectedWarningHeaders;
     }
 

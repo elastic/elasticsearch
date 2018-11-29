@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.license;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -18,13 +21,15 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutLicenseAction extends XPackRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestPutLicenseAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     public RestPutLicenseAction(Settings settings, RestController controller) {
         super(settings);
-        // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/license", this,
-                                                 POST, "/_license", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/license", this,
-                                                 PUT, "/_license", deprecationLogger);
+        controller.registerHandler(POST, URI_BASE + "/license", this);
+        controller.registerHandler(POST, "/_license", this);
+        controller.registerHandler(PUT, URI_BASE + "/license", this);
+        controller.registerHandler(PUT, "/_license", this);
 
         // Remove _licenses support entirely in 6.0
         controller.registerAsDeprecatedHandler(POST, "/_licenses", this,

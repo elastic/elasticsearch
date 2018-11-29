@@ -58,7 +58,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     private int maxConcurrentSearchRequests = 0;
     private List<SearchRequest> requests = new ArrayList<>();
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     /**
      * Add a search request to execute. Note, the order is important, the search response will be returned in the
@@ -206,7 +206,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (searchType != null) {
                 searchRequest.searchType(searchType);
             }
-            IndicesOptions defaultOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+            IndicesOptions defaultOptions = searchRequest.indicesOptions();
             // now parse the action
             if (nextMarker - from > 0) {
                 try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
@@ -231,7 +231,10 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             searchRequest.routing(nodeStringValue(value, null));
                         } else if ("allow_partial_search_results".equals(entry.getKey())) {
                             searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));
+                        } else {
+                            // TODO we should not be lenient here and fail if there is any unknown key in the source map
                         }
+
                     }
                     defaultOptions = IndicesOptions.fromMap(source, defaultOptions);
                 }
@@ -288,7 +291,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         }
         return output.toByteArray();
     }
-    
+
     public static void writeSearchRequestParams(SearchRequest request, XContentBuilder xContentBuilder) throws IOException {
         xContentBuilder.startObject();
         if (request.indices() != null) {

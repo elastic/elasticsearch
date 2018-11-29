@@ -48,7 +48,8 @@ public final class Whitelist {
         "java.util.txt",
         "java.util.function.txt",
         "java.util.regex.txt",
-        "java.util.stream.txt"
+        "java.util.stream.txt",
+        "joda.time.txt"
     };
 
     public static final List<Whitelist> BASE_WHITELISTS =
@@ -66,13 +67,17 @@ public final class Whitelist {
     /** The {@link List} of all the whitelisted Painless class bindings. */
     public final List<WhitelistClassBinding> whitelistClassBindings;
 
+    /** The {@link List} of all the whitelisted Painless instance bindings. */
+    public final List<WhitelistInstanceBinding> whitelistInstanceBindings;
+
     /** Standard constructor. All values must be not {@code null}. */
-    public Whitelist(ClassLoader classLoader, List<WhitelistClass> whitelistClasses,
-            List<WhitelistMethod> whitelistImportedMethods, List<WhitelistClassBinding> whitelistClassBindings) {
+    public Whitelist(ClassLoader classLoader, List<WhitelistClass> whitelistClasses, List<WhitelistMethod> whitelistImportedMethods,
+            List<WhitelistClassBinding> whitelistClassBindings, List<WhitelistInstanceBinding> whitelistInstanceBindings) {
 
         this.classLoader = Objects.requireNonNull(classLoader);
         this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(whitelistClasses));
         this.whitelistImportedMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistImportedMethods));
         this.whitelistClassBindings = Collections.unmodifiableList(Objects.requireNonNull(whitelistClassBindings));
+        this.whitelistInstanceBindings = Collections.unmodifiableList(Objects.requireNonNull(whitelistInstanceBindings));
     }
 }

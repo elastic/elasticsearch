@@ -40,7 +40,7 @@ public class TransportPauseFollowAction extends TransportMasterNodeAction<PauseF
             final ClusterService clusterService,
             final PersistentTasksService persistentTasksService) {
         super(settings, PauseFollowAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, PauseFollowAction.Request::new);
+            PauseFollowAction.Request::new, indexNameExpressionResolver);
         this.persistentTasksService = persistentTasksService;
     }
 

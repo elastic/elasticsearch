@@ -57,6 +57,7 @@ public class FileRolesStore extends AbstractComponent implements BiConsumer<Set<
     private static final Pattern IN_SEGMENT_LINE = Pattern.compile("^\\s+.+");
     private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
 
+    private final Settings settings;
     private final Path file;
     private final XPackLicenseState licenseState;
     private final List<Consumer<Set<String>>> listeners = new ArrayList<>();
@@ -70,7 +71,7 @@ public class FileRolesStore extends AbstractComponent implements BiConsumer<Set<
 
     FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Consumer<Set<String>> listener,
                    XPackLicenseState licenseState) throws IOException {
-        super(settings);
+        this.settings = settings;
         this.file = resolveFile(env);
         if (listener != null) {
             listeners.add(listener);

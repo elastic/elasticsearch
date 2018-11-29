@@ -63,6 +63,10 @@ settings, which in turn defaults to `*`.
 and filters the metadata fields. All extracted fields are then combined
 to build a query when no prefix field is provided.
 
+WARNING: In future versions (starting in 7.0), there will be a limit on the number of fields that can
+be queried at once. This limit will be determined by the `indices.query.bool.max_clause_count`
+setting which defaults to 1024. Currently this will be raised and logged as a Warning only.
+
 |`default_operator` |The default operator used if no explicit operator
 is specified. For example, with a default operator of `OR`, the query
 `capital of Hungary` is translated to `capital OR of OR Hungary`, and
@@ -99,7 +103,10 @@ phrase matches are required. Default value is `0`.
 
 |`boost` |Sets the boost value of the query. Defaults to `1.0`.
 
-|`auto_generate_phrase_queries` |Defaults to `false`.
+|`auto_generate_phrase_queries` | Deprecated setting. This setting is ignored,
+use [type=phrase] instead to make phrase queries out of all text that is
+within query operators, or use explicitly quoted strings if you need
+finer-grained control.
 
 |`analyze_wildcard` |By default, wildcards terms in a query string are
 not analyzed. By setting this value to `true`, a best effort will be
@@ -149,8 +156,11 @@ When not explicitly specifying the field to search on in the query
 string syntax, the `index.query.default_field` will be used to derive
 which field to search on. If the `index.query.default_field` is not specified,
 the `query_string` will automatically attempt to determine the existing fields in the index's
-mapping that are queryable, and perform the search on those fields. Note that this will not
-include nested documents, use a nested query to search those documents.
+mapping that are queryable, and perform the search on those fields. 
+This will not include nested documents, use a nested query to search those documents.
+
+NOTE: For mappings with a large number of fields, searching across all queryable
+fields in the mapping could be expensive.
 
 [float]
 ==== Multi Field

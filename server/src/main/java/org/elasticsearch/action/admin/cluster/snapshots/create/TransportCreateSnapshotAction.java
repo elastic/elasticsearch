@@ -45,7 +45,8 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
     public TransportCreateSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, CreateSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CreateSnapshotRequest::new);
+        super(settings, CreateSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
+              indexNameExpressionResolver, CreateSnapshotRequest::new);
         this.snapshotsService = snapshotsService;
     }
 
@@ -66,11 +67,13 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
         if (clusterBlockException != null) {
             return clusterBlockException;
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks()
+            .indicesBlockedException(ClusterBlockLevel.READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
-    protected void masterOperation(final CreateSnapshotRequest request, ClusterState state, final ActionListener<CreateSnapshotResponse> listener) {
+    protected void masterOperation(final CreateSnapshotRequest request, ClusterState state,
+                                   final ActionListener<CreateSnapshotResponse> listener) {
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
         SnapshotsService.SnapshotRequest snapshotRequest =
                 new SnapshotsService.SnapshotRequest(request.repository(), snapshotName, "create_snapshot [" + snapshotName + "]")

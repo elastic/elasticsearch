@@ -54,7 +54,8 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
                                       TransportService transportService, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver, IngestService ingestService,
                                       TransportNodesInfoAction nodesInfoAction) {
-        super(settings, PutPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new);
+        super(settings, PutPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, 
+                indexNameExpressionResolver, PutPipelineRequest::new);
         this.clusterService = clusterService;
         this.nodesInfoAction = nodesInfoAction;
         this.ingestService = ingestService;
@@ -71,7 +72,8 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
     }
 
     @Override
-    protected void masterOperation(PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+            throws Exception {
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.clear();
         nodesInfoRequest.ingest(true);

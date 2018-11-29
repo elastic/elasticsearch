@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -63,9 +62,9 @@ public class InternalScriptedMetricAggStateV6CompatTests extends InternalAggrega
      */
     @Override
     protected ScriptService mockScriptService() {
-        Function<Map<String, Object>, Object> script = params -> {
-            Object aggs = params.get("_aggs");
-            Object states = params.get("states");
+        Function<Map<String, Object>, Object> script = vars -> {
+            Object aggs = ((Map<String,Object>) vars.get("params")).get("_aggs");
+            Object states = vars.get("states");
             assertThat(aggs, instanceOf(List.class));
             assertThat(aggs, sameInstance(states));
             return aggs;
@@ -80,7 +79,8 @@ public class InternalScriptedMetricAggStateV6CompatTests extends InternalAggrega
 
     @Override
     protected void assertReduced(InternalScriptedMetric reduced, List<InternalScriptedMetric> inputs) {
-        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING);
+        assertWarnings("Accessing variable [_aggs] via [params._aggs] from within a scripted metric agg reduce script " +
+            "is deprecated in favor of using [state].");
     }
 
     @Override

@@ -81,7 +81,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+                                                      ParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }
 
@@ -187,7 +188,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             } else {
                 // this means the index has a single type and the type field is implicit
                 DEPRECATION_LOGGER.deprecatedAndMaybeLog("range_single_type",
-                        "Running [range] query on [_type] field for an index with a single type. As types are deprecated, this functionality will be removed in future releases.");
+                        "Running [range] query on [_type] field for an index with a single type. As types are deprecated,"
+                            + " this functionality will be removed in future releases.");
                 Collection<String> types = context.getMapperService().types();
                 String type = types.iterator().hasNext() ? types.iterator().next() : null;
                 if (type != null) {

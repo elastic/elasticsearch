@@ -78,7 +78,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
- * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
+ * or more nodes directly by adding their respective addresses using
+ * {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
  * <p>
  * The transport client important modules used is the {@link org.elasticsearch.common.network.NetworkModule} which is
  * started in client mode (only connects, no bind).
@@ -224,7 +225,8 @@ public abstract class TransportClient extends AbstractClient {
             transportService.start();
             transportService.acceptIncomingRequests();
 
-            ClientTemplate transportClient = new ClientTemplate(injector, pluginLifecycleComponents, nodesService, proxy, namedWriteableRegistry);
+            ClientTemplate transportClient = new ClientTemplate(injector, pluginLifecycleComponents, nodesService, proxy,
+                namedWriteableRegistry);
             resourcesToClose.clear();
             return transportClient;
         } finally {
@@ -378,7 +380,9 @@ public abstract class TransportClient extends AbstractClient {
     }
 
     @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+    protected <Request extends ActionRequest, Response extends ActionResponse,
+        RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
+            Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
         proxy.execute(action, request, listener);
     }
 

@@ -44,7 +44,8 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     public TransportDeleteSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteSnapshotRequest::new);
+        super(settings, DeleteSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
+              indexNameExpressionResolver, DeleteSnapshotRequest::new);
         this.snapshotsService = snapshotsService;
     }
 
@@ -65,7 +66,8 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) {
         snapshotsService.deleteSnapshot(request.repository(), request.snapshot(), new SnapshotsService.DeleteSnapshotListener() {
             @Override
             public void onResponse() {

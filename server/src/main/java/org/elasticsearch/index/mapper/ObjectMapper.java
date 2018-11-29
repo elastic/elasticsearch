@@ -177,7 +177,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return builder;
         }
 
-        protected static boolean parseObjectOrDocumentTypeProperties(String fieldName, Object fieldNode, ParserContext parserContext, ObjectMapper.Builder builder) {
+        protected static boolean parseObjectOrDocumentTypeProperties(String fieldName, Object fieldNode, ParserContext parserContext,
+                                                                     ObjectMapper.Builder builder) {
             if (fieldName.equals("dynamic")) {
                 String value = fieldNode.toString();
                 if (value.equalsIgnoreCase("strict")) {
@@ -219,7 +220,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 } else if (type.equals(NESTED_CONTENT_TYPE)) {
                     nested = true;
                 } else {
-                    throw new MapperParsingException("Trying to parse an object but has a different type [" + type + "] for [" + name + "]");
+                    throw new MapperParsingException("Trying to parse an object but has a different type [" + type
+                        + "] for [" + name + "]");
                 }
             }
             fieldNode = node.get("include_in_parent");
@@ -447,7 +449,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
     @Override
     public ObjectMapper merge(Mapper mergeWith, boolean updateAllTypes) {
         if (!(mergeWith instanceof ObjectMapper)) {
-            throw new IllegalArgumentException("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping [" + name() + "]");
+            throw new IllegalArgumentException("Can't merge a non object mapping [" + mergeWith.name()
+                + "] with an object mapping [" + name() + "]");
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
         ObjectMapper merged = clone();
@@ -537,7 +540,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (nested.isIncludeInRoot()) {
                 builder.field("include_in_root", true);
             }
-        } else if (mappers.isEmpty() && custom == null) { // only write the object content type if there are no properties, otherwise, it is automatically detected
+        } else if (mappers.isEmpty() && custom == null) {
+            // only write the object content type if there are no properties, otherwise, it is automatically detected
             builder.field("type", CONTENT_TYPE);
         }
         if (dynamic != null) {

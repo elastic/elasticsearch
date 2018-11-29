@@ -52,7 +52,7 @@ public class RestClusterGetSettingsActionTests extends ESTestCase {
         final Settings settings = Settings.builder().put("foo.filtered", "bar").put("foo.non_filtered", "baz").build();
         md.accept(mdBuilder, settings);
         final ClusterState.Builder builder = new ClusterState.Builder(ClusterState.EMPTY_STATE).metaData(mdBuilder);
-        final SettingsFilter filter = new SettingsFilter(Settings.EMPTY, Collections.singleton("foo.filtered"));
+        final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
         final Setting.Property[] properties = {Setting.Property.Dynamic, Setting.Property.Filtered, Setting.Property.NodeScope};
         final Set<Setting<?>> settingsSet = Stream.concat(
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),

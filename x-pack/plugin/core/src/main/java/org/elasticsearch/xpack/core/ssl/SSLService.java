@@ -60,6 +60,8 @@ import java.util.stream.Collectors;
  */
 public class SSLService extends AbstractComponent {
 
+    private final Settings settings;
+
     /**
      * This is a mapping from "context name" (in general use, the name of a setting key)
      * to a configuration.
@@ -86,7 +88,7 @@ public class SSLService extends AbstractComponent {
      * for use later
      */
     public SSLService(Settings settings, Environment environment) {
-        super(settings);
+        this.settings = settings;
         this.env = environment;
         this.globalSSLConfiguration = new SSLConfiguration(settings.getByPrefix(XPackSettings.GLOBAL_SSL_PREFIX));
         this.sslConfigurations = new HashMap<>();
@@ -95,7 +97,7 @@ public class SSLService extends AbstractComponent {
 
     private SSLService(Settings settings, Environment environment, SSLConfiguration globalSSLConfiguration,
                        Map<String, SSLConfiguration> sslConfigurations, Map<SSLConfiguration, SSLContextHolder> sslContexts) {
-        super(settings);
+        this.settings = settings;
         this.env = environment;
         this.globalSSLConfiguration = globalSSLConfiguration;
         this.sslConfigurations = sslConfigurations;

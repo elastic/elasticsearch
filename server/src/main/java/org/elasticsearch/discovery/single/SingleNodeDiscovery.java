@@ -19,8 +19,11 @@
 
 package org.elasticsearch.discovery.single;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -45,7 +48,9 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
  * A discovery implementation where the only member of the cluster is the local node.
  */
 public class SingleNodeDiscovery extends AbstractLifecycleComponent implements Discovery {
+    private static final Logger logger = LogManager.getLogger(SingleNodeDiscovery.class);
 
+    private final ClusterName clusterName;
     protected final TransportService transportService;
     private final ClusterApplier clusterApplier;
     private volatile ClusterState clusterState;
@@ -53,6 +58,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     public SingleNodeDiscovery(final Settings settings, final TransportService transportService,
                                final MasterService masterService, final ClusterApplier clusterApplier) {
         super(Objects.requireNonNull(settings));
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.transportService = Objects.requireNonNull(transportService);
         masterService.setClusterStateSupplier(() -> clusterState);
         this.clusterApplier = clusterApplier;

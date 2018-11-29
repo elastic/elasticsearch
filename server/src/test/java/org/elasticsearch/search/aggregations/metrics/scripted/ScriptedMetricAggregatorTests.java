@@ -107,7 +107,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
 
         SCRIPTS.put("initScriptParams", params -> {
             Map<String, Object> state = (Map<String, Object>) params.get("state");
-            Integer initialValue = (Integer)params.get("initialValue");
+            Integer initialValue = (Integer)((Map<String,Object>)params.get("params")).get("initialValue");
             ArrayList<Integer> collector = new ArrayList();
             collector.add(initialValue);
             state.put("collector", collector);
@@ -115,13 +115,13 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         });
         SCRIPTS.put("mapScriptParams", params -> {
             Map<String, Object> state = (Map<String, Object>) params.get("state");
-            Integer itemValue = (Integer) params.get("itemValue");
+            Integer itemValue = (Integer) ((Map<String,Object>)params.get("params")).get("itemValue");
             ((List<Integer>) state.get("collector")).add(itemValue);
             return state;
         });
         SCRIPTS.put("combineScriptParams", params -> {
             Map<String, Object> state = (Map<String, Object>) params.get("state");
-            int divisor = ((Integer) params.get("divisor"));
+            int divisor = ((Integer) ((Map<String,Object>)params.get("params")).get("divisor"));
             return ((List<Integer>) state.get("collector")).stream().mapToInt(Integer::intValue).map(i -> i / divisor).sum();
         });
     }

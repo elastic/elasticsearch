@@ -54,7 +54,6 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     private volatile WatcherService watcherService;
 
     WatcherLifeCycleService(Settings settings, ClusterService clusterService, WatcherService watcherService) {
-        super(settings);
         this.watcherService = watcherService;
         this.requireManualStart = SETTING_REQUIRE_MANUAL_START.get(settings);
         clusterService.addListener(this);

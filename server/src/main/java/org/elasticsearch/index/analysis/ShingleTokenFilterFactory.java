@@ -35,8 +35,10 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         int maxAllowedShingleDiff = indexSettings.getMaxShingleDiff();
         Integer maxShingleSize = settings.getAsInt("max_shingle_size", ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE);
         Integer minShingleSize = settings.getAsInt("min_shingle_size", ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE);
-        Boolean outputUnigrams = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "output_unigrams", true, deprecationLogger);
-        Boolean outputUnigramsIfNoShingles = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "output_unigrams_if_no_shingles", false, deprecationLogger);
+        Boolean outputUnigrams = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(),
+            "output_unigrams", true, deprecationLogger);
+        Boolean outputUnigramsIfNoShingles = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(),
+            "output_unigrams_if_no_shingles", false, deprecationLogger);
 
         int shingleDiff = maxShingleSize - minShingleSize + (outputUnigrams ? 1 : 0);
         if (shingleDiff > maxAllowedShingleDiff) {
@@ -45,7 +47,8 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         }
         String tokenSeparator = settings.get("token_separator", ShingleFilter.DEFAULT_TOKEN_SEPARATOR);
         String fillerToken = settings.get("filler_token", ShingleFilter.DEFAULT_FILLER_TOKEN);
-        factory = new Factory("shingle", minShingleSize, maxShingleSize, outputUnigrams, outputUnigramsIfNoShingles, tokenSeparator, fillerToken);
+        factory = new Factory("shingle", minShingleSize, maxShingleSize, outputUnigrams, outputUnigramsIfNoShingles,
+            tokenSeparator, fillerToken);
     }
 
 
@@ -74,10 +77,12 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         private final String name;
 
         public Factory(String name) {
-            this(name, ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE, ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE, true, false, ShingleFilter.DEFAULT_TOKEN_SEPARATOR, ShingleFilter.DEFAULT_FILLER_TOKEN);
+            this(name, ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE, ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE, true,
+                false, ShingleFilter.DEFAULT_TOKEN_SEPARATOR, ShingleFilter.DEFAULT_FILLER_TOKEN);
         }
 
-        Factory(String name, int minShingleSize, int maxShingleSize, boolean outputUnigrams, boolean outputUnigramsIfNoShingles, String tokenSeparator, String fillerToken) {
+        Factory(String name, int minShingleSize, int maxShingleSize, boolean outputUnigrams, boolean outputUnigramsIfNoShingles,
+                    String tokenSeparator, String fillerToken) {
             this.maxShingleSize = maxShingleSize;
             this.outputUnigrams = outputUnigrams;
             this.outputUnigramsIfNoShingles = outputUnigramsIfNoShingles;

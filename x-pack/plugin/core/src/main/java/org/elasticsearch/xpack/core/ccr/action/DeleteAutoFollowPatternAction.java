@@ -43,6 +43,13 @@ public class DeleteAutoFollowPatternAction
 
         private String name;
 
+        public Request() {
+        }
+
+        public Request(String name) {
+            this.name = name;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
@@ -60,9 +67,8 @@ public class DeleteAutoFollowPatternAction
             this.name = name;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             name = in.readString();
         }
 

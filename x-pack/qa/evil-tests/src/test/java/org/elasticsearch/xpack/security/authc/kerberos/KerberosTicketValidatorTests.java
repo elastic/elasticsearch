@@ -39,8 +39,8 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
 
         // Client login and init token preparation
         final String clientUserName = randomFrom(clientUserNames);
-        try (SpnegoClient spnegoClient =
-                new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()), principalName("differentServer"));) {
+        try (SpnegoClient spnegoClient = new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()),
+                principalName("differentServer"), randomFrom(KerberosTicketValidator.SUPPORTED_OIDS))) {
             final String base64KerbToken = spnegoClient.getBase64EncodedTokenForSpnegoHeader();
             assertThat(base64KerbToken, is(notNullValue()));
 
@@ -82,7 +82,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         // Client login and init token preparation
         final String clientUserName = randomFrom(clientUserNames);
         try (SpnegoClient spnegoClient = new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()),
-                principalName(randomFrom(serviceUserNames)));) {
+                principalName(randomFrom(serviceUserNames)), randomFrom(KerberosTicketValidator.SUPPORTED_OIDS));) {
             final String base64KerbToken = spnegoClient.getBase64EncodedTokenForSpnegoHeader();
             assertThat(base64KerbToken, is(notNullValue()));
 
@@ -100,8 +100,10 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
     public void testValidKebrerosTicket() throws PrivilegedActionException, GSSException, LoginException {
         // Client login and init token preparation
         final String clientUserName = randomFrom(clientUserNames);
-        try (SpnegoClient spnegoClient = new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()),
-                principalName(randomFrom(serviceUserNames)));) {
+        final SecureString password = new SecureString("pwd".toCharArray());
+        final String servicePrincipalName = principalName(randomFrom(serviceUserNames));
+        try (SpnegoClient spnegoClient = new SpnegoClient(principalName(clientUserName), password, servicePrincipalName,
+                randomFrom(KerberosTicketValidator.SUPPORTED_OIDS))) {
             final String base64KerbToken = spnegoClient.getBase64EncodedTokenForSpnegoHeader();
             assertThat(base64KerbToken, is(notNullValue()));
 

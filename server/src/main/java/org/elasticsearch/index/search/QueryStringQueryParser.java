@@ -161,6 +161,12 @@ public class QueryStringQueryParser extends XQueryParser {
         queryBuilder.setOccur(op == Operator.AND ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD);
     }
 
+    @Override
+    public void setPhraseSlop(int phraseSlop) {
+        super.setPhraseSlop(phraseSlop);
+        queryBuilder.setPhraseSlop(phraseSlop);
+    }
+
     /**
      * @param type Sets how multiple fields should be combined to build textual part queries.
      */
@@ -490,10 +496,13 @@ public class QueryStringQueryParser extends XQueryParser {
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
             Query q = getPrefixQuerySingle(entry.getKey(), termStr);
-            assert q != null;
-            queries.add(applyBoost(q, entry.getValue()));
+            if (q != null) {
+                queries.add(applyBoost(q, entry.getValue()));
+            }
         }
-        if (queries.size() == 1) {
+        if (queries.isEmpty()) {
+            return null;
+        } else if (queries.size() == 1) {
             return queries.get(0);
         } else {
             float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
@@ -567,7 +576,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
 
         if (tlist.size() == 0) {
-            return super.getPrefixQuery(field, termStr);
+            return null;
         }
 
         if (tlist.size() == 1 && tlist.get(0).size() == 1) {

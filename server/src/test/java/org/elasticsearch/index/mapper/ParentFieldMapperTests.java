@@ -64,7 +64,8 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject().field("_parent", "1122").endObject()), XContentType.JSON));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("Field [_parent] is a metadata field and cannot be added inside a document"));
+            assertThat(e.getMessage(), e.getMessage(),
+                containsString("Field [_parent] is a metadata field and cannot be added inside a document"));
         }
     }
 
@@ -94,7 +95,8 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .endObject()
             .endObject().endObject();
-        mapperService.merge("some_type", new CompressedXContent(Strings.toString(mappingSource)), MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge("some_type", new CompressedXContent(Strings.toString(mappingSource)),
+            MergeReason.MAPPING_UPDATE, false);
         Set<String> allFields = new HashSet<>(mapperService.simpleMatchToFullName("*"));
         assertTrue(allFields.contains("_parent"));
         assertFalse(allFields.contains("_parent#null"));

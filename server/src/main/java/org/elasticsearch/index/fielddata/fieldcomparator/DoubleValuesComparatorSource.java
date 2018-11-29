@@ -43,7 +43,8 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
 
     private final IndexNumericFieldData indexFieldData;
 
-    public DoubleValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
+    public DoubleValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode,
+            Nested nested) {
         super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
     }

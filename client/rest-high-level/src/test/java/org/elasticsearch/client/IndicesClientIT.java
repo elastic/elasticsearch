@@ -71,6 +71,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
+import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -534,6 +537,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
         AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index(index).aliases(alias);
+        if (randomBoolean()) {
+            addAction.writeIndex(randomBoolean());
+        }
         addAction.routing("routing").searchRouting("search_routing").filter("{\"term\":{\"year\":2016}}");
         aliasesAddRequest.addAliasAction(addAction);
         AcknowledgedResponse aliasesAddResponse = execute(aliasesAddRequest, highLevelClient().indices()::updateAliases,
@@ -548,6 +554,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Map<String, Object> filter = (Map<String, Object>) getAlias.get("filter");
         Map<String, Object> term = (Map<String, Object>) filter.get("term");
         assertEquals(2016, term.get("year"));
+        Boolean isWriteIndex = (Boolean) getAlias.get("is_write_index");
+        assertThat(isWriteIndex, equalTo(addAction.writeIndex()));
 
         String alias2 = "alias2";
         IndicesAliasesRequest aliasesAddRemoveRequest = new IndicesAliasesRequest();
@@ -1407,6 +1415,20 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         AnalyzeResponse detailsResponse = execute(detailsRequest, client.indices()::analyze, client.indices()::analyzeAsync);
 
         assertNotNull(detailsResponse.detail());
+    }
 
+    public void testFreezeAndUnfreeze() throws IOException {
+        createIndex("test", Settings.EMPTY);
+        RestHighLevelClient client = highLevelClient();
+
+        ShardsAcknowledgedResponse freeze = execute(new FreezeIndexRequest("test"), client.indices()::freeze,
+            client.indices()::freezeAsync);
+        assertTrue(freeze.isShardsAcknowledged());
+        assertTrue(freeze.isAcknowledged());
+
+        ShardsAcknowledgedResponse unfreeze = execute(new UnfreezeIndexRequest("test"), client.indices()::unfreeze,
+            client.indices()::unfreezeAsync);
+        assertTrue(unfreeze.isShardsAcknowledged());
+        assertTrue(unfreeze.isAcknowledged());
     }
 }

@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
@@ -65,8 +64,7 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
     private final TriggerService triggerService;
     private volatile Configuration configuration = INACTIVE;
 
-    WatcherIndexingListener(Settings settings, WatchParser parser, Clock clock, TriggerService triggerService) {
-        super(settings);
+    WatcherIndexingListener(WatchParser parser, Clock clock, TriggerService triggerService) {
         this.parser = parser;
         this.clock = clock;
         this.triggerService = triggerService;

@@ -61,8 +61,10 @@ public final class PutUserResponse {
         true, args -> new PutUserResponse((boolean) args[0]));
 
     static {
-        PARSER.declareBoolean(constructorArg(), new ParseField("created"));
-        PARSER.declareObject((a,b) -> {}, (parser, context) -> null, new ParseField("user")); // ignore the user field!
+        ConstructingObjectParser<Boolean, Void> roleMappingParser = new ConstructingObjectParser<>(
+                "put_user_response.user", true, args -> (Boolean) args[0]);
+        roleMappingParser.declareBoolean(constructorArg(), new ParseField("created"));
+        PARSER.declareObject(constructorArg(), roleMappingParser::parse, new ParseField("user"));
     }
 
     public static PutUserResponse fromXContent(XContentParser parser) throws IOException {

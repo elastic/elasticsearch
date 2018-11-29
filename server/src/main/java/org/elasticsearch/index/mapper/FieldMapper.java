@@ -92,7 +92,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         // can happen when an existing type on the same index has disabled indexing
                         // since we inherit the default field type from the first mapper that is
                         // created on an index
-                        throw new IllegalArgumentException("mapper [" + name + "] has different [index] values from other types of the same index");
+                        throw new IllegalArgumentException("mapper [" + name + "] has different [index] values from other types"
+                            + " of the same index");
                     }
                     fieldType.setIndexOptions(options);
                 }
@@ -248,7 +249,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected MultiFields multiFields;
     protected CopyTo copyTo;
 
-    protected FieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+    protected FieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+                          Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
         assert indexSettings != null;
         this.indexCreatedVersion = Version.indexCreated(indexSettings);
@@ -349,7 +351,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             if (mergeWith instanceof FieldMapper) {
                 mergedType = ((FieldMapper) mergeWith).contentType();
             }
-            throw new IllegalArgumentException("mapper [" + fieldType().name() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
+            throw new IllegalArgumentException("mapper [" + fieldType().name() + "] of different type, current_type [" + contentType()
+                + "], merged_type [" + mergedType + "]");
         }
         FieldMapper fieldMergeWith = (FieldMapper) mergeWith;
         multiFields = multiFields.merge(fieldMergeWith.multiFields);
@@ -438,12 +441,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             }
         } else {
             boolean hasDefaultIndexAnalyzer = fieldType().indexAnalyzer().name().equals("default");
-            boolean hasDifferentSearchAnalyzer = fieldType().searchAnalyzer().name().equals(fieldType().indexAnalyzer().name()) == false;
-            boolean hasDifferentSearchQuoteAnalyzer = fieldType().searchAnalyzer().name().equals(fieldType().searchQuoteAnalyzer().name()) == false;
+            final String searchAnalyzerName = fieldType().searchAnalyzer().name();
+            boolean hasDifferentSearchAnalyzer = searchAnalyzerName.equals(fieldType().indexAnalyzer().name()) == false;
+            boolean hasDifferentSearchQuoteAnalyzer = searchAnalyzerName.equals(fieldType().searchQuoteAnalyzer().name()) == false;
             if (includeDefaults || hasDefaultIndexAnalyzer == false || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
                 builder.field("analyzer", fieldType().indexAnalyzer().name());
                 if (includeDefaults || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
-                    builder.field("search_analyzer", fieldType().searchAnalyzer().name());
+                    builder.field("search_analyzer", searchAnalyzerName);
                     if (includeDefaults || hasDifferentSearchQuoteAnalyzer) {
                         builder.field("search_quote_analyzer", fieldType().searchQuoteAnalyzer().name());
                     }
@@ -545,7 +549,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         public void parse(FieldMapper mainField, ParseContext context) throws IOException {
-            // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part of the mappings
+            // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
+            // of the mappings
             if (mappers.isEmpty()) {
                 return;
             }

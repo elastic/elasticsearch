@@ -53,11 +53,11 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
     public void testFilterInitialRecovery() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY,
+        AllocationDeciders allocationDeciders = new AllocationDeciders(
             Arrays.asList(filterAllocationDecider,
                 new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
-                new ReplicaAfterPrimaryActiveAllocationDecider(Settings.EMPTY)));
-        AllocationService service = new AllocationService(Settings.builder().build(), allocationDeciders,
+                new ReplicaAfterPrimaryActiveAllocationDecider()));
+        AllocationService service = new AllocationService(allocationDeciders,
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
         ClusterState state = createInitialClusterState(service, Settings.builder().put("index.routing.allocation.initial_recovery._id",
             "node2").build());

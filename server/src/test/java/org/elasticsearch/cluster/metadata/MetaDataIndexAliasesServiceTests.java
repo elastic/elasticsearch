@@ -43,9 +43,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MetaDataIndexAliasesServiceTests extends ESTestCase {
-    private final AliasValidator aliasValidator = new AliasValidator(Settings.EMPTY);
+    private final AliasValidator aliasValidator = new AliasValidator();
     private final MetaDataDeleteIndexService deleteIndexService = mock(MetaDataDeleteIndexService.class);
-    private final MetaDataIndexAliasesService service = new MetaDataIndexAliasesService(Settings.EMPTY, null, null, aliasValidator,
+    private final MetaDataIndexAliasesService service = new MetaDataIndexAliasesService(null, null, aliasValidator,
             deleteIndexService, xContentRegistry());
 
     public MetaDataIndexAliasesServiceTests() {

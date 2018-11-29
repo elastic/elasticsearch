@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -77,12 +77,13 @@ import java.util.stream.Collectors;
 
 public class TransportRollupSearchAction extends TransportAction<SearchRequest, SearchResponse> {
 
+    private final Settings settings;
     private final Client client;
     private final NamedWriteableRegistry registry;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
-    private static final Logger logger = Loggers.getLogger(RollupSearchAction.class);
+    private static final Logger logger = LogManager.getLogger(RollupSearchAction.class);
 
     @Inject
     public TransportRollupSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
@@ -90,6 +91,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                                  Client client, NamedWriteableRegistry registry, BigArrays bigArrays,
                                  ScriptService scriptService, ClusterService clusterService) {
         super(settings, RollupSearchAction.NAME, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
+        this.settings = settings;
         this.client = client;
         this.registry = registry;
         this.bigArrays = bigArrays;
@@ -107,8 +109,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
     @Override
     protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
-        RollupSearchContext rollupSearchContext = separateIndices(request.indices(),
-                clusterService.state().getMetaData().indices());
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(settings);
+        String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request.indices());
+        RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetaData().indices());
 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
 
@@ -408,9 +411,10 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         });
         assert normal.size() + rollup.size() > 0;
         if (rollup.size() > 1) {
-            throw new IllegalArgumentException("RollupSearch currently only supports searching one rollup index at a time.");
+            throw new IllegalArgumentException("RollupSearch currently only supports searching one rollup index at a time. " +
+                "Found the following rollup indices: " + rollup);
         }
-        return new RollupSearchContext(normal.toArray(new String[normal.size()]), rollup.toArray(new String[rollup.size()]), jobCaps);
+        return new RollupSearchContext(normal.toArray(new String[0]), rollup.toArray(new String[0]), jobCaps);
     }
 
     class TransportHandler implements TransportRequestHandler<SearchRequest> {

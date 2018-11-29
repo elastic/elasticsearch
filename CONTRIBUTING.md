@@ -154,7 +154,9 @@ Please follow these formatting guidelines:
 
 * Java indent is 4 spaces
 * Line width is 140 characters
-* Line width for code snippets that are included in the documentation (the ones surrounded by `// tag` and `// end` comments) is 76 characters
+* Lines of code surrounded by `// tag` and `// end` comments are included in the
+documentation and should only be 76 characters wide not counting
+leading indentation
 * The rest is left to Java coding standards
 * Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. This can be done automatically by your IDE:
@@ -162,11 +164,53 @@ Please follow these formatting guidelines:
  * IntelliJ: `Preferences->Editor->Code Style->Java->Imports`. There are two configuration options: `Class count to use import with '*'` and `Names count to use static import with '*'`. Set their values to 99999 or some other absurdly high value.
 * Don't worry too much about import order. Try not to change it but don't worry about fighting your IDE to stop it from doing so.
 
-To create a distribution from the source, simply run:
+### License Headers
+
+We require license headers on all Java files. You will notice that all the Java files in
+the top-level `x-pack` directory contain a separate license from the rest of the repository. This
+directory contains commercial code that is associated with a separate license. It can be helpful
+to have the IDE automatically insert the appropriate license header depending which part of the project
+contributions are made to.
+
+#### IntelliJ: Copyright & Scope Profiles
+
+To have IntelliJ insert the correct license, it is necessary to create to copyright profiles.
+These may potentially be called `apache2` and `commercial`. These can be created in
+`Preferences/Settings->Editor->Copyright->Copyright Profiles`. To associate these profiles to
+their respective directories, two "Scopes" will need to be created. These can be created in
+`Preferences/Settings->Appearances & Behavior->Scopes`. When creating scopes, be sure to choose
+the `shared` scope type. Create a scope, `apache2`, with
+the associated pattern of `!file[group:x-pack]:*/`. This pattern will exclude all the files contained in
+the `x-pack` directory. The other scope, `commercial`, will have the inverse pattern of `file[group:x-pack]:*/`.
+The two scopes, together, should account for all the files in the project. To associate the scopes
+with their copyright-profiles, go into `Preferences/Settings->Editor>Copyright` and use the `+` to add
+the associations `apache2/apache2` and `commercial/commercial`.
+
+Configuring these options in IntelliJ can be quite buggy, so do not be alarmed if you have to open/close
+the settings window and/or restart IntelliJ to see your changes take effect.
+
+### Creating A Distribution
+
+Run all build commands from within the root directory:
 
 ```sh
 cd elasticsearch/
-./gradlew assemble
+```
+
+To build a tar distribution, run this command:
+
+```sh
+./gradlew -p distribution/archives/tar assemble --parallel
+```
+
+You will find the distribution under:
+`./distribution/archives/tar/build/distributions/`
+
+To create all build artifacts (e.g., plugins and Javadocs) as well as
+distributions in all formats, run this command:
+
+```sh
+./gradlew assemble --parallel
 ```
 
 The package distributions (Debian and RPM) can be found under:
@@ -175,6 +219,7 @@ The package distributions (Debian and RPM) can be found under:
 The archive distributions (tar and zip) can be found under:
 `./distribution/archives/(tar|zip)/build/distributions/`
 
+### Running The Full Test Suite
 
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:
 

@@ -19,11 +19,14 @@
 
 package org.elasticsearch.index.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.SearchModule;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -34,6 +37,9 @@ import java.util.Map;
  * Helpers to extract and expand field names and boosts
  */
 public final class QueryParserHelper {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(QueryParserHelper.class));
+
     private QueryParserHelper() {}
 
     /**
@@ -60,7 +66,7 @@ public final class QueryParserHelper {
     }
 
     public static Map<String, Float> resolveMappingFields(QueryShardContext context,
-                                                          Map<String, Float> fieldsAndWeights) {
+            Map<String, Float> fieldsAndWeights) {
         return resolveMappingFields(context, fieldsAndWeights, null);
     }
 
@@ -74,17 +80,18 @@ public final class QueryParserHelper {
      *                    in the mapping.
      */
     public static Map<String, Float> resolveMappingFields(QueryShardContext context,
-                                                          Map<String, Float> fieldsAndWeights,
-                                                          String fieldSuffix) {
+            Map<String, Float> fieldsAndWeights,
+            String fieldSuffix) {
         Map<String, Float> resolvedFields = new HashMap<>();
         for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
             boolean allField = Regex.isMatchAllPattern(fieldEntry.getKey());
             boolean multiField = Regex.isSimpleMatchPattern(fieldEntry.getKey());
             float weight = fieldEntry.getValue() == null ? 1.0f : fieldEntry.getValue();
             Map<String, Float> fieldMap = resolveMappingField(context, fieldEntry.getKey(), weight,
-                !multiField, !allField, fieldSuffix);
+                    !multiField, !allField, fieldSuffix);
             resolvedFields.putAll(fieldMap);
         }
+        checkForTooManyFields(resolvedFields, context);
         return resolvedFields;
     }
 
@@ -99,7 +106,7 @@ public final class QueryParserHelper {
      * @param acceptMetadataField Whether metadata fields should be added when a pattern is expanded.
      */
     public static Map<String, Float> resolveMappingField(QueryShardContext context, String fieldOrPattern, float weight,
-                                                         boolean acceptAllTypes, boolean acceptMetadataField) {
+            boolean acceptAllTypes, boolean acceptMetadataField) {
         return resolveMappingField(context, fieldOrPattern, weight, acceptAllTypes, acceptMetadataField, null);
     }
 
@@ -117,7 +124,7 @@ public final class QueryParserHelper {
      *                    in the mapping.
      */
     public static Map<String, Float> resolveMappingField(QueryShardContext context, String fieldOrPattern, float weight,
-                                                         boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
+            boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
         Collection<String> allFields = context.simpleMatchToIndexNames(fieldOrPattern);
         Map<String, Float> fields = new HashMap<>();
         for (String fieldName : allFields) {
@@ -149,6 +156,18 @@ public final class QueryParserHelper {
             }
             fields.put(fieldName, weight);
         }
+        checkForTooManyFields(fields, context);
         return fields;
+    }
+
+    private static void checkForTooManyFields(Map<String, Float> fields, QueryShardContext context) {
+        Integer limit = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
+        if (fields.size() > limit) {
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("field_expansion_limit",
+                    "Field expansion matches too many fields, got: {}. This will be limited starting with version 7.0 of Elasticsearch. " +
+                    "The limit will be detemined by the `indices.query.bool.max_clause_count` setting which is currently set to {}. " +
+                    "You should look at lowering the maximum number of fields targeted by a query or increase the above limit " +
+                    "while being aware that this can negatively affect your clusters performance.", fields.size(), limit);
+        }
     }
 }

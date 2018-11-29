@@ -139,9 +139,11 @@ public abstract class MappedFieldType extends FieldType {
     /** Checks this type is the same type as other. Adds a conflict if they are different. */
     private void checkTypeName(MappedFieldType other) {
         if (typeName().equals(other.typeName()) == false) {
-            throw new IllegalArgumentException("mapper [" + name + "] cannot be changed from type [" + typeName() + "] to [" + other.typeName() + "]");
+            throw new IllegalArgumentException("mapper [" + name + "] cannot be changed from type [" + typeName()
+                + "] to [" + other.typeName() + "]");
         } else if (getClass() != other.getClass()) {
-            throw new IllegalStateException("Type names equal for class " + getClass().getSimpleName() + " and " + other.getClass().getSimpleName());
+            throw new IllegalStateException("Type names equal for class " + getClass().getSimpleName() + " and "
+                + other.getClass().getSimpleName());
         }
     }
 
@@ -198,22 +200,28 @@ public abstract class MappedFieldType extends FieldType {
 
         if (strict) {
             if (omitNorms() != other.omitNorms()) {
-                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [omit_norms] across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update"
+                    + " [omit_norms] across all types.");
             }
             if (boost() != other.boost()) {
-                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [boost] across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update"
+                    + " [boost] across all types.");
             }
             if (Objects.equals(searchAnalyzer(), other.searchAnalyzer()) == false) {
-                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [search_analyzer] across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update"
+                    + " [search_analyzer] across all types.");
             }
             if (Objects.equals(searchQuoteAnalyzer(), other.searchQuoteAnalyzer()) == false) {
-                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [search_quote_analyzer] across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update"
+                    + " [search_quote_analyzer] across all types.");
             }
             if (Objects.equals(nullValue(), other.nullValue()) == false) {
-                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [null_value] across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update"
+                    + " [null_value] across all types.");
             }
             if (eagerGlobalOrdinals() != other.eagerGlobalOrdinals()) {
-                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [eager_global_ordinals] across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update"
+                    + " [eager_global_ordinals] across all types.");
             }
         }
     }
@@ -360,21 +368,26 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        throw new IllegalArgumentException("Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+        throw new IllegalArgumentException("Can only use fuzzy queries on keyword and text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
     }
 
     public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        throw new QueryShardException(context, "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+        throw new QueryShardException(context, "Can only use prefix queries on keyword and text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
     }
 
     public Query wildcardQuery(String value,
                                @Nullable MultiTermQuery.RewriteMethod method,
                                QueryShardContext context) {
-        throw new QueryShardException(context, "Can only use wildcard queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+        throw new QueryShardException(context, "Can only use wildcard queries on keyword and text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
     }
 
-    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method,
+                             QueryShardContext context) {
+        throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
     }
 
     public Query nullValueQuery() {
@@ -435,7 +448,7 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     protected final void failIfNotIndexed() {
-        if (indexOptions() == IndexOptions.NONE && pointDimensionCount() == 0) {
+        if (indexOptions() == IndexOptions.NONE && pointDataDimensionCount() == 0) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
         }

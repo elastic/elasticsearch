@@ -19,9 +19,11 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
@@ -45,14 +47,15 @@ import java.util.stream.Stream;
  * 67.81.244.15:9400
  */
 public class FileBasedUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
+    private static final Logger logger = LogManager.getLogger(FileBasedUnicastHostsProvider.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
 
     private final Path unicastHostsFilePath;
     private final Path legacyUnicastHostsFilePath;
 
-    public FileBasedUnicastHostsProvider(Settings settings, Path configFile) {
-        super(settings);
+    public FileBasedUnicastHostsProvider(Path configFile) {
         this.unicastHostsFilePath = configFile.resolve(UNICAST_HOSTS_FILE);
         this.legacyUnicastHostsFilePath = configFile.resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
     }

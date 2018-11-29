@@ -83,6 +83,8 @@ import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationB
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.weighted_avg.WeightedAvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.mad.MedianAbsoluteDeviationAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.mad.MedianAbsoluteDeviation;
 
 import java.util.Map;
 
@@ -314,6 +316,13 @@ public class AggregationBuilders {
      */
     public static PercentileRanksAggregationBuilder percentileRanks(String name, double[] values) {
         return new PercentileRanksAggregationBuilder(name, values);
+    }
+
+    /**
+     * Create a new {@link MedianAbsoluteDeviation} aggregation with the given name
+     */
+    public static MedianAbsoluteDeviationAggregationBuilder medianAbsoluteDeviation(String name) {
+        return new MedianAbsoluteDeviationAggregationBuilder(name);
     }
 
     /**

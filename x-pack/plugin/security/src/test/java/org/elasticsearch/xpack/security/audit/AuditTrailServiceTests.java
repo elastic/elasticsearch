@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -46,7 +45,7 @@ public class AuditTrailServiceTests extends ESTestCase {
         }
         auditTrails = unmodifiableList(auditTrailsBuilder);
         licenseState = mock(XPackLicenseState.class);
-        service = new AuditTrailService(Settings.EMPTY, auditTrails, licenseState);
+        service = new AuditTrailService(auditTrails, licenseState);
         isAuditingAllowed = randomBoolean();
         when(licenseState.isAuditingAllowed()).thenReturn(isAuditingAllowed);
         token = mock(AuthenticationToken.class);
@@ -55,11 +54,12 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAuthenticationFailed() throws Exception {
-        service.authenticationFailed(token, "_action", message);
+        final String requestId = randomAlphaOfLengthBetween(6, 12);
+        service.authenticationFailed(requestId, token, "_action", message);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationFailed(token, "_action", message);
+                verify(auditTrail).authenticationFailed(requestId, token, "_action", message);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -67,11 +67,12 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAuthenticationFailedNoToken() throws Exception {
-        service.authenticationFailed("_action", message);
+        final String requestId = randomAlphaOfLengthBetween(6, 12);
+        service.authenticationFailed(requestId, "_action", message);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationFailed("_action", message);
+                verify(auditTrail).authenticationFailed(requestId, "_action", message);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -79,11 +80,12 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAuthenticationFailedRestNoToken() throws Exception {
-        service.authenticationFailed(restRequest);
+        final String requestId = randomAlphaOfLengthBetween(6, 12);
+        service.authenticationFailed(requestId, restRequest);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationFailed(restRequest);
+                verify(auditTrail).authenticationFailed(requestId, restRequest);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -91,11 +93,12 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAuthenticationFailedRest() throws Exception {
-        service.authenticationFailed(token, restRequest);
+        final String requestId = randomAlphaOfLengthBetween(6, 12);
+        service.authenticationFailed(requestId, token, restRequest);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationFailed(token, restRequest);
+                verify(auditTrail).authenticationFailed(requestId, token, restRequest);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -103,11 +106,12 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAuthenticationFailedRealm() throws Exception {
-        service.authenticationFailed("_realm", token, "_action", message);
+        final String requestId = randomAlphaOfLengthBetween(6, 12);
+        service.authenticationFailed(requestId, "_realm", token, "_action", message);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationFailed("_realm", token, "_action", message);
+                verify(auditTrail).authenticationFailed(requestId, "_realm", token, "_action", message);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -115,11 +119,12 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAuthenticationFailedRestRealm() throws Exception {
-        service.authenticationFailed("_realm", token, restRequest);
+        final String requestId = randomAlphaOfLengthBetween(6, 12);
+        service.authenticationFailed(requestId, "_realm", token, restRequest);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationFailed("_realm", token, restRequest);
+                verify(auditTrail).authenticationFailed(requestId, "_realm", token, restRequest);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -127,11 +132,12 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAnonymousAccess() throws Exception {
-        service.anonymousAccessDenied("_action", message);
+        final String requestId = randomAlphaOfLengthBetween(6, 12);
+        service.anonymousAccessDenied(requestId, "_action", message);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).anonymousAccessDenied("_action", message);
+                verify(auditTrail).anonymousAccessDenied(requestId, "_action", message);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -142,11 +148,12 @@ public class AuditTrailServiceTests extends ESTestCase {
         Authentication authentication =new Authentication(new User("_username", "r1"), new RealmRef(null, null, null),
                 new RealmRef(null, null, null));
         String[] roles = new String[] { randomAlphaOfLengthBetween(1, 6) };
-        service.accessGranted(authentication, "_action", message, roles);
+        final String requestId = randomAlphaOfLengthBetween(6, 12);
+        service.accessGranted(requestId, authentication, "_action", message, roles);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).accessGranted(authentication, "_action", message, roles);
+                verify(auditTrail).accessGranted(requestId, authentication, "_action", message, roles);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -157,11 +164,12 @@ public class AuditTrailServiceTests extends ESTestCase {
         Authentication authentication = new Authentication(new User("_username", "r1"), new RealmRef(null, null, null),
                 new RealmRef(null, null, null));
         String[] roles = new String[] { randomAlphaOfLengthBetween(1, 6) };
-        service.accessDenied(authentication, "_action", message, roles);
+        final String requestId = randomAlphaOfLengthBetween(6, 12);
+        service.accessDenied(requestId, authentication, "_action", message, roles);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).accessDenied(authentication, "_action", message, roles);
+                verify(auditTrail).accessDenied(requestId, authentication, "_action", message, roles);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -199,11 +207,12 @@ public class AuditTrailServiceTests extends ESTestCase {
     public void testAuthenticationSuccessRest() throws Exception {
         User user = new User("_username", "r1");
         String realm = "_realm";
-        service.authenticationSuccess(realm, user, restRequest);
+        final String requestId = randomAlphaOfLengthBetween(6, 12);
+        service.authenticationSuccess(requestId, realm, user, restRequest);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationSuccess(realm, user, restRequest);
+                verify(auditTrail).authenticationSuccess(requestId, realm, user, restRequest);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -213,11 +222,12 @@ public class AuditTrailServiceTests extends ESTestCase {
     public void testAuthenticationSuccessTransport() throws Exception {
         User user = new User("_username", "r1");
         String realm = "_realm";
-        service.authenticationSuccess(realm, user, "_action", message);
+        final String requestId = randomAlphaOfLengthBetween(6, 12);
+        service.authenticationSuccess(requestId, realm, user, "_action", message);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationSuccess(realm, user, "_action", message);
+                verify(auditTrail).authenticationSuccess(requestId, realm, user, "_action", message);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));

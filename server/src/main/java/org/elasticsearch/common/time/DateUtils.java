@@ -28,6 +28,7 @@ import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class DateUtils {
     public static DateTimeZone zoneIdToDateTimeZone(ZoneId zoneId) {
@@ -44,6 +45,7 @@ public class DateUtils {
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(DateFormatters.class));
     // pkg private for tests
     static final Map<String, String> DEPRECATED_SHORT_TIMEZONES;
+    public static final Set<String> DEPRECATED_SHORT_TZ_IDS;
     static {
         Map<String, String> tzs = new HashMap<>();
         tzs.put("EST", "-05:00"); // eastern time without daylight savings
@@ -52,6 +54,7 @@ public class DateUtils {
         tzs.put("ROC", "Asia/Taipei");
         tzs.put("Eire", "Europe/London");
         DEPRECATED_SHORT_TIMEZONES = Collections.unmodifiableMap(tzs);
+        DEPRECATED_SHORT_TZ_IDS = tzs.keySet();
     }
 
     public static ZoneId dateTimeZoneToZoneId(DateTimeZone timeZone) {

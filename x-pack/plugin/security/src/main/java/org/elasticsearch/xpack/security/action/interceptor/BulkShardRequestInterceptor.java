@@ -10,7 +10,6 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -29,8 +28,7 @@ public class BulkShardRequestInterceptor extends AbstractComponent implements Re
     private final ThreadContext threadContext;
     private final XPackLicenseState licenseState;
 
-    public BulkShardRequestInterceptor(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState) {
-        super(settings);
+    public BulkShardRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState) {
         this.threadContext = threadPool.getThreadContext();
         this.licenseState = licenseState;
     }

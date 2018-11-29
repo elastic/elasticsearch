@@ -54,7 +54,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         TransportClusterStatsAction.ClusterStatsNodeRequest, ClusterStatsNodeResponse> {
 
     private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(CommonStatsFlags.Flag.Docs, CommonStatsFlags.Flag.Store,
-            CommonStatsFlags.Flag.FieldData, CommonStatsFlags.Flag.QueryCache, CommonStatsFlags.Flag.Completion, CommonStatsFlags.Flag.Segments);
+        CommonStatsFlags.Flag.FieldData, CommonStatsFlags.Flag.QueryCache,
+        CommonStatsFlags.Flag.Completion, CommonStatsFlags.Flag.Segments);
 
     private final NodeService nodeService;
     private final IndicesService indicesService;
@@ -129,7 +130,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
             clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
         }
 
-        return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats, shardsStats.toArray(new ShardStats[shardsStats.size()]));
+        return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats,
+            shardsStats.toArray(new ShardStats[shardsStats.size()]));
 
     }
 

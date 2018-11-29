@@ -67,6 +67,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
     public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store";
 
+    private final Settings settings;
     private final IndicesService indicesService;
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry namedXContentRegistry;
@@ -79,6 +80,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                                                 NamedXContentRegistry namedXContentRegistry) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
             Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STORE, NodeStoreFilesMetaData.class);
+        this.settings = settings;
         this.indicesService = indicesService;
         this.nodeEnv = nodeEnv;
         this.namedXContentRegistry = namedXContentRegistry;
@@ -140,7 +142,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                 logger.trace("{} node doesn't have meta data for the requests index, responding with empty", shardId);
                 return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);
             }
-            final IndexSettings indexSettings = indexService != null ? indexService.getIndexSettings() : new IndexSettings(metaData, settings);
+            final IndexSettings indexSettings = indexService != null ? indexService.getIndexSettings() :
+                new IndexSettings(metaData, settings);
             final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
             if (shardPath == null) {
                 return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);

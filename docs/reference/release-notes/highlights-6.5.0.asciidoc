@@ -4,4 +4,117 @@
 <titleabbrev>6.5.0</titleabbrev>
 ++++
 
-coming[6.5.0]
+See also <<release-notes-6.5.0,{es} 6.5.0 release notes>>. 
+
+[float]
+=== Audit security events in new structured logs 
+
+By default, when you enable auditing, it uses the 
+{stack-ov}/audit-log-output.html[logfile audit output], which persists events to 
+a `<clustername>_audit.log` file in the logs directory. This file is new to 
+version 6.5 and prints audit entries as JSON documents. 
+
+For backwards compatibility purposes, a `<clustername>_access.log` with the old style of 
+formatting is also generated. See also <<breaking_65_settings_changes>>. 
+
+[float]
+=== Discover the structure of text files
+
+experimental[] The new <<ml-find-file-structure,find file structure API>> 
+determines the structure of a text file. It also returns statistics about the 
+most common values of the detected fields and mappings that you can use when you 
+ingest the file into {es}. If you want to influence the output, you can specify 
+optional parameters. For example, if the file contains semi-structured text, you 
+can specify a Grok pattern or let the tool generate it. This API is also used by 
+the new File Data Visualizer in {kib}.  
+
+[float]
+=== Improved {ml} results for partitioned multi-metric jobs
+
+If you use the +partition_field_name+ or +by_field_name+ parameters in a {ml} job (or the 
+*Split Data* field in the {kib} multi-metric job wizard), it generates many 
+simultaneous analyses that are modeled independently. In 6.5, we have decreased 
+the influence of the anomaly scores in each partition on other partitions' scores. 
+As a result, record- and influencer-level results produce a much wider range of scores, 
+but the overall anomaly score still uses sophisticated aggregation to ensure rate-limited 
+alerts for the job. 
+
+[float]
+=== Find multi-bucket anomalies in {ml} jobs
+
+Sometimes events are not interesting or anomalous in the context of a single 
+bucket. However, they become interesting when you take into consideration a 
+sequence of buckets as a whole. In 6.5, there is a new {ml} 
+_multi-bucket analysis_, which uses features from multiple contiguous buckets 
+for anomaly detection. The final anomaly score is now a combination of values 
+from both the “standard” single-bucket analysis and the new multi-bucket 
+analysis. A new `multi_bucket_impact` property in the 
+<<ml-results-records,record results>> indicates how strongly either form of 
+analysis influences the score. In {kib}, anomalies with medium or high 
+multi-bucket impact are depicted in the *Anomaly Explorer* and the 
+*Single Metric Viewer* with a cross symbol instead of a dot. 
+
+[float]
+=== Create source-only snapshots
+
+<<_source_only_repository, Source-only snapshots>> save space on disk by only
+saving stored fields and index metadata. This can result in up to 50% reduction
+in size. Index and doc values are not included, so a restored source-only
+snapshot is not searchable. You must reindex the data into a new index after it's
+restored.
+
+[float]
+=== Apply token filters conditionally
+
+The <<analysis-condition-tokenfilter,conditional token filter>> enables you to
+use inline Painless scripts to filter out terms. Previously, conditionally
+applying token filters required creating and using custom analysis plugins.
+
+[float]
+=== Use ODBC to connect to {es} SQL
+
+{es} SQL now supports ODBC mode in addition to JDBC. The functionality is
+currently the same as JDBC. An alpha version of the ODBC client is now
+available for download.
+
+[float]
+=== Delegate authorization to other realms
+
+If you enable the {es} {security-features}, some realms now have the 
+ability to perform _authentication_ internally then delegate _authorization_ to 
+another realm. For example, you could authenticate using PKI then delegate to an 
+LDAP realm for role information. The realms that support this feature have a 
+new `authorization_realms` setting that you can configure in the 
+`elasticsearch.yml` file. For more information, see 
+{stack-ov}/realm-chains.html#authorization_realms[Realm chains] and <<realm-settings>>. 
+
+[float]
+=== Cross-cluster replication (beta^*^)
+
+Cross-cluster replication enables you to replicate indices that exist in remote 
+clusters to your local cluster. You create an index in your local cluster 
+(known as a _follower index_) that follows an index (known as a _leader index_)
+in a remote cluster. You can also automatically follow indices in a 
+remote cluster that match a pattern. The individual write operations that occur 
+on the leader indices are then replayed on the follower indices. This 
+functionality is useful for replicating data to a second cluster for disaster 
+recovery purposes and for geo-proximity so that reads can be served locally.
+
+For more information, see {stack-ov}/xpack-ccr.html[Cross-cluster replication] 
+and <<ccr-apis>>. 
+
+[float]
+=== Monitor {es} with {metricbeat} (beta^*^)
+
+In 6.4 and later, you can use {metricbeat} to collect data about {kib} and ship 
+it directly to your monitoring cluster, rather than routing it through {es}. Now 
+in 6.5, you can also use {metricbeat} to collect and ship data about {es}. If 
+you are monitoring {ls} or Beats, at this time you must still use exporters to 
+route the data. See <<configuring-metricbeat>> and 
+{stack-ov}/how-monitoring-works.html[How monitoring works]. 
+ 
+
+^*^ This functionality is in beta and is subject to change. The design and code 
+is less mature than official GA features and is being provided as-is with no 
+warranties. Please try this functionality in your test and development environments 
+and provide feedback in the https://discuss.elastic.co/[Elastic community forums].

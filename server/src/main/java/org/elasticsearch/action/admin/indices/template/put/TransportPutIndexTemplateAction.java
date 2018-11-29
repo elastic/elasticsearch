@@ -47,8 +47,10 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
     @Inject
     public TransportPutIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, IndexScopedSettings indexScopedSettings) {
-        super(settings, PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutIndexTemplateRequest::new);
+                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                           IndexScopedSettings indexScopedSettings) {
+        super(settings, PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            indexNameExpressionResolver, PutIndexTemplateRequest::new);
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
     }
@@ -70,7 +72,8 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
     }
 
     @Override
-    protected void masterOperation(final PutIndexTemplateRequest request, final ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(final PutIndexTemplateRequest request, final ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";

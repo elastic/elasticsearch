@@ -95,11 +95,13 @@ Entries in the previous format contained positional fields.
 These fields are no longer positional in the new format, as they are part of the
 structured log entry (the JSON document).
 Consequently, the following settings, which toggled some of the prefix
-positional fields, have be renamed ("prefix" was spliced out):
+positional fields, have been renamed ("prefix" was spliced out):
+
 - `xpack.security.audit.logfile.prefix.emit_node_host_address` to
   `xpack.security.audit.logfile.emit_node_host_address`
 - `xpack.security.audit.logfile.prefix.emit_node_host_name` to
   `xpack.security.audit.logfile.emit_node_host_name`
 - `xpack.security.audit.logfile.prefix.emit_node_name` to
   `xpack.security.audit.logfile.emit_node_name`
+
 In 7.0.0 the `prefix` variant will be removed.

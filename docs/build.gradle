@@ -60,6 +60,9 @@ integTestCluster {
   // TODO: remove this for 7.0, this exists to allow the doc examples in 6.x to continue using the defaults
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
 
+  //TODO: remove this once the cname is prepended to the address by default in 7.0
+  systemProperty 'es.http.cname_in_publish_address', 'true'
+
   // TODO: remove this deprecation compatibility setting for 7.0
   systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'false'
 }
@@ -142,7 +145,6 @@ buildRestTests.setups['host'] = '''
   - do:
       nodes.info:
         metric: [ http, transport ]
-  - is_true: nodes.$master.http.publish_address
   - set: {nodes.$master.http.publish_address: host}
   - set: {nodes.$master.transport.publish_address: transport_host}
 '''
@@ -1079,4 +1081,79 @@ buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['cale
            ]}
 '''
 
+// used by median absolute deviation aggregation
+buildRestTests.setups['reviews'] = '''
+  - do:
+        indices.create:
+          index: reviews
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              _doc:
+                properties:
+                  product:
+                    type: keyword
+                  rating:
+                    type: long
+  - do:
+        bulk:
+          index: reviews
+          type: _doc
+          refresh: true
+          body: |
+            {"index": {"_id": "1"}}
+            {"product": "widget-foo", "rating": 1}
+            {"index": {"_id": "2"}}
+            {"product": "widget-foo", "rating": 5}
+'''
 
+buildRestTests.setups['remote_cluster'] = buildRestTests.setups['host'] + '''
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.remote.remote_cluster.seeds: $transport_host
+'''
+
+buildRestTests.setups['remote_cluster_and_leader_index'] = buildRestTests.setups['remote_cluster'] + '''
+  - do:
+      indices.create:
+        index: leader_index
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
+            index.soft_deletes.enabled: true
+'''
+
+buildRestTests.setups['seats'] = '''
+  - do:
+        indices.create:
+          index: seats
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              _doc:
+                properties:
+                  theatre:
+                    type: keyword
+                  cost:
+                    type: long
+  - do:
+        bulk:
+          index: seats
+          type: _doc
+          refresh: true
+          body: |
+            {"index":{}}
+            {"theatre": "Skyline", "cost": 1}
+            {"index":{}}
+            {"theatre": "Graye", "cost": 5}
+            {"index":{}}
+            {"theatre": "Graye", "cost": 8}
+            {"index":{}}
+            {"theatre": "Skyline", "cost": 10}'''

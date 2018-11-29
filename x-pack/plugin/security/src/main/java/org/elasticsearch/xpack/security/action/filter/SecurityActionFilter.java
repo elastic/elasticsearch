@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -55,10 +54,9 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
     private final SecurityContext securityContext;
     private final DestructiveOperations destructiveOperations;
 
-    public SecurityActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService,
+    public SecurityActionFilter(AuthenticationService authcService, AuthorizationService authzService,
                                 XPackLicenseState licenseState, Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
                                 SecurityContext securityContext, DestructiveOperations destructiveOperations) {
-        super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
         this.licenseState = licenseState;

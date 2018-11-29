@@ -35,18 +35,28 @@
 ////
 
 [[release-notes-6.4.3]]
-== 6.4.3 Release Notes
+== {es} version 6.4.3
 
 coming[6.4.3]
 
 Also see <<breaking-changes-6.4>>.
 
+[float]
+[[enhancement-6.4.3]]
+=== Enhancements
+
+Machine learning::
+* Changes linker options on macOS to allow Homebrew installs ({ml-pull}225[#225])
+
 [[bug-6.4.3]]
 [float]
 === Bug fixes
 
+Aggregations::
+* Check self references in metric agg after last doc collection (#33593) {pull}34001[#34001]
+
 Authentication::
-* ListenableFuture should preserve ThreadContext {pull}34394[#34394]
+* ListenableFuture should preserve ThreadContext (CVE-2018-17244) {pull}34394[#34394]
 * Allow an AuthenticationResult to return metadata {pull}34382[#34382] (issues: {issue}34290[#34290], {issue}34332[#34332])
 * Preserve thread context during authentication  {pull}34290[#34290]
 
@@ -55,6 +65,13 @@ Circuit Breakers::
 
 Java High Level REST Client::
 * HLRC: Fixing bug when getting a missing pipeline {pull}34286[#34286] (issue: {issue}34119[#34119])
+
+Machine learning::
+* Fixes the cause of `hard_limit` memory errors for jobs with bucket spans greater 
+than one day ({ml-pull}243[#243])
+* Rules that trigger the `skip_model_update` action should also apply to the 
+anomaly model. This fixes an issue where anomaly scores of results that triggered 
+the rule would decrease if they occurred frequently. {ml-pull}222[#222] (issue:{ml-issue}217[#217])
 
 Network::
 *  Support PKCS#11 tokens as keystores and truststores  {pull}34063[#34063] (issue: {issue}11[#11])

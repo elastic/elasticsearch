@@ -58,7 +58,8 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
         String stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("person").startObject("properties")
                 .startObject("name").field("type", "text").endObject()
                 .startObject("age").field("type", "integer").endObject()
-                .startObject("obj1").startObject("properties").startObject("prop1").field("type", "integer").endObject().endObject().endObject()
+                .startObject("obj1").startObject("properties").startObject("prop1").field("type", "integer")
+                .endObject().endObject().endObject()
                 .endObject().endObject().endObject());
         DocumentMapper stage2 = parser.parse("person", new CompressedXContent(stage2Mapping));
 
@@ -77,7 +78,8 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = parser.parse("type1", new CompressedXContent(objectMapping));
         assertNull(mapper.root().dynamic());
 
-        String withDynamicMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1").field("dynamic", "false").endObject().endObject());
+        String withDynamicMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .field("dynamic", "false").endObject().endObject());
         DocumentMapper withDynamicMapper = parser.parse("type1", new CompressedXContent(withDynamicMapping));
         assertThat(withDynamicMapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
 
@@ -160,7 +162,8 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
 
     public void testConcurrentMergeTest() throws Throwable {
         final MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge("test", new CompressedXContent("{\"test\":{}}"), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge("test", new CompressedXContent("{\"test\":{}}"),
+            MapperService.MergeReason.MAPPING_UPDATE, false);
         final DocumentMapper documentMapper = mapperService.documentMapper("test");
 
         DocumentFieldMappers dfm = documentMapper.mappers();
@@ -190,7 +193,8 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
                         Mapping update = doc.dynamicMappingsUpdate();
                         assert update != null;
                         lastIntroducedFieldName.set(fieldName);
-                        mapperService.merge("test", new CompressedXContent(update.toString()), MapperService.MergeReason.MAPPING_UPDATE, false);
+                        mapperService.merge("test", new CompressedXContent(update.toString()),
+                            MapperService.MergeReason.MAPPING_UPDATE, false);
                     }
                 } catch (Exception e) {
                     error.set(e);

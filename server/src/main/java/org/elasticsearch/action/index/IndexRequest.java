@@ -156,12 +156,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         final long resolvedVersion = resolveVersionDefaults();
         if (opType() == OpType.CREATE) {
             if (versionType != VersionType.INTERNAL) {
-                validationException = addValidationError("create operations only support internal versioning. use index instead", validationException);
+                validationException = addValidationError("create operations only support internal versioning. use index instead",
+                    validationException);
                 return validationException;
             }
 
             if (resolvedVersion != Versions.MATCH_DELETED) {
-                validationException = addValidationError("create operations do not support explicit versions. use index instead", validationException);
+                validationException = addValidationError("create operations do not support explicit versions. use index instead",
+                    validationException);
                 return validationException;
             }
         }
@@ -171,7 +173,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
 
         if (!versionType.validateVersionForWrites(resolvedVersion)) {
-            validationException = addValidationError("illegal version value [" + resolvedVersion + "] for version type [" + versionType.name() + "]", validationException);
+            validationException = addValidationError("illegal version value [" + resolvedVersion + "] for version type ["
+                + versionType.name() + "]", validationException);
         }
 
         if (versionType == VersionType.FORCE) {
@@ -213,6 +216,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Sets the type of the indexed document.
      */
+    @Override
     public IndexRequest type(String type) {
         this.type = type;
         return this;
@@ -362,7 +366,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
         }
         if (source.length == 2 && source[0] instanceof BytesReference && source[1] instanceof Boolean) {
-            throw new IllegalArgumentException("you are using the removed method for source with bytes and unsafe flag, the unsafe flag was removed, please just use source(BytesReference)");
+            throw new IllegalArgumentException("you are using the removed method for source with bytes and unsafe flag, the unsafe flag"
+                + " was removed, please just use source(BytesReference)");
         }
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);

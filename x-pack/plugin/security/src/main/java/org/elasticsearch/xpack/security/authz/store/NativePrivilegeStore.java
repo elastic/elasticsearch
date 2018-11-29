@@ -75,12 +75,13 @@ public class NativePrivilegeStore extends AbstractComponent {
             return a;
         });
 
+    private final Settings settings;
     private final Client client;
     private final SecurityClient securityClient;
     private final SecurityIndexManager securityIndexManager;
 
     public NativePrivilegeStore(Settings settings, Client client, SecurityIndexManager securityIndexManager) {
-        super(settings);
+        this.settings = settings;
         this.client = client;
         this.securityClient = new SecurityClient(client);
         this.securityIndexManager = securityIndexManager;

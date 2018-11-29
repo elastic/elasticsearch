@@ -195,6 +195,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      * This test waits for the monitoring service to collect monitoring documents and then checks that all expected documents
      * have been indexed with the expected information.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29880")
     @SuppressWarnings("unchecked")
     public void testMonitoringService() throws Exception {
         final boolean createAPMIndex = randomBoolean();
@@ -206,6 +207,12 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                            .get()
                            .status(),
                    is(RestStatus.CREATED));
+
+        final Settings settings = Settings.builder()
+            .put("cluster.metadata.display_name", "my cluster")
+            .build();
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
         whenExportersAreReady(() -> {
             final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
@@ -316,7 +323,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     private void assertClusterStatsMonitoringDoc(final Map<String, Object> document,
                                                  final boolean apmIndicesExist) {
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
-        assertEquals(11, source.size());
+        assertEquals(12, source.size());
 
         assertThat((String) source.get("cluster_name"), not(isEmptyOrNullString()));
         assertThat(source.get("version"), equalTo(Version.CURRENT.toString()));
@@ -377,6 +384,12 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(clusterState.remove("master_node"), notNullValue());
         assertThat(clusterState.remove("nodes"), notNullValue());
         assertThat(clusterState.keySet(), empty());
+
+
+        final Map<String, Object> clusterSettings = (Map<String, Object>) source.get("cluster_settings");
+        assertThat(clusterSettings, notNullValue());
+        assertThat(clusterSettings.remove("cluster"), notNullValue());
+        assertThat(clusterSettings.keySet(), empty());
     }
 
     /**
@@ -617,6 +630,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         final Settings settings = Settings.builder()
                 .putNull("xpack.monitoring.collection.enabled")
                 .putNull("xpack.monitoring.exporters._local.enabled")
+                .putNull("cluster.metadata.display_name")
                 .build();
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));

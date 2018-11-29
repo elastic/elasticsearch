@@ -87,7 +87,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         response = client().admin().cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull((randomBoolean() ? "discovery.zen.*" : "*")).put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "2s"))
+            .setTransientSettings(Settings.builder().putNull((randomBoolean() ? "discovery.zen.*" : "*"))
+                .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "2s"))
             .get();
         assertEquals(response.getTransientSettings().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), "2s");
         assertNull(response.getTransientSettings().getAsBoolean(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey(), null));
@@ -274,7 +275,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                     .get();
             fail("bogus value");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse setting [discovery.zen.publish_timeout] with value [whatever] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [discovery.zen.publish_timeout] with value [whatever]" +
+                " as a time value: unit is missing or unrecognized");
         }
 
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
@@ -292,7 +294,9 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
     }
 
-    private DiscoverySettings getDiscoverySettings() {return ((ZenDiscovery) internalCluster().getInstance(Discovery.class)).getDiscoverySettings();}
+    private DiscoverySettings getDiscoverySettings() {
+        return ((ZenDiscovery) internalCluster().getInstance(Discovery.class)).getDiscoverySettings();
+    }
 
     public void testClusterUpdateSettingsWithBlocks() {
         String key1 = "cluster.routing.allocation.enable";
@@ -344,7 +348,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
 
         try {
-            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", "10")).execute().actionGet();
+            client().admin().indices().prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.refresh_interval", "10")).execute().actionGet();
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("[index.refresh_interval] with value [10]"));
@@ -360,7 +365,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         final IllegalArgumentException e =
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("logger._root", "BOOM")).execute().actionGet());
+                () -> client().admin().cluster().prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put("logger._root", "BOOM")).execute().actionGet());
         assertEquals("Unknown level constant [BOOM].", e.getMessage());
 
         try {

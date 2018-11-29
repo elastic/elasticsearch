@@ -23,7 +23,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
@@ -57,11 +56,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+        SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
-
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {
@@ -115,11 +112,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+        SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
-
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {
@@ -172,11 +167,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+        SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
-
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {

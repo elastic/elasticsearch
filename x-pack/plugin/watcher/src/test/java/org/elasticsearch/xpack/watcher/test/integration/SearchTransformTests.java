@@ -260,7 +260,7 @@ public class SearchTransformTests extends ESIntegTestCase {
 
     private WatcherSearchTemplateService watcherSearchTemplateService() {
         String master = internalCluster().getMasterName();
-        return new WatcherSearchTemplateService(internalCluster().clusterService(master).getSettings(),
+        return new WatcherSearchTemplateService(
                 internalCluster().getInstance(ScriptService.class, master),
                 xContentRegistry()
         );

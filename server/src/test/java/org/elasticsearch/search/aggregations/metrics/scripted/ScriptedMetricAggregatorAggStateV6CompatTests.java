@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -75,40 +74,40 @@ public class ScriptedMetricAggregatorAggStateV6CompatTests extends AggregatorTes
     @SuppressWarnings("unchecked")
     public static void initMockScripts() {
         // If _agg is provided implicitly, it should be the same objects as "state" from the context.
-        SCRIPTS.put("initScript", params -> {
-            Object agg = params.get("_agg");
-            Object state = params.get("state");
+        SCRIPTS.put("initScript", vars -> {
+            Object agg = ((Map<String,Object>) vars.get("params")).get("_agg");
+            Object state = vars.get("state");
             assertThat(agg, instanceOf(Map.class));
             assertThat(agg, sameInstance(state));
             return agg;
         });
-        SCRIPTS.put("mapScript", params -> {
-            Object agg = params.get("_agg");
-            Object state = params.get("state");
+        SCRIPTS.put("mapScript", vars -> {
+            Object agg = ((Map<String,Object>) vars.get("params")).get("_agg");
+            Object state = vars.get("state");
             assertThat(agg, instanceOf(Map.class));
             assertThat(agg, sameInstance(state));
             return agg;
         });
-        SCRIPTS.put("combineScript", params -> {
-            Object agg = params.get("_agg");
-            Object state = params.get("state");
+        SCRIPTS.put("combineScript", vars -> {
+            Object agg = ((Map<String,Object>) vars.get("params")).get("_agg");
+            Object state = vars.get("state");
             assertThat(agg, instanceOf(Map.class));
             assertThat(agg, sameInstance(state));
             return agg;
         });
 
-        SCRIPTS.put("initScriptExplicitAgg", params -> {
-            Object agg = params.get("_agg");
+        SCRIPTS.put("initScriptExplicitAgg", vars -> {
+            Object agg = ((Map<String,Object>) vars.get("params")).get("_agg");
             assertThat(agg, equalTo(EXPLICIT_AGG_OBJECT));
             return agg;
         });
-        SCRIPTS.put("mapScriptExplicitAgg", params -> {
-            Object agg = params.get("_agg");
+        SCRIPTS.put("mapScriptExplicitAgg", vars -> {
+            Object agg = ((Map<String,Object>) vars.get("params")).get("_agg");
             assertThat(agg, equalTo(EXPLICIT_AGG_OBJECT));
             return agg;
         });
-        SCRIPTS.put("combineScriptExplicitAgg", params -> {
-            Object agg = params.get("_agg");
+        SCRIPTS.put("combineScriptExplicitAgg", vars -> {
+            Object agg = ((Map<String,Object>) vars.get("params")).get("_agg");
             assertThat(agg, equalTo(EXPLICIT_AGG_OBJECT));
             return agg;
         });
@@ -132,7 +131,12 @@ public class ScriptedMetricAggregatorAggStateV6CompatTests extends AggregatorTes
             }
         }
 
-        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING,
+        assertWarnings("Accessing variable [_agg] via [params._agg] from within a scripted metric agg init script " +
+                "is deprecated in favor of using [state].",
+            "Accessing variable [_agg] via [params._agg] from within a scripted metric agg map script " +
+                "is deprecated in favor of using [state].",
+            "Accessing variable [_agg] via [params._agg] from within a scripted metric agg combine script " +
+                "is deprecated in favor of using [state].",
             "[reduceScript] must be provided for metric aggregations.");
     }
 
@@ -162,7 +166,12 @@ public class ScriptedMetricAggregatorAggStateV6CompatTests extends AggregatorTes
             }
         }
 
-        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING,
+        assertWarnings("Accessing variable [_agg] via [params._agg] from within a scripted metric agg init script " +
+                "is deprecated in favor of using [state].",
+            "Accessing variable [_agg] via [params._agg] from within a scripted metric agg map script " +
+                "is deprecated in favor of using [state].",
+            "Accessing variable [_agg] via [params._agg] from within a scripted metric agg combine script " +
+                "is deprecated in favor of using [state].",
             "[reduceScript] must be provided for metric aggregations.");
     }
 

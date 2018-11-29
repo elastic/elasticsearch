@@ -144,7 +144,6 @@ public class Upgrade extends Plugin implements ActionPlugin {
         return (client, clusterService) -> {
             final Client clientWithOrigin = clientWithOrigin(client, SECURITY_ORIGIN);
             return new IndexUpgradeCheck<Void>("security",
-                    settings,
                     indexMetaData -> {
                         if (".security".equals(indexMetaData.getIndex().getName())
                                 || indexMetaData.getAliases().containsKey(".security")) {
@@ -244,7 +243,6 @@ public class Upgrade extends Plugin implements ActionPlugin {
         return (client, clusterService) -> {
             final Client clientWithOrigin = clientWithOrigin(client, WATCHER_ORIGIN);
             return new IndexUpgradeCheck<Boolean>("watches",
-                    settings,
                     indexMetaData -> {
                         if (indexOrAliasExists(indexMetaData, ".watches")) {
                             if (checkInternalIndexFormat(indexMetaData)) {
@@ -273,7 +271,6 @@ public class Upgrade extends Plugin implements ActionPlugin {
         return (client, clusterService) -> {
             final Client clientWithOrigin = clientWithOrigin(client, WATCHER_ORIGIN);
             return new IndexUpgradeCheck<Boolean>("triggered-watches",
-                    settings,
                     indexMetaData -> {
                         if (indexOrAliasExists(indexMetaData, TriggeredWatchStoreField.INDEX_NAME)) {
                             if (checkInternalIndexFormat(indexMetaData)) {

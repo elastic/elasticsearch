@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -50,11 +51,9 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -99,12 +98,13 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 /**
  * Service responsible for submitting create index requests
  */
-public class MetaDataCreateIndexService extends AbstractComponent {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(MetaDataCreateIndexService.class));
+public class MetaDataCreateIndexService {
+    private static final Logger logger = LogManager.getLogger(MetaDataCreateIndexService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
+    private final Settings settings;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final AllocationService allocationService;
@@ -126,14 +126,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             final ThreadPool threadPool,
             final NamedXContentRegistry xContentRegistry,
             final boolean forbidPrivateIndexSettings) {
-        super(settings);
+        this.settings = settings;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.allocationService = allocationService;
         this.aliasValidator = aliasValidator;
         this.env = env;
         this.indexScopedSettings = indexScopedSettings;
-        this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
+        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.xContentRegistry = xContentRegistry;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
     }
@@ -169,7 +169,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
         if (index.contains(":")) {
             deprecationLogger.deprecated("index or alias name [" + index +
-                            "] containing ':' is deprecated and will not be supported in Elasticsearch 7.0+");
+                            "] containing ':' is deprecated. Elasticsearch 7.x will read, " +
+                            "but not allow creation of new indices containing ':'");
         }
         if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
             throw exceptionCtor.apply(index, "must not start with '_', '-', or '+'");
@@ -338,7 +339,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 continue;
                             }
 
-                            //Allow templatesAliases to be templated by replacing a token with the name of the index that we are applying it to
+                            // Allow templatesAliases to be templated by replacing a token with the
+                            // name of the index that we are applying it to
                             if (aliasMetaData.alias().contains("{index}")) {
                                 String templatedAlias = aliasMetaData.alias().replace("{index}", request.index());
                                 aliasMetaData = AliasMetaData.newAliasMetaData(aliasMetaData, templatedAlias);
@@ -463,7 +465,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                 // the context is only used for validation so it's fine to pass fake values for the shard id and the current
                 // timestamp
-                final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L, null);
+                final QueryShardContext queryShardContext =
+                    indexService.newQueryShardContext(0, null, () -> 0L, null);
 
                 for (Alias alias : request.aliases()) {
                     if (Strings.hasLength(alias.filter())) {
@@ -611,7 +614,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         } else if (Strings.isEmpty(customPath) == false) {
             Path resolvedPath = PathUtils.get(new Path[]{env.sharedDataFile()}, customPath);
             if (resolvedPath == null) {
-                validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
+                validationErrors.add("custom path [" + customPath +
+                                     "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
             }
         }
         if (forbidPrivateIndexSettings) {

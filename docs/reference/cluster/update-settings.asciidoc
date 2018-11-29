@@ -11,6 +11,8 @@ GET /_cluster/settings
 --------------------------------------------------
 // CONSOLE
 
+By default, this API call only returns settings that have been explicitly defined, but can also <<cluster-get-settings,include the default settings>>.
+
 Updates to settings can be persistent, meaning they apply across restarts, or transient, where they don't 
 survive a full cluster restart. Here is an example of a persistent update:
 

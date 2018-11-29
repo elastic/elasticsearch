@@ -31,6 +31,7 @@ import java.util.stream.StreamSupport;
 public class TransportGetRollupIndexCapsAction extends HandledTransportAction<GetRollupIndexCapsAction.Request,
     GetRollupIndexCapsAction.Response> {
 
+    private final Settings settings;
     private final ClusterService clusterService;
 
     @Inject
@@ -40,6 +41,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<Ge
                                              IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, GetRollupIndexCapsAction.NAME, threadPool, transportService, actionFilters,
             indexNameExpressionResolver, GetRollupIndexCapsAction.Request::new);
+        this.settings = settings;
         this.clusterService = clusterService;
     }
 
@@ -47,7 +49,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<Ge
     protected void doExecute(GetRollupIndexCapsAction.Request request,
                              ActionListener<GetRollupIndexCapsAction.Response> listener) {
 
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(clusterService.getSettings());
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(settings);
         String[] indices = resolver.concreteIndexNames(clusterService.state(),
             request.indicesOptions(), request.indices());
         Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(Arrays.asList(indices),

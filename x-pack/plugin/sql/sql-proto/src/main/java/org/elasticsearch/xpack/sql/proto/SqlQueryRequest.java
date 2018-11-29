@@ -33,9 +33,9 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final List<SqlTypedParamValue> params;
 
 
-    public SqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, TimeZone timeZone,
-                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, String cursor) {
-        super(mode);
+    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, TimeZone timeZone, int fetchSize,
+                           TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, String cursor, RequestInfo requestInfo) {
+        super(requestInfo);
         this.query = query;
         this.params = params;
         this.timeZone = timeZone;
@@ -46,15 +46,15 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.cursor = cursor;
     }
 
-    public SqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, ToXContent filter, TimeZone timeZone,
-                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-        this(mode, query, params, timeZone, fetchSize, requestTimeout, pageTimeout, filter, null);
+    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ToXContent filter, TimeZone timeZone,
+                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
+        this(query, params, timeZone, fetchSize, requestTimeout, pageTimeout, filter, null, requestInfo);
     }
 
-    public SqlQueryRequest(Mode mode, String cursor, TimeValue requestTimeout, TimeValue pageTimeout) {
-        this(mode, "", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout, null, cursor);
+    public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
+        this("", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout,
+             null, cursor, requestInfo);
     }
-
 
     /**
      * The key that must be sent back to SQL to access the next page of

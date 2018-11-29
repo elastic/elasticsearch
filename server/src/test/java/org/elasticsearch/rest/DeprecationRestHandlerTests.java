@@ -24,6 +24,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.test.ESTestCase;
 
+import org.junit.Before;
 import org.mockito.InOrder;
 
 import static org.mockito.Mockito.inOrder;
@@ -35,12 +36,18 @@ import static org.mockito.Mockito.when;
  */
 public class DeprecationRestHandlerTests extends ESTestCase {
 
-    private final RestHandler handler = mock(RestHandler.class);
+    private RestHandler handler;
     /**
      * Note: Headers should only use US ASCII (and this inevitably becomes one!).
      */
     private final String deprecationMessage = randomAlphaOfLengthBetween(1, 30);
-    private final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
+    private DeprecationLogger deprecationLogger;
+
+    @Before
+    public void setup() {
+        handler = mock(RestHandler.class);
+        deprecationLogger = mock(DeprecationLogger.class);
+    }
 
     public void testNullHandler() {
         expectThrows(NullPointerException.class, () -> new DeprecationRestHandler(null, deprecationMessage, deprecationLogger));
@@ -115,11 +122,14 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> DeprecationRestHandler.requireValidHeader(blank));
     }
 
-    public void testSupportsContentStream() {
-        DeprecationRestHandler deprecationRestHandler = new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger);
-        when(handler.supportsContentStream()).thenReturn(true).thenReturn(false);
-        assertTrue(deprecationRestHandler.supportsContentStream());
-        assertFalse(deprecationRestHandler.supportsContentStream());
+    public void testSupportsContentStreamTrue() {
+        when(handler.supportsContentStream()).thenReturn(true);
+        assertTrue(new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger).supportsContentStream());
+    }
+
+    public void testSupportsContentStreamFalse() {
+        when(handler.supportsContentStream()).thenReturn(false);
+        assertFalse(new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger).supportsContentStream());
     }
 
     /**

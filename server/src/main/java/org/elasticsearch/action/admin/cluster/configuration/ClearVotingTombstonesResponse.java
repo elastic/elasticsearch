@@ -21,13 +21,15 @@ package org.elasticsearch.action.admin.cluster.configuration;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 /**
  * A response to {@link ClearVotingTombstonesRequest} indicating that voting tombstones have been cleared from the cluster state.
  */
-public class ClearVotingTombstonesResponse extends ActionResponse {
+public class ClearVotingTombstonesResponse extends ActionResponse implements ToXContentObject {
     public ClearVotingTombstonesResponse() {
     }
 
@@ -43,5 +45,10 @@ public class ClearVotingTombstonesResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        return builder;
     }
 }

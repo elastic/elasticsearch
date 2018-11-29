@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
@@ -42,7 +41,7 @@ public class SysParserTests extends ESTestCase {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private Tuple<Command, SqlSession> sql(String sql) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"),
+        Analyzer analyzer = new Analyzer(Configuration.DEFAULT, new FunctionRegistry(), IndexResolution.valid(test),
                                          new Verifier(new Metrics()));
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), true);
 

@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
+// TODO: Fold this integration test into a more expansive integration test as more bootstrap from remote work
+// TODO: is completed.
 public class CcrRepositoryManagerIT extends CcrIntegTestCase {
 
     public void testThatRepositoryIsPutAndRemovedWhenRemoteClusterIsUpdated() throws Exception {

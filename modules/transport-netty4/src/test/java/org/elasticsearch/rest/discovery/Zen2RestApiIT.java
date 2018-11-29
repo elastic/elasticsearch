@@ -47,7 +47,9 @@ import java.util.List;
 
 import static org.hamcrest.core.Is.is;
 
-// TODO: Move these tests to a more appropriate module
+// These tests are here today so they have access to a proper REST client. They cannot be in :server:integTest since the REST client needs a
+// proper transport implementation, and they cannot be REST tests today since they need to restart nodes. When #35599 and friends land we
+// should be able to move these tests to run against a proper cluster instead. TODO do this.
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 public class Zen2RestApiIT extends ESNetty4IntegTestCase {
 
@@ -123,15 +125,33 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         assertThat(internalCluster().size(), is(2));
     }
 
-    public void testBasicRestApi() throws Exception {
+    public void testClearVotingTombstonesNotWaitingForRemoval() throws Exception {
         List<String> nodes = internalCluster().startNodes(3);
         RestClient restClient = getRestClient();
         Response response = restClient.performRequest(new Request("POST", "/_cluster/withdrawn_votes/" + nodes.get(2)));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
+        Response deleteResponse = restClient.performRequest(new Request("DELETE", "/_cluster/withdrawn_votes/?wait_for_removal=false"));
+        assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
+        assertThat(deleteResponse.getEntity().getContentLength(), is(0L));
+    }
+
+    public void testClearVotingTombstonesWaitingForRemoval() throws Exception {
+        List<String> nodes = internalCluster().startNodes(3);
+        RestClient restClient = getRestClient();
+        String nodeToWithdraw = nodes.get(randomIntBetween(0, 2));
+        Response response = restClient.performRequest(new Request("POST", "/_cluster/withdrawn_votes/" + nodeToWithdraw));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertThat(response.getEntity().getContentLength(), is(0L));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToWithdraw));
         Response deleteResponse = restClient.performRequest(new Request("DELETE", "/_cluster/withdrawn_votes"));
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
         assertThat(deleteResponse.getEntity().getContentLength(), is(0L));
+    }
+
+    public void testFailsOnUnknownNode() throws Exception {
+        internalCluster().startNodes(3);
+        RestClient restClient = getRestClient();
         try {
             restClient.performRequest(new Request("POST", "/_cluster/withdrawn_votes/invalid"));
             fail("Invalid node name should throw.");

@@ -45,7 +45,9 @@ public class RestClearVotingTombstonesAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClearVotingTombstonesRequest req = new ClearVotingTombstonesRequest();
-        req.setWaitForRemoval(false);
+        if (request.hasParam("wait_for_removal")) {
+            req.setWaitForRemoval(request.paramAsBoolean("wait_for_removal", true));
+        }
         return channel -> client.execute(ClearVotingTombstonesAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
 }

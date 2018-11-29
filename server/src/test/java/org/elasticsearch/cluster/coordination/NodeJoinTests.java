@@ -419,7 +419,7 @@ public class NodeJoinTests extends ESTestCase {
             .mapToObj(nodeId -> newNode(nodeId, true)).collect(Collectors.toList());
 
         VotingConfiguration votingConfiguration = new VotingConfiguration(
-            randomSubsetOf(randomIntBetween(1, nodes.size()), nodes).stream().map(DiscoveryNode::getId).collect(Collectors.toSet()));
+            randomSubsetOf(randomIntBetween(2, nodes.size()), nodes).stream().map(DiscoveryNode::getId).collect(Collectors.toSet()));
 
         logger.info("Voting configuration: {}", votingConfiguration);
 

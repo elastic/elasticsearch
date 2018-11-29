@@ -44,18 +44,16 @@ public abstract class NotificationService<Account> {
     private volatile SecureSettings cachedSecureSettings;
 
     public NotificationService(String type, Settings settings, ClusterSettings clusterSettings, List<Setting<?>> pluginClusterSettings) {
-        this.type = type;
-        this.logger = LogManager.getLogger();
-        this.bootSettings = settings;
+        this(type, settings);
         // register a grand updater for the whole group, as settings are usable together
         clusterSettings.addSettingsUpdateConsumer(this::clusterSettingsConsumer, pluginClusterSettings);
     }
 
     // Used for testing only
-    NotificationService(String type) {
+    NotificationService(String type, Settings settings) {
         this.type = type;
         this.logger = LogManager.getLogger();
-        this.bootSettings = Settings.EMPTY;
+        this.bootSettings = settings;
     }
 
     private synchronized void clusterSettingsConsumer(Settings settings) {

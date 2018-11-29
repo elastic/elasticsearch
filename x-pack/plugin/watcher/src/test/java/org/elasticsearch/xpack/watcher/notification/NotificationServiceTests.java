@@ -81,7 +81,7 @@ public class NotificationServiceTests extends ESTestCase {
     private static class TestNotificationService extends NotificationService<String> {
 
         TestNotificationService(Settings settings) {
-            super("test");
+            super("test", settings);
             reload(settings);
         }
 

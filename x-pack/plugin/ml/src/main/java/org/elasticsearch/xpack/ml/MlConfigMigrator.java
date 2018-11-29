@@ -9,7 +9,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -275,8 +273,6 @@ public class MlConfigMigrator {
 
     private IndexRequest indexRequest(ToXContentObject source, String documentId, ToXContent.Params params) {
         IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName(), ElasticsearchMappings.DOC_TYPE, documentId);
-        // do not overwrite existing documents
-        indexRequest.opType(DocWriteRequest.OpType.CREATE);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             indexRequest.source(source.toXContent(builder, params));
@@ -364,15 +360,9 @@ public class MlConfigMigrator {
         for (BulkItemResponse itemResponse : response.getItems()) {
             if (itemResponse.isFailed()) {
                 BulkItemResponse.Failure failure = itemResponse.getFailure();
-                if (failure.getCause().getClass() == VersionConflictEngineException.class) {
-                    // not a failure. The document is already written but perhaps
-                    // has not been removed from the clusterstate
-                    logger.info("cannot write ml configuration [" + itemResponse.getFailure().getId() + "] as it already exists");
-                } else {
-                    failedDocumentIds.add(itemResponse.getFailure().getId());
-                    logger.info("failed to index ml configuration [" + itemResponse.getFailure().getId() + "], " +
-                            itemResponse.getFailure().getMessage());
-                }
+                failedDocumentIds.add(itemResponse.getFailure().getId());
+                logger.info("failed to index ml configuration [" + itemResponse.getFailure().getId() + "], " +
+                        itemResponse.getFailure().getMessage());
             } else {
                 logger.info("ml configuration [" + itemResponse.getId() + "] indexed");
             }

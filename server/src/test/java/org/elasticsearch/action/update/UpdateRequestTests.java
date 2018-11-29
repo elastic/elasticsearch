@@ -60,6 +60,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.hasItems;
@@ -359,7 +360,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .scriptedUpsert(true);
             long nowInMillis = randomNonNegativeLong();
             // We simulate that the document is not existing yet
-            GetResult getResult = new GetResult("test", "type1", "2", 0, 1, 0, false, null, null);
+            GetResult getResult = new GetResult("test", "type1", "2", UNASSIGNED_SEQ_NO, 0, 0, false, null, null);
             UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);
             Streamable action = result.action();
             assertThat(action, instanceOf(IndexRequest.class));
@@ -402,7 +403,7 @@ public class UpdateRequestTests extends ESTestCase {
     public void testUpsertTimeout() throws IOException {
         final boolean exists = randomBoolean();
         final BytesReference source = exists ? new BytesArray("{\"f\":\"v\"}") : null;
-        final GetResult getResult = new GetResult("test", "type", "1", 0, 1, 0, exists, source, null);
+        final GetResult getResult = new GetResult("test", "type", "1", UNASSIGNED_SEQ_NO, 0, 0, exists, source, null);
         final XContentBuilder sourceBuilder = jsonBuilder();
         sourceBuilder.startObject();
         {
@@ -535,7 +536,7 @@ public class UpdateRequestTests extends ESTestCase {
     }
 
     public void testRoutingExtraction() throws Exception {
-        GetResult getResult = new GetResult("test", "type", "1", 0, 1, 0, false, null, null);
+        GetResult getResult = new GetResult("test", "type", "1", UNASSIGNED_SEQ_NO, 0, 0, false, null, null);
         IndexRequest indexRequest = new IndexRequest("test", "type", "1");
 
         // There is no routing and parent because the document doesn't exist

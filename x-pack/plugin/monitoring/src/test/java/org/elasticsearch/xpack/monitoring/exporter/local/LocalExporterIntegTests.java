@@ -84,7 +84,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 indexRandom(true, indexRequestBuilders);
             }
 
-            // start the monitoring service so that _xpack/monitoring/_bulk is not ignored
+            // start the monitoring service so that /monitoring/_bulk is not ignored
             final Settings.Builder exporterSettings = Settings.builder()
                     .put(MonitoringService.ENABLED.getKey(), true)
                     .put("xpack.monitoring.exporters._local.enabled", true)

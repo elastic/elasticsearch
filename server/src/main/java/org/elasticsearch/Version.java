@@ -253,6 +253,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             if (rawMajor >= 5 && snapshot) { // we don't support snapshot as part of the version here anymore
                 throw new IllegalArgumentException("illegal version format - snapshots are only supported until version 2.x");
             }
+            if (rawMajor >=7 && parts.length == 4) { // we don't support qualifier as part of the version anymore
+                throw new IllegalArgumentException("illegal version format - qualifiers are only supported until version 6.x");
+            }
             final int betaOffset = rawMajor < 5 ? 0 : 25;
             //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
             final int major = rawMajor * 1000000;

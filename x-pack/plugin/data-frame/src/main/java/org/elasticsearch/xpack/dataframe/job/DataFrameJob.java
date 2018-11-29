@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.dataframe.DataFrame;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -23,7 +24,7 @@ import java.util.Objects;
 public class DataFrameJob implements XPackPlugin.XPackPersistentTaskParams {
 
     public static final ParseField ID = new ParseField("id");
-    public static final String NAME = "xpack/data_frame/job";
+    public static final String NAME = DataFrame.TASK_NAME;
 
     // note: this is used to match tasks
     public static final String PERSISTENT_TASK_DESCRIPTION_PREFIX = "data_frame_";

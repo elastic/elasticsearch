@@ -24,7 +24,6 @@ import java.util.Map;
 
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 
 /**

@@ -31,30 +31,54 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.decider.AssignmentDecision;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
+import java.util.concurrent.Future;
 
 /**
  * Component that runs only on the master node and is responsible for assigning running tasks to nodes
  */
 public class PersistentTasksClusterService implements ClusterStateListener {
 
+    public static final Setting<TimeValue> CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING =
+        Setting.timeSetting("cluster.persistent_tasks.allocation.recheck_interval", TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(10), Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     private static final Logger logger = LogManager.getLogger(PersistentTasksClusterService.class);
 
     private final ClusterService clusterService;
     private final PersistentTasksExecutorRegistry registry;
     private final EnableAssignmentDecider decider;
+    private final ThreadPool threadPool;
+    private final PeriodicRechecker periodicRechecker;
+    private volatile TimeValue recheckInterval;
 
-    public PersistentTasksClusterService(Settings settings, PersistentTasksExecutorRegistry registry, ClusterService clusterService) {
+    public PersistentTasksClusterService(Settings settings, PersistentTasksExecutorRegistry registry, ClusterService clusterService,
+                                         ThreadPool threadPool) {
         this.clusterService = clusterService;
         clusterService.addListener(this);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
+            this::setRecheckInterval);
         this.registry = registry;
         this.decider = new EnableAssignmentDecider(settings, clusterService.getClusterSettings());
+        this.recheckInterval = CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings);
+        this.threadPool = threadPool;
+        this.periodicRechecker = new PeriodicRechecker();
+    }
+
+    void setRecheckInterval(TimeValue recheckInterval) {
+        this.recheckInterval = recheckInterval;
+        periodicRechecker.rescheduleIfScheduled();
     }
 
     /**
@@ -241,22 +265,34 @@ public class PersistentTasksClusterService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        periodicRechecker.cancel();
         if (event.localNodeMaster()) {
             if (shouldReassignPersistentTasks(event)) {
-                logger.trace("checking task reassignment for cluster state {}", event.state().getVersion());
-                clusterService.submitStateUpdateTask("reassign persistent tasks", new ClusterStateUpdateTask() {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return reassignTasks(currentState);
-                    }
-
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.warn("failed to reassign persistent tasks", e);
-                    }
-                });
+                reassignPersistentTasks(event.state().getVersion());
+            } else {
+                periodicRechecker.schedule();
             }
         }
+    }
+
+    /**
+     * Submit a cluster state update to reassign any persistent tasks that need reassigning
+     */
+    private void reassignPersistentTasks(long currentStateVersion) {
+        logger.trace("checking task reassignment for cluster state {}", currentStateVersion);
+        clusterService.submitStateUpdateTask("reassign persistent tasks", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                ClusterState newState = reassignTasks(currentState);
+                periodicRechecker.schedule();
+                return newState;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.warn("failed to reassign persistent tasks", e);
+            }
+        });
     }
 
     /**
@@ -278,12 +314,21 @@ public class PersistentTasksClusterService implements ClusterStateListener {
             || event.metaDataChanged()
             || masterChanged) {
 
-            for (PersistentTask<?> task : tasks.tasks()) {
-                if (needsReassignment(task.getAssignment(), event.state().nodes())) {
-                    Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), event.state());
-                    if (Objects.equals(assignment, task.getAssignment()) == false) {
-                        return true;
-                    }
+            return anyTaskNeedsReassignment(tasks, event.state());
+        }
+        return false;
+    }
+
+    /**
+     * Returns true if any persistent task provided requires reassignment,
+     * i.e. is not assigned or is assigned to a non-existing node.
+     */
+    private boolean anyTaskNeedsReassignment(final PersistentTasksCustomMetaData tasks, final ClusterState state) {
+        for (PersistentTask<?> task : tasks.tasks()) {
+            if (needsReassignment(task.getAssignment(), state.nodes())) {
+                Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), state);
+                if (Objects.equals(assignment, task.getAssignment()) == false) {
+                    return true;
                 }
             }
         }
@@ -345,6 +390,53 @@ public class PersistentTasksClusterService implements ClusterStateListener {
             ).build();
         } else {
             return currentState;
+        }
+    }
+
+    /**
+     * Class to periodically try to reassign unassigned persistent tasks.
+     */
+    private class PeriodicRechecker implements Runnable {
+
+        private volatile Future<?> nextRun;
+
+        void schedule() {
+            try {
+                synchronized (this) {
+                    FutureUtils.cancel(nextRun);
+                    nextRun = threadPool.schedule(recheckInterval, ThreadPool.Names.GENERIC, this);
+                }
+            } catch (EsRejectedExecutionException e) {
+                logger.debug("could not schedule periodic persistent task assignment check", e);
+            }
+        }
+
+        synchronized void cancel() {
+            FutureUtils.cancel(nextRun);
+            nextRun = null;
+        }
+
+        synchronized void rescheduleIfScheduled() {
+            if (nextRun != null) {
+                schedule();
+            }
+        }
+
+        @Override
+        public void run() {
+            synchronized (this) {
+                nextRun = null;
+            }
+            if (clusterService.localNode().isMasterNode()) {
+                logger.trace("periodic persistent task assignment check running");
+                ClusterState state = clusterService.state();
+                final PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                if (tasks != null && anyTaskNeedsReassignment(tasks, state)) {
+                    reassignPersistentTasks(state.getVersion());
+                } else {
+                    schedule();
+                }
+            }
         }
     }
 }

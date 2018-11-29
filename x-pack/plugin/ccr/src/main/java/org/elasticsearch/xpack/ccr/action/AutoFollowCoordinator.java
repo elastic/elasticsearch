@@ -223,6 +223,14 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         }
     }
 
+    /**
+     * Each auto follower independently monitors a remote cluster for new leader indices that should be auto followed.
+     * The reason that this should happen independently, is that when auto followers start to make use of cluster state
+     * API's 'wait_for_metadata_version' feature, it may take sometime before a remote cluster responds with a new
+     * cluster state or times out. Other auto follow patterns for different remote clusters are then forced to wait,
+     * which can cause new follower indices to unnecessarily start with a large backlog of operations that need to be
+     * replicated.
+     */
     abstract static class AutoFollower {
 
         private final String remoteCluster;

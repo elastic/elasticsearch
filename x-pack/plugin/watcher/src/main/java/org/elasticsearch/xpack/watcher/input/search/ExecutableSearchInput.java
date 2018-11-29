@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.input.search.SearchInput.TYPE;
@@ -86,7 +87,12 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
         final Payload payload;
         if (input.getExtractKeys() != null) {
-            BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, false);
+            Map<String, String> paramsMap = new HashMap<>();
+            if (request.isRestTotalHitsAsint()) {
+                paramsMap.put("rest_total_hits_a_int", "true");
+            }
+            Params params = new MapParams(paramsMap);
+            BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, params, false);
             // EMPTY is safe here because we never use namedObject
             try (XContentParser parser = XContentHelper
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes)) {

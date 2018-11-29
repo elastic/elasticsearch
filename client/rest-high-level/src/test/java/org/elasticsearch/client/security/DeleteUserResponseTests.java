@@ -29,32 +29,15 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class DeleteRoleResponseTests extends ESTestCase {
-
-    public void testBasicParsing() throws IOException {
-        XContentType contentType = randomFrom(XContentType.values());
-        final boolean found = randomBoolean();
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType).startObject()
-            .field("found", found).endObject();
-        BytesReference bytes = BytesReference.bytes(builder);
-
-        DeleteRoleResponse response = parse(builder.contentType(), bytes);
-        assertEquals(found, response.isFound());
-    }
+public class DeleteUserResponseTests extends ESTestCase {
 
     public void testParsingWithMissingField() throws IOException {
         XContentType contentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentFactory.contentBuilder(contentType).startObject().endObject();
         BytesReference bytes = BytesReference.bytes(builder);
-
-        expectThrows(IllegalArgumentException.class, () -> parse(builder.contentType(), bytes));
-    }
-
-    private DeleteRoleResponse parse(XContentType contentType, BytesReference bytes) throws IOException {
         XContentParser parser = XContentFactory.xContent(contentType)
             .createParser(NamedXContentRegistry.EMPTY, null, bytes.streamInput());
         parser.nextToken();
-        return DeleteRoleResponse.fromXContent(parser);
+        expectThrows(IllegalArgumentException.class, () -> DeleteUserResponse.fromXContent(parser));
     }
-
 }

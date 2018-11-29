@@ -51,7 +51,7 @@ public class TestingConventionsTasks extends DefaultTask {
     private static final String TEST_CLASS_SUFIX = "Tests";
     private static final String INTEG_TEST_CLASS_SUFIX = "IT";
     private static final String TEST_METHOD_PREFIX = "test";
-    private final List<String> problems;
+
     /**
      * Are there tests to execute ? Accounts for @Ignore and @AwaitsFix
      */
@@ -63,12 +63,12 @@ public class TestingConventionsTasks extends DefaultTask {
         setDescription("Tests various testing conventions");
         // Run only after everything is compiled
         Boilerplate.getJavaSourceSets(getProject()).all(sourceSet -> dependsOn(sourceSet.getClassesTaskName()));
-        problems = new ArrayList<>();
     }
 
     @TaskAction
-    public void test() throws IOException {
+    public void doCheck() throws IOException {
         activeTestsExists = false;
+        final List<String> problems;
 
         try (URLClassLoader isolatedClassLoader = new URLClassLoader(
             getTestsClassPath().getFiles().stream().map(this::fileToUrl).toArray(URL[]::new)
@@ -82,21 +82,22 @@ public class TestingConventionsTasks extends DefaultTask {
             Predicate<Class<?>> implementsNamingConvention = clazz -> clazz.getName().endsWith(TEST_CLASS_SUFIX) ||
                 clazz.getName().endsWith(INTEG_TEST_CLASS_SUFIX);
 
-            checkNoneExists(
-                "Test classes implemented by inner classes will not run",
-                classes.stream()
-                    .filter(isStaticClass)
-                    .filter(implementsNamingConvention.or(this::seemsLikeATest))
-            );
-
-            checkNoneExists(
-                "Seem like test classes but don't match naming convention",
-                classes.stream()
-                    .filter(isStaticClass.negate())
-                    .filter(isPublicClass)
-                    .filter(this::seemsLikeATest)
-                    .filter(implementsNamingConvention.negate())
-            );
+            problems = Stream.concat(
+                checkNoneExists(
+                    "Test classes implemented by inner classes will not run",
+                    classes.stream()
+                        .filter(isStaticClass)
+                        .filter(implementsNamingConvention.or(this::seemsLikeATest))
+                ).stream(),
+                checkNoneExists(
+                    "Seem like test classes but don't match naming convention",
+                    classes.stream()
+                        .filter(isStaticClass.negate())
+                        .filter(isPublicClass)
+                        .filter(this::seemsLikeATest)
+                        .filter(implementsNamingConvention.negate())
+                ).stream()
+            ).collect(Collectors.toList());
         }
 
         if (problems.isEmpty()) {
@@ -126,7 +127,8 @@ public class TestingConventionsTasks extends DefaultTask {
         return new File(getProject().getBuildDir(), "markers/" + getName());
     }
 
-    private void checkNoneExists(String message, Stream<? extends Class<?>> stream) {
+    private List<String> checkNoneExists(String message, Stream<? extends Class<?>> stream) {
+        List<String> problems = new ArrayList<>();
         List<Class<?>> entries = stream.collect(Collectors.toList());
         if (entries.isEmpty() == false) {
             problems.add(message + ":");
@@ -134,6 +136,7 @@ public class TestingConventionsTasks extends DefaultTask {
                 .map(each -> "  * " + each.getName())
             .forEach(problems::add);
         }
+        return problems;
     }
 
     private boolean seemsLikeATest(Class<?> clazz) {

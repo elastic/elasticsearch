@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.dataframe.action.DataFrameJobStateAndStats;
 import org.elasticsearch.xpack.dataframe.job.AbstractSerializingDataFrameTestCase;
 import org.elasticsearch.xpack.dataframe.job.DataFrameIndexerJobStatsTests;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobStateTests;

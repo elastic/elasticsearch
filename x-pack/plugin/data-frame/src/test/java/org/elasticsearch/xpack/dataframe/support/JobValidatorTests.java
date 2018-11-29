@@ -29,7 +29,6 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.dataframe.job.AggregationConfig;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobConfig;
 import org.elasticsearch.xpack.dataframe.job.SourceConfig;
-import org.elasticsearch.xpack.dataframe.support.JobValidator;
 import org.junit.After;
 import org.junit.Before;
 

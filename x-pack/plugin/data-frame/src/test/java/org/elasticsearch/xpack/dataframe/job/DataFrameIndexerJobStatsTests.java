@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.dataframe.job;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.dataframe.job.DataFrameIndexerJobStats;
 
 public class DataFrameIndexerJobStatsTests extends AbstractSerializingTestCase<DataFrameIndexerJobStats>{
     @Override

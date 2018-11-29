@@ -11,7 +11,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.xpack.dataframe.job.AggregationConfig;
 
 import java.io.IOException;
 import java.util.HashSet;

@@ -53,7 +53,7 @@ public class VariablesTests extends ESTestCase {
         assertThat(ObjectPath.eval("ctx", model), instanceOf(Map.class));
         assertThat(ObjectPath.eval("ctx.id", model), is(wid.value()));
         // NOTE: we use toString() here because two ZonedDateTime are *not* equal, we need to check with isEqual
-        // for date/time equality, but not hamcrest matcher exists
+        // for date/time equality, but no hamcrest matcher exists for that
         assertThat(ObjectPath.eval("ctx.execution_time", model), Matchers.hasToString(jodaJavaExecutionTime.toString()));
         assertThat(ObjectPath.eval("ctx.trigger", model), is(event.data()));
         assertThat(ObjectPath.eval("ctx.payload", model), is(payload.data()));

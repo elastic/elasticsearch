@@ -31,6 +31,7 @@ import com.google.cloud.storage.StorageException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -50,6 +51,7 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -70,11 +72,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     private final String bucketName;
     private final String clientName;
+    private final String encryptionKeyName;
     private final GoogleCloudStorageService storageService;
 
-    GoogleCloudStorageBlobStore(String bucketName, String clientName, GoogleCloudStorageService storageService) {
+    GoogleCloudStorageBlobStore(String bucketName, String clientName, String encryptionKeyName, GoogleCloudStorageService storageService) {
         this.bucketName = bucketName;
         this.clientName = clientName;
+        this.encryptionKeyName = encryptionKeyName;
         this.storageService = storageService;
         if (doesBucketExist(bucketName) == false) {
             throw new BlobStoreException("Bucket [" + bucketName + "] does not exist");
@@ -218,9 +222,15 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      */
     private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream, boolean failIfAlreadyExists) throws IOException {
         try {
-            final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ?
-                new Storage.BlobWriteOption[] { Storage.BlobWriteOption.doesNotExist() } :
-                new Storage.BlobWriteOption[0];
+            final List<Storage.BlobWriteOption> writeOptionsBuilder = new ArrayList<>(2);
+            if (Strings.hasText(this.encryptionKeyName)) {
+                writeOptionsBuilder.add(Storage.BlobWriteOption.kmsKeyName(this.encryptionKeyName));
+            }
+            if (failIfAlreadyExists) {
+                writeOptionsBuilder.add(Storage.BlobWriteOption.doesNotExist());
+            }
+            final Storage.BlobWriteOption[] writeOptions = writeOptionsBuilder
+                    .toArray(new Storage.BlobWriteOption[writeOptionsBuilder.size()]);
             final WriteChannel writeChannel = SocketAccess
                     .doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));
             Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
@@ -264,9 +274,15 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         final ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.toIntExact(blobSize));
         Streams.copy(inputStream, baos);
         try {
-            final Storage.BlobTargetOption[] targetOptions = failIfAlreadyExists ?
-                new Storage.BlobTargetOption[] { Storage.BlobTargetOption.doesNotExist() } :
-                new Storage.BlobTargetOption[0];
+            final List<Storage.BlobTargetOption> targetOptionsBuilder = new ArrayList<>(2);
+            if (Strings.hasText(this.encryptionKeyName)) {
+                targetOptionsBuilder.add(Storage.BlobTargetOption.kmsKeyName(this.encryptionKeyName));
+            }
+            if (failIfAlreadyExists) {
+                targetOptionsBuilder.add(Storage.BlobTargetOption.doesNotExist());
+            }
+            final Storage.BlobTargetOption[] targetOptions = targetOptionsBuilder
+                    .toArray(new Storage.BlobTargetOption[targetOptionsBuilder.size()]);
             SocketAccess.doPrivilegedVoidIOException(
                     () -> client().create(blobInfo, baos.toByteArray(), targetOptions));
         } catch (final StorageException se) {

@@ -35,12 +35,13 @@ public class GoogleCloudStorageBlobStoreTests extends ESBlobStoreTestCase {
     protected BlobStore newBlobStore() {
         final String bucketName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         final String clientName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        final String encryptionKeyName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
         try {
             when(storageService.client(any(String.class))).thenReturn(new MockStorage(bucketName, new ConcurrentHashMap<>()));
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
-        return new GoogleCloudStorageBlobStore(bucketName, clientName, storageService);
+        return new GoogleCloudStorageBlobStore(bucketName, clientName, encryptionKeyName, storageService);
     }
 }

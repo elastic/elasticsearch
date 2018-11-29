@@ -58,6 +58,8 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     static final Setting<ByteSizeValue> CHUNK_SIZE =
             byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope, Property.Dynamic);
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
+    // KMS_KEY_NAME in Google's lingo
+    static final Setting<String> ENCRYPTION_KEY_NAME = simpleString("encryption_key_name", Property.NodeScope, Property.Dynamic);
 
     private final Settings settings;
     private final GoogleCloudStorageService storageService;
@@ -66,6 +68,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     private final ByteSizeValue chunkSize;
     private final String bucket;
     private final String clientName;
+    private final String encryptionKeyName;
 
     GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
                                         NamedXContentRegistry namedXContentRegistry,
@@ -89,12 +92,14 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
         this.bucket = getSetting(BUCKET, metadata);
         this.clientName = CLIENT_NAME.get(metadata.settings());
-        logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, compress);
+        this.encryptionKeyName = ENCRYPTION_KEY_NAME.get(metadata.settings());
+        logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}], encryption_key_name [{}]", bucket, basePath,
+                chunkSize, compress, encryptionKeyName);
     }
 
     @Override
     protected GoogleCloudStorageBlobStore createBlobStore() {
-        return new GoogleCloudStorageBlobStore(bucket, clientName, storageService);
+        return new GoogleCloudStorageBlobStore(bucket, clientName, encryptionKeyName, storageService);
     }
 
     @Override

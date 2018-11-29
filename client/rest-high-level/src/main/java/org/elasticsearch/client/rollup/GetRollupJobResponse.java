@@ -26,15 +26,15 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Objects;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Response from rollup's get jobs api.
@@ -51,6 +51,12 @@ public class GetRollupJobResponse {
     static final ParseField STATE = new ParseField("job_state");
     static final ParseField CURRENT_POSITION = new ParseField("current_position");
     static final ParseField UPGRADED_DOC_ID = new ParseField("upgraded_doc_id");
+    static final ParseField INDEX_TIME_IN_MS = new ParseField("index_time_in_ms");
+    static final ParseField SEARCH_TIME_IN_MS = new ParseField("search_time_in_ms");
+    static final ParseField INDEX_TOTAL = new ParseField("index_total");
+    static final ParseField SEARCH_TOTAL = new ParseField("search_total");
+    static final ParseField SEARCH_FAILURES = new ParseField("search_failures");
+    static final ParseField INDEX_FAILURES = new ParseField("index_failures");
 
     private List<JobWrapper> jobs;
 
@@ -181,12 +187,25 @@ public class GetRollupJobResponse {
         private final long numInputDocuments;
         private final long numOuputDocuments;
         private final long numInvocations;
+        private long indexTime;
+        private long indexTotal;
+        private long searchTime;
+        private long searchTotal;
+        private long indexFailures;
+        private long searchFailures;
 
-        RollupIndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations) {
+        RollupIndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
+                              long indexTime, long indexTotal, long searchTime, long searchTotal, long indexFailures, long searchFailures) {
             this.numPages = numPages;
             this.numInputDocuments = numInputDocuments;
             this.numOuputDocuments = numOuputDocuments;
             this.numInvocations = numInvocations;
+            this.indexTime = indexTime;
+            this.indexTotal = indexTotal;
+            this.searchTime = searchTime;
+            this.searchTotal = searchTotal;
+            this.indexFailures = indexFailures;
+            this.searchFailures = searchFailures;
         }
 
         /**
@@ -217,15 +236,65 @@ public class GetRollupJobResponse {
             return numOuputDocuments;
         }
 
+        /**
+         * Number of failures that have occurred during the bulk indexing phase of Rollup
+         */
+        public long getIndexFailures() {
+            return indexFailures;
+        }
+
+        /**
+         * Number of failures that have occurred during the search phase of Rollup
+         */
+        public long getSearchFailures() {
+            return searchFailures;
+        }
+
+        /**
+         * Returns the time spent indexing (cumulative) in milliseconds
+         */
+        public long getIndexTime() {
+            return indexTime;
+        }
+
+        /**
+         * Returns the time spent searching (cumulative) in milliseconds
+         */
+        public long getSearchTime() {
+            return searchTime;
+        }
+
+        /**
+         * Returns the total number of indexing requests that have been sent by the rollup job
+         * (Note: this is not the number of _documents_ that have been indexed)
+         */
+        public long getIndexTotal() {
+            return indexTotal;
+        }
+
+        /**
+         * Returns the total number of search requests that have been sent by the rollup job
+         */
+        public long getSearchTotal() {
+            return searchTotal;
+        }
+
         private static final ConstructingObjectParser<RollupIndexerJobStats, Void> PARSER = new ConstructingObjectParser<>(
                 STATS.getPreferredName(),
                 true,
-                args -> new RollupIndexerJobStats((long) args[0], (long) args[1], (long) args[2], (long) args[3]));
+                args -> new RollupIndexerJobStats((long) args[0], (long) args[1], (long) args[2], (long) args[3],
+                    (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9]));
         static {
             PARSER.declareLong(constructorArg(), NUM_PAGES);
             PARSER.declareLong(constructorArg(), NUM_INPUT_DOCUMENTS);
             PARSER.declareLong(constructorArg(), NUM_OUTPUT_DOCUMENTS);
             PARSER.declareLong(constructorArg(), NUM_INVOCATIONS);
+            PARSER.declareLong(constructorArg(), INDEX_TIME_IN_MS);
+            PARSER.declareLong(constructorArg(), INDEX_TOTAL);
+            PARSER.declareLong(constructorArg(), SEARCH_TIME_IN_MS);
+            PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
+            PARSER.declareLong(constructorArg(), INDEX_FAILURES);
+            PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
         }
 
         @Override
@@ -234,14 +303,21 @@ public class GetRollupJobResponse {
             if (other == null || getClass() != other.getClass()) return false;
             RollupIndexerJobStats that = (RollupIndexerJobStats) other;
             return Objects.equals(this.numPages, that.numPages)
-                    && Objects.equals(this.numInputDocuments, that.numInputDocuments)
-                    && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
-                    && Objects.equals(this.numInvocations, that.numInvocations);
+                && Objects.equals(this.numInputDocuments, that.numInputDocuments)
+                && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
+                && Objects.equals(this.numInvocations, that.numInvocations)
+                && Objects.equals(this.indexTime, that.indexTime)
+                && Objects.equals(this.searchTime, that.searchTime)
+                && Objects.equals(this.indexFailures, that.indexFailures)
+                && Objects.equals(this.searchFailures, that.searchFailures)
+                && Objects.equals(this.searchTotal, that.searchTotal)
+                && Objects.equals(this.indexTotal, that.indexTotal);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations);
+            return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations,
+                indexTime, searchTime, indexFailures, searchFailures, searchTotal, indexTotal);
         }
 
         @Override
@@ -249,7 +325,13 @@ public class GetRollupJobResponse {
             return "{pages=" + numPages
                     + ", input_docs=" + numInputDocuments
                     + ", output_docs=" + numOuputDocuments
-                    + ", invocations=" + numInvocations + "}";
+                    + ", invocations=" + numInvocations
+                    + ", index_failures=" + indexFailures
+                    + ", search_failures=" + searchFailures
+                    + ", index_time_in_ms=" + indexTime
+                    + ", index_total=" + indexTotal
+                    + ", search_time_in_ms=" + searchTime
+                    + ", search_total=" + searchTotal+ "}";
         }
     }
 

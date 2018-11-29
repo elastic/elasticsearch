@@ -191,13 +191,13 @@ public class TcpTransportTests extends ESTestCase {
                 new BigArrays(new PageCacheRecycler(Settings.EMPTY), null), null, null, null) {
 
                 @Override
-                protected FakeChannel bind(String name, InetSocketAddress address) throws IOException {
+                protected FakeServerChannel bind(String name, InetSocketAddress address) throws IOException {
                     return null;
                 }
 
                 @Override
-                protected FakeChannel initiateChannel(DiscoveryNode node) throws IOException {
-                    return new FakeChannel(messageCaptor);
+                protected FakeTcpChannel initiateChannel(DiscoveryNode node) throws IOException {
+                    return new FakeTcpChannel(true, messageCaptor);
                 }
 
                 @Override
@@ -212,7 +212,7 @@ public class TcpTransportTests extends ESTestCase {
                     int numConnections = connectionProfile.getNumConnections();
                     ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);
                     for (int i = 0; i < numConnections; ++i) {
-                        fakeChannels.add(new FakeChannel(messageCaptor));
+                        fakeChannels.add(new FakeTcpChannel(false, messageCaptor));
                     }
                     return new NodeChannels(node, fakeChannels, connectionProfile, Version.CURRENT);
                 }
@@ -258,13 +258,7 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
-    private static final class FakeChannel implements TcpChannel, TcpServerChannel {
-
-        private final AtomicReference<BytesReference> messageCaptor;
-
-        FakeChannel(AtomicReference<BytesReference> messageCaptor) {
-            this.messageCaptor = messageCaptor;
-        }
+    private static final class FakeServerChannel implements TcpServerChannel {
 
         @Override
         public void close() {
@@ -280,14 +274,6 @@ public class TcpTransportTests extends ESTestCase {
         }
 
         @Override
-        public void addConnectListener(ActionListener<Void> listener) {
-        }
-
-        @Override
-        public void setSoLinger(int value) throws IOException {
-        }
-
-        @Override
         public boolean isOpen() {
             return false;
         }
@@ -295,16 +281,6 @@ public class TcpTransportTests extends ESTestCase {
         @Override
         public InetSocketAddress getLocalAddress() {
             return null;
-        }
-
-        @Override
-        public InetSocketAddress getRemoteAddress() {
-            return null;
-        }
-
-        @Override
-        public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-            messageCaptor.set(reference);
         }
     }
 

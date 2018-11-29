@@ -443,10 +443,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         }, request.getCloseTimeout(), new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean result) {
-                FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(
-                        waitForCloseRequest.jobsToFinalize.toArray(new String[0]));
-                executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
-                        ActionListener.wrap(r -> listener.onResponse(response), listener::onFailure));
+                listener.onResponse(response);
             }
 
             @Override

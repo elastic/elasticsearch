@@ -458,7 +458,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         return Arrays.asList(
                 new TransportOpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get(),
-                    memoryTracker.get()),
+                    memoryTracker.get(), client),
                 new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, datafeedManager.get())
         );
     }

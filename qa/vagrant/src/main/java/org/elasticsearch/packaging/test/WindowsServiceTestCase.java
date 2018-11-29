@@ -29,6 +29,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
@@ -36,6 +38,7 @@ import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class WindowsServiceTestCase extends PackagingTestCase {
 
@@ -113,7 +116,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         serviceScript = installation.bin("elasticsearch-service.bat").toString();
     }
 
-    /*public void test11InstallServiceExeMissing() throws IOException {
+    public void test11InstallServiceExeMissing() throws IOException {
         Path serviceExe = installation.bin("elasticsearch-service-x64.exe");
         Path tmpServiceExe = serviceExe.getParent().resolve(serviceExe.getFileName() + ".tmp");
         Files.move(serviceExe, tmpServiceExe);
@@ -156,7 +159,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         sh.run(serviceScript + " install");
         assertService(DEFAULT_ID, "Stopped", displayName);
         sh.run(serviceScript + " remove");
-    }*/
+    }
 
     // NOTE: service description is not attainable through any powershell api, so checking it is not possible...
 
@@ -168,6 +171,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
 
         assertCommand(serviceScript + " stop");
         assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);
+        // the process is stopped async, and can become a zombie process, so we poll for the process actually being gone
         assertCommand("$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
             "$i = 0;" +
             "do {" +
@@ -192,7 +196,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
             "}");
     }
 
-    /*public void test31StartNotInstalled() throws IOException {
+    public void test31StartNotInstalled() throws IOException {
         Result result = sh.runIgnoreExitCode(serviceScript + " start");
         assertThat(result.stdout, result.exitCode, equalTo(1));
         assertThat(result.stdout, containsString("Failed starting '" + DEFAULT_ID + "' service"));
@@ -202,7 +206,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         sh.run(serviceScript + " install");
         Result result = sh.run(serviceScript + " stop"); // stop is ok when not started
         assertThat(result.stdout, containsString("The service '" + DEFAULT_ID + "' has been stopped"));
-    }*/
+    }
 
     /*
     // TODO: need to make JAVA_HOME resolve at install time for this to work

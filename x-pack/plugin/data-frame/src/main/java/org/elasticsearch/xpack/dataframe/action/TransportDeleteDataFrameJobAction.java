@@ -64,27 +64,27 @@ public class TransportDeleteDataFrameJobAction
         persistentTasksService.sendRemoveRequest(jobId, new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
             @Override
             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                logger.debug("Request to cancel Task for Feature Index Builder job [" + jobId + "] successful.");
+                logger.debug("Request to cancel Task for data frame job [" + jobId + "] successful.");
 
                 // Step 2. Wait for the task to finish cancellation internally
                 persistentTasksService.waitForPersistentTaskCondition(jobId, Objects::isNull, timeout,
                         new PersistentTasksService.WaitForPersistentTaskListener<DataFrameJob>() {
                             @Override
                             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<DataFrameJob> task) {
-                                logger.debug("Task for Feature Index Builder job [" + jobId + "] successfully canceled.");
+                                logger.debug("Task for data frame job [" + jobId + "] successfully canceled.");
                                 listener.onResponse(new AcknowledgedResponse(true));
                             }
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.error("Error while cancelling task for Feature Index Builder job [" + jobId
+                                logger.error("Error while cancelling task for data frame job [" + jobId
                                         + "]." + e);
                                 listener.onFailure(e);
                             }
 
                             @Override
                             public void onTimeout(TimeValue timeout) {
-                                String msg = "Stopping of Feature Index Builder job [" + jobId + "] timed out after [" + timeout + "].";
+                                String msg = "Stopping of data frame job [" + jobId + "] timed out after [" + timeout + "].";
                                 logger.warn(msg);
                                 listener.onFailure(new ElasticsearchException(msg));
                             }
@@ -93,7 +93,7 @@ public class TransportDeleteDataFrameJobAction
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("Error while requesting to cancel task for Feature Index Builder job [" + jobId + "]" + e);
+                logger.error("Error while requesting to cancel task for data frame job [" + jobId + "]" + e);
                 listener.onFailure(e);
             }
         });

@@ -19,7 +19,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AggregationConfigTests extends AbstractSerializingFeatureIndexBuilderTestCase<AggregationConfig> {
+public class AggregationConfigTests extends AbstractSerializingDataFrameTestCase<AggregationConfig> {
 
     public static AggregationConfig randomAggregationConfig() {
         AggregatorFactories.Builder builder = new AggregatorFactories.Builder();

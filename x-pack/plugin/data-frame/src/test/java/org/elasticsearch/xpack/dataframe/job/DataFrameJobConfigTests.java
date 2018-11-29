@@ -13,7 +13,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-public class DataFrameJobConfigTests extends AbstractSerializingFeatureIndexBuilderTestCase<DataFrameJobConfig> {
+public class DataFrameJobConfigTests extends AbstractSerializingDataFrameTestCase<DataFrameJobConfig> {
 
     private String jobId;
 

@@ -49,7 +49,7 @@ public class DataFrameJobPersistentTasksExecutor extends PersistentTasksExecutor
         schedulerEngine.register(buildTask);
         schedulerEngine.add(schedulerJob);
 
-        logger.info("FeatureIndexBuilder job [" + params.getConfig().getId() + "] created.");
+        logger.info("Data frame job [" + params.getConfig().getId() + "] created.");
     }
 
     static SchedulerEngine.Schedule next() {

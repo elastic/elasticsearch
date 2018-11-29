@@ -17,7 +17,7 @@ import org.junit.Before;
 
 import static java.util.Collections.emptyList;
 
-public abstract class AbstractSerializingFeatureIndexBuilderTestCase<T extends ToXContent & Writeable>
+public abstract class AbstractSerializingDataFrameTestCase<T extends ToXContent & Writeable>
         extends AbstractSerializingTestCase<T> {
 
     /**

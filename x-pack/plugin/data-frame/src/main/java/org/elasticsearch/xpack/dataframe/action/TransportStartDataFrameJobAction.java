@@ -80,7 +80,7 @@ public class TransportStartDataFrameJobAction extends
         if (jobTask.getConfig().getId().equals(request.getId())) {
             jobTask.start(listener);
         } else {
-            listener.onFailure(new RuntimeException("ID of FeatureIndexBuilder task [" + jobTask.getConfig().getId()
+            listener.onFailure(new RuntimeException("ID of data frame job task [" + jobTask.getConfig().getId()
                     + "] does not match request's ID [" + request.getId() + "]"));
         }
     }
@@ -100,7 +100,7 @@ public class TransportStartDataFrameJobAction extends
         // after the StartAPI executed.
         // In either case, let the user know
         if (tasks.size() == 0) {
-            throw new ResourceNotFoundException("Task for FeatureIndexBuilder Job [" + request.getId() + "] not found");
+            throw new ResourceNotFoundException("Task for data frame job [" + request.getId() + "] not found");
         }
 
         assert tasks.size() == 1;

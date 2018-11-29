@@ -50,7 +50,7 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
         // todo: simplistic implementation for now
         IndexerState initialState = IndexerState.STOPPED;
         Map<String, Object> initialPosition = null;
-        this.indexer = new ClientFeatureIndexBuilderIndexer(job, new AtomicReference<>(initialState), initialPosition, client);
+        this.indexer = new ClientDataFrameIndexer(job, new AtomicReference<>(initialState), initialPosition, client);
     }
 
     public DataFrameJobConfig getConfig() {
@@ -81,15 +81,15 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
     public void triggered(Event event) {
         if (event.getJobName().equals(SCHEDULE_NAME + "_" + job.getConfig().getId())) {
             logger.debug(
-                    "FeatureIndexBuilder indexer [" + event.getJobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
+                    "Data frame indexer [" + event.getJobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
             indexer.maybeTriggerAsyncJob(System.currentTimeMillis());
         }
     }
 
-    protected class ClientFeatureIndexBuilderIndexer extends DataFrameIndexer {
+    protected class ClientDataFrameIndexer extends DataFrameIndexer {
         private final Client client;
 
-        public ClientFeatureIndexBuilderIndexer(DataFrameJob job, AtomicReference<IndexerState> initialState,
+        public ClientDataFrameIndexer(DataFrameJob job, AtomicReference<IndexerState> initialState,
                 Map<String, Object> initialPosition, Client client) {
             super(threadPool.executor(ThreadPool.Names.GENERIC), job, initialState, initialPosition);
             this.client = client;
@@ -126,17 +126,17 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
 
         @Override
         protected void onFailure(Exception exc) {
-            logger.warn("FeatureIndexBuilder job [" + job.getConfig().getId() + "] failed with an exception: ", exc);
+            logger.warn("Data frame job [" + job.getConfig().getId() + "] failed with an exception: ", exc);
         }
 
         @Override
         protected void onFinish() {
-            logger.info("Finished indexing for job [" + job.getConfig().getId() + "]");
+            logger.info("Finished indexing for data frame job [" + job.getConfig().getId() + "]");
         }
 
         @Override
         protected void onAbort() {
-            logger.info("FeatureIndexBuilder job [" + job.getConfig().getId() + "] received abort request, stopping indexer");
+            logger.info("Data frame job [" + job.getConfig().getId() + "] received abort request, stopping indexer");
         }
     }
 }

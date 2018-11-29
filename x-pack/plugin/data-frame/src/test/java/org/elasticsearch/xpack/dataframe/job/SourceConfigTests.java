@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SourceConfigTests extends AbstractSerializingFeatureIndexBuilderTestCase<SourceConfig> {
+public class SourceConfigTests extends AbstractSerializingDataFrameTestCase<SourceConfig> {
 
     public static SourceConfig randomSourceConfig() {
         int numSources = randomIntBetween(1, 10);

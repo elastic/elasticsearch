@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -70,9 +71,9 @@ public class ApiKeyService {
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private static final String TYPE = "doc";
-    private static final String API_KEY_ID_KEY = "_security_api_key_id";
-    private static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
-    private static final String API_KEY_ROLE_KEY = "_security_api_key_role";
+    static final String API_KEY_ID_KEY = "_security_api_key_id";
+    static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
+    static final String API_KEY_ROLE_KEY = "_security_api_key_role";
 
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
         "xpack.security.authc.api_key_hashing.algorithm", "pbkdf2", Function.identity(), (v, s) -> {
@@ -217,6 +218,11 @@ public class ApiKeyService {
         }
     }
 
+    /**
+     * The current request has been authenticated by an API key and this method enables the
+     * retrieval of role descriptors that are associated with the api key and triggers the building
+     * of the {@link Role} to authorize the request.
+     */
     public void getRoleForApiKey(Authentication authentication, ThreadContext threadContext, CompositeRolesStore rolesStore,
                                  FieldPermissionsCache fieldPermissionsCache, ActionListener<Role> listener) {
         if (authentication.getAuthenticationType() != Authentication.AuthenticationType.API_KEY) {
@@ -230,6 +236,7 @@ public class ApiKeyService {
             final Map<String, Object> metadata = authentication.getMetadata();
             final String apiKeyId = (String) metadata.get(API_KEY_ID_KEY);
             final List<Map<String, Object>> roleDescriptors = (List<Map<String, Object>>) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
+            final AtomicInteger counter = new AtomicInteger();
             final List<RoleDescriptor> roleDescriptorList = roleDescriptors.stream()
                 .map(rdMap -> {
                     try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
@@ -237,7 +244,7 @@ public class ApiKeyService {
                         try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                             new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId),
                             BytesReference.bytes(builder).streamInput())) {
-                            return RoleDescriptor.parse((String) rdMap.get("name"), parser, false);
+                            return RoleDescriptor.parse("apiKey-" + apiKeyId + "-role-" + counter.getAndIncrement() , parser, false);
                         }
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);

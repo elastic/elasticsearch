@@ -46,7 +46,7 @@ public class TransportStopDataFrameJobAction extends
         if (jobTask.getConfig().getId().equals(request.getId())) {
             jobTask.stop(listener);
         } else {
-            listener.onFailure(new RuntimeException("ID of feature index builder task [" + jobTask.getConfig().getId()
+            listener.onFailure(new RuntimeException("ID of data frame indexer task [" + jobTask.getConfig().getId()
                     + "] does not match request's ID [" + request.getId() + "]"));
         }
     }
@@ -66,7 +66,7 @@ public class TransportStopDataFrameJobAction extends
         // after the Stop API executed.
         // In either case, let the user know
         if (tasks.size() == 0) {
-            throw new ResourceNotFoundException("Task for Feature Index Builder Job [" + request.getId() + "] not found");
+            throw new ResourceNotFoundException("Task for Data Frame Job [" + request.getId() + "] not found");
         }
 
         assert tasks.size() == 1;

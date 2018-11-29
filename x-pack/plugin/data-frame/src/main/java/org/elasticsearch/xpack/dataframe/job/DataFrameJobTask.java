@@ -38,7 +38,7 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
     private final ThreadPool threadPool;
     private final DataFrameIndexer indexer;
 
-    static final String SCHEDULE_NAME = "xpack/feature_index_builder/job" + "/schedule";
+    static final String SCHEDULE_NAME = "xpack/data_frame/job" + "/schedule";
 
     public DataFrameJobTask(long id, String type, String action, TaskId parentTask, DataFrameJob job,
             DataFrameJobState state, Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool,

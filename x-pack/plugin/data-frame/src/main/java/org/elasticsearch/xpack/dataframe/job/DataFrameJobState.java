@@ -30,7 +30,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class DataFrameJobState implements Task.Status, PersistentTaskState {
-    public static final String NAME = "xpack/feature_index_builder/job";
+    public static final String NAME = "xpack/data_frame/job_state";
 
     private final IndexerState state;
 

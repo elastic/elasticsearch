@@ -51,7 +51,7 @@ import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.dataframe.job.DataFrameJobState;
-import org.elasticsearch.xpack.dataframe.rest.action.RestDeleteFeatureIndexBuilderJobAction;
+import org.elasticsearch.xpack.dataframe.rest.action.RestDeleteDataFrameJobAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestGetDataFrameJobsAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestGetDataFrameJobsStatsAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestPutDataFrameJobAction;
@@ -120,7 +120,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new RestPutDataFrameJobAction(settings, restController),
                 new RestStartDataFrameJobAction(settings, restController),
                 new RestStopDataFrameJobAction(settings, restController),
-                new RestDeleteFeatureIndexBuilderJobAction(settings, restController),
+                new RestDeleteDataFrameJobAction(settings, restController),
                 new RestGetDataFrameJobsAction(settings, restController),
                 new RestGetDataFrameJobsStatsAction(settings, restController)
         );

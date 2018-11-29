@@ -23,10 +23,10 @@ import java.util.Objects;
 public class DataFrameJob implements XPackPlugin.XPackPersistentTaskParams {
 
     public static final ParseField ID = new ParseField("id");
-    public static final String NAME = "xpack/feature_index_builder/job";
+    public static final String NAME = "xpack/data_frame/job";
 
     // note: this is used to match tasks
-    public static final String PERSISTENT_TASK_DESCRIPTION_PREFIX = "feature_index_builder-";
+    public static final String PERSISTENT_TASK_DESCRIPTION_PREFIX = "data_frame_";
 
     private DataFrameJobConfig config;
 

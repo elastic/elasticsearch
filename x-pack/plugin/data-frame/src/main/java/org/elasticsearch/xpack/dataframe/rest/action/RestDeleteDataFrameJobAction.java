@@ -18,9 +18,9 @@ import org.elasticsearch.xpack.dataframe.job.DataFrameJob;
 
 import java.io.IOException;
 
-public class RestDeleteFeatureIndexBuilderJobAction extends BaseRestHandler {
+public class RestDeleteDataFrameJobAction extends BaseRestHandler {
 
-    public RestDeleteFeatureIndexBuilderJobAction(Settings settings, RestController controller) {
+    public RestDeleteDataFrameJobAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.DELETE,  DataFrame.BASE_PATH_JOBS_BY_ID, this);
     }

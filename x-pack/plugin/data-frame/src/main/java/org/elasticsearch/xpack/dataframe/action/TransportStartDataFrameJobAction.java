@@ -50,7 +50,7 @@ public class TransportStartDataFrameJobAction extends
             if (task instanceof DataFrameJobTask
                     && ((DataFrameJobTask) task).getConfig().getId().equals(request.getId())) {
                 if (matchingTask != null) {
-                    throw new IllegalArgumentException("Found more than one matching task for feature index builder job [" + request.getId()
+                    throw new IllegalArgumentException("Found more than one matching task for data frame job [" + request.getId()
                             + "] when " + "there should only be one.");
                 }
                 matchingTask = (DataFrameJobTask) task;

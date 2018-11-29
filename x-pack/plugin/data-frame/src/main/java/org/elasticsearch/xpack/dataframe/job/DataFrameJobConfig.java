@@ -24,11 +24,11 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * This class holds the configuration details of a feature index builder job
+ * This class holds the configuration details of a data frame job
  */
 public class DataFrameJobConfig implements NamedWriteable, ToXContentObject {
 
-    private static final String NAME = "xpack/feature_index_builder/jobconfig";
+    private static final String NAME = "xpack/data_frame/jobconfig";
     private static final ParseField ID = new ParseField("id");
     private static final ParseField INDEX_PATTERN = new ParseField("index_pattern");
     private static final ParseField DESTINATION_INDEX = new ParseField("destination_index");

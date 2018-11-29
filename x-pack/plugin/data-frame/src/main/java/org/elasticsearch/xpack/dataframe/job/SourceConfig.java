@@ -33,7 +33,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class SourceConfig implements Writeable, ToXContentObject {
 
-    private static final String NAME = "feature_index_builder_source";
+    private static final String NAME = "data_frame_source";
 
     private final List<CompositeValuesSourceBuilder<?>> sources;
 

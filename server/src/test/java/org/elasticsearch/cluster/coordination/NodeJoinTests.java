@@ -70,6 +70,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.containsString;
 
@@ -418,12 +419,12 @@ public class NodeJoinTests extends ESTestCase {
         List<DiscoveryNode> nodes = IntStream.rangeClosed(1, randomIntBetween(2, 5))
             .mapToObj(nodeId -> newNode(nodeId, true)).collect(Collectors.toList());
 
-        VotingConfiguration votingConfiguration = new VotingConfiguration(
-            randomSubsetOf(randomIntBetween(1, nodes.size()), nodes).stream().map(DiscoveryNode::getId).collect(Collectors.toSet()));
+        DiscoveryNode localNode = nodes.get(0);
+        VotingConfiguration votingConfiguration = new VotingConfiguration(randomValueOtherThan(singletonList(localNode),
+            () -> randomSubsetOf(randomIntBetween(1, nodes.size()), nodes)).stream().map(DiscoveryNode::getId).collect(Collectors.toSet()));
 
         logger.info("Voting configuration: {}", votingConfiguration);
 
-        DiscoveryNode localNode = nodes.get(0);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupRealMasterServiceAndCoordinator(initialTerm, initialState(false, localNode, initialTerm, initialVersion, votingConfiguration));
@@ -488,12 +489,7 @@ public class NodeJoinTests extends ESTestCase {
                     } catch (InterruptedException | BrokenBarrierException e) {
                         throw new RuntimeException(e);
                     }
-                    try {
-                        joinNode(joinRequest);
-                    } catch (CoordinationStateRejectedException ignore) {
-                        // ignore: even the "correct" requests may fail as a duplicate because a concurrent election may cause a node to
-                        // spontaneously join.
-                    }
+                    joinNode(joinRequest);
                 }, "process " + joinRequest)).collect(Collectors.toList());
 
         assertionThread.start();

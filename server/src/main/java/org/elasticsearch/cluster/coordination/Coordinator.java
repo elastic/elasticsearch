@@ -344,6 +344,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private void handleJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         assert Thread.holdsLock(mutex) == false;
+        assert getLocalNode().isMasterNode() : getLocalNode() + " received a join but is not master-eligible";
         logger.trace("handleJoinRequest: as {}, handling {}", mode, joinRequest);
         transportService.connectToNode(joinRequest.getSourceNode());
 
@@ -392,6 +393,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     void becomeLeader(String method) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
+        assert getLocalNode().isMasterNode() : getLocalNode() + " became a leader but is not master-eligible";
+
         logger.debug("{}: becoming LEADER (was {}, lastKnownLeader was [{}])", method, mode, lastKnownLeader);
 
         mode = Mode.LEADER;
@@ -409,6 +412,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     void becomeFollower(String method, DiscoveryNode leaderNode) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+        assert leaderNode.isMasterNode() : leaderNode + " became a leader but is not master-eligible";
+
         logger.debug("{}: becoming FOLLOWER of [{}] (was {}, lastKnownLeader was [{}])", method, leaderNode, mode, lastKnownLeader);
 
         final boolean restartLeaderChecker = (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) == false;
@@ -642,9 +647,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             logger.info("setting initial configuration to {}", votingConfiguration);
             final Builder builder = masterService.incrementVersion(currentState);
             final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder(currentState.coordinationMetaData())
-                    .lastAcceptedConfiguration(votingConfiguration)
-                    .lastCommittedConfiguration(votingConfiguration)
-                    .build();
+                .lastAcceptedConfiguration(votingConfiguration)
+                .lastCommittedConfiguration(votingConfiguration)
+                .build();
 
             MetaData.Builder metaDataBuilder = MetaData.builder();
             // automatically generate a UID for the metadata if we need to
@@ -927,6 +932,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private void startElectionScheduler() {
         assert electionScheduler == null : electionScheduler;
+
+        if (getLocalNode().isMasterNode() == false) {
+            return;
+        }
+
         final TimeValue gracePeriod = TimeValue.ZERO; // TODO variable grace period
         electionScheduler = electionSchedulerFactory.startElectionScheduler(gracePeriod, new Runnable() {
             @Override

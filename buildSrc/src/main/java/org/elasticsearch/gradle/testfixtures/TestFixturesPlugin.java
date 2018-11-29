@@ -54,7 +54,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
             disableTaskByType(tasks, ThirdPartyAuditTask.class);
             disableTaskByType(tasks, JarHellTask.class);
 
-            if(dockerComposeSupported(project) == false) {
+            if (dockerComposeSupported(project) == false) {
                 return;
             }
 
@@ -72,8 +72,8 @@ public class TestFixturesPlugin implements Plugin<Project> {
         } else {
             if (dockerComposeSupported(project) == false) {
                 project.getLogger().warn(
-                    "Tests require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
-                        "but none could not be found so these will be skipped"
+                    "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
+                        "but none could not be found so these will be skipped", project.getPath()
                 );
                 tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
                     task.setEnabled(false)

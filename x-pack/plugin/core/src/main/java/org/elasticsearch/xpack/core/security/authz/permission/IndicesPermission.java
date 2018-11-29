@@ -67,13 +67,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         Set<String> exactMatch = new HashSet<>();
         List<String> nonExactMatch = new ArrayList<>();
         for (String indexPattern : indices) {
-            if (indexPattern.startsWith("/")) {
-                if (indexPattern.endsWith("/") || indexPattern.contains("*") || indexPattern.contains("?")) {
-                    nonExactMatch.add(indexPattern);
-                } else {
-                    exactMatch.add(indexPattern);
-                }
-            } else if (indexPattern.contains("*") || indexPattern.contains("?")) {
+            if (indexPattern.startsWith("/") || indexPattern.contains("*") || indexPattern.contains("?")) {
                 nonExactMatch.add(indexPattern);
             } else {
                 exactMatch.add(indexPattern);
@@ -92,6 +86,10 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
     }
 
     private static Predicate<String> buildExactMatchPredicate(Set<String> indices) {
+        if (indices.size() == 1) {
+            final String singleValue = indices.iterator().next();
+            return singleValue::equals;
+        }
         return indices::contains;
     }
 

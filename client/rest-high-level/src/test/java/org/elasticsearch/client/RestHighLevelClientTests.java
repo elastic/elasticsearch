@@ -674,7 +674,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.exists_type",
             "indices.get_upgrade",
             "indices.put_alias",
-            "mtermvectors",
             "render_search_template",
             "scripts_painless_execute"
         };
@@ -752,7 +751,8 @@ public class RestHighLevelClientTests extends ESTestCase {
                             apiName.startsWith("migration.") == false &&
                             apiName.startsWith("security.") == false &&
                             apiName.startsWith("index_lifecycle.") == false &&
-                            apiName.startsWith("ccr.") == false) {
+                            apiName.startsWith("ccr.") == false &&
+                            apiName.endsWith("freeze") == false) {
                             apiNotFound.add(apiName);
                         }
                     }

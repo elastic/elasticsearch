@@ -47,7 +47,7 @@ public class JreHttpUrlConnection implements Closeable {
      * error.
      */
     public static final String SQL_STATE_BAD_SERVER = "bad_server";
-    private static final String SQL_NOT_AVAILABLE_ERROR_MESSAGE = "request [/_xpack/sql] contains unrecognized parameter: [mode]";
+    private static final String SQL_NOT_AVAILABLE_ERROR_MESSAGE = "request [/_sql] contains unrecognized parameter: [mode]";
 
     public static <R> R http(String path, String query, ConnectionConfiguration cfg, Function<JreHttpUrlConnection, R> handler) {
         final URI uriPath = cfg.baseUri().resolve(path);  // update path if needed

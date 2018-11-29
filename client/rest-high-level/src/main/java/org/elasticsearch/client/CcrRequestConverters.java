@@ -19,10 +19,15 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
+import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
+import org.elasticsearch.client.ccr.ResumeFollowRequest;
+import org.elasticsearch.client.ccr.UnfollowRequest;
 
 import java.io.IOException;
 
@@ -47,6 +52,42 @@ final class CcrRequestConverters {
             .addPathPartAsIs("_ccr", "pause_follow")
             .build();
         return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
+    static Request resumeFollow(ResumeFollowRequest resumeFollowRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPart(resumeFollowRequest.getFollowerIndex())
+            .addPathPartAsIs("_ccr", "resume_follow")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(resumeFollowRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request unfollow(UnfollowRequest unfollowRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPart(unfollowRequest.getFollowerIndex())
+            .addPathPartAsIs("_ccr", "unfollow")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
+    static Request putAutoFollowPattern(PutAutoFollowPatternRequest putAutoFollowPatternRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_ccr", "auto_follow")
+            .addPathPart(putAutoFollowPatternRequest.getName())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putAutoFollowPatternRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteAutoFollowPattern(DeleteAutoFollowPatternRequest deleteAutoFollowPatternRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_ccr", "auto_follow")
+            .addPathPart(deleteAutoFollowPatternRequest.getName())
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 
 }

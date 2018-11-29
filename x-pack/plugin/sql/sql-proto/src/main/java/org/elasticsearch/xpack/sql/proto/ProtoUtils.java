@@ -19,7 +19,6 @@ import java.util.Locale;
 public final class ProtoUtils {
 
     private ProtoUtils() {
-
     }
 
     /**

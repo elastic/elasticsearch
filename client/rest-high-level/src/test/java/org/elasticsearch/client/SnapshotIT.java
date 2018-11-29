@@ -144,6 +144,14 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         CreateSnapshotResponse response = createTestSnapshot(request);
         assertEquals(waitForCompletion ? RestStatus.OK : RestStatus.ACCEPTED, response.status());
+        if (waitForCompletion == false) {
+            // If we don't wait for the snapshot to complete we have to cancel it to not leak the snapshot task
+            AcknowledgedResponse deleteResponse = execute(
+                new DeleteSnapshotRequest(repository, snapshot),
+                highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
+            );
+            assertTrue(deleteResponse.isAcknowledged());
+        }
     }
 
     public void testGetSnapshots() throws IOException {

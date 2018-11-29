@@ -74,6 +74,17 @@ relative to when data was written last to a rolled over index.
 The previous phase's actions must complete before {ILM} will check `min_age` and
 transition into the next phase.
 
+=== Phase Execution
+
+The current phase definition, of an index's policy being executed, is stored
+in the index's metadata. The phase and its actions are compiled into a series
+of discrete steps that are executed. These steps can be thought of as distinct
+API calls to Elasticsearch. Since some {ILM} actions are more complex and involve
+multiple actions against an index, each of these is done in its own step. This
+provides better visibility into the execution of the phases. The
+<<ilm-explain-lifecycle,Explain Lifecycle API>> exposes this information to us
+to see which step our index is either to execute next, or is currently executing.
+
 === Actions
 
 beta[]

@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
@@ -724,7 +723,7 @@ public class JobManager {
         jobConfigProvider.expandGroupIds(calendarJobIds, ActionListener.wrap(
                 expandedIds -> {
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-                        // Merge the expanded group members with the request Ids 
+                        // Merge the expanded group members with the request Ids
                         // which are job ids rather than group Ids.
                         expandedIds.addAll(calendarJobIds);
 

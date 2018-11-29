@@ -99,22 +99,17 @@ public class DatafeedConfigReader {
         Map<String, DatafeedConfig> clusterStateConfigs = expandClusterStateDatafeeds(expression, clusterState);
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(expression, allowNoDatafeeds);
-        requiredMatches.filterMatchedIds(clusterStateConfigs.keySet());
 
         datafeedConfigProvider.expandDatafeedConfigsWithoutMissingCheck(expression, ActionListener.wrap(
-                datafeedBuilders -> {
-                    List<DatafeedConfig> datafeedConfigs = new ArrayList<>();
-                    for (DatafeedConfig.Builder builder : datafeedBuilders) {
-                        datafeedConfigs.add(builder.build());
-                    }
+                indexDatafeeds -> {
+                    List<DatafeedConfig> datafeedConfigs = new ArrayList<>(clusterStateConfigs.values());
 
                     // Duplicate configs existing in both the clusterstate and index documents are ok
                     // this may occur during migration of configs.
                     // Prefer the clusterstate configs and filter duplicates from the index
-                    Set<String> indexConfigIds = datafeedConfigs.stream().map(DatafeedConfig::getId).collect(Collectors.toSet());
-                    for (String clusterStateDatafeedId : clusterStateConfigs.keySet()) {
-                        if (indexConfigIds.contains(clusterStateDatafeedId) == false) {
-                            datafeedConfigs.add(clusterStateConfigs.get(clusterStateDatafeedId));
+                    for (DatafeedConfig.Builder builder : indexDatafeeds) {
+                        if (clusterStateConfigs.containsKey(builder.getId()) == false) {
+                            datafeedConfigs.add(builder.build());
                         }
                     }
 
@@ -123,7 +118,6 @@ public class DatafeedConfigReader {
                     if (requiredMatches.hasUnmatchedIds()) {
                         listener.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
                     } else {
-                        datafeedConfigs.addAll(clusterStateConfigs.values());
                         Collections.sort(datafeedConfigs, Comparator.comparing(DatafeedConfig::getId));
                         listener.onResponse(datafeedConfigs);
                     }

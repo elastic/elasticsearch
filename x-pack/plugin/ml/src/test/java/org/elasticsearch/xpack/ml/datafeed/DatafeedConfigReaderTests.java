@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
@@ -22,6 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -132,9 +134,35 @@ public class DatafeedConfigReaderTests extends ESTestCase {
                 e -> fail(e.getMessage())
         ));
 
+        assertThat(configHolder.get(), hasSize(3));
         assertEquals("cs-df", configHolder.get().get(0).getId());
         assertEquals("index-df", configHolder.get().get(1).getId());
         assertEquals("ll-df", configHolder.get().get(2).getId());
+    }
+
+    public void testExpandDatafeedConfigs_DuplicateConfigReturnsClusterStateConfig() {
+        // TODO
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(buildJobBuilder("datafeed-in-clusterstate").build(), false);
+        mlMetadata.putDatafeed(createDatafeedConfig("df1", "datafeed-in-clusterstate"), Collections.emptyMap());
+        ClusterState clusterState = ClusterState.builder(new ClusterName("datafeedconfigreadertests"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+        DatafeedConfig.Builder indexConfig1 = createDatafeedConfigBuilder("df1", "datafeed-in-index");
+        DatafeedConfig.Builder indexConfig2 = createDatafeedConfigBuilder("df2", "job-c");
+        DatafeedConfigProvider provider = mock(DatafeedConfigProvider.class);
+        mockProviderWithExpectedConfig(provider, "_all", Arrays.asList(indexConfig1, indexConfig2));
+        DatafeedConfigReader reader = new DatafeedConfigReader(provider);
+        AtomicReference<List<DatafeedConfig>> configHolder = new AtomicReference<>();
+        reader.expandDatafeedConfigs("_all", true, clusterState, ActionListener.wrap(
+                configHolder::set,
+                e -> fail(e.getMessage())
+        ));
+        assertThat(configHolder.get(), hasSize(2));
+        assertEquals("df1", configHolder.get().get(0).getId());
+        assertEquals("datafeed-in-clusterstate", configHolder.get().get(0).getJobId());
+        assertEquals("df2", configHolder.get().get(1).getId());
     }
 
     private ClusterState buildClusterStateWithJob(DatafeedConfig datafeed) {

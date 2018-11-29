@@ -42,6 +42,7 @@ import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalUnit;
 import java.time.temporal.WeekFields;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * A wrapper around ZonedDateTime that exposes joda methods for backcompat.
@@ -75,7 +76,10 @@ public class JodaCompatibleZonedDateTime {
 
     @Override
     public boolean equals(Object o) {
-        return dt.equals(o);
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        JodaCompatibleZonedDateTime that = (JodaCompatibleZonedDateTime) o;
+        return Objects.equals(dt, that.dt);
     }
 
     @Override

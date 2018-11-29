@@ -22,6 +22,7 @@ package org.elasticsearch.client.documentation;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -44,6 +45,8 @@ import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
+import org.elasticsearch.client.security.DeleteUserRequest;
+import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
@@ -78,7 +81,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matchers;
 
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import java.io.IOException;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -91,6 +98,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -106,10 +114,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            //tag::put-user-execute
+            //tag::put-user-password-request
             char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
             User user = new User("example", Collections.singletonList("superuser"));
-            PutUserRequest request = new PutUserRequest(user, password, true, RefreshPolicy.NONE);
+            PutUserRequest request = PutUserRequest.withPassword(user, password, true, RefreshPolicy.NONE);
+            //end::put-user-password-request
+
+            //tag::put-user-execute
             PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
             //end::put-user-execute
 
@@ -119,11 +130,37 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(isCreated);
         }
+        {
+            byte[] salt = new byte[32];
+            SecureRandom.getInstanceStrong().nextBytes(salt);
+            char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+            User user = new User("example2", Collections.singletonList("superuser"));
+
+            //tag::put-user-hash-request
+            SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
+            PBEKeySpec keySpec = new PBEKeySpec(password, salt, 10000, 256);
+            final byte[] pbkdfEncoded = secretKeyFactory.generateSecret(keySpec).getEncoded();
+            char[] passwordHash = ("{PBKDF2}10000$" + Base64.getEncoder().encodeToString(salt)
+                + "$" + Base64.getEncoder().encodeToString(pbkdfEncoded)).toCharArray();
+
+            PutUserRequest request = PutUserRequest.withPasswordHash(user, passwordHash, true, RefreshPolicy.NONE);
+            //end::put-user-hash-request
+
+            try {
+                client.security().putUser(request, RequestOptions.DEFAULT);
+            } catch (ElasticsearchStatusException e) {
+                // This is expected to fail as the server will not be using PBKDF2, but that's easiest hasher to support
+                // in a standard JVM without introducing additional libraries.
+                assertThat(e.getDetailedMessage(), containsString("PBKDF2"));
+            }
+        }
 
         {
-            char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-            User user2 = new User("example2", Collections.singletonList("superuser"));
-            PutUserRequest request = new PutUserRequest(user2, password, true, RefreshPolicy.NONE);
+            User user = new User("example", Arrays.asList("superuser", "another-role"));
+            //tag::put-user-update-request
+            PutUserRequest request = PutUserRequest.updateUser(user, true, RefreshPolicy.NONE);
+            //end::put-user-update-request
+
             // tag::put-user-execute-listener
             ActionListener<PutUserResponse> listener = new ActionListener<PutUserResponse>() {
                 @Override
@@ -148,6 +185,67 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testDeleteUser() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        addUser(client, "testUser", "testPassword");
+
+        {
+            // tag::delete-user-request
+            DeleteUserRequest deleteUserRequest = new DeleteUserRequest(
+                "testUser");    // <1>
+            // end::delete-user-request
+
+            // tag::delete-user-execute
+            DeleteUserResponse deleteUserResponse = client.security().deleteUser(deleteUserRequest, RequestOptions.DEFAULT);
+            // end::delete-user-execute
+
+            // tag::delete-user-response
+            boolean found = deleteUserResponse.isAcknowledged();    // <1>
+            // end::delete-user-response
+            assertTrue(found);
+
+            // check if deleting the already deleted user again will give us a different response
+            deleteUserResponse = client.security().deleteUser(deleteUserRequest, RequestOptions.DEFAULT);
+            assertFalse(deleteUserResponse.isAcknowledged());
+        }
+
+        {
+            DeleteUserRequest deleteUserRequest = new DeleteUserRequest("testUser", RefreshPolicy.IMMEDIATE);
+
+            ActionListener<DeleteUserResponse> listener;
+            //tag::delete-user-execute-listener
+            listener = new ActionListener<DeleteUserResponse>() {
+                @Override
+                public void onResponse(DeleteUserResponse deleteUserResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::delete-user-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::delete-user-execute-async
+            client.security().deleteUserAsync(deleteUserRequest, RequestOptions.DEFAULT, listener); // <1>
+            //end::delete-user-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    private void addUser(RestHighLevelClient client, String userName, String password) throws IOException {
+        User user = new User(userName, Collections.singletonList(userName));
+        PutUserRequest request = new PutUserRequest(user, password.toCharArray(), true, RefreshPolicy.NONE);
+        PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
+        assertTrue(response.isCreated());
     }
 
     public void testPutRoleMapping() throws Exception {
@@ -497,6 +595,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::authenticate-response
             User user = response.getUser(); // <1>
             boolean enabled = response.enabled(); // <2>
+            final String authenticationRealmName = response.getAuthenticationRealm().getName(); // <3>
+            final String authenticationRealmType = response.getAuthenticationRealm().getType(); // <4>
+            final String lookupRealmName = response.getLookupRealm().getName(); // <5>
+            final String lookupRealmType = response.getLookupRealm().getType(); // <6>
             //end::authenticate-response
 
             assertThat(user.getUsername(), is("test_user"));
@@ -505,6 +607,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(user.getEmail(), nullValue());
             assertThat(user.getMetadata().isEmpty(), is(true));
             assertThat(enabled, is(true));
+            assertThat(authenticationRealmName, is("default_file"));
+            assertThat(authenticationRealmType, is("file"));
+            assertThat(lookupRealmName, is("default_file"));
+            assertThat(lookupRealmType, is("file"));
         }
 
         {

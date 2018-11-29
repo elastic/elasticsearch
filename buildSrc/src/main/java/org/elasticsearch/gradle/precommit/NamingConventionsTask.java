@@ -1,7 +1,7 @@
 package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.LoggedExec;
-import org.elasticsearch.gradle.test.NamingConventionsCheck;
+import org.elasticsearch.gradle.NamingConventionsCheck;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginConvention;

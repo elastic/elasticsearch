@@ -212,7 +212,7 @@ class PrecommitTasks {
     private static Task configureNamingConventions(Project project) {
         if (project.sourceSets.findByName("test")) {
             Task namingConventionsTask = project.tasks.create('namingConventions', NamingConventionsTask)
-            namingConventionsTask.javaHome = project.compilerJavaHome
+            namingConventionsTask.javaHome = project.runtimeJavaHome
             return namingConventionsTask
         }
         return null

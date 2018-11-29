@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.test;
+package org.elasticsearch.gradle;
 
 import java.io.File;
 import java.io.IOException;

@@ -427,6 +427,8 @@ public class ElasticsearchNode {
                         conditionMet = true;
                         break;
                     }
+                } catch (TestClustersException e) {
+                    throw new TestClustersException(e);
                 } catch (Exception e) {
                     if (lastException == null) {
                         lastException = e;
@@ -437,9 +439,6 @@ public class ElasticsearchNode {
                 }
                 try {
                     Thread.sleep(500);
-                }
-                catch (TestClustersException e) {
-                    throw new TestClustersException(e);
                 }
                 catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

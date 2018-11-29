@@ -19,6 +19,7 @@
 
 package org.elasticsearch.packaging.test;
 
+import junit.framework.TestCase;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -107,6 +108,8 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
                 "}");
             logger.error(logs.stdout);
             fail();
+        } else {
+            logger.info("\nscript: " + script + "\nstdout: " + result.stdout + "\nstderr: " + result.stderr);
         }
     }
 
@@ -178,14 +181,14 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
               "$p = Get-Process -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
               "echo \"$p\";" +
               "if ($p -eq $Null) {" +
+              "  Write-Host \"exited after $i seconds\";" +
               "  exit 0;" +
-              "} else {" +
-              "  Clear-Item $p;" +
               "}" +
               "Start-Sleep -Seconds 1;" +
               "$i += 1;" +
             "} while ($i -lt 300);" +
             "exit 9;");
+
         assertCommand(serviceScript + " remove");
         assertCommand("$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
             "echo \"$p\";" +
@@ -220,7 +223,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         sh.run(serviceScript + " remove");
     }*/
 
-    /*public void test60Manager() throws IOException {
+    public void test60Manager() throws IOException {
         Path serviceMgr = installation.bin("elasticsearch-service-mgr.exe");
         Path tmpServiceMgr = serviceMgr.getParent().resolve(serviceMgr.getFileName() + ".tmp");
         Files.move(serviceMgr, tmpServiceMgr);
@@ -242,7 +245,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         Result result = sh.runIgnoreExitCode(serviceScript + " bogus");
         assertThat(result.exitCode, equalTo(1));
         assertThat(result.stdout, containsString("Unknown option \"bogus\""));
-    }*/
+    }
 
     // TODO:
     // custom SERVICE_USERNAME/SERVICE_PASSWORD

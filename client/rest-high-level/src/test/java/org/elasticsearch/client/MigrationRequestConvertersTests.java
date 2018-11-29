@@ -32,7 +32,7 @@ public class MigrationRequestConvertersTests extends ESTestCase {
 
     public void testGetMigrationAssistance() {
         IndexUpgradeInfoRequest upgradeInfoRequest = new IndexUpgradeInfoRequest();
-        String expectedEndpoint = "/_xpack/migration/assistance";
+        String expectedEndpoint = "/_migration/assistance";
         if (randomBoolean()) {
             String[] indices = RequestConvertersTests.randomIndicesNames(1, 5);
             upgradeInfoRequest.indices(indices);
@@ -52,7 +52,7 @@ public class MigrationRequestConvertersTests extends ESTestCase {
         String[] indices = RequestConvertersTests.randomIndicesNames(1, 1);
         IndexUpgradeRequest upgradeInfoRequest = new IndexUpgradeRequest(indices[0]);
 
-        String expectedEndpoint = "/_xpack/migration/upgrade/" + indices[0];
+        String expectedEndpoint = "/_migration/upgrade/" + indices[0];
         Map<String, String> expectedParams = new HashMap<>();
         expectedParams.put("wait_for_completion", Boolean.TRUE.toString());
 

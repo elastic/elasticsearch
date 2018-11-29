@@ -111,6 +111,7 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         if (MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metaData.settings())) {
             blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
         }
+        metaData.forEach(block -> blocks.addBlocks(block));
 
         previousClusterState = ClusterState.builder(clusterName)
                 .version(previousManifest.getClusterStateVersion())

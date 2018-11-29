@@ -403,6 +403,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
+    public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        HashMap<String, Repository.Factory> internalRepositories = new HashMap<>(super.getInternalRepositories(env, namedXContentRegistry));
+        filterPlugins(RepositoryPlugin.class).forEach(r ->
+            internalRepositories.putAll(r.getInternalRepositories(env, namedXContentRegistry)));
+        return internalRepositories;
+    }
+
+    @Override
     public void close() throws IOException {
         IOUtils.close(plugins);
     }

@@ -59,6 +59,7 @@ public class RepositoriesService implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(RepositoriesService.class);
 
     private final Map<String, Repository.Factory> typesRegistry;
+    private final Map<String, Repository.Factory> internalTypesRegistry;
 
     private final ClusterService clusterService;
 
@@ -70,9 +71,10 @@ public class RepositoriesService implements ClusterStateApplier {
     private volatile Map<String, Repository> internalRepositories = ConcurrentCollections.newConcurrentMap();
 
     public RepositoriesService(Settings settings, ClusterService clusterService, TransportService transportService,
-                               Map<String, Repository.Factory> typesRegistry,
+                               Map<String, Repository.Factory> typesRegistry, Map<String, Repository.Factory> internalTypesRegistry,
                                ThreadPool threadPool) {
         this.typesRegistry = typesRegistry;
+        this.internalTypesRegistry = internalTypesRegistry;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
@@ -311,7 +313,7 @@ public class RepositoriesService implements ClusterStateApplier {
                             closeRepository(repository);
                             repository = null;
                             try {
-                                repository = createRepository(repositoryMetaData);
+                                repository = createRepository(repositoryMetaData, typesRegistry);
                             } catch (RepositoryException ex) {
                                 // TODO: this catch is bogus, it means the old repo is already closed,
                                 // but we have nothing to replace it
@@ -320,7 +322,7 @@ public class RepositoriesService implements ClusterStateApplier {
                         }
                     } else {
                         try {
-                            repository = createRepository(repositoryMetaData);
+                            repository = createRepository(repositoryMetaData, typesRegistry);
                         } catch (RepositoryException ex) {
                             logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetaData.name()), ex);
                         }
@@ -360,8 +362,7 @@ public class RepositoriesService implements ClusterStateApplier {
 
     public void registerInternalRepository(String name, String type, Settings settings) {
         RepositoryMetaData metaData = new RepositoryMetaData(name, type, settings);
-
-        Repository repository = createRepository(metaData);
+        Repository repository = createRepository(metaData, internalTypesRegistry);
 
         Repository existingRepository = internalRepositories.putIfAbsent(name, repository);
 
@@ -377,8 +378,6 @@ public class RepositoriesService implements ClusterStateApplier {
     }
 
     public void unregisterInternalRepository(String name) {
-        // TODO: We normally have validation to prevent removing a repository that is in use.
-        //  How do we want to handle that for internal repositories?
         Repository repository = internalRepositories.remove(name);
         RepositoryMetaData metadata = repository.getMetadata();
         if (repository != null) {
@@ -410,7 +409,7 @@ public class RepositoriesService implements ClusterStateApplier {
                 return false;
             }
         }
-        Repository newRepo = createRepository(repositoryMetaData);
+        Repository newRepo = createRepository(repositoryMetaData, typesRegistry);
         if (previous != null) {
             closeRepository(previous);
         }
@@ -427,11 +426,29 @@ public class RepositoriesService implements ClusterStateApplier {
     }
 
     /**
-     * Creates repository holder
+     * Creates internal repository holder. This method does not start the repository.
      */
-    private Repository createRepository(RepositoryMetaData repositoryMetaData) {
+    private Repository createInternalRepository(RepositoryMetaData repositoryMetaData) {
+        logger.debug("creating internal repository [{}][{}]", repositoryMetaData.type(), repositoryMetaData.name());
+        Repository.Factory factory = internalTypesRegistry.get(repositoryMetaData.type());
+        if (factory == null) {
+            throw new RepositoryException(repositoryMetaData.name(),
+                "internal repository type [" + repositoryMetaData.type() + "] does not exist");
+        }
+        try {
+            return factory.create(repositoryMetaData, internalTypesRegistry::get);
+        } catch (Exception e) {
+            logger.warn(new ParameterizedMessage("failed to internal create repository [{}][{}]", repositoryMetaData.type(), repositoryMetaData.name()), e);
+            throw new RepositoryException(repositoryMetaData.name(), "failed to internal create repository", e);
+        }
+    }
+
+    /**
+     * Creates repository holder. This method starts the repository
+     */
+    private Repository createRepository(RepositoryMetaData repositoryMetaData, Map<String, Repository.Factory> factories) {
         logger.debug("creating repository [{}][{}]", repositoryMetaData.type(), repositoryMetaData.name());
-        Repository.Factory factory = typesRegistry.get(repositoryMetaData.type());
+        Repository.Factory factory = factories.get(repositoryMetaData.type());
         if (factory == null) {
             throw new RepositoryException(repositoryMetaData.name(),
                 "repository type [" + repositoryMetaData.type() + "] does not exist");
@@ -441,7 +458,7 @@ public class RepositoriesService implements ClusterStateApplier {
             repository.start();
             return repository;
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("failed to create repository [{}][{}]", repositoryMetaData.type(), repositoryMetaData.name()), e);
+            logger.warn(new ParameterizedMessage("failed to create repository [{}][{}]", repositoryMetaData.type(), repositoryMetaData.name()), e);
             throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", e);
         }
     }

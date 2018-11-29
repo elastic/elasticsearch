@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteInternalRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteInternalRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutInternalRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutInternalRepositoryRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
@@ -42,15 +44,14 @@ class CcrRepositoryManager extends RemoteClusterAware {
     protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress) {
         if (addresses.isEmpty()) {
             if (clusters.remove(clusterAlias)) {
-                DeleteInternalRepositoryAction.DeleteInternalRepositoryRequest request =
-                    new DeleteInternalRepositoryAction.DeleteInternalRepositoryRequest(clusterAlias);
+                DeleteInternalRepositoryRequest request = new DeleteInternalRepositoryRequest(clusterAlias);
                 PlainActionFuture<AcknowledgedResponse> future = PlainActionFuture.newFuture();
                 client.executeLocally(DeleteInternalRepositoryAction.INSTANCE, request, future);
                 assert future.isDone() : "Should be completed as it is executed synchronously";
             }
         } else {
             if (clusters.add(clusterAlias)) {
-                ActionRequest request = new PutInternalRepositoryAction.PutInternalRepositoryRequest(clusterAlias, CcrRepository.TYPE);
+                ActionRequest request = new PutInternalRepositoryRequest(clusterAlias, CcrRepository.TYPE);
                 PlainActionFuture<AcknowledgedResponse> future = PlainActionFuture.newFuture();
                 client.executeLocally(PutInternalRepositoryAction.INSTANCE, request, future);
                 assert future.isDone() : "Should be completed as it is executed synchronously";

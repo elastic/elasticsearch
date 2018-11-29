@@ -19,38 +19,29 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class PutInternalRepositoryAction extends Action<AcknowledgedResponse> {
+public class TransportPutInternalRepositoryAction extends TransportAction<PutInternalRepositoryRequest, AcknowledgedResponse> {
 
-    public static final PutInternalRepositoryAction INSTANCE = new PutInternalRepositoryAction();
-    public static final String NAME = "cluster:admin/internal_repository/put";
+    private final RepositoriesService repositoriesService;
 
-    private PutInternalRepositoryAction() {
-        super(NAME);
+    @Inject
+    public TransportPutInternalRepositoryAction(RepositoriesService repositoriesService, ActionFilters actionFilters,
+                                                TransportService transportService) {
+        super(PutInternalRepositoryAction.NAME, actionFilters, transportService.getTaskManager());
+        this.repositoriesService = repositoriesService;
     }
 
     @Override
-    public AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException();
+    protected void doExecute(Task task, PutInternalRepositoryRequest request, ActionListener<AcknowledgedResponse> listener) {
+        repositoriesService.registerInternalRepository(request.getName(), request.getType(), request.getSettings());
+        listener.onResponse(new AcknowledgedResponse(true));
     }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return in -> {
-            AcknowledgedResponse acknowledgedResponse = new AcknowledgedResponse();
-            acknowledgedResponse.readFrom(in);
-            return acknowledgedResponse;
-        };
-    }
-
 }

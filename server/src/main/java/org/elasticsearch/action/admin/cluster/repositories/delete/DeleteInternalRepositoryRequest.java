@@ -19,47 +19,64 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.delete;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class DeleteInternalRepositoryAction extends Action<AcknowledgedResponse> {
+public class DeleteInternalRepositoryRequest extends ActionRequest {
 
-    public static final DeleteInternalRepositoryAction INSTANCE = new DeleteInternalRepositoryAction();
-    public static final String NAME = "cluster:admin/internal_repository/delete";
+    private String name;
 
-    protected DeleteInternalRepositoryAction() {
-        super(NAME);
+    public DeleteInternalRepositoryRequest(String name) {
+        this.name = name;
     }
 
     @Override
-    public AcknowledgedResponse newResponse() {
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = null;
+        if (name == null) {
+            validationException = addValidationError("name is missing", validationException);
+        }
+        return validationException;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return in -> {
-            AcknowledgedResponse acknowledgedResponse = new AcknowledgedResponse();
-            acknowledgedResponse.readFrom(in);
-            return acknowledgedResponse;
-        };
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException();
     }
 
+    public String getName() {
+        return name;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DeleteInternalRepositoryRequest that = (DeleteInternalRepositoryRequest) o;
+        return Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name);
+    }
+
+    @Override
+    public String toString() {
+        return "DeleteInternalRepositoryRequest{" +
+            "name='" + name + '\'' +
+            '}';
+    }
 }

@@ -48,10 +48,13 @@ public class AnalyticsProcessManager {
                 process.writeRecord(dataExtractor.getFieldNamesArray());
 
                 while (dataExtractor.hasNext()) {
-                    Optional<List<String[]>> records = dataExtractor.next();
-                    if (records.isPresent()) {
-                        for (String[] record : records.get()) {
-                            process.writeRecord(record);
+                    Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
+                    if (rows.isPresent()) {
+                        for (DataFrameDataExtractor.Row row : rows.get()) {
+                            String[] rowValues = row.getValues();
+                            if (rowValues != null) {
+                                process.writeRecord(rowValues);
+                            }
                         }
                     }
                 }

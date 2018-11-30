@@ -27,6 +27,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.BasePlugin;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskContainer;
 
 import java.lang.reflect.InvocationTargetException;
@@ -45,21 +46,18 @@ public class TestFixturesPlugin implements Plugin<Project> {
             "testFixtures", TestFixtureExtension.class, project
         );
 
-        // Don't look for docker-compose on the PATH yet that would pick up on Windows as well
-        if (project.file("/usr/local/bin/docker-compose").exists() == false &&
-            project.file("/usr/bin/docker-compose").exists() == false
-        ) {
-            project.getLogger().warn(
-                "Tests require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
-                    "but none could not be found so these will be skipped"
-            );
-            tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
-                task.setEnabled(false)
-            );
-            return;
-        }
-
         if (project.file(DOCKER_COMPOSE_YML).exists()) {
+            // convenience boilerplate with build plugin
+            // Can't reference tasks that are implemented in Groovy, use reflection  instead
+            disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.precommit.LicenseHeadersTask"));
+            disableTaskByType(tasks, getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"));
+            disableTaskByType(tasks, ThirdPartyAuditTask.class);
+            disableTaskByType(tasks, JarHellTask.class);
+
+            if (dockerComposeSupported(project) == false) {
+                return;
+            }
+
             project.apply(spec -> spec.plugin(BasePlugin.class));
             project.apply(spec -> spec.plugin(DockerComposePlugin.class));
             ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
@@ -71,16 +69,17 @@ public class TestFixturesPlugin implements Plugin<Project> {
             );
 
             project.getTasks().getByName("clean").dependsOn("composeDown");
-
-            // convenience boilerplate with build plugin
-            project.getPluginManager().withPlugin("elasticsearch.build", (appliedPlugin) -> {
-                // Can't reference tasks that are implemented in Groovy, use reflection  instead
-                disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.precommit.LicenseHeadersTask"));
-                disableTaskByType(tasks, getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"));
-                disableTaskByType(tasks, ThirdPartyAuditTask.class);
-                disableTaskByType(tasks, JarHellTask.class);
-            });
         } else {
+            if (dockerComposeSupported(project) == false) {
+                project.getLogger().warn(
+                    "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
+                        "but none could not be found so these will be skipped", project.getPath()
+                );
+                tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
+                    task.setEnabled(false)
+                );
+                return;
+            }
             tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
                 extension.fixtures.all(fixtureProject -> {
                     task.dependsOn(fixtureProject.getTasks().getByName("composeUp"));
@@ -99,6 +98,15 @@ public class TestFixturesPlugin implements Plugin<Project> {
                             ));
                 }));
         }
+    }
+
+    @Input
+    public boolean dockerComposeSupported(Project project) {
+        // Don't look for docker-compose on the PATH yet that would pick up on Windows as well
+        return
+            project.file("/usr/local/bin/docker-compose").exists() == false &&
+            project.file("/usr/bin/docker-compose").exists() == false &&
+            Boolean.parseBoolean(System.getProperty("tests.fixture.enabled", "true")) == false;
     }
 
     private void setSystemProperty(Task task, String name, Object value) {

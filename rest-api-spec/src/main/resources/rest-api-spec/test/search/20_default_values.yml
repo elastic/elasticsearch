@@ -72,3 +72,13 @@ setup:
             match:
               foo: bar
 
+---
+"Search with rest_total_hits_as_int":
+  - skip:
+      version: " - 6.5.99"
+      reason: rest_total_hits_as_int was introduced in 6.6.0
+  - do:
+      search:
+        rest_total_hits_as_int: true
+
+  - match: {hits.total: 2}

@@ -182,7 +182,7 @@ public class SecurityNioTransport extends NioTransport {
 
         @Override
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
-            NioTcpChannel nioChannel = new NioTcpChannel(profileName, channel);
+            NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);

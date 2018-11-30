@@ -29,8 +29,8 @@ include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> `_id`, id of the watch
 <2> `found` is a boolean indicating whether the watch was found
-<2> `_version` returns the version of the watch
-<3> `status` contains status of the watch
-<4> `source` the source of the watch
+<3> `_version` returns the version of the watch
+<4> `status` contains status of the watch
+<5> `source` the source of the watch
 
 include::../execution.asciidoc[]

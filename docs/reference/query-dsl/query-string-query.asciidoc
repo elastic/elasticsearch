@@ -348,6 +348,9 @@ The example above creates a boolean query:
 that matches documents with at least two of the terms `this`, `that` or `thus`
 in the single field `title`.
 
+[float]
+===== Multi Field
+
 [source,js]
 --------------------------------------------------
 GET /_search

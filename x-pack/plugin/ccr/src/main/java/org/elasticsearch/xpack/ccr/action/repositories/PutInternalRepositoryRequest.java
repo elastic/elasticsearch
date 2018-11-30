@@ -28,8 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
 public class PutInternalRepositoryRequest extends ActionRequest {
 
     private final String name;

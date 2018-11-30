@@ -179,7 +179,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 new ActionHandler<>(ShardChangesAction.INSTANCE, ShardChangesAction.TransportAction.class),
                 new ActionHandler<>(PutInternalRepositoryAction.INSTANCE,
                     PutInternalRepositoryAction.TransportPutInternalRepositoryAction.class),
-                new ActionHandler<>(DeleteInternalRepositoryAction.INSTANCE, DeleteInternalRepositoryAction.TransportDeleteInternalRepositoryAction.class),
+                new ActionHandler<>(DeleteInternalRepositoryAction.INSTANCE,
+                    DeleteInternalRepositoryAction.TransportDeleteInternalRepositoryAction.class),
                 // stats action
                 new ActionHandler<>(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
                 new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),

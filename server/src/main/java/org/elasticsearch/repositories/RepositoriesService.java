@@ -67,8 +67,8 @@ public class RepositoriesService implements ClusterStateApplier {
 
     private final VerifyNodeRepositoryAction verifyAction;
 
+    private final Map<String, Repository> internalRepositories = ConcurrentCollections.newConcurrentMap();
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
-    private volatile Map<String, Repository> internalRepositories = ConcurrentCollections.newConcurrentMap();
 
     public RepositoriesService(Settings settings, ClusterService clusterService, TransportService transportService,
                                Map<String, Repository.Factory> typesRegistry, Map<String, Repository.Factory> internalTypesRegistry,
@@ -362,30 +362,64 @@ public class RepositoriesService implements ClusterStateApplier {
 
     public void registerInternalRepository(String name, String type, Settings settings) {
         RepositoryMetaData metaData = new RepositoryMetaData(name, type, settings);
-        Repository repository = createRepository(metaData, internalTypesRegistry);
-
-        Repository existingRepository = internalRepositories.putIfAbsent(name, repository);
-
-        if (existingRepository != null) {
-            logger.error(new ParameterizedMessage("error registering internal repository [{}][{}]. " +
-                "internal repository with that name already registered.", metaData.type(), name));
-            repository.close();
+        Repository existingRepository = internalRepositories.get(name);
+        if (existingRepository != null && existingRepository.getMetadata().equals(metaData)) {
+            // Identical repository already exists, no need to update it.
+            return;
         }
-        if (repositories.containsKey(name)) {
+
+        // TODO: Normally we would do validation when we update a repository to ensure that it is not in use.
+        //  Are we okay with not including that validation under the assumption that internal operations
+        //  will do the right thing.
+
+        Repository newRepository = createRepository(metaData, internalTypesRegistry);
+        Repository repositoryToClose = null;
+        boolean updated = false;
+        synchronized (internalRepositories) {
+            existingRepository = internalRepositories.get(name);
+            if (existingRepository != null) {
+                if (existingRepository.getMetadata().equals(metaData)) {
+                    // Identical repository already exists, no need to update it.
+                    repositoryToClose = newRepository;
+                } else {
+                    logger.info("update internal repository [{}][{}]", name, type);
+                    internalRepositories.put(name, newRepository);
+                    updated = true;
+                    repositoryToClose = existingRepository;
+                }
+            } else {
+                logger.info("put internal repository [{}][{}]", name, type);
+                internalRepositories.put(name, newRepository);
+                updated = true;
+            }
+        }
+
+        if (repositoryToClose != null) {
+            repositoryToClose.close();
+        }
+
+        if (updated && repositories.containsKey(name)) {
             logger.warn(new ParameterizedMessage("non-internal repository [{}] already registered. this repository will block the " +
                 "usage of internal repository [{}][{}].", name, metaData.type(), name));
         }
     }
 
     public void unregisterInternalRepository(String name) {
-        Repository repository = internalRepositories.remove(name);
-        RepositoryMetaData metadata = repository.getMetadata();
+        Repository repository = internalRepositories.get(name);
+        if (repository == null) {
+            // Repository does not exist to delete
+            return;
+        }
+
+        synchronized (internalRepositories) {
+            // Even though we are using a concurrent hash map, the remove must be synchronized as it can
+            // conflict with the put in #registerInternalRepository which is a multi-step operation
+            repository = internalRepositories.remove(name);
+        }
         if (repository != null) {
-            logger.debug(() -> new ParameterizedMessage("unregistering internal repository [{}][{}].", metadata.type(), name));
+            RepositoryMetaData metadata = repository.getMetadata();
+            logger.debug(() -> new ParameterizedMessage("delete internal repository [{}][{}].", metadata.type(), name));
             closeRepository(repository);
-        } else {
-            logger.warn(() -> new ParameterizedMessage("attempted to unregister internal repository [{}][{}]. " +
-                "repository could not found.", metadata.type(), name));
         }
     }
 

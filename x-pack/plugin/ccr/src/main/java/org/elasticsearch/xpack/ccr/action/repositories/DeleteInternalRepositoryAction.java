@@ -24,14 +24,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class DeleteInternalRepositoryAction extends Action<AcknowledgedResponse> {
+public class DeleteInternalRepositoryAction extends Action<ActionResponse> {
 
     public static final DeleteInternalRepositoryAction INSTANCE = new DeleteInternalRepositoryAction();
     public static final String NAME = "cluster:admin/internal_repository/delete";
@@ -41,17 +40,13 @@ public class DeleteInternalRepositoryAction extends Action<AcknowledgedResponse>
     }
 
     @Override
-    public AcknowledgedResponse newResponse() {
+    public ActionResponse newResponse() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return in -> {
-            AcknowledgedResponse acknowledgedResponse = new AcknowledgedResponse();
-            acknowledgedResponse.readFrom(in);
-            return acknowledgedResponse;
-        };
+    public Writeable.Reader<ActionResponse> getResponseReader() {
+        return in -> new ActionResponse() {};
     }
 
     public static class TransportDeleteInternalRepositoryAction extends TransportAction<DeleteInternalRepositoryRequest, ActionResponse> {

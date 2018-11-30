@@ -145,11 +145,11 @@ public class ApiKeyService {
                     }
                 }
 
-                builder.startArray("role_descriptors");
+                builder.startObject("role_descriptors");
                 for (RoleDescriptor descriptor : request.getRoleDescriptors()) {
-                    descriptor.toXContent(builder, ToXContent.EMPTY_PARAMS, true);
+                    builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
                 }
-                builder.endArray();
+                builder.endObject();
                 builder.field("name", request.getName())
                     .field("version", version.id)
                     .startObject("creator")
@@ -235,16 +235,17 @@ public class ApiKeyService {
         } else {
             final Map<String, Object> metadata = authentication.getMetadata();
             final String apiKeyId = (String) metadata.get(API_KEY_ID_KEY);
-            final List<Map<String, Object>> roleDescriptors = (List<Map<String, Object>>) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
-            final AtomicInteger counter = new AtomicInteger();
-            final List<RoleDescriptor> roleDescriptorList = roleDescriptors.stream()
-                .map(rdMap -> {
+            final Map<String, Object> roleDescriptors = (Map<String, Object>) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
+            final List<RoleDescriptor> roleDescriptorList = roleDescriptors.entrySet().stream()
+                .map(entry -> {
+                    final String name = entry.getKey();
+                    final Map<String, Object> rdMap = (Map<String, Object>) entry.getValue();
                     try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                         builder.map(rdMap);
                         try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                             new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId),
                             BytesReference.bytes(builder).streamInput())) {
-                            return RoleDescriptor.parse("apiKey-" + apiKeyId + "-role-" + counter.getAndIncrement() , parser, false);
+                            return RoleDescriptor.parse(name, parser, false);
                         }
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -278,11 +279,8 @@ public class ApiKeyService {
                 final Map<String, Object> creator = Objects.requireNonNull((Map<String, Object>) source.get("creator"));
                 final String principal = Objects.requireNonNull((String) creator.get("principal"));
                 final Map<String, Object> metadata = (Map<String, Object>) creator.get("metadata");
-                final List<Map<String, Object>> roleDescriptors = (List<Map<String, Object>>) source.get("role_descriptors");
-                final String[] roleNames = roleDescriptors.stream()
-                    .map(rdSource -> (String) rdSource.get("name"))
-                    .collect(Collectors.toList())
-                    .toArray(Strings.EMPTY_ARRAY);
+                final Map<String, Object> roleDescriptors = (Map<String, Object>) source.get("role_descriptors");
+                final String[] roleNames = roleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
                 final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
                 final Map<String, Object> authResultMetadata = new HashMap<>();
                 authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);

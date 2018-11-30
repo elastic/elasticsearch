@@ -107,7 +107,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         Map<String, Object> sourceMap = new HashMap<>();
         sourceMap.put("api_key_hash", new String(hash));
-        sourceMap.put("role_descriptors", Collections.singletonList(Collections.singletonMap("name", "a role")));
+        sourceMap.put("role_descriptors", Collections.singletonMap("a role", Collections.singletonMap("cluster", "all")));
         Map<String, Object> creatorMap = new HashMap<>();
         creatorMap.put("principal", "test_user");
         creatorMap.put("metadata", Collections.emptyMap());
@@ -175,7 +175,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
         Map<String, Object> authMetadata = new HashMap<>();
         authMetadata.put(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLength(12));
-        authMetadata.put(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY, Collections.singletonList(superUserRdMap));
+        authMetadata.put(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY,
+            Collections.singletonMap(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
 
         final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
             Version.CURRENT, AuthenticationType.API_KEY, authMetadata);
@@ -189,9 +190,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             if (descriptors.size() != 1) {
                 listener.onFailure(new IllegalStateException("descriptors was empty!"));
             } else if (descriptors.iterator().next().getName().equals("superuser")) {
-                listener.onFailure(new IllegalStateException("api key service generates random name!"));
-            } else {
                 listener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+            } else {
+                listener.onFailure(new IllegalStateException("unexpected role name " + descriptors.iterator().next().getName()));
             }
             return Void.TYPE;
         }).when(rolesStore).buildRoleFromDescriptors(any(Collection.class), any(FieldPermissionsCache.class), any(ActionListener.class));

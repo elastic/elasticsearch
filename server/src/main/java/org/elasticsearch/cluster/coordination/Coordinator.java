@@ -64,7 +64,11 @@ import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.UnicastConfiguredHostsResolver;
 import org.elasticsearch.discovery.zen.PendingClusterStateStats;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenDiscovery.RejoinClusterRequest;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 
@@ -82,6 +86,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
+import static org.elasticsearch.discovery.zen.ZenDiscovery.DISCOVERY_REJOIN_ACTION_NAME;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
@@ -251,6 +256,17 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 // Rare case in which we stood down as leader between starting this publication and receiving it ourselves. The publication
                 // is already failed so there is no point in proceeding.
                 throw new CoordinationStateRejectedException("no longer leading this publication's term: " + publishRequest);
+            }
+
+            if (isZen1Node(sourceNode) && isBootstrapped()) {
+                transportService.sendRequest(sourceNode, DISCOVERY_REJOIN_ACTION_NAME, new RejoinClusterRequest(getLocalNode().getId()),
+                    new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                        @Override
+                        public void handleException(TransportException exp) {
+                            logger.warn(() -> new ParameterizedMessage("failed to send rejoin request to [{}]", sourceNode), exp);
+                        }
+                    });
+                throw new CoordinationStateRejectedException("received cluster state from {}, rejecting and sending rejoin", sourceNode);
             }
 
             if (publishRequest.getAcceptedState().term() == ZEN1_BWC_TERM && getCurrentTerm() == ZEN1_BWC_TERM
@@ -649,8 +665,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 return false;
             }
 
-            assert currentState.term() == 0 : currentState;
-            assert currentState.version() == 0 : currentState;
+            if (currentState.term() != 0 || currentState.version() != 0 || lastKnownLeader.isPresent()) {
+                throw new CoordinationStateRejectedException("Cannot set initial configuration, a formed cluster was already found");
+            }
 
             if (mode != Mode.CANDIDATE) {
                 throw new CoordinationStateRejectedException("Cannot set initial configuration in mode " + mode);

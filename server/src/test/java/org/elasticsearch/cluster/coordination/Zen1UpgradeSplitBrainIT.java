@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -99,9 +100,13 @@ public class Zen1UpgradeSplitBrainIT extends ESIntegTestCase {
 
         logger.info("--> publishing cluster state update from old node");
 
-        client(zen1Node).admin().indices().prepareCreate("test").setSettings(Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)).get();
+        try {
+            client(zen1Node).admin().indices().prepareCreate("test").setSettings(Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)).get();
+        } catch (ResourceAlreadyExistsException e) {
+            // this is ok, we sent it to the wrong master and then retried
+        }
 
         ensureHealthyMasterVia(zen1Node);
         ensureHealthyMasterVia(zen2Node);

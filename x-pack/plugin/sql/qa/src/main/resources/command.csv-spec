@@ -108,6 +108,8 @@ SUBSTRING       |SCALAR
 UCASE           |SCALAR         
 CAST            |SCALAR
 CONVERT         |SCALAR
+DATABASE        |SCALAR
+USER            |SCALAR
 SCORE           |SCORE
 ;
 

@@ -85,7 +85,7 @@ public class SimpleSortIT extends ESIntegTestCase {
                 return ((ScriptDocValues.Strings) doc.get("id")).getValue();
             });
 
-            scripts.put("doc['id'].values[0]", vars -> {
+            scripts.put("doc['id'][0]", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 return ((ScriptDocValues.Strings) doc.get("id")).getValues().get(0);
             });
@@ -399,7 +399,7 @@ public class SimpleSortIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['id'].values[0]", Collections.emptyMap()))
+                .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['id'][0]", Collections.emptyMap()))
                 .addSort("svalue", SortOrder.ASC)
                 .get();
 

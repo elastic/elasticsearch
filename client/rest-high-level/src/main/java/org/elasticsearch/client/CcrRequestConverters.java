@@ -19,8 +19,10 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
@@ -78,6 +80,14 @@ final class CcrRequestConverters {
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putAutoFollowPatternRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
+    }
+
+    static Request deleteAutoFollowPattern(DeleteAutoFollowPatternRequest deleteAutoFollowPatternRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_ccr", "auto_follow")
+            .addPathPart(deleteAutoFollowPatternRequest.getName())
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 
 }

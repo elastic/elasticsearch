@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -26,15 +27,19 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.UnaryOperator;
 
 /**
@@ -48,6 +53,25 @@ import java.util.function.UnaryOperator;
  */
 public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScriptDocValues.class));
+    /**
+     * Callback for deprecated fields. In production this should always point to
+     * {@link #deprecationLogger} but tests will override it so they can test
+     * that we use the required permissions when calling it.
+     */
+    private final BiConsumer<String, String> deprecationCallback;
+
+    public ScriptDocValues() {
+        deprecationCallback = deprecationLogger::deprecatedAndMaybeLog;
+    }
+
+    /**
+     * Constructor for testing deprecation callback.
+     */
+    ScriptDocValues(BiConsumer<String, String> deprecationCallback) {
+        this.deprecationCallback = deprecationCallback;
+    }
+
     /**
      * Set the current doc ID.
      */
@@ -57,6 +81,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
      * Return a copy of the list of the values for the current document.
      */
     public final List<T> getValues() {
+        deprecated("ScriptDocValues#getValues", "Deprecated getValues used, the field is a list and should be accessed directly."
+                + " For example, use doc['foo'] instead of doc['foo'].values.");
         return this;
     }
 
@@ -86,6 +112,21 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         throw new UnsupportedOperationException("doc values are unmodifiable");
     }
 
+    /**
+     * Log a deprecation log, with the server's permissions and not the permissions
+     * of the script calling this method. We need to do this to prevent errors
+     * when rolling the log file.
+     */
+    private void deprecated(String key, String message) {
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @Override
+            public Void run() {
+                deprecationCallback.accept(key, message);
+                return null;
+            }
+        });
+    }
+
     public static final class Longs extends ScriptDocValues<Long> {
         private final SortedNumericDocValues in;
         private long[] values = new long[0];
@@ -95,6 +136,14 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Standard constructor.
          */
         public Longs(SortedNumericDocValues in) {
+            this.in = in;
+        }
+
+        /**
+         * Constructor for testing deprecation callback.
+         */
+        Longs(SortedNumericDocValues in, BiConsumer<String, String> deprecationCallback) {
+            super(deprecationCallback);
             this.in = in;
         }
 
@@ -152,6 +201,14 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Standard constructor.
          */
         public Dates(SortedNumericDocValues in) {
+            this.in = in;
+        }
+
+        /**
+         * Constructor for testing deprecation callback.
+         */
+        Dates(SortedNumericDocValues in, BiConsumer<String, String> deprecationCallback) {
+            super(deprecationCallback);
             this.in = in;
         }
 
@@ -271,6 +328,14 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public GeoPoints(MultiGeoPointValues in) {
             this.in = in;
+        }
+
+        /**
+         * Constructor for testing deprecation callback.
+         */
+        GeoPoints(MultiGeoPointValues in, BiConsumer<String, String> deprecationCallback) {
+            super(deprecationCallback);
+            this.in =  in;
         }
 
         @Override

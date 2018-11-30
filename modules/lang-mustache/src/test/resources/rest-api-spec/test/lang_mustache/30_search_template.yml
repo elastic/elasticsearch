@@ -132,3 +132,30 @@
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
   - length: { profile: 1 }
+
+---
+"Test with rest_total_hits_as_int":
+  - skip:
+      version: " - 6.5.99"
+      reason: rest_total_hits_as_int was introduced in 6.6.0
+
+  - do:
+      index:
+        index:  test
+        type:   type
+        id:     1
+        body:   {}
+
+  - do:
+      put_script:
+        id: "template_1"
+        body: { "script": { "lang": "mustache", "source": { "query": { "match_all": {} } } } }
+
+  - match: { acknowledged: true }
+
+  - do:
+      search_template:
+        rest_total_hits_as_int: true
+        body: { "id": "template_1", "params": {} }
+
+  - match: { hits.total: 0 }

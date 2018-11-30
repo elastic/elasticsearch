@@ -383,7 +383,7 @@
                 script_fields:
                     foobar:
                         script: 
-                            source: "doc['f'].values.size()"
+                            source: "doc['f'].size()"
                             lang: painless
 
 

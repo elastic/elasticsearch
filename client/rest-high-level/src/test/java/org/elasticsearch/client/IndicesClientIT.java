@@ -70,6 +70,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
+import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -1370,6 +1373,20 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         AnalyzeResponse detailsResponse = execute(detailsRequest, client.indices()::analyze, client.indices()::analyzeAsync);
 
         assertNotNull(detailsResponse.detail());
+    }
 
+    public void testFreezeAndUnfreeze() throws IOException {
+        createIndex("test", Settings.EMPTY);
+        RestHighLevelClient client = highLevelClient();
+
+        ShardsAcknowledgedResponse freeze = execute(new FreezeIndexRequest("test"), client.indices()::freeze,
+            client.indices()::freezeAsync);
+        assertTrue(freeze.isShardsAcknowledged());
+        assertTrue(freeze.isAcknowledged());
+
+        ShardsAcknowledgedResponse unfreeze = execute(new UnfreezeIndexRequest("test"), client.indices()::unfreeze,
+            client.indices()::unfreezeAsync);
+        assertTrue(unfreeze.isShardsAcknowledged());
+        assertTrue(unfreeze.isAcknowledged());
     }
 }

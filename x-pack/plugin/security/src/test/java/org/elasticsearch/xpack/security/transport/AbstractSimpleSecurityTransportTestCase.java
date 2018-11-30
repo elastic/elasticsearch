@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -21,6 +22,7 @@ import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
@@ -109,11 +111,14 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
-        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null);
-             TcpTransport.NodeChannels connection = originalTransport.openConnection(
-                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
-                 connectionProfile)) {
-            assertEquals(connection.getVersion(), Version.CURRENT);
+        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null)) {
+            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
+                version0);
+            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            originalTransport.openConnection(node, connectionProfile, future);
+            try (TcpTransport.NodeChannels connection = (TcpTransport.NodeChannels) future.actionGet()) {
+                assertEquals(connection.getVersion(), Version.CURRENT);
+            }
         }
     }
 

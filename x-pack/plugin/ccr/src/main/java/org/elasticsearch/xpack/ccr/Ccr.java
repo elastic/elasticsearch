@@ -59,6 +59,8 @@ import org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction;
 import org.elasticsearch.xpack.ccr.action.TransportUnfollowAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
+import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalRepositoryAction;
+import org.elasticsearch.xpack.ccr.action.repositories.PutInternalRepositoryAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 import org.elasticsearch.xpack.ccr.rest.RestCcrStatsAction;
@@ -110,8 +112,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final boolean enabled;
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
-    private SetOnce<ClusterService> clusterService = new SetOnce<>();
-    private SetOnce<CcrRepositoryManager> repositoryManager = new SetOnce<>();
+    private final SetOnce<CcrRepositoryManager> repositoryManager = new SetOnce<>();
 
     /**
      * Construct an instance of the CCR container with the specified settings.
@@ -150,7 +151,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             return emptyList();
         }
 
-        this.clusterService.set(clusterService);
         this.repositoryManager.set(new CcrRepositoryManager(settings, clusterService, (NodeClient) client));
 
         return Arrays.asList(
@@ -177,6 +177,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 // internal actions
                 new ActionHandler<>(BulkShardOperationsAction.INSTANCE, TransportBulkShardOperationsAction.class),
                 new ActionHandler<>(ShardChangesAction.INSTANCE, ShardChangesAction.TransportAction.class),
+                new ActionHandler<>(PutInternalRepositoryAction.INSTANCE,
+                    PutInternalRepositoryAction.TransportPutInternalRepositoryAction.class),
+                new ActionHandler<>(DeleteInternalRepositoryAction.INSTANCE, DeleteInternalRepositoryAction.TransportDeleteInternalRepositoryAction.class),
                 // stats action
                 new ActionHandler<>(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
                 new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),

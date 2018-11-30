@@ -367,12 +367,12 @@ public class RepositoriesService implements ClusterStateApplier {
         Repository existingRepository = internalRepositories.putIfAbsent(name, repository);
 
         if (existingRepository != null) {
-            logger.error(new ParameterizedMessage("Error registering internal repository [{}][{}]. " +
-                "Internal repository with that name already registered.", metaData.type(), name));
+            logger.error(new ParameterizedMessage("error registering internal repository [{}][{}]. " +
+                "internal repository with that name already registered.", metaData.type(), name));
             repository.close();
         }
         if (repositories.containsKey(name)) {
-            logger.warn(new ParameterizedMessage("Non-internal repository [{}] already registered. This repository will block the " +
+            logger.warn(new ParameterizedMessage("non-internal repository [{}] already registered. this repository will block the " +
                 "usage of internal repository [{}][{}].", name, metaData.type(), name));
         }
     }
@@ -381,12 +381,11 @@ public class RepositoriesService implements ClusterStateApplier {
         Repository repository = internalRepositories.remove(name);
         RepositoryMetaData metadata = repository.getMetadata();
         if (repository != null) {
-            logger.debug(() -> new ParameterizedMessage("Unregistering internal repository [{}][{}].", metadata.type(), name));
+            logger.debug(() -> new ParameterizedMessage("unregistering internal repository [{}][{}].", metadata.type(), name));
             closeRepository(repository);
-            repository.close();
         } else {
-            logger.warn(() -> new ParameterizedMessage("Attempted to unregistered internal repository [{}][{}]. " +
-                "Repository could not found.", metadata.type(), name));
+            logger.warn(() -> new ParameterizedMessage("attempted to unregister internal repository [{}][{}]. " +
+                "repository could not found.", metadata.type(), name));
         }
     }
 

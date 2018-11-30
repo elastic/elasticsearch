@@ -17,11 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.repositories.delete;
+package org.elasticsearch.xpack.ccr.action.repositories;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.TransportService;
 
 public class DeleteInternalRepositoryAction extends Action<AcknowledgedResponse> {
 
@@ -46,4 +54,21 @@ public class DeleteInternalRepositoryAction extends Action<AcknowledgedResponse>
         };
     }
 
+    public static class TransportDeleteInternalRepositoryAction extends TransportAction<DeleteInternalRepositoryRequest, ActionResponse> {
+
+        private final RepositoriesService repositoriesService;
+
+        @Inject
+        public TransportDeleteInternalRepositoryAction(RepositoriesService repositoriesService, ActionFilters actionFilters,
+                                                       TransportService transportService) {
+            super(NAME, actionFilters, transportService.getTaskManager());
+            this.repositoriesService = repositoriesService;
+        }
+
+        @Override
+        protected void doExecute(Task task, DeleteInternalRepositoryRequest request, ActionListener<ActionResponse> listener) {
+            repositoriesService.unregisterInternalRepository(request.getName());
+            listener.onResponse(new ActionResponse() {});
+        }
+    }
 }

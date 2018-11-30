@@ -17,11 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.repositories.put;
+package org.elasticsearch.xpack.ccr.action.repositories;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.TransportService;
 
 public class PutInternalRepositoryAction extends Action<AcknowledgedResponse> {
 
@@ -44,5 +52,23 @@ public class PutInternalRepositoryAction extends Action<AcknowledgedResponse> {
             acknowledgedResponse.readFrom(in);
             return acknowledgedResponse;
         };
+    }
+
+    public static class TransportPutInternalRepositoryAction extends TransportAction<PutInternalRepositoryRequest, ActionResponse> {
+
+        private final RepositoriesService repositoriesService;
+
+        @Inject
+        public TransportPutInternalRepositoryAction(RepositoriesService repositoriesService, ActionFilters actionFilters,
+                                                    TransportService transportService) {
+            super(NAME, actionFilters, transportService.getTaskManager());
+            this.repositoriesService = repositoriesService;
+        }
+
+        @Override
+        protected void doExecute(Task task, PutInternalRepositoryRequest request, ActionListener<ActionResponse> listener) {
+            repositoriesService.registerInternalRepository(request.getName(), request.getType(), request.getSettings());
+            listener.onResponse(new ActionResponse() {});
+        }
     }
 }

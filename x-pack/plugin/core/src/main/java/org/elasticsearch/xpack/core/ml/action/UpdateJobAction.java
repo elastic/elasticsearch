@@ -97,8 +97,7 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             } else {
                 isInternal = false;
             }
-            // TODO jindex change CURRENT to specific version when feature branch is merged
-            if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.getVersion().before(Version.CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.getVersion().before(Version.V_7_0_0)) {
                 in.readBoolean(); // was waitForAck
             }
         }
@@ -111,8 +110,7 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             if (out.getVersion().onOrAfter(Version.V_6_2_2)) {
                 out.writeBoolean(isInternal);
             }
-            // TODO jindex change CURRENT to specific version when feature branch is merged
-            if (out.getVersion().onOrAfter(Version.V_6_3_0) && out.getVersion().before(Version.CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_6_3_0) && out.getVersion().before(Version.V_7_0_0)) {
                 out.writeBoolean(false); // was waitForAck
             }
         }

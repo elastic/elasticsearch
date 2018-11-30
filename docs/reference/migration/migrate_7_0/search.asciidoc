@@ -179,10 +179,9 @@ match and `relation indicates whether the value is accurate (`eq`) or a lower bo
 }
 ```
 
-<1>  The response indicates that the query matches exactly 1000 documents.
-
-The `value` is always accurate (`"relation": "eq"`) when `track_total_hits` is
-set to true in the request.
+The "total" object in the response indicates that the query matches exactly 1000
+documents ("eq"). The `value` is always accurate (`"relation": "eq"`) when
+`track_total_hits` is set to true in the request.
 You can also retrieve `hits.total` as a number in the rest response by adding
 `rest_total_hits_as_int=true` in the request parameter of the search request.
 This parameter has been added to ease the transition to the new format and

@@ -305,9 +305,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
 
         WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(indices.toArray(new String[0]),
             types.toArray(new String[0]), searchType, indicesOptions, searchSource, template);
-        if (totalHitsAsInt) {
-            request.setRestTotalHitsAsInt(totalHitsAsInt);
-        }
+        request.setRestTotalHitsAsInt(totalHitsAsInt);
         return request;
     }
 

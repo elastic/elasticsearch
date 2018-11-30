@@ -403,4 +403,35 @@ The example above creates a boolean query:
 that matches documents with at least two of the three `SHOULD` clauses, each of
 them made of the disjunction max over the fields for each term.
 
+[float]
+===== Cross Field
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "query_string": {
+            "fields": [
+                "title",
+                "content"
+            ],
+            "query": "this OR that OR thus",
+            "type": "cross_fields",
+            "minimum_should_match": 2
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The `cross_fields` value in the `type` field indicates that fields that have the
+same analyzer should be grouped together when the input is analyzed.
+
+The example above creates a boolean query:
+
+`(blended(terms:[field2:this, field1:this]) blended(terms:[field2:that, field1:that]) blended(terms:[field2:thus, field1:thus]))~2`
+
+that matches documents with at least two of the three per-term blended queries.
+
 include::query-string-syntax.asciidoc[]

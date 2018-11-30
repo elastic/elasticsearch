@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -59,8 +58,7 @@ public class ConnectionManager implements Closeable {
     private final Transport transport;
     private final ThreadPool threadPool;
     private final ConnectionProfile defaultProfile;
-    private final Lifecycle lifecycle = new Lifecycle();
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
@@ -72,7 +70,6 @@ public class ConnectionManager implements Closeable {
         this.transport = transport;
         this.threadPool = threadPool;
         this.defaultProfile = connectionProfile;
-        this.lifecycle.moveToStarted();
     }
 
     public void addListener(TransportConnectionListener listener) {
@@ -188,8 +185,7 @@ public class ConnectionManager implements Closeable {
 
     @Override
     public void close() {
-        if (closed.compareAndSet(false, true)) {
-            lifecycle.moveToStopped();
+        if (isClosed.compareAndSet(false, true)) {
             CountDownLatch latch = new CountDownLatch(1);
 
             // TODO: Consider moving all read/write lock (in Transport and this class) to the TransportService
@@ -214,14 +210,10 @@ public class ConnectionManager implements Closeable {
             });
 
             try {
-                try {
-                    latch.await(30, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    // ignore
-                }
-            } finally {
-                lifecycle.moveToClosed();
+                latch.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                // ignore
             }
         }
     }
@@ -251,7 +243,7 @@ public class ConnectionManager implements Closeable {
     }
 
     private void ensureOpen() {
-        if (lifecycle.started() == false) {
+        if (isClosed.get()) {
             throw new IllegalStateException("connection manager is closed");
         }
     }

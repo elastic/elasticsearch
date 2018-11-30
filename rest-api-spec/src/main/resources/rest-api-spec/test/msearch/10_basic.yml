@@ -97,14 +97,13 @@ setup:
   - match:  { responses.4.hits.total:     4  }
 
 ---
-"Search with rest_total_hits_as_int":
+"Search with new response format":
   - skip:
-      version: " - 6.5.99"
-      reason: rest_total_hits_as_int was introduced in 6.6.0
+      version: " - 6.99.99"
+      reason: hits.total is returned as an object in 7.0.0
 
   - do:
       msearch:
-        rest_total_hits_as_int: true
         body:
           - index: index_*
           - query:
@@ -116,7 +115,11 @@ setup:
           - query:
               match: {foo: foo}
 
-  - match:  { responses.0.hits.total:     2  }
-  - match:  { responses.1.hits.total:     1  }
-  - match:  { responses.2.hits.total:     1  }
+  - match:  { responses.0.hits.total.value:     2  }
+  - match:  { responses.0.hits.total.relation:  eq  }
+  - match:  { responses.1.hits.total.value:     1  }
+  - match:  { responses.1.hits.total.relation:  eq  }
+  - match:  { responses.2.hits.total.value:     1  }
+  - match:  { responses.2.hits.total.relation:  eq  }
+
 

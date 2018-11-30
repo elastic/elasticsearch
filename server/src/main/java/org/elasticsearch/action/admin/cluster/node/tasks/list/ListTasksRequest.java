@@ -42,6 +42,13 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         waitForCompletion = in.readBoolean();
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeBoolean(detailed);
+        out.writeBoolean(waitForCompletion);
+    }
+
     /**
      * Should the detailed task information be returned.
      */
@@ -72,10 +79,4 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         return this;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(detailed);
-        out.writeBoolean(waitForCompletion);
-    }
 }

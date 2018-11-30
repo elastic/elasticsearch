@@ -123,6 +123,21 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
             }
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalWriteable(modelPlotConfig);
+            boolean hasDetectorUpdates = detectorUpdates != null;
+            out.writeBoolean(hasDetectorUpdates);
+            if (hasDetectorUpdates) {
+                out.writeList(detectorUpdates);
+            }
+            if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
+                out.writeOptionalWriteable(filter);
+                out.writeBoolean(updateScheduledEvents);
+            }
+        }
+
         public Request(String jobId, ModelPlotConfig modelPlotConfig, List<JobUpdate.DetectorUpdate> detectorUpdates, MlFilter filter,
                        boolean updateScheduledEvents) {
             super(jobId);
@@ -146,21 +161,6 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
 
         public boolean isUpdateScheduledEvents() {
             return updateScheduledEvents;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalWriteable(modelPlotConfig);
-            boolean hasDetectorUpdates = detectorUpdates != null;
-            out.writeBoolean(hasDetectorUpdates);
-            if (hasDetectorUpdates) {
-                out.writeList(detectorUpdates);
-            }
-            if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-                out.writeOptionalWriteable(filter);
-                out.writeBoolean(updateScheduledEvents);
-            }
         }
 
         @Override

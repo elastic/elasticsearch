@@ -26,18 +26,18 @@ public class JobTaskRequest<R extends JobTaskRequest<R>> extends BaseTasksReques
         this.jobId = in.readString();
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(jobId);
+    }
+
     JobTaskRequest(String jobId) {
         this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
     }
 
     public String getJobId() {
         return jobId;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(jobId);
     }
 
     @Override

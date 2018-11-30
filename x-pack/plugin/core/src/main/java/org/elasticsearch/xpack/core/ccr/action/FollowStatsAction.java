@@ -137,6 +137,12 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
         }
 
         @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalStringArray(indices);
+        }
+
+        @Override
         public String[] indices() {
             return indices;
         }
@@ -166,12 +172,6 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalStringArray(indices);
         }
 
         @Override

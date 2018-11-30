@@ -67,6 +67,16 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     }
 
     @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        taskId.writeTo(out);
+        parentTaskId.writeTo(out);
+        out.writeStringArrayNullable(nodes);
+        out.writeStringArrayNullable(actions);
+        out.writeOptionalTimeValue(timeout);
+    }
+
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (taskId.isSet() && nodes.length > 0) {
@@ -146,16 +156,6 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     public final Request setTimeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         return (Request) this;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        taskId.writeTo(out);
-        parentTaskId.writeTo(out);
-        out.writeStringArrayNullable(nodes);
-        out.writeStringArrayNullable(actions);
-        out.writeOptionalTimeValue(timeout);
     }
 
     public boolean match(Task task) {

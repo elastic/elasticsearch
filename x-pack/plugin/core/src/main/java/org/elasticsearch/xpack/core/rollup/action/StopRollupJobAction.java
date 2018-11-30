@@ -72,6 +72,16 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
             }
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(id);
+            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+                out.writeBoolean(waitForCompletion);
+                out.writeTimeValue(timeout);
+            }
+        }
+
         public String getId() {
             return id;
         }
@@ -82,16 +92,6 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
 
         public boolean waitForCompletion() {
             return waitForCompletion;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(id);
-            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-                out.writeBoolean(waitForCompletion);
-                out.writeTimeValue(timeout);
-            }
         }
 
         @Override

@@ -53,14 +53,14 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Response> 
             id = in.readString();
         }
 
-        public String getId() {
-            return id;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+        }
+
+        public String getId() {
+            return id;
         }
 
         @Override

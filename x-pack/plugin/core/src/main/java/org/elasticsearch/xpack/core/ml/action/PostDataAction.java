@@ -137,6 +137,20 @@ public class PostDataAction extends Action<PostDataAction.Response> {
             }
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalString(resetStart);
+            out.writeOptionalString(resetEnd);
+            out.writeOptionalWriteable(dataDescription);
+            out.writeBytesReference(content);
+            boolean hasXContentType = xContentType != null;
+            out.writeBoolean(hasXContentType);
+            if (hasXContentType) {
+                out.writeEnum(xContentType);
+            }
+        }
+
         public Request(String jobId) {
             super(jobId);
         }
@@ -174,20 +188,6 @@ public class PostDataAction extends Action<PostDataAction.Response> {
         public void setContent(BytesReference content, XContentType xContentType) {
             this.content = content;
             this.xContentType = xContentType;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalString(resetStart);
-            out.writeOptionalString(resetEnd);
-            out.writeOptionalWriteable(dataDescription);
-            out.writeBytesReference(content);
-            boolean hasXContentType = xContentType != null;
-            out.writeBoolean(hasXContentType);
-            if (hasXContentType) {
-                out.writeEnum(xContentType);
-            }
         }
 
         @Override

@@ -85,6 +85,16 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
             }
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(jobId);
+            out.writeStringList(expandedJobsIds);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeBoolean(allowNoJobs);
+            }
+        }
+
         public List<String> getExpandedJobsIds() { return expandedJobsIds; }
 
         public void setExpandedJobsIds(List<String> expandedJobsIds) { this.expandedJobsIds = expandedJobsIds; }
@@ -109,16 +119,6 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(jobId);
-            out.writeStringList(expandedJobsIds);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoJobs);
-            }
         }
 
         @Override

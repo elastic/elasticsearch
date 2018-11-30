@@ -75,6 +75,12 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
         }
 
         @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(id);
+        }
+
+        @Override
         public boolean match(Task task) {
             // If we are retrieving all the jobs, the task description just needs to start
             // with `rollup_`
@@ -87,12 +93,6 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
         public String getId() {
             return id;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(id);
         }
 
         @Override

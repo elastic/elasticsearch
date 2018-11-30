@@ -367,16 +367,17 @@ public abstract class TransportTasksAction<
             this.tasksRequest = requestSupplier.read(in);
         }
 
-        protected NodeTaskRequest(TasksRequest tasksRequest) {
-            super();
-            this.tasksRequest = tasksRequest;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             tasksRequest.writeTo(out);
         }
+
+        protected NodeTaskRequest(TasksRequest tasksRequest) {
+            super();
+            this.tasksRequest = tasksRequest;
+        }
+
     }
 
     private class NodeTasksResponse extends TransportResponse {

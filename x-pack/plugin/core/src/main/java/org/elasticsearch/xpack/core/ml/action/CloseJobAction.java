@@ -91,6 +91,19 @@ public class CloseJobAction extends Action<CloseJobAction.Response> {
             }
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(jobId);
+            out.writeTimeValue(timeout);
+            out.writeBoolean(force);
+            out.writeStringArray(openJobIds);
+            out.writeBoolean(local);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeBoolean(allowNoJobs);
+            }
+        }
+
         public Request(String jobId) {
             this();
             this.jobId = jobId;
@@ -138,19 +151,6 @@ public class CloseJobAction extends Action<CloseJobAction.Response> {
 
         public void setOpenJobIds(String [] openJobIds) {
             this.openJobIds = openJobIds;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(jobId);
-            out.writeTimeValue(timeout);
-            out.writeBoolean(force);
-            out.writeStringArray(openJobIds);
-            out.writeBoolean(local);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoJobs);
-            }
         }
 
         @Override

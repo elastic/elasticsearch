@@ -83,6 +83,12 @@ public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response
             datafeedId = in.readString();
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(datafeedId);
+        }
+
         public String getDatafeedId() {
             return datafeedId;
         }
@@ -96,12 +102,6 @@ public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(datafeedId);
         }
 
         @Override

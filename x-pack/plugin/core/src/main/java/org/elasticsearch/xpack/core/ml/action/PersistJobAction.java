@@ -41,6 +41,13 @@ public class PersistJobAction extends Action<PersistJobAction.Response> {
             in.readBoolean();
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            // isBackground for fwc
+            out.writeBoolean(true);
+        }
+
         public Request(String jobId) {
             super(jobId);
         }
@@ -51,13 +58,6 @@ public class PersistJobAction extends Action<PersistJobAction.Response> {
 
         public boolean isForeground() {
             return !isBackGround();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            // isBackground for fwc
-            out.writeBoolean(true);
         }
 
         @Override

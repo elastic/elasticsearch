@@ -186,6 +186,7 @@ PUT nori_sample
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 The `nori_tokenizer` sets a number of additional attributes per token that are used by token filters
 to modify the stream.

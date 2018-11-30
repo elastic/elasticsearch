@@ -64,7 +64,7 @@ public class RestGetSourceActionTests extends ESTestCase {
 
     public void testRestGetSourceActionWithMissingDocument() {
         final GetResponse response =
-            new GetResponse(new GetResult("index1", "_doc", "1", -1, UNASSIGNED_SEQ_NO, 0, false, null, emptyMap()));
+            new GetResponse(new GetResult("index1", "_doc", "1", UNASSIGNED_SEQ_NO, 0, -1, false, null, emptyMap()));
 
         final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.buildResponse(response));
 

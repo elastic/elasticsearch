@@ -358,7 +358,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         closeLock.readLock().lock(); // ensure we don't open connections while we are closing
         try {
             ensureOpen();
-            return () -> CloseableChannel.closeChannels(initiateConnection(node, finalProfile, listener), false);
+            return () -> {
+                List<TcpChannel> pendingChannels = initiateConnection(node, finalProfile, listener);
+                CloseableChannel.closeChannels(pendingChannels, false);
+            };
         } finally {
             closeLock.readLock().unlock();
         }

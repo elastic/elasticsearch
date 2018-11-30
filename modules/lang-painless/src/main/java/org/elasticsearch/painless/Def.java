@@ -445,7 +445,7 @@ public final class Def {
         }
 
         throw new IllegalArgumentException(
-                "dynamic getter [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "] not found");
+                "dynamic setter [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "] not found");
     }
 
     /**
@@ -758,6 +758,14 @@ public final class Def {
     }
 
     // Conversion methods for def to boxed types.
+
+    public static Byte defToByteImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else {
+            return (Byte)value;
+        }
+    }
 
     public static Short defToShortImplicit(final Object value) {
         if (value == null) {

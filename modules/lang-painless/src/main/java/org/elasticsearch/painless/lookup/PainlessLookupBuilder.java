@@ -1348,7 +1348,7 @@ public final class PainlessLookupBuilder {
             int bridgeClassFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
             int bridgeClassAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
             String bridgeClassName =
-                    "org/elasticsearch/painless/Bridge$" + javaMethod.getDeclaringClass().getSimpleName() + javaMethod.getName();
+                    "org/elasticsearch/painless/Bridge$" + javaMethod.getDeclaringClass().getSimpleName() + "$" + javaMethod.getName();
             ClassWriter bridgeClassWriter = new ClassWriter(bridgeClassFrames);
             bridgeClassWriter.visit(
                     WriterConstants.CLASS_VERSION, bridgeClassAccess, bridgeClassName, null, OBJECT_TYPE.getInternalName(), null);
@@ -1449,22 +1449,25 @@ public final class PainlessLookupBuilder {
     }
 
     private void cacheRuntimeHandles(PainlessClassBuilder painlessClassBuilder) {
-        for (PainlessMethod painlessMethod : painlessClassBuilder.runtimeMethods.values()) {
+        for (Map.Entry<String, PainlessMethod> painlessMethodEntry : painlessClassBuilder.methods.entrySet()) {
+            String methodKey = painlessMethodEntry.getKey();
+            PainlessMethod painlessMethod = painlessMethodEntry.getValue();
+            PainlessMethod bridgePainlessMethod = painlessClassBuilder.runtimeMethods.get(methodKey);
             String methodName = painlessMethod.javaMethod.getName();
             int typeParametersSize = painlessMethod.typeParameters.size();
 
             if (typeParametersSize == 0 && methodName.startsWith("get") && methodName.length() > 3 &&
                     Character.isUpperCase(methodName.charAt(3))) {
                 painlessClassBuilder.getterMethodHandles.putIfAbsent(
-                        Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4), painlessMethod.methodHandle);
+                        Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4), bridgePainlessMethod.methodHandle);
             } else if (typeParametersSize == 0 && methodName.startsWith("is") && methodName.length() > 2 &&
                     Character.isUpperCase(methodName.charAt(2))) {
                 painlessClassBuilder.getterMethodHandles.putIfAbsent(
-                        Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3), painlessMethod.methodHandle);
+                        Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3), bridgePainlessMethod.methodHandle);
             } else if (typeParametersSize == 1 && methodName.startsWith("set") && methodName.length() > 3 &&
                     Character.isUpperCase(methodName.charAt(3))) {
                 painlessClassBuilder.setterMethodHandles.putIfAbsent(
-                        Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4), painlessMethod.methodHandle);
+                        Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4), bridgePainlessMethod.methodHandle);
             }
         }
 

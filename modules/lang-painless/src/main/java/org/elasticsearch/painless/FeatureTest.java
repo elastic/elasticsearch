@@ -86,8 +86,12 @@ public class FeatureTest {
     }
 
     /** setter for y */
-    public void setI(Integer I) {
+    public void setI(Integer i) {
         this.i = i;
+    }
+
+    public Double mixedAdd(int i, Byte b, char c, Float f) {
+        return (double)(i + b + c + f);
     }
 
     /** method taking two functions! */

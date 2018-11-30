@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -157,10 +158,8 @@ public interface Transport extends LifecycleComponent {
             this.channels = channels;
         }
 
-        public void cancelConnection() {
-            for (TcpChannel channel : channels) {
-                channel.close();
-            }
+        void cancelConnection() {
+            CloseableChannel.closeChannels(channels, false);
         }
     }
 

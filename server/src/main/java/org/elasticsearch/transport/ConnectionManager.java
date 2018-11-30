@@ -229,7 +229,16 @@ public class ConnectionManager implements Closeable {
     private Transport.Connection internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
         PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
         Transport.PendingConnection pendingConnection = transport.openConnection(node, connectionProfile, future);
-        Transport.Connection connection = future.actionGet();
+        Transport.Connection connection;
+        try {
+            connection = future.actionGet();
+        } catch (IllegalStateException e) {
+            // If the future was interrupted we can close the channels to improve the shutdown of the MockTcpTransport
+            if (e.getCause() instanceof InterruptedException) {
+                pendingConnection.cancelConnection();
+            }
+            throw e;
+        }
         try {
             connectionListener.onConnectionOpened(connection);
         } finally {

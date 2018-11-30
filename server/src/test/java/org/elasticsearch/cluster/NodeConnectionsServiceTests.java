@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -187,8 +188,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     private final class MockTransport implements Transport {
         private ResponseHandlers responseHandlers = new ResponseHandlers();
         private volatile boolean randomConnectionExceptions = false;
-        private TransportMessageListener listener = new TransportMessageListener() {
-        };
 
         @Override
         public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
@@ -201,7 +200,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         @Override
         public void addMessageListener(TransportMessageListener listener) {
-            this.listener = listener;
         }
 
         @Override
@@ -225,11 +223,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public PendingConnection openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+        public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
             if (profile == null) {
                 if (randomConnectionExceptions && randomBoolean()) {
                     listener.onFailure(new ConnectTransportException(node, "simulated"));
-                    return new PendingConnection(Collections.emptyList());
+                    return () -> {};
                 }
             }
             listener.onResponse(new Connection() {
@@ -259,7 +257,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     return false;
                 }
             });
-            return new PendingConnection(Collections.emptyList());
+            return () -> {};
         }
 
         @Override

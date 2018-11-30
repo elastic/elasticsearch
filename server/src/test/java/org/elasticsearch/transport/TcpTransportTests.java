@@ -28,6 +28,8 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
@@ -206,8 +208,7 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                public PendingConnection openConnection(DiscoveryNode node, ConnectionProfile profile,
-                                                        ActionListener<Connection> listener) {
+                public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
                     if (compressed)  {
                         assertTrue(profile.getCompressionEnabled());
                     }
@@ -217,7 +218,7 @@ public class TcpTransportTests extends ESTestCase {
                         fakeChannels.add(new FakeTcpChannel(false, messageCaptor));
                     }
                     listener.onResponse(new NodeChannels(node, fakeChannels, profile, Version.CURRENT));
-                    return new PendingConnection(fakeChannels);
+                    return () -> CloseableChannel.closeChannels(fakeChannels, false);
                 }
             };
 

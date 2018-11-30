@@ -220,14 +220,14 @@ public class ConnectionManager implements Closeable {
 
     private Transport.Connection internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
         PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
-        Transport.PendingConnection pendingConnection = transport.openConnection(node, connectionProfile, future);
+        Releasable pendingConnection = transport.openConnection(node, connectionProfile, future);
         Transport.Connection connection;
         try {
             connection = future.actionGet();
         } catch (IllegalStateException e) {
             // If the future was interrupted we must cancel the pending connection to avoid channels leaking
             if (e.getCause() instanceof InterruptedException) {
-                pendingConnection.cancelConnection();
+                pendingConnection.close();
             }
             throw e;
         }

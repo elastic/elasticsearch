@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.network.CloseableChannel;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -88,9 +88,11 @@ public interface Transport extends LifecycleComponent {
 
     /**
      * Opens a new connection to the given node. When the connection is fully connected, the listener is
-     * called.
+     * called. A {@link Releasable} is returned representing the pending connection. If the caller of this
+     * method decides to move on before the listener is called with the completed connection, they should
+     * release the pending connection to prevent hanging connections.
      */
-    PendingConnection openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener);
+    Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener);
 
     TransportStats getStats();
 
@@ -144,23 +146,6 @@ public interface Transport extends LifecycleComponent {
 
         @Override
         void close();
-    }
-
-    /**
-     * This class represents a pending {@link Connection}. It provides the ability to cancel the pending
-     * connection and close the underling list of {@link TcpChannel}.
-     */
-    final class PendingConnection {
-
-        private final List<TcpChannel> channels;
-
-        public PendingConnection(List<TcpChannel> channels) {
-            this.channels = channels;
-        }
-
-        void cancelConnection() {
-            CloseableChannel.closeChannels(channels, false);
-        }
     }
 
     /**

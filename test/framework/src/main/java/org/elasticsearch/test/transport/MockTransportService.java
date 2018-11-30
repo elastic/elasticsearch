@@ -219,7 +219,7 @@ public final class MockTransportService extends TransportService {
     public void addFailToSendNoConnectRule(TransportAddress transportAddress) {
         transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) -> {
             listener.onFailure(new ConnectTransportException(discoveryNode, "DISCONNECT: simulated"));
-            return new Transport.PendingConnection(Collections.emptyList());
+            return () -> {};
         });
 
         transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
@@ -282,7 +282,7 @@ public final class MockTransportService extends TransportService {
     public void addUnresponsiveRule(TransportAddress transportAddress) {
         transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) -> {
             listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
-            return new Transport.PendingConnection(Collections.emptyList());
+            return () -> {};
         });
 
         transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
@@ -328,11 +328,11 @@ public final class MockTransportService extends TransportService {
                 } else {
                     Thread.sleep(connectingTimeout.millis());
                     listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
-                    return new Transport.PendingConnection(Collections.emptyList());
+                    return () -> {};
                 }
             } catch (InterruptedException e) {
                 listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
-                return new Transport.PendingConnection(Collections.emptyList());
+                return () -> {};
             }
         });
 

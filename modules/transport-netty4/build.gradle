@@ -110,10 +110,10 @@ thirdPartyAudit.excludes = [
 
         // from io.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
         'org.slf4j.helpers.FormattingTuple',
+        'org.slf4j.helpers.MessageFormatter',
         'org.slf4j.Logger',
         'org.slf4j.LoggerFactory',
         'org.slf4j.spi.LocationAwareLogger',
-        'org.slf4j.helpers.MessageFormatter',
 
         'com.google.protobuf.ExtensionRegistryLite',
         'com.google.protobuf.MessageLiteOrBuilder',

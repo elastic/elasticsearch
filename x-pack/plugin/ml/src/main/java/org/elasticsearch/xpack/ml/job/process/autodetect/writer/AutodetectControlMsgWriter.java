@@ -18,26 +18,20 @@ import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
+import org.elasticsearch.xpack.ml.process.writer.AbstractControlMsgWriter;
 import org.elasticsearch.xpack.ml.process.writer.LengthEncodedWriter;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.StringWriter;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A writer for sending control messages to the C++ autodetect process.
  * The data written to outputIndex is length encoded.
  */
-public class ControlMsgToProcessWriter {
-
-    /**
-     * This should be the same size as the buffer in the C++ autodetect process.
-     */
-    public static final int FLUSH_SPACES_LENGTH = 8192;
+public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
 
     /**
      * This must match the code defined in the api::CAnomalyJob C++ class.
@@ -85,18 +79,14 @@ public class ControlMsgToProcessWriter {
      */
     private static AtomicLong ms_FlushNumber = new AtomicLong(1);
 
-    private final LengthEncodedWriter lengthEncodedWriter;
-    private final int numberOfFields;
-
     /**
      * Construct the control message writer with a LengthEncodedWriter
      *
      * @param lengthEncodedWriter The writer
      * @param numberOfFields      The number of fields the process expects in each record
      */
-    public ControlMsgToProcessWriter(LengthEncodedWriter lengthEncodedWriter, int numberOfFields) {
-        this.lengthEncodedWriter = Objects.requireNonNull(lengthEncodedWriter);
-        this.numberOfFields = numberOfFields;
+    public AutodetectControlMsgWriter(LengthEncodedWriter lengthEncodedWriter, int numberOfFields) {
+        super(lengthEncodedWriter, numberOfFields);
     }
 
     /**
@@ -106,8 +96,8 @@ public class ControlMsgToProcessWriter {
      * @param os             The output stream
      * @param numberOfFields The number of fields the process expects in each record
      */
-    public static ControlMsgToProcessWriter create(OutputStream os, int numberOfFields) {
-        return new ControlMsgToProcessWriter(new LengthEncodedWriter(os), numberOfFields);
+    public static AutodetectControlMsgWriter create(OutputStream os, int numberOfFields) {
+        return new AutodetectControlMsgWriter(new LengthEncodedWriter(os), numberOfFields);
     }
 
     /**
@@ -175,14 +165,6 @@ public class ControlMsgToProcessWriter {
         lengthEncodedWriter.flush();
     }
 
-    // todo(hendrikm): workaround, see
-    // https://github.com/elastic/machine-learning-cpp/issues/123
-    private void fillCommandBuffer() throws IOException {
-        char[] spaces = new char[FLUSH_SPACES_LENGTH];
-        Arrays.fill(spaces, ' ');
-        writeMessage(new String(spaces));
-    }
-
     public void writeResetBucketsMessage(DataLoadParams params) throws IOException {
         writeControlCodeFollowedByTimeRange(RESET_BUCKETS_MESSAGE_CODE, params.getStart(), params.getEnd());
     }
@@ -246,26 +228,5 @@ public class ControlMsgToProcessWriter {
         writeMessage(BACKGROUND_PERSIST_MESSAGE_CODE);
         fillCommandBuffer();
         lengthEncodedWriter.flush();
-    }
-
-    /**
-     * Transform the supplied control message to length encoded values and
-     * write to the OutputStream.
-     * The number of blank fields to make up a full record is deduced from
-     * <code>analysisConfig</code>.
-     *
-     * @param message The control message to write.
-     */
-    private void writeMessage(String message) throws IOException {
-
-        lengthEncodedWriter.writeNumFields(numberOfFields);
-
-        // Write blank values for all fields other than the control field
-        for (int i = 1; i < numberOfFields; ++i) {
-            lengthEncodedWriter.writeField("");
-        }
-
-        // The control field comes last
-        lengthEncodedWriter.writeField(message);
     }
 }

@@ -67,6 +67,10 @@ publishing {
     publications {
         nebula {
             artifactId = archivesBaseName
+            pom.withXml {
+                // Nebula is mistakenly including all dependencies that are already shadowed into the shadow jar
+                asNode().remove(asNode().dependencies)
+            }
         }
     }
 }

@@ -239,6 +239,11 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     }
 
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
+        if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) { // seqNo may not be assigned if read from an old node
+            builder.field(_SEQ_NO, seqNo);
+            builder.field(_PRIMARY_TERM, primaryTerm);
+        }
+
         List<DocumentField> metaFields = new ArrayList<>();
         List<DocumentField> otherFields = new ArrayList<>();
         if (fields != null && !fields.isEmpty()) {
@@ -285,10 +290,6 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         builder.field(_TYPE, type);
         builder.field(_ID, id);
         if (isExists()) {
-            if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) { // seqNo may not be assigned if read from an old node
-                builder.field(_SEQ_NO, seqNo);
-                builder.field(_PRIMARY_TERM, primaryTerm);
-            }
             if (version != -1) {
                 builder.field(_VERSION, version);
             }

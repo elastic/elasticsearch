@@ -105,6 +105,8 @@ public class ExplainResponseTests extends AbstractStreamableXContentTestCase<Exp
             "        \"details\":[]\n" +
             "    },\n" +
             "    \"get\":{\n" +
+            "        \"_seq_no\":0," +
+            "        \"_primary_term\":1," +
             "        \"found\":true,\n" +
             "        \"_source\":{\n" +
             "            \"field1\":\"value1\",\n" +

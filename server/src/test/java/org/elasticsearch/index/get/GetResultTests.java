@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
@@ -45,6 +44,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.get.DocumentFieldTests.randomDocumentField;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
@@ -77,12 +77,12 @@ public class GetResultTests extends ESTestCase {
                     "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
                     singletonList("value1"))));
             String output = Strings.toString(getResult);
-            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\", \"_seq_no\":0,\"_primary_Term\": 1,\"_version\":1," +
-                "\"found\":true,\"_source\":{ \"field1\": \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}",
+            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1," +
+                "\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}",
                 output);
         }
         {
-            GetResult getResult = new GetResult("index", "type", "id", 0, 1, 1, false, null, null);
+            GetResult getResult = new GetResult("index", "type", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null);
             String output = Strings.toString(getResult);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
         }
@@ -94,7 +94,7 @@ public class GetResultTests extends ESTestCase {
         GetResult getResult = tuple.v1();
         // We don't expect to retrieve the index/type/id of the GetResult because they are not rendered
         // by the toXContentEmbedded method.
-        GetResult expectedGetResult = new GetResult(null, null, null, 0, 1, -1,
+        GetResult expectedGetResult = new GetResult(null, null, null, tuple.v2().getSeqNo(), tuple.v2().getPrimaryTerm(), -1,
                 tuple.v2().isExists(), tuple.v2().sourceRef(), tuple.v2().getFields());
 
         boolean humanReadable = randomBoolean();
@@ -124,12 +124,12 @@ public class GetResultTests extends ESTestCase {
                 new BytesArray("{\"foo\":\"bar\",\"baz\":[\"baz_0\",\"baz_1\"]}"), fields);
 
         BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON, false);
-        assertEquals("{\"found\":true,\"_source\":{\"foo\":\"bar\",\"baz\":[\"baz_0\",\"baz_1\"]}," +
+        assertEquals("{\"_seq_no\":0,\"_primary_term\":1,\"found\":true,\"_source\":{\"foo\":\"bar\",\"baz\":[\"baz_0\",\"baz_1\"]}," +
                 "\"fields\":{\"foo\":[\"bar\"],\"baz\":[\"baz_0\",\"baz_1\"]}}", originalBytes.utf8ToString());
     }
 
     public void testToXContentEmbeddedNotFound() throws IOException {
-        GetResult getResult = new GetResult("index", "type", "id", 0, 1, 1, false, null, null);
+        GetResult getResult = new GetResult("index", "type", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null);
 
         BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON, false);
         assertEquals("{\"found\":false}", originalBytes.utf8ToString());
@@ -171,7 +171,7 @@ public class GetResultTests extends ESTestCase {
             getResult.getSeqNo(), getResult.getPrimaryTerm(), randomNonNegativeLong(),
             getResult.isExists(), getResult.internalSourceRef(), getResult.getFields()));
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(),
-            getResult.isExists() ? SequenceNumbers.UNASSIGNED_SEQ_NO : getResult.getSeqNo(),
+            getResult.isExists() ? UNASSIGNED_SEQ_NO : getResult.getSeqNo(),
             getResult.isExists() ? 0 : getResult.getPrimaryTerm(),
             getResult.getVersion(), getResult.isExists() == false, getResult.internalSourceRef(), getResult.getFields()));
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(),
@@ -208,7 +208,7 @@ public class GetResultTests extends ESTestCase {
                 expectedFields = tuple.v2();
             }
         } else {
-            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            seqNo = UNASSIGNED_SEQ_NO;
             primaryTerm = 0;
             version = -1;
             exists = false;

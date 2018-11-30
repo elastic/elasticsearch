@@ -34,6 +34,11 @@ if those are used on any APIs. We plan to drop support for `_source_exclude` and
 `_source_include` in 7.0.
 
 [float]
+==== Boosts on inner span queries are not allowed.
+
+Attempts to set `boost` on inner span queries will now throw a parsing exception.
+
+[float]
 ==== Deprecate `.values` and `.getValues()` on doc values in scripts
 
 In scripts `.values` and `.getValues()` hasn't been needed for a long, long

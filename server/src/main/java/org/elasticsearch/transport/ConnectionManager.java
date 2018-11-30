@@ -233,7 +233,7 @@ public class ConnectionManager implements Closeable {
         try {
             connection = future.actionGet();
         } catch (IllegalStateException e) {
-            // If the future was interrupted we can close the channels to improve the shutdown of the MockTcpTransport
+            // If the future was interrupted we must cancel the pending connection to avoid channels leaking
             if (e.getCause() instanceof InterruptedException) {
                 pendingConnection.cancelConnection();
             }

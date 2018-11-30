@@ -228,7 +228,7 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+    public PendingConnection openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
         listener.onResponse(new Connection() {
             @Override
             public DiscoveryNode getNode() {
@@ -254,6 +254,7 @@ public class CapturingTransport implements Transport {
             public void close() {
             }
         });
+        return new PendingConnection(Collections.emptyList());
     }
 
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {

@@ -206,7 +206,8 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+                public PendingConnection openConnection(DiscoveryNode node, ConnectionProfile profile,
+                                                        ActionListener<Connection> listener) {
                     if (compressed)  {
                         assertTrue(profile.getCompressionEnabled());
                     }
@@ -216,6 +217,7 @@ public class TcpTransportTests extends ESTestCase {
                         fakeChannels.add(new FakeTcpChannel(false, messageCaptor));
                     }
                     listener.onResponse(new NodeChannels(node, fakeChannels, profile, Version.CURRENT));
+                    return new PendingConnection(fakeChannels);
                 }
             };
 

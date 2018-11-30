@@ -361,9 +361,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             try (MockTransportService clientService = createNewService(clientSettings, Version.CURRENT, threadPool, null)) {
                 final List<Transport.Connection> establishedConnections = new CopyOnWriteArrayList<>();
 
-                clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile, listener) -> {
+                clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile, listener) ->
                     transport.openConnection(discoveryNode, profile, new ActionListener<Transport.Connection>() {
-
                         @Override
                         public void onResponse(Transport.Connection connection) {
                             establishedConnections.add(connection);
@@ -374,8 +373,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                         public void onFailure(Exception e) {
                             listener.onFailure(e);
                         }
-                    });
-                });
+                    }));
 
 
                 clientService.start();

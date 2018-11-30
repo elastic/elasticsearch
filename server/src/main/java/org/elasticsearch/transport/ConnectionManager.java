@@ -228,7 +228,7 @@ public class ConnectionManager implements Closeable {
 
     private Transport.Connection internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
         PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
-        transport.openConnection(node, connectionProfile, future);
+        Transport.PendingConnection pendingConnection = transport.openConnection(node, connectionProfile, future);
         Transport.Connection connection = future.actionGet();
         try {
             connectionListener.onConnectionOpened(connection);

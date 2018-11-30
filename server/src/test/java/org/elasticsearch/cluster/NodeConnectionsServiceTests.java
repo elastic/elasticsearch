@@ -225,10 +225,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+        public PendingConnection openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
             if (profile == null) {
                 if (randomConnectionExceptions && randomBoolean()) {
                     listener.onFailure(new ConnectTransportException(node, "simulated"));
+                    return new PendingConnection(Collections.emptyList());
                 }
             }
             listener.onResponse(new Connection() {
@@ -258,6 +259,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     return false;
                 }
             });
+            return new PendingConnection(Collections.emptyList());
         }
 
         @Override

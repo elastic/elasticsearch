@@ -1455,7 +1455,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     // route by seed hostname
                     proxyNode = proxyMapping.get(node.getHostName());
                 }
-                t.openConnection(proxyNode, profile, new ActionListener<Transport.Connection>() {
+                return t.openConnection(proxyNode, profile, new ActionListener<Transport.Connection>() {
                     @Override
                     public void onResponse(Transport.Connection connection) {
                         Transport.Connection proxyConnection = new Transport.Connection() {

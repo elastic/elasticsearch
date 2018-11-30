@@ -89,7 +89,7 @@ public interface Transport extends LifecycleComponent {
      * Opens a new connection to the given node. When the connection is fully connected, the listener is
      * called.
      */
-    void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener);
+    PendingConnection openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener);
 
     TransportStats getStats();
 
@@ -143,6 +143,25 @@ public interface Transport extends LifecycleComponent {
 
         @Override
         void close();
+    }
+
+    /**
+     * This class represents a pending {@link Connection}. It provides the ability to cancel the pending
+     * connection and close the underling list of {@link TcpChannel}.
+     */
+    final class PendingConnection {
+
+        private final List<TcpChannel> channels;
+
+        public PendingConnection(List<TcpChannel> channels) {
+            this.channels = channels;
+        }
+
+        public void cancelConnection() {
+            for (TcpChannel channel : channels) {
+                channel.close();
+            }
+        }
     }
 
     /**

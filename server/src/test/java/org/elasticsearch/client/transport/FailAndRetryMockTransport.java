@@ -80,7 +80,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     protected abstract ClusterState getMockClusterState(DiscoveryNode node);
 
     @Override
-    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> connectionListener) {
+    public PendingConnection openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> connectionListener) {
         connectionListener.onResponse(new CloseableConnection() {
 
             @Override
@@ -136,6 +136,8 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                 }
             }
         });
+
+        return new PendingConnection(Collections.emptyList());
     }
 
     protected abstract Response newResponse();

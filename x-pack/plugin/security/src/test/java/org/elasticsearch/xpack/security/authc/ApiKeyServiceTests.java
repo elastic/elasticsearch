@@ -45,6 +45,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -151,9 +152,11 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     public void testGetRolesForApiKeyFromContext() throws Exception {
+        final String keyId = randomAlphaOfLength(12);
         final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
-            Version.CURRENT, AuthenticationType.API_KEY, Collections.emptyMap());
+            Version.CURRENT, AuthenticationType.API_KEY, Collections.singletonMap(ApiKeyService.API_KEY_ID_KEY, keyId));
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransient(ApiKeyService.API_KEY_ID_KEY, keyId);
         threadContext.putTransient(ApiKeyService.API_KEY_ROLE_KEY, ReservedRolesStore.SUPERUSER_ROLE);
         ApiKeyService service = new ApiKeyService(Settings.EMPTY, Clock.systemUTC(), null, null,
             ClusterServiceUtils.createClusterService(threadPool));
@@ -162,6 +165,22 @@ public class ApiKeyServiceTests extends ESTestCase {
             roleFuture);
         Role role = roleFuture.get();
         assertEquals(ReservedRolesStore.SUPERUSER_ROLE, role);
+    }
+
+    public void testGetRolesForApiKeyIncorrectKeyId() {
+        final String keyId = randomAlphaOfLength(12);
+        final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
+            Version.CURRENT, AuthenticationType.API_KEY, Collections.singletonMap(ApiKeyService.API_KEY_ID_KEY, keyId));
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransient(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLength(11));
+        threadContext.putTransient(ApiKeyService.API_KEY_ROLE_KEY, ReservedRolesStore.SUPERUSER_ROLE);
+        ApiKeyService service = new ApiKeyService(Settings.EMPTY, Clock.systemUTC(), null, null,
+            ClusterServiceUtils.createClusterService(threadPool));
+        PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> service.getRoleForApiKey(authentication, threadContext,
+            mock(CompositeRolesStore.class),new FieldPermissionsCache(Settings.EMPTY), roleFuture));
+        assertThat(ise.getMessage(), containsString(keyId));
+        assertThat(ise.getMessage(), containsString(threadContext.getTransient(ApiKeyService.API_KEY_ID_KEY)));
     }
 
     public void testGetRolesForApiKeyNotInContext() throws Exception {

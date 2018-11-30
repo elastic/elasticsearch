@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -227,34 +228,43 @@ public class ApiKeyService {
             throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
         }
 
-        final Role preBuiltRole = threadContext.getTransient(API_KEY_ROLE_KEY);
-        if (preBuiltRole != null) {
-            listener.onResponse(preBuiltRole);
-        } else {
-            final Map<String, Object> metadata = authentication.getMetadata();
-            final String apiKeyId = (String) metadata.get(API_KEY_ID_KEY);
-            final Map<String, Object> roleDescriptors = (Map<String, Object>) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
-            final List<RoleDescriptor> roleDescriptorList = roleDescriptors.entrySet().stream()
-                .map(entry -> {
-                    final String name = entry.getKey();
-                    final Map<String, Object> rdMap = (Map<String, Object>) entry.getValue();
-                    try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-                        builder.map(rdMap);
-                        try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                            new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId),
-                            BytesReference.bytes(builder).streamInput())) {
-                            return RoleDescriptor.parse(name, parser, false);
-                        }
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                }).collect(Collectors.toList());
-
-            rolesStore.buildRoleFromDescriptors(roleDescriptorList, fieldPermissionsCache, ActionListener.wrap(role -> {
-                threadContext.putTransient(API_KEY_ROLE_KEY, role);
-                listener.onResponse(role);
-            }, listener::onFailure));
+        final Map<String, Object> metadata = authentication.getMetadata();
+        final String apiKeyId = (String) metadata.get(API_KEY_ID_KEY);
+        final String contextKeyId = threadContext.getTransient(API_KEY_ID_KEY);
+        if (apiKeyId.equals(contextKeyId)) {
+            final Role preBuiltRole = threadContext.getTransient(API_KEY_ROLE_KEY);
+            if (preBuiltRole != null) {
+                listener.onResponse(preBuiltRole);
+                return;
+            }
+        } else if (contextKeyId != null) {
+            throw new IllegalStateException("authentication api key id [" + apiKeyId + "] does not match context value [" +
+                contextKeyId + "]");
         }
+
+        final Map<String, Object> roleDescriptors = (Map<String, Object>) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
+        final List<RoleDescriptor> roleDescriptorList = roleDescriptors.entrySet().stream()
+            .map(entry -> {
+                final String name = entry.getKey();
+                final Map<String, Object> rdMap = (Map<String, Object>) entry.getValue();
+                try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                    builder.map(rdMap);
+                    try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                        new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId),
+                        BytesReference.bytes(builder).streamInput())) {
+                        return RoleDescriptor.parse(name, parser, false);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }).collect(Collectors.toList());
+
+        rolesStore.buildRoleFromDescriptors(roleDescriptorList, fieldPermissionsCache, ActionListener.wrap(role -> {
+            threadContext.putTransient(API_KEY_ID_KEY, apiKeyId);
+            threadContext.putTransient(API_KEY_ROLE_KEY, role);
+            listener.onResponse(role);
+        }, listener::onFailure));
+
     }
 
     /**

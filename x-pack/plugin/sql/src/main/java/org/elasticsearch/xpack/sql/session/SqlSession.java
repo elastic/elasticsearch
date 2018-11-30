@@ -41,15 +41,14 @@ public class SqlSession {
     private final Optimizer optimizer;
     private final Planner planner;
 
-    // TODO rename to `configuration`
-    private final Configuration settings;
+    private final Configuration configuration;
 
     public SqlSession(SqlSession other) {
-        this(other.settings, other.client, other.functionRegistry, other.indexResolver,
+        this(other.configuration, other.client, other.functionRegistry, other.indexResolver,
              other.preAnalyzer, other.verifier, other.optimizer, other.planner);
     }
 
-    public SqlSession(Configuration settings, Client client, FunctionRegistry functionRegistry,
+    public SqlSession(Configuration configuration, Client client, FunctionRegistry functionRegistry,
             IndexResolver indexResolver,
             PreAnalyzer preAnalyzer,
             Verifier verifier,
@@ -64,7 +63,7 @@ public class SqlSession {
         this.planner = planner;
         this.verifier = verifier;
 
-        this.settings = settings;
+        this.configuration = configuration;
     }
 
     public FunctionRegistry functionRegistry() {
@@ -102,7 +101,7 @@ public class SqlSession {
         }
 
         preAnalyze(parsed, c -> {
-            Analyzer analyzer = new Analyzer(functionRegistry, c, settings.timeZone(), verifier);
+            Analyzer analyzer = new Analyzer(configuration, functionRegistry, c, verifier);
             return analyzer.analyze(parsed, verify);
         }, listener);
     }
@@ -114,7 +113,7 @@ public class SqlSession {
         }
 
         preAnalyze(parsed, r -> {
-            Analyzer analyzer = new Analyzer(functionRegistry, r, settings.timeZone(), verifier);
+            Analyzer analyzer = new Analyzer(configuration, functionRegistry, r, verifier);
             return analyzer.debugAnalyze(parsed);
         }, listener);
     }
@@ -166,7 +165,7 @@ public class SqlSession {
         }
     }
 
-    public Configuration settings() {
-        return settings;
+    public Configuration configuration() {
+        return configuration;
     }
 }

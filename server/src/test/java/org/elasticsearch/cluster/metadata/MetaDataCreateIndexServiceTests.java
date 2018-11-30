@@ -52,6 +52,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -471,7 +472,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         }
     }
 
-    public void testShardLimitDeprecationWarning() {
+    public void testShardLimit() {
         int nodesInCluster = randomIntBetween(2,100);
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
         Settings clusterSettings = Settings.builder()
@@ -487,13 +488,13 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             .build();
 
         DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-        MetaDataCreateIndexService.checkShardLimit(indexSettings, state, deprecationLogger);
+        Optional<String> errorMessage = MetaDataCreateIndexService.checkShardLimit(indexSettings, state);
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        assertWarnings("In a future major version, this request will fail because this action would add [" +
-            totalShards + "] total shards, but this cluster currently has [" + currentShards + "]/[" + maxShards + "] maximum shards open."+
-            " Before upgrading, reduce the number of shards in your cluster or adjust the cluster setting [cluster.max_shards_per_node].");
+        assertTrue(errorMessage.isPresent());
+        assertEquals("this action would add [" + totalShards + "] total shards, but this cluster currently has [" + currentShards
+            + "]/[" + maxShards + "] maximum shards open", errorMessage.get());
     }
 
 }

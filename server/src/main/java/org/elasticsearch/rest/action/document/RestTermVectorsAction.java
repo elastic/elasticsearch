@@ -47,20 +47,17 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestTermVectorsAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestTermVectorsAction.class));
-    static final String ENDPOINT_DEPRECATION_MESSAGE = "The _termvector" +
-        " endpoint is deprecated, use _termvectors (plural) instead.";
 
     public RestTermVectorsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvectors", this);
-
-        controller.registerHandler(GET, "/{index}/{type}/_termvector", this);
-        controller.registerHandler(POST, "/{index}/{type}/_termvector", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvector", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvector", this);
+        controller.registerWithDeprecatedHandler(GET, "/{index}/{type}/_termvectors", this,
+            GET, "/{index}/{type}/_termvector", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, "/{index}/{type}/_termvectors", this,
+            POST, "/{index}/{type}/_termvector", deprecationLogger);
+        controller.registerWithDeprecatedHandler(GET, "/{index}/{type}/{id}/_termvectors", this,
+            GET, "/{index}/{type}/{id}/_termvector", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, "/{index}/{type}/{id}/_termvectors", this,
+            POST, "/{index}/{type}/{id}/_termvector", deprecationLogger);
     }
 
     @Override
@@ -70,10 +67,6 @@ public class RestTermVectorsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.path().endsWith("_termvector")) {
-            deprecationLogger.deprecated(ENDPOINT_DEPRECATION_MESSAGE);
-        }
-
         TermVectorsRequest termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("type"), request.param("id"));
         if (request.hasContentOrSourceParam()) {
             try (XContentParser parser = request.contentOrSourceParamParser()) {

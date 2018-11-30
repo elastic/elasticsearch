@@ -55,7 +55,8 @@ public class RestTermVectorsActionTests extends ESTestCase {
             .build();
 
         performRequest(request);
-        assertWarnings(RestTermVectorsAction.ENDPOINT_DEPRECATION_MESSAGE);
+        assertWarnings("[POST /{index}/{type}/{id}/_termvector] is deprecated! Use" +
+            " [POST /{index}/{type}/{id}/_termvectors] instead.");
     }
 
     private void performRequest(RestRequest request) {

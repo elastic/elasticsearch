@@ -200,7 +200,6 @@ setup:
 
   - do:
       xpack.rollup.rollup_search:
-        rest_total_hits_as_int: true
         index: "foo_rollup"
         body:
           size: 0

@@ -44,6 +44,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 
@@ -127,42 +128,43 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
         }
     }
 
+    private static boolean matchesRequirement(DiscoveryNode discoveryNode, String requirement) {
+        return discoveryNode.getName().equals(requirement)
+            || discoveryNode.getAddress().toString().equals(requirement)
+            || discoveryNode.getAddress().getAddress().equals(requirement);
+    }
+
     private static boolean checkWaitRequirements(GetDiscoveredNodesRequest request, Set<DiscoveryNode> nodes) {
         if (nodes.size() < request.getWaitForNodes()) {
             return false;
         }
 
         List<String> requirements = request.getRequiredNodes();
-        Set<String> requiredNodes = new HashSet<>(requirements);
-        if (requirements.size() != requiredNodes.size()) {
+        if (requirements.size() != new HashSet<>(requirements).size()) {
             throw new IllegalArgumentException("There are duplicate entries in [cluster.initial_master_nodes]");
         }
-        Set<String> matchedIps = new HashSet<>();
-        for (final DiscoveryNode node : nodes) {
-            int matches = 0;
-            String ip = node.getAddress().getAddress();
-            if (matchedIps.contains(ip)) {
-                ++matches;
-            } else if (requiredNodes.remove(ip)) {
-                matchedIps.add(ip);
-                ++matches;
+
+        final Set<DiscoveryNode> selectedNodes = new HashSet<>();
+        for (final String requirement : requirements) {
+            final Set<DiscoveryNode> matchingNodes
+                = nodes.stream().filter(n -> matchesRequirement(n, requirement)).collect(Collectors.toSet());
+
+            if (matchingNodes.isEmpty()) {
+                return false;
             }
-            if (requiredNodes.remove(node.getAddress().toString())) {
-                ++matches;
+            if (matchingNodes.size() > 1) {
+                throw new IllegalArgumentException("[" + requirement + "] matches " + matchingNodes);
             }
-            if (requiredNodes.remove(node.getName())) {
-                ++matches;
-            }
-            if (matches > 1) {
-                throw new IllegalArgumentException(
-                    "Node [" + node + "] matched both a name as well as an address entry" +
-                        " in the nodes list specified in setting [cluster.initial_master_nodes]."
-                );
-            }
-            if (requiredNodes.isEmpty()) {
-                break;
+
+            for (final DiscoveryNode matchingNode : matchingNodes) {
+                if (selectedNodes.add(matchingNode) == false) {
+                    throw new IllegalArgumentException("[" + matchingNode + "] matches " +
+                        requirements.stream().filter(r -> matchesRequirement(matchingNode, requirement))
+                            .collect(Collectors.toList()));
+                }
             }
         }
-        return requiredNodes.isEmpty();
+
+        return true;
     }
 }

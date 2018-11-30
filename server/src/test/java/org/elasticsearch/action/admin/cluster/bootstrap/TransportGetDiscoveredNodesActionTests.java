@@ -260,7 +260,6 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
     public void testGetsDiscoveredNodesDuplicateName() throws InterruptedException {
         setupGetDiscoveredNodesAction();
-        final CountDownLatch latch = new CountDownLatch(1);
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
         String name = localNode.getName();
         getDiscoveredNodesRequest.setRequiredNodes(Arrays.asList(name, name));
@@ -301,13 +300,39 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         latch.await(10L, TimeUnit.SECONDS);
     }
 
-    private void setupGetDiscoveredNodesAction() throws InterruptedException {
+    public void testThrowsExceptionIfDuplicateDiscoveredLater() throws InterruptedException {
         new TransportGetDiscoveredNodesAction(Settings.EMPTY, EMPTY_FILTERS, transportService, coordinator); // registers action
         transportService.start();
         transportService.acceptIncomingRequests();
         coordinator.start();
         coordinator.startInitialJoin();
 
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        final String ip = localNode.getAddress().getAddress();
+        getDiscoveredNodesRequest.setRequiredNodes(Collections.singletonList(ip));
+        getDiscoveredNodesRequest.setWaitForNodes(2);
+
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+            @Override
+            public void handleResponse(GetDiscoveredNodesResponse response) {
+                throw new AssertionError("should not be called");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                Throwable t = exp.getRootCause();
+                assertThat(t, instanceOf(IllegalArgumentException.class));
+                assertThat(t.getMessage(), startsWith('[' + ip + "] matches ["));
+                countDownLatch.countDown();
+            }
+        });
+
+        executeRequestPeersAction();
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+    }
+
+    private void executeRequestPeersAction() {
         threadPool.generic().execute(() ->
             transportService.sendRequest(localNode, REQUEST_PEERS_ACTION_NAME, new PeersRequest(otherNode, emptyList()),
                 new TransportResponseHandler<PeersResponse>() {
@@ -329,6 +354,16 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
                         return Names.SAME;
                     }
                 }));
+    }
+
+    private void setupGetDiscoveredNodesAction() throws InterruptedException {
+        new TransportGetDiscoveredNodesAction(Settings.EMPTY, EMPTY_FILTERS, transportService, coordinator); // registers action
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        coordinator.start();
+        coordinator.startInitialJoin();
+
+        executeRequestPeersAction();
 
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
         getDiscoveredNodesRequest.setWaitForNodes(2);

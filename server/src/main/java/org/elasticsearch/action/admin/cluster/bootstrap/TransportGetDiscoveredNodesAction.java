@@ -96,8 +96,12 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
                 nodesSet.add(localNode);
                 nodes.forEach(nodesSet::add);
                 logger.trace("discovered {}", nodesSet);
-                if (checkWaitRequirements(request, nodesSet) && listenerNotified.compareAndSet(false, true)) {
-                    listenableFuture.onResponse(new GetDiscoveredNodesResponse(nodesSet));
+                try {
+                    if (checkWaitRequirements(request, nodesSet) && listenerNotified.compareAndSet(false, true)) {
+                        listenableFuture.onResponse(new GetDiscoveredNodesResponse(nodesSet));
+                    }
+                } catch (Exception e) {
+                    listenableFuture.onFailure(e);
                 }
             }
 

@@ -135,13 +135,13 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
     }
 
     private static boolean checkWaitRequirements(GetDiscoveredNodesRequest request, Set<DiscoveryNode> nodes) {
-        if (nodes.size() < request.getWaitForNodes()) {
-            return false;
-        }
-
         List<String> requirements = request.getRequiredNodes();
         if (requirements.size() != new HashSet<>(requirements).size()) {
             throw new IllegalArgumentException("There are duplicate entries in [cluster.initial_master_nodes]");
+        }
+
+        if (nodes.size() < request.getWaitForNodes()) {
+            return false;
         }
 
         final Set<DiscoveryNode> selectedNodes = new HashSet<>();

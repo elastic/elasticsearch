@@ -64,7 +64,7 @@ public class TestZenDiscovery extends ZenDiscovery {
         Setting.boolSetting("discovery.zen.use_mock_pings", true, Setting.Property.NodeScope);
 
     public static final Setting<Boolean> USE_ZEN2 =
-        Setting.boolSetting("discovery.zen.use_zen2", false, Setting.Property.NodeScope);
+        Setting.boolSetting("discovery.zen.use_zen2", true, Setting.Property.NodeScope);
 
     public static final Setting<Boolean> USE_ZEN2_PERSISTED_STATE =
         Setting.boolSetting("discovery.zen.use_zen2_persisted_state", false, Setting.Property.NodeScope);

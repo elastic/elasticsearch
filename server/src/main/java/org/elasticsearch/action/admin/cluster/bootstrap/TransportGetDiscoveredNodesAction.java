@@ -39,6 +39,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -127,7 +128,15 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
     }
 
     private static boolean checkWaitRequirements(GetDiscoveredNodesRequest request, Set<DiscoveryNode> nodes) {
-        Set<String> requiredNodes = new HashSet<>(request.getRequiredNodes());
+        if (nodes.size() < request.getWaitForNodes()) {
+            return false;
+        }
+
+        List<String> requirements = request.getRequiredNodes();
+        Set<String> requiredNodes = new HashSet<>(requirements);
+        if (requirements.size() != requiredNodes.size()) {
+            throw new IllegalArgumentException("There are duplicate entries in [cluster.initial_master_nodes]");
+        }
         Set<String> matchedIps = new HashSet<>();
         for (final DiscoveryNode node : nodes) {
             int matches = 0;
@@ -154,6 +163,6 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
                 break;
             }
         }
-        return requiredNodes.isEmpty() && nodes.size() >= request.getWaitForNodes();
+        return requiredNodes.isEmpty();
     }
 }

@@ -46,7 +46,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -61,6 +60,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -91,7 +91,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -168,9 +167,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     // This is the number of bytes necessary to read the message size
     private static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
-    private static final int PING_DATA_SIZE = -1;
-    protected final CounterMetric successfulPings = new CounterMetric();
-    protected final CounterMetric failedPings = new CounterMetric();
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final BytesReference EMPTY_BYTES_REFERENCE = new BytesArray(new byte[0]);
 
@@ -190,14 +186,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
-    private final Set<TcpChannel> acceptedChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<TcpChannel> acceptedChannels = ConcurrentCollections.newConcurrentSet();
 
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
-    protected final boolean compressResponses;
+    private final boolean compressResponses;
     private volatile BoundTransportAddress boundAddress;
     private final String transportName;
 
@@ -205,9 +201,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final MeanMetric transmittedBytesMetric = new MeanMetric();
     private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
-    private final TcpTransportHandshaker handshaker;
     private final TransportLogger transportLogger;
-    private final BytesReference pingMessage;
+    private final TcpTransportHandshaker handshaker;
+    private final TransportKeepAlive keepAlive;
     private final String nodeName;
 
     public TcpTransport(String transportName, Settings settings,  Version version, ThreadPool threadPool, BigArrays bigArrays,
@@ -231,6 +227,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 TransportStatus.setHandshake((byte) 0)),
             (v, features, channel, response, requestId) -> sendResponse(v, features, channel, response, requestId,
                 TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY, TransportStatus.setHandshake((byte) 0)));
+        this.keepAlive = new TransportKeepAlive(threadPool, this::internalSendMessage);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
 
         final Settings defaultFeatures = DEFAULT_FEATURES_SETTING.get(settings);
@@ -244,15 +241,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             });
             // use a sorted set to present the features in a consistent order
             this.features = new TreeSet<>(defaultFeatures.names()).toArray(new String[defaultFeatures.names().size()]);
-        }
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeByte((byte) 'E');
-            out.writeByte((byte) 'S');
-            out.writeInt(TcpTransport.PING_DATA_SIZE);
-            pingMessage = out.bytes();
-        } catch (IOException e) {
-            throw new AssertionError(e.getMessage(), e); // won't happen
         }
     }
 
@@ -322,52 +310,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public boolean sendPing() {
-            for (TcpChannel channel : channels) {
-                internalSendMessage(channel, pingMessage, new SendMetricListener(pingMessage.length()) {
-                    @Override
-                    protected void innerInnerOnResponse(Void v) {
-                        successfulPings.inc();
-                    }
-
-                    @Override
-                    protected void innerOnFailure(Exception e) {
-                        if (channel.isOpen()) {
-                            logger.debug(() -> new ParameterizedMessage("[{}] failed to send ping transport message", node), e);
-                            failedPings.inc();
-                        } else {
-                            logger.trace(() ->
-                                new ParameterizedMessage("[{}] failed to send ping transport message (channel closed)", node), e);
-                        }
-
-                    }
-                });
-            }
-            return true;
-        }
-
-        @Override
         public void close() {
             if (isClosing.compareAndSet(false, true)) {
                 try {
-                    if (lifecycle.stopped()) {
-                        /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't
-                         * have a gazillion connections sitting in TIME_WAIT to free up resources quickly.
-                         * This is really the only part where we close the connection from the server side
-                         * otherwise the client (node) initiates the TCP closing sequence which doesn't cause
-                         * these issues. Setting this by default from the beginning can have unexpected
-                         * side-effects an should be avoided, our protocol is designed in a way that clients
-                         * close connection which is how it should be*/
-
-                        channels.forEach(c -> {
-                            try {
-                                c.setSoLinger(0);
-                            } catch (IOException e) {
-                                logger.warn(new ParameterizedMessage("unexpected exception when setting SO_LINGER on channel {}", c), e);
-                            }
-                        });
-                    }
-
                     boolean block = lifecycle.stopped() && Transports.isTransportThread(Thread.currentThread()) == false;
                     CloseableChannel.closeChannels(channels, block);
                 } finally {
@@ -518,7 +463,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    protected InetSocketAddress bindToPort(final String name, final InetAddress hostAddress, String port) {
+    private InetSocketAddress bindToPort(final String name, final InetAddress hostAddress, String port) {
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
@@ -690,6 +635,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         threadPool.generic().execute(() -> {
             closeLock.writeLock().lock();
             try {
+                keepAlive.close();
+
                 // first stop to accept any incoming connections so nobody can connect to this transport
                 for (Map.Entry<String, List<TcpServerChannel>> entry : serverChannels.entrySet()) {
                     String profile = entry.getKey();
@@ -749,14 +696,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (channel.isOpen()) {
                 BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
-                final SendMetricListener listener = new SendMetricListener(message.length()) {
+                ActionListener<Void> listener = new ActionListener<Void>() {
                     @Override
-                    protected void innerInnerOnResponse(Void v) {
+                    public void onResponse(Void aVoid) {
                         CloseableChannel.closeChannel(channel);
                     }
 
                     @Override
-                    protected void innerOnFailure(Exception e) {
+                    public void onFailure(Exception e) {
                         logger.debug("failed to send message to httpOnTransport channel", e);
                         CloseableChannel.closeChannel(channel);
                     }
@@ -765,7 +712,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 // elasticsearch binary message. We are just serializing an exception here. Not formatting it
                 // as an elasticsearch transport message.
                 try {
-                    channel.sendMessage(message, listener);
+                    channel.sendMessage(message, new SendListener(channel, message.length(), listener));
                 } catch (Exception ex) {
                     listener.onFailure(ex);
                 }
@@ -794,6 +741,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected void serverAcceptedChannel(TcpChannel channel) {
         boolean addedOnThisCall = acceptedChannels.add(channel);
         assert addedOnThisCall : "Channel should only be added to accepted channel set once";
+        // Mark the channel init time
+        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
         logger.trace(() -> new ParameterizedMessage("Tcp transport channel accepted: {}", channel));
     }
@@ -855,9 +804,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             BytesReference message = buildMessage(requestId, status, node.getVersion(), request, stream);
             final TransportRequestOptions finalOptions = options;
             // this might be called in a different thread
-            SendListener onRequestSent = new SendListener(channel, stream,
-                () -> messageListener.onRequestSent(node, requestId, action, request, finalOptions), message.length());
-            internalSendMessage(channel, message, onRequestSent);
+            ReleaseListener releaseListener = new ReleaseListener(stream,
+                () -> messageListener.onRequestSent(node, requestId, action, request, finalOptions));
+            internalSendMessage(channel, message, releaseListener);
             addedReleaseListener = true;
         } finally {
             if (!addedReleaseListener) {
@@ -869,10 +818,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     /**
      * sends a message to the given channel, using the given callbacks.
      */
-    private void internalSendMessage(TcpChannel channel, BytesReference message, SendMetricListener listener) {
+    private void internalSendMessage(TcpChannel channel, BytesReference message, ActionListener<Void> listener) {
+        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         transportLogger.logOutboundMessage(channel, message);
         try {
-            channel.sendMessage(message, listener);
+            channel.sendMessage(message, new SendListener(channel, message.length(), listener));
         } catch (Exception ex) {
             // call listener to ensure that any resources are released
             listener.onFailure(ex);
@@ -910,9 +860,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             final BytesReference bytes = stream.bytes();
             final BytesReference header = buildHeader(requestId, status, nodeVersion, bytes.length());
             CompositeBytesReference message = new CompositeBytesReference(header, bytes);
-            SendListener onResponseSent = new SendListener(channel, null,
-                () -> messageListener.onResponseSent(requestId, action, error), message.length());
-            internalSendMessage(channel, message, onResponseSent);
+            ReleaseListener releaseListener = new ReleaseListener(null,
+                () -> messageListener.onResponseSent(requestId, action, error));
+            internalSendMessage(channel, message, releaseListener);
         }
     }
 
@@ -960,9 +910,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
             final TransportResponseOptions finalOptions = options;
             // this might be called in a different thread
-            SendListener listener = new SendListener(channel, stream,
-                () -> messageListener.onResponseSent(requestId, action, response, finalOptions), message.length());
-            internalSendMessage(channel, message, listener);
+            ReleaseListener releaseListener = new ReleaseListener(stream,
+                () -> messageListener.onResponseSent(requestId, action, response, finalOptions));
+            internalSendMessage(channel, message, releaseListener);
             addedReleaseListener = true;
         } finally {
             if (!addedReleaseListener) {
@@ -1024,10 +974,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public void inboundMessage(TcpChannel channel, BytesReference message) {
         try {
+            channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
             transportLogger.logInboundMessage(channel, message);
             // Message length of 0 is a ping
             if (message.length() != 0) {
                 messageReceived(message, channel);
+            } else {
+                keepAlive.receiveKeepAlive(channel);
             }
         } catch (Exception e) {
             onException(channel, e);
@@ -1121,7 +1074,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             messageLength = input.readInt();
         }
 
-        if (messageLength == TcpTransport.PING_DATA_SIZE) {
+        if (messageLength == TransportKeepAlive.PING_DATA_SIZE) {
             // This is a ping
             return 0;
         }
@@ -1427,6 +1380,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         handshaker.sendHandshake(responseHandlers.newRequestId(), node, channel, profile.getHandshakeTimeout(), listener);
     }
 
+    final TransportKeepAlive getKeepAlive() {
+        return keepAlive;
+    }
+
     final int getNumPendingHandshakes() {
         return handshaker.getNumPendingHandshakes();
     }
@@ -1449,42 +1406,48 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     /**
      * This listener increments the transmitted bytes metric on success.
      */
-    private abstract class SendMetricListener extends NotifyOnceListener<Void> {
-        private final long messageSize;
+    private class SendListener extends NotifyOnceListener<Void> {
 
-        private SendMetricListener(long messageSize) {
-            this.messageSize = messageSize;
-        }
-
-        @Override
-        protected final void innerOnResponse(Void object) {
-            transmittedBytesMetric.inc(messageSize);
-            innerInnerOnResponse(object);
-        }
-
-        protected abstract void innerInnerOnResponse(Void object);
-    }
-
-    private final class SendListener extends SendMetricListener {
         private final TcpChannel channel;
-        private final Closeable optionalCloseable;
-        private final Runnable transportAdaptorCallback;
+        private final long messageSize;
+        private final ActionListener<Void> delegateListener;
 
-        private SendListener(TcpChannel channel, Closeable optionalCloseable, Runnable transportAdaptorCallback, long messageLength) {
-            super(messageLength);
+        private SendListener(TcpChannel channel, long messageSize, ActionListener<Void> delegateListener) {
             this.channel = channel;
-            this.optionalCloseable = optionalCloseable;
-            this.transportAdaptorCallback = transportAdaptorCallback;
+            this.messageSize = messageSize;
+            this.delegateListener = delegateListener;
         }
 
         @Override
-        protected void innerInnerOnResponse(Void v) {
-            closeAndCallback(null);
+        protected void innerOnResponse(Void v) {
+            transmittedBytesMetric.inc(messageSize);
+            delegateListener.onResponse(v);
         }
 
         @Override
         protected void innerOnFailure(Exception e) {
             logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+            delegateListener.onFailure(e);
+        }
+    }
+
+    private class ReleaseListener implements ActionListener<Void> {
+
+        private final Closeable optionalCloseable;
+        private final Runnable transportAdaptorCallback;
+
+        private ReleaseListener(Closeable optionalCloseable, Runnable transportAdaptorCallback) {
+            this.optionalCloseable = optionalCloseable;
+            this.transportAdaptorCallback = transportAdaptorCallback;
+        }
+
+        @Override
+        public void onResponse(Void aVoid) {
+            closeAndCallback(null);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
             closeAndCallback(e);
         }
 
@@ -1640,7 +1603,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         @Override
                         public void onResponse(Version version) {
                             NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
-                            nodeChannels.channels.forEach(ch -> ch.addCloseListener(ActionListener.wrap(nodeChannels::close)));
+                            long relativeMillisTime = threadPool.relativeTimeInMillis();
+                            nodeChannels.channels.forEach(ch -> {
+                                // Mark the channel init time
+                                ch.getChannelStats().markAccessed(relativeMillisTime);
+                                ch.addCloseListener(ActionListener.wrap(nodeChannels::close));
+                            });
+                            keepAlive.registerNodeConnection(nodeChannels.channels, connectionProfile);
                             listener.onResponse(nodeChannels);
                         }
 

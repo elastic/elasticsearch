@@ -277,7 +277,7 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         if (TemplateUtils.checkTemplateExistsAndVersionMatches(INDEX_TEMPLATE_NAME, SECURITY_VERSION_STRING,
-                clusterState, logger, Version.CURRENT::onOrAfter) == false) {
+                clusterState, logger, Version.CURRENT::onOrBefore) == false) {
             logger.debug("security audit index template [{}] is not up to date", INDEX_TEMPLATE_NAME);
             return false;
         }
@@ -306,6 +306,15 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
             index = resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, first.timestamp, rollover);
         }
         return index;
+    }
+
+    private boolean hasStaleMessage() {
+        final Message first = peek();
+        if (first == null) {
+            return false;
+        }
+        return false == IndexNameResolver.resolve(first.timestamp, rollover)
+                .equals(IndexNameResolver.resolve(DateTime.now(DateTimeZone.UTC), rollover));
     }
 
     /**
@@ -381,7 +390,7 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
             IndexMetaData indexMetaData = indices.get(0);
             MappingMetaData docMapping = indexMetaData.mapping("doc");
             if (docMapping == null) {
-                if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster()) {
+                if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster() || hasStaleMessage()) {
                     putAuditIndexMappingsAndStart(index);
                 } else {
                     logger.trace("audit index [{}] is missing mapping for type [{}]", index, DOC_TYPE);
@@ -399,7 +408,7 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
                 if (versionString != null && Version.fromString(versionString).onOrAfter(Version.CURRENT)) {
                     innerStart();
                 } else {
-                    if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster()) {
+                    if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster() || hasStaleMessage()) {
                         putAuditIndexMappingsAndStart(index);
                     } else if (versionString == null) {
                         logger.trace("audit index [{}] mapping is missing meta field [{}]", index, SECURITY_VERSION_STRING);

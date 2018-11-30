@@ -28,15 +28,23 @@ import java.nio.channels.SocketChannel;
 
 public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
 
+    private final boolean isServer;
     private final String profile;
+    private final ChannelStats stats = new ChannelStats();
 
-    public NioTcpChannel(String profile, SocketChannel socketChannel) {
+    public NioTcpChannel(boolean isServer, String profile, SocketChannel socketChannel) {
         super(socketChannel);
+        this.isServer = isServer;
         this.profile = profile;
     }
 
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
         getContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
+    public boolean isServerChannel() {
+        return isServer;
     }
 
     @Override
@@ -52,6 +60,11 @@ public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
     @Override
     public void addConnectListener(ActionListener<Void> listener) {
         addConnectListener(ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
+    public ChannelStats getChannelStats() {
+        return stats;
     }
 
     @Override

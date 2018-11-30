@@ -156,5 +156,4 @@ public class Netty4Utils {
             throw closingExceptions;
         }
     }
-
 }

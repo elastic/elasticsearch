@@ -1495,7 +1495,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
         StubbableTransport stubbableTransport = new StubbableTransport(MockTransportService.newMockTransport(Settings.EMPTY, Version
             .CURRENT, threadPool));
-        stubbableTransport.setDefaultConnectBehavior((t, node,  profile) -> {
+        stubbableTransport.setDefaultConnectBehavior((t, node,  profile, listener) -> {
                 Map<String, DiscoveryNode> proxyMapping = nodeMap.get(node.getAddress().toString());
                 if (proxyMapping == null) {
                     throw new IllegalStateException("no proxy mapping for node: " + node);
@@ -1509,34 +1509,44 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     // route by seed hostname
                     proxyNode = proxyMapping.get(node.getHostName());
                 }
-                Transport.Connection connection = t.openConnection(proxyNode, profile);
-                return new Transport.Connection() {
+                return t.openConnection(proxyNode, profile, new ActionListener<Transport.Connection>() {
                     @Override
-                    public DiscoveryNode getNode() {
-                        return node;
+                    public void onResponse(Transport.Connection connection) {
+                        Transport.Connection proxyConnection = new Transport.Connection() {
+                            @Override
+                            public DiscoveryNode getNode() {
+                                return node;
+                            }
+
+                            @Override
+                            public void sendRequest(long requestId, String action, TransportRequest request,
+                                                    TransportRequestOptions options) throws IOException, TransportException {
+                                connection.sendRequest(requestId, action, request, options);
+                            }
+
+                            @Override
+                            public void addCloseListener(ActionListener<Void> listener) {
+                                connection.addCloseListener(listener);
+                            }
+
+                            @Override
+                            public boolean isClosed() {
+                                return connection.isClosed();
+                            }
+
+                            @Override
+                            public void close() {
+                                connection.close();
+                            }
+                        };
+                        listener.onResponse(proxyConnection);
                     }
 
                     @Override
-                    public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                        throws IOException, TransportException {
-                        connection.sendRequest(requestId, action, request, options);
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
                     }
-
-                    @Override
-                    public void addCloseListener(ActionListener<Void> listener) {
-                        connection.addCloseListener(listener);
-                    }
-
-                    @Override
-                    public boolean isClosed() {
-                        return connection.isClosed();
-                    }
-
-                    @Override
-                    public void close() {
-                        connection.close();
-                    }
-                };
+                });
             });
         return stubbableTransport;
     }

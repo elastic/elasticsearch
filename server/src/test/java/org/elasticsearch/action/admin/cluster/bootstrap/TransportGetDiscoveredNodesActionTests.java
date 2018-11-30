@@ -294,9 +294,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
     public void testGetsDiscoveredNodesWithDuplicateMatchNameAndAddress() throws InterruptedException {
         setupGetDiscoveredNodesAction();
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequest.setRequiredNodes(
-            Arrays.asList(localNode.getAddress().toString(), localNode.getName())
-        );
+        getDiscoveredNodesRequest.setRequiredNodes(Arrays.asList(localNode.getAddress().toString(), localNode.getName()));
         getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
         assertWaitConditionFailedOnDuplicate(getDiscoveredNodesRequest, localNode);
     }

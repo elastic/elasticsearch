@@ -141,7 +141,7 @@ public class ElasticsearchNode {
                 }
                 return true;
             } catch (IOException e) {
-                throw new TestClustersException("Connection attempt to " + this + " failed", e);
+                throw new IllegalStateException("Connection attempt to " + this + " failed", e);
             }
         });
     }

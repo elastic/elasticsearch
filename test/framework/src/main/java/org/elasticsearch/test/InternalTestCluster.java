@@ -1927,28 +1927,27 @@ public final class InternalTestCluster extends TestCluster {
      * Starts multiple nodes with the given settings and returns their names
      */
     public synchronized List<String> startNodes(Settings... settings) {
+        final int newMasterCount = Math.toIntExact(Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count());
         final int defaultMinMasterNodes;
         if (autoManageMinMasterNodes) {
-            int mastersDelta = (int) Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count();
-            defaultMinMasterNodes = getMinMasterNodes(getMasterNodesCount() + mastersDelta);
+            defaultMinMasterNodes = getMinMasterNodes(getMasterNodesCount() + newMasterCount);
         } else {
             defaultMinMasterNodes = -1;
         }
         final List<NodeAndClient> nodes = new ArrayList<>();
         final int prevMasterCount = getMasterNodesCount();
-        for (Settings nodeSettings : settings) {
-            final Settings nodeSettingsIncludingBootstrap;
-            if (prevMasterCount == 0 && autoManageMinMasterNodes) {
-                nodeSettingsIncludingBootstrap = Settings.builder()
-                    .put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(),
-                        (int) Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count())
-                    .put(nodeSettings)
-                    .build();
-            } else {
-                nodeSettingsIncludingBootstrap = nodeSettings;
-            }
+        int bootstrapMasterNodeIndex = prevMasterCount == 0 && autoManageMinMasterNodes && newMasterCount > 0
+            ? randomIntBetween(0, newMasterCount - 1) : -1;
 
-            nodes.add(buildNode(nodeSettingsIncludingBootstrap, defaultMinMasterNodes, () -> rebuildUnicastHostFiles(nodes)));
+        for (Settings nodeSettings : settings) {
+            final Builder builder = Settings.builder();
+            if (Node.NODE_MASTER_SETTING.get(nodeSettings)) {
+                if (bootstrapMasterNodeIndex == 0) {
+                    builder.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), newMasterCount);
+                }
+                bootstrapMasterNodeIndex -= 1;
+            }
+            nodes.add(buildNode(builder.put(nodeSettings).build(), defaultMinMasterNodes, () -> rebuildUnicastHostFiles(nodes)));
         }
         startAndPublishNodesAndClients(nodes);
         if (autoManageMinMasterNodes) {

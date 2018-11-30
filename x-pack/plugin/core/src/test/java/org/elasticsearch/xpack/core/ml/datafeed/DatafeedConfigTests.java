@@ -222,8 +222,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_AGG_DATAFEED)) {
 
-            DatafeedConfig.Builder configBuilder = DatafeedConfig.LENIENT_PARSER.apply(parser, null);
-            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> configBuilder.build());
+            DatafeedConfig config = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> config.getParsedAggregations());
             assertEquals(
                 "Datafeed [farequote-datafeed] aggregations are not parsable: [size] must be greater than 0. Found [0] in [airline]",
                 e.getMessage());
@@ -399,7 +399,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::build);
 
-        assertThat(e.getMessage(), containsString("[interval] must be >0 for histogram aggregation [time]"));
+        assertThat(e.getMessage(), containsString("Aggregation interval must be greater than 0"));
     }
 
     public void testBuild_GivenDateHistogramWithInvalidTimeZone() {
@@ -416,7 +416,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> createDatafeedWithDateHistogram((String) null));
 
-        assertThat(e.getMessage(), containsString("[interval] must be 1 or greater for histogram aggregation [buckets]"));
+        assertThat(e.getMessage(), containsString("Aggregation interval must be greater than 0"));
     }
 
     public void testBuild_GivenValidDateHistogram() {
@@ -457,9 +457,9 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
     public void testCheckHistogramAggregationHasChildMaxTimeAgg() {
         DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time_agg").field("max_time");
-
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> DatafeedConfig.Builder.checkHistogramAggregationHasChildMaxTimeAgg(dateHistogram));
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("foo", "bar");
+        builder.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(dateHistogram));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::validateAggregations);
 
         assertThat(e.getMessage(), containsString("Date histogram must have nested max aggregation for time_field [max_time]"));
     }
@@ -478,8 +478,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         toplevelTerms.subAggregation(dateHistogram);
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("foo", "bar");
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-            () -> builder.validateAggregations(new AggregatorFactories.Builder().addAggregator(toplevelTerms)));
+        builder.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(toplevelTerms));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::validateAggregations);
 
         assertEquals("Aggregations can only have 1 date_histogram or histogram aggregation", e.getMessage());
     }

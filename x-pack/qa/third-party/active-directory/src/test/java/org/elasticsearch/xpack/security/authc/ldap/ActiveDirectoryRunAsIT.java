@@ -60,6 +60,7 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
         return builder.build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     public void testRunAs() throws Exception {
         String avenger = realmConfig.loginWithCommonName ? "Natasha Romanoff" : "blackwidow";
         final AuthenticateRequest request = new AuthenticateRequest(avenger);

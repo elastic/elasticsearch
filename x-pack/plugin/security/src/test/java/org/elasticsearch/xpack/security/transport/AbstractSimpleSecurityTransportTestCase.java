@@ -196,6 +196,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
     }
 
     public void testSNIServerNameIsPropagated() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = createSSLService();
 
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
@@ -261,6 +262,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
     }
 
     public void testInvalidSNIServerName() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = createSSLService();
 
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");

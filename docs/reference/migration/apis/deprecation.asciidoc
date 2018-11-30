@@ -10,9 +10,9 @@ be removed or changed in the next major version.
 [float]
 ==== Request
 
-`GET /_xpack/migration/deprecations` +
+`GET /_migration/deprecations` +
 
-`GET /<index_name>/_xpack/migration/deprecations`
+`GET /<index_name>/_migration/deprecations`
 
 //=== Description
 
@@ -32,11 +32,11 @@ be removed or changed in the next major version.
 ==== Examples
 
 To see the list of offenders in your cluster, submit a GET request to the
-`_xpack/migration/deprecations` endpoint:
+`_migration/deprecations` endpoint:
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/migration/deprecations
+GET /_migration/deprecations
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:cannot assert tests have certain deprecations]
@@ -115,7 +115,7 @@ The following example request shows only index-level deprecations of all
 
 [source,js]
 --------------------------------------------------
-GET /logstash-*/_xpack/migration/deprecations
+GET /logstash-*/_migration/deprecations
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:cannot assert tests have certain deprecations]

@@ -342,9 +342,7 @@ public class CastTests extends ScriptTestCase {
                 "x.mixedAdd(j, i, (char)2, s)"
         ));
         assertNull(exec("def f = new org.elasticsearch.painless.FeatureTest(); f.i = null; f.i"));
-        ClassCastException cce = expectScriptThrows(ClassCastException.class, () -> exec("def x = 2.0; def y = 1; y.compareTo(x);"));
-        assertTrue(cce.getMessage(), cce.getMessage().contains("class java.lang.Double cannot be cast to class java.lang.Integer"));
-        cce = expectScriptThrows(ClassCastException.class, () -> exec("float f = 1.0f; def y = 1; y.compareTo(f);"));
-        assertTrue(cce.getMessage(), cce.getMessage().contains("class java.lang.Float cannot be cast to class java.lang.Integer"));
+        expectScriptThrows(ClassCastException.class, () -> exec("def x = 2.0; def y = 1; y.compareTo(x);"));
+        expectScriptThrows(ClassCastException.class, () -> exec("float f = 1.0f; def y = 1; y.compareTo(f);"));
     }
 }

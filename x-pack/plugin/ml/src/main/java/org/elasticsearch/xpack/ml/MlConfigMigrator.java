@@ -116,7 +116,7 @@ public class MlConfigMigrator {
                 .map(MlConfigMigrator::updateJobForMigration)
                 .collect(Collectors.toList());
 
-        ActionListener<Boolean> onFailureUnMarkMigrationInProgress = ActionListener.wrap(
+        ActionListener<Boolean> unMarkMigrationInProgress = ActionListener.wrap(
                 response -> {
                     migrationInProgress.set(false);
                     listener.onResponse(response);
@@ -128,18 +128,18 @@ public class MlConfigMigrator {
         );
 
         if (datafeedsToMigrate.isEmpty() && jobsToMigrate.isEmpty()) {
-            onFailureUnMarkMigrationInProgress.onResponse(Boolean.FALSE);
+            unMarkMigrationInProgress.onResponse(Boolean.FALSE);
             return;
         }
 
         writeConfigToIndex(datafeedsToMigrate, jobsToMigrate, ActionListener.wrap(
                 failedDocumentIds -> {
                     List<String> successfulJobWrites = filterFailedJobConfigWrites(failedDocumentIds, jobsToMigrate);
-                    List<String> successfullDatafeedWrites =
+                    List<String> successfulDatafeedWrites =
                             filterFailedDatafeedConfigWrites(failedDocumentIds, datafeedsToMigrate);
-                    removeFromClusterState(successfulJobWrites, successfullDatafeedWrites, onFailureUnMarkMigrationInProgress);
+                    removeFromClusterState(successfulJobWrites, successfulDatafeedWrites, unMarkMigrationInProgress);
                 },
-                onFailureUnMarkMigrationInProgress::onFailure
+                unMarkMigrationInProgress::onFailure
         ));
     }
 

@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
@@ -27,10 +26,9 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
     private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
-    public TransportSqlClearCursorAction(Settings settings, TransportService transportService,
-                                         ActionFilters actionFilters, PlanExecutor planExecutor, SqlLicenseChecker sqlLicenseChecker) {
-        super(settings, NAME, transportService, actionFilters,
-              (Writeable.Reader<SqlClearCursorRequest>) SqlClearCursorRequest::new);
+    public TransportSqlClearCursorAction(TransportService transportService, ActionFilters actionFilters, PlanExecutor planExecutor,
+                                         SqlLicenseChecker sqlLicenseChecker) {
+        super(NAME, transportService, actionFilters, (Writeable.Reader<SqlClearCursorRequest>) SqlClearCursorRequest::new);
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
     }

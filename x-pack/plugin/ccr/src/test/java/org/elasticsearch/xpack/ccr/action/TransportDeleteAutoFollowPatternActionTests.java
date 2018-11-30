@@ -33,7 +33,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("transactions-*");
             existingAutoFollowPatterns.put("name1",
-                new AutoFollowPattern("eu_cluster", existingPatterns, null, null, null, null, null, null, null, null));
+                new AutoFollowPattern("eu_cluster", existingPatterns, null, null, null, null, null, null, null, null, null, null, null));
 
             List<String> existingUUIDS = new ArrayList<>();
             existingUUIDS.add("_val");
@@ -44,7 +44,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("logs-*");
             existingAutoFollowPatterns.put("name2",
-                new AutoFollowPattern("asia_cluster", existingPatterns, null, null, null, null, null, null, null, null));
+                new AutoFollowPattern("asia_cluster", existingPatterns, null, null, null, null, null, null, null, null, null, null, null));
 
             List<String> existingUUIDS = new ArrayList<>();
             existingUUIDS.add("_val");
@@ -56,14 +56,13 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
                 new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)))
             .build();
 
-        Request request = new Request();
-        request.setName("name1");
+        Request request = new Request("name1");
         AutoFollowMetadata result = TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState)
             .getMetaData()
             .custom(AutoFollowMetadata.TYPE);
         assertThat(result.getPatterns().size(), equalTo(1));
         assertThat(result.getPatterns().get("name2"), notNullValue());
-        assertThat(result.getPatterns().get("name2").getLeaderCluster(), equalTo("asia_cluster"));
+        assertThat(result.getPatterns().get("name2").getRemoteCluster(), equalTo("asia_cluster"));
         assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
         assertThat(result.getFollowedLeaderIndexUUIDs().get("name2"), notNullValue());
         assertThat(result.getHeaders().size(), equalTo(1));
@@ -78,7 +77,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("transactions-*");
             existingAutoFollowPatterns.put("name1",
-                new AutoFollowPattern("eu_cluster", existingPatterns, null, null, null, null, null, null, null, null));
+                new AutoFollowPattern("eu_cluster", existingPatterns, null, null, null, null, null, null, null, null, null, null, null));
             existingHeaders.put("key", Collections.singletonMap("key", "val"));
         }
         ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster"))
@@ -86,8 +85,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
                 new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)))
             .build();
 
-        Request request = new Request();
-        request.setName("name2");
+        Request request = new Request("name2");
         Exception e = expectThrows(ResourceNotFoundException.class,
             () -> TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState));
         assertThat(e.getMessage(), equalTo("auto-follow pattern [name2] is missing"));
@@ -98,8 +96,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             .metaData(MetaData.builder())
             .build();
 
-        Request request = new Request();
-        request.setName("name1");
+        Request request = new Request("name1");
         Exception e = expectThrows(ResourceNotFoundException.class,
             () -> TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState));
         assertThat(e.getMessage(), equalTo("auto-follow pattern [name1] is missing"));

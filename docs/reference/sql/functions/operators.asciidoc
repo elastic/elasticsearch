@@ -12,7 +12,19 @@ Boolean operator for comparing against one or multiple expressions.
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldEquality]
 --------------------------------------------------
 
-* Inequality (`<>` or `!=` or `<=>`)
+* Null safe Equality (`<=>`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[nullEqualsCompareWithNull]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[nullEqualsCompareTwoNulls]
+--------------------------------------------------
+
+* Inequality (`<>` or `!=`)
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------

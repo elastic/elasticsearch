@@ -66,7 +66,7 @@ class BuildPlugin implements Plugin<Project> {
     void apply(Project project) {
         if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
               throw new InvalidUserDataException('elasticsearch.standalone-test, '
-                + 'elasticearch.standalone-rest-test, and elasticsearch.build '
+                + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
         }
         final String minimumGradleVersion
@@ -99,10 +99,12 @@ class BuildPlugin implements Plugin<Project> {
         configureSourcesJar(project)
         configurePomGeneration(project)
 
+        applyCommonTestConfig(project)
         configureTest(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
     }
+
 
 
     /** Performs checks on the build environment and prints information about the build environment. */
@@ -153,14 +155,14 @@ class BuildPlugin implements Plugin<Project> {
             println "  Gradle Version        : ${project.gradle.gradleVersion}"
             println "  OS Info               : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
             if (gradleJavaVersionDetails != compilerJavaVersionDetails || gradleJavaVersionDetails != runtimeJavaVersionDetails) {
-                println "  Compiler JDK Version  : ${getPaddedMajorVersion(compilerJavaVersionEnum)} (${compilerJavaVersionDetails})"
+                println "  Compiler JDK Version  : ${compilerJavaVersionEnum} (${compilerJavaVersionDetails})"
                 println "  Compiler java.home    : ${compilerJavaHome}"
-                println "  Runtime JDK Version   : ${getPaddedMajorVersion(runtimeJavaVersionEnum)} (${runtimeJavaVersionDetails})"
+                println "  Runtime JDK Version   : ${runtimeJavaVersionEnum} (${runtimeJavaVersionDetails})"
                 println "  Runtime java.home     : ${runtimeJavaHome}"
-                println "  Gradle JDK Version    : ${getPaddedMajorVersion(JavaVersion.toVersion(gradleJavaVersion))} (${gradleJavaVersionDetails})"
+                println "  Gradle JDK Version    : ${JavaVersion.toVersion(gradleJavaVersion)} (${gradleJavaVersionDetails})"
                 println "  Gradle java.home      : ${gradleJavaHome}"
             } else {
-                println "  JDK Version           : ${getPaddedMajorVersion(JavaVersion.toVersion(gradleJavaVersion))} (${gradleJavaVersionDetails})"
+                println "  JDK Version           : ${JavaVersion.toVersion(gradleJavaVersion)} (${gradleJavaVersionDetails})"
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
             println "  Random Testing Seed   : ${project.testSeed}"
@@ -213,6 +215,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.inFipsJvm = inFipsJvm
             project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
             project.rootProject.ext.java9Home = "${-> findJavaHome("9")}"
+            project.rootProject.ext.defaultParallel = findDefaultParallel(project.rootProject)
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -227,10 +230,6 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
         project.ext.gradleJavaVersion = project.rootProject.ext.gradleJavaVersion
         project.ext.java9Home = project.rootProject.ext.java9Home
-    }
-
-    private static String getPaddedMajorVersion(JavaVersion compilerJavaVersionEnum) {
-        compilerJavaVersionEnum.getMajorVersion().toString().padLeft(2)
     }
 
     private static String findCompilerJavaHome() {
@@ -440,7 +439,7 @@ class BuildPlugin implements Plugin<Project> {
             // such that we don't have to pass hardcoded files to gradle
             repos.mavenLocal()
         }
-        repos.mavenCentral()
+        repos.jcenter()
         repos.maven {
             name "elastic"
             url "https://artifacts.elastic.co/maven"
@@ -694,18 +693,12 @@ class BuildPlugin implements Plugin<Project> {
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
             // fixup the jar manifest
             jarTask.doFirst {
-                final Version versionWithoutSnapshot = new Version(
-                        VersionProperties.elasticsearch.major,
-                        VersionProperties.elasticsearch.minor,
-                        VersionProperties.elasticsearch.revision,
-                        VersionProperties.elasticsearch.suffix,
-                        false)
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 jarTask.manifest.attributes(
-                        'X-Compile-Elasticsearch-Version': versionWithoutSnapshot,
+                        'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
-                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.elasticsearch.isSnapshot(),
+                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
                         'Build-Java-Version': project.compilerJavaVersion)
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
@@ -776,11 +769,10 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    /** Returns a closure of common configuration shared by unit and integration tests. */
-    static Closure commonTestConfig(Project project) {
-        return {
+    static void applyCommonTestConfig(Project project) {
+        project.tasks.withType(RandomizedTestingTask) {
             jvm "${project.runtimeJavaHome}/bin/java"
-            parallelism System.getProperty('tests.jvms', 'auto')
+            parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
             ifNoTests System.getProperty('tests.ifNoTests', 'fail')
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
@@ -873,6 +865,8 @@ class BuildPlugin implements Plugin<Project> {
 
             exclude '**/*$*.class'
 
+            dependsOn(project.tasks.testClasses)
+
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
                 // Test against a shadow jar if we made one
                 classpath -= project.tasks.compileJava.outputs.files
@@ -882,25 +876,46 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
+    private static String findDefaultParallel(Project project) {
+        if (project.file("/proc/cpuinfo").exists()) {
+            // Count physical cores on any Linux distro ( don't count hyper-threading )
+            Map<String, Integer> socketToCore = [:]
+            String currentID = ""
+            project.file("/proc/cpuinfo").readLines().forEach({ line ->
+                if (line.contains(":")) {
+                    List<String> parts = line.split(":", 2).collect({it.trim()})
+                    String name = parts[0], value = parts[1]
+                    // the ID of the CPU socket
+                    if (name == "physical id") {
+                        currentID = value
+                    }
+                    // Number  of cores not including hyper-threading
+                    if (name == "cpu cores") {
+                        assert currentID.isEmpty() == false
+                        socketToCore[currentID] = Integer.valueOf(value)
+                        currentID = ""
+                    }
+                }
+            })
+            return socketToCore.values().sum().toString();
+        } else if ('Mac OS X'.equals(System.getProperty('os.name'))) {
+            // Ask macOS to count physical CPUs for us
+            ByteArrayOutputStream stdout = new ByteArrayOutputStream()
+            project.exec {
+                executable 'sysctl'
+                args '-n', 'hw.physicalcpu'
+                standardOutput = stdout
+            }
+            return stdout.toString('UTF-8').trim();
+        }
+        return 'auto';
+    }
+
     /** Configures the test task */
     static Task configureTest(Project project) {
-        RandomizedTestingTask test = project.tasks.getByName('test')
-        test.configure(commonTestConfig(project))
-        test.configure {
+        project.tasks.getByName('test') {
             include '**/*Tests.class'
         }
-
-        // Add a method to create additional unit tests for a project, which will share the same
-        // randomized testing setup, but by default run no tests.
-        project.extensions.add('additionalTest', { String name, Closure config ->
-            RandomizedTestingTask additionalTest = project.tasks.create(name, RandomizedTestingTask.class)
-            additionalTest.classpath = test.classpath
-            additionalTest.testClassesDirs = test.testClassesDirs
-            additionalTest.configure(commonTestConfig(project))
-            additionalTest.configure(config)
-            additionalTest.dependsOn(project.tasks.testClasses)
-            project.check.dependsOn(additionalTest)
-        });
     }
 
     private static configurePrecommit(Project project) {

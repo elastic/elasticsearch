@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.service;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -66,6 +67,7 @@ import static org.elasticsearch.cluster.service.ClusterService.CLUSTER_SERVICE_S
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 public class ClusterApplierService extends AbstractLifecycleComponent implements ClusterApplier {
+    private static final Logger logger = LogManager.getLogger(ClusterApplierService.class);
 
     public static final String CLUSTER_UPDATE_THREAD_NAME = "clusterApplierService#updateTask";
 
@@ -95,15 +97,18 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private final AtomicReference<ClusterState> state; // last applied state
 
+    private final String nodeName;
+
     private NodeConnectionsService nodeConnectionsService;
 
-    public ClusterApplierService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         super(settings);
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
         this.localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
+        this.nodeName = nodeName;
     }
 
     public void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -130,8 +135,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         Objects.requireNonNull(state.get(), "please set initial state before starting");
         addListener(localNodeMasterListeners);
         threadPoolExecutor = EsExecutors.newSinglePrioritizing(
-                nodeName() + "/" + CLUSTER_UPDATE_THREAD_NAME,
-                daemonThreadFactory(settings, CLUSTER_UPDATE_THREAD_NAME),
+                nodeName + "/" + CLUSTER_UPDATE_THREAD_NAME,
+                daemonThreadFactory(nodeName, CLUSTER_UPDATE_THREAD_NAME),
                 threadPool.getThreadContext(),
                 threadPool.scheduler());
     }

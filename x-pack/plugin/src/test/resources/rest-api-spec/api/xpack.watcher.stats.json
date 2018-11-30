@@ -8,14 +8,14 @@
       "parts": {
         "metric": {
           "type" : "enum",
-          "options" : ["_all", "queued_watches", "pending_watches"],
+          "options" : ["_all", "queued_watches", "current_watches", "pending_watches"],
           "description" : "Controls what additional stat metrics should be include in the response"
         }
       },
       "params": {
         "metric": {
           "type" : "enum",
-          "options" : ["_all", "queued_watches", "pending_watches"],
+          "options" : ["_all", "queued_watches", "current_watches", "pending_watches"],
           "description" : "Controls what additional stat metrics should be include in the response"
         },
         "emit_stacktraces": {

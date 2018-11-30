@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
@@ -17,9 +19,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -78,10 +78,10 @@ import java.util.stream.Collectors;
  * <li>starting/stopping of datafeed jobs</li>
  * </ul>
  */
-public class JobManager extends AbstractComponent {
+public class JobManager {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-            new DeprecationLogger(Loggers.getLogger(JobManager.class));
+    private static final Logger logger = LogManager.getLogger(JobManager.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final Environment environment;
     private final JobResultsProvider jobResultsProvider;
@@ -98,7 +98,6 @@ public class JobManager extends AbstractComponent {
     public JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
                       ClusterService clusterService, Auditor auditor,
                       Client client, UpdateJobProcessNotifier updateJobProcessNotifier) {
-        super(settings);
         this.environment = environment;
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -194,7 +193,7 @@ public class JobManager extends AbstractComponent {
         Job job = request.getJobBuilder().build(new Date());
 
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
-            DEPRECATION_LOGGER.deprecated("Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
+            deprecationLogger.deprecated("Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
         }
 
         // pre-flight check, not necessarily required, but avoids figuring this out while on the CS update thread
@@ -490,7 +489,7 @@ public class JobManager extends AbstractComponent {
             ModelSnapshot modelSnapshot) {
 
         final ModelSizeStats modelSizeStats = modelSnapshot.getModelSizeStats();
-        final JobResultsPersister persister = new JobResultsPersister(settings, client);
+        final JobResultsPersister persister = new JobResultsPersister(client);
 
         // Step 3. After the model size stats is persisted, also persist the snapshot's quantiles and respond
         // -------

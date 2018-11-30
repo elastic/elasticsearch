@@ -20,7 +20,9 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
+import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.client.migration.IndexUpgradeRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -28,9 +30,9 @@ import java.util.Map;
 
 public class MigrationRequestConvertersTests extends ESTestCase {
 
-    public static void testGetMigrationAssistance() {
+    public void testGetMigrationAssistance() {
         IndexUpgradeInfoRequest upgradeInfoRequest = new IndexUpgradeInfoRequest();
-        String expectedEndpoint = "/_xpack/migration/assistance";
+        String expectedEndpoint = "/_migration/assistance";
         if (randomBoolean()) {
             String[] indices = RequestConvertersTests.randomIndicesNames(1, 5);
             upgradeInfoRequest.indices(indices);
@@ -41,6 +43,22 @@ public class MigrationRequestConvertersTests extends ESTestCase {
             expectedParams);
         Request request = MigrationRequestConverters.getMigrationAssistance(upgradeInfoRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(expectedEndpoint, request.getEndpoint());
+        assertNull(request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testUpgradeRequest() {
+        String[] indices = RequestConvertersTests.randomIndicesNames(1, 1);
+        IndexUpgradeRequest upgradeInfoRequest = new IndexUpgradeRequest(indices[0]);
+
+        String expectedEndpoint = "/_migration/upgrade/" + indices[0];
+        Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put("wait_for_completion", Boolean.TRUE.toString());
+
+        Request request = MigrationRequestConverters.migrate(upgradeInfoRequest);
+
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(expectedEndpoint, request.getEndpoint());
         assertNull(request.getEntity());
         assertEquals(expectedParams, request.getParameters());

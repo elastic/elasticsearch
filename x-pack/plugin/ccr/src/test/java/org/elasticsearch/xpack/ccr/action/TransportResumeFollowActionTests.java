@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -21,12 +24,14 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.validate;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class TransportResumeFollowActionTests extends ESTestCase {
 
@@ -35,20 +40,8 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         customMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "uuid");
         customMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
 
-        ResumeFollowAction.Request request = IndexFollowingIT.resumeFollow("index1", "index2");
+        ResumeFollowAction.Request request = IndexFollowingIT.resumeFollow("index2");
         String[] UUIDs = new String[]{"uuid"};
-        {
-            // should fail, because leader index does not exist
-            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, null, null, null, null));
-            assertThat(e.getMessage(), equalTo("leader index [leader_cluster:index1] does not exist"));
-        }
-        {
-            // should fail, because follow index does not exist
-            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, emptyMap());
-            Exception e = expectThrows(IllegalArgumentException.class,
-                () -> validate(request, leaderIMD, null, null, null));
-            assertThat(e.getMessage(), equalTo("follow index [index2] does not exist"));
-        }
         {
             IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, null);
@@ -83,7 +76,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
-            assertThat(e.getMessage(), equalTo("leader index [leader_cluster:index1] does not have soft deletes enabled"));
+            assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
         }
         {
             // should fail because the follower index does not have soft deletes enabled
@@ -213,6 +206,32 @@ public class TransportResumeFollowActionTests extends ESTestCase {
                 followIMD.getSettings(), "index2");
             mapperService.updateMapping(null, followIMD);
             validate(request, leaderIMD, followIMD, UUIDs, mapperService);
+        }
+    }
+    
+    public void testDynamicIndexSettingsAreClassified() {
+        // We should be conscious which dynamic settings are replicated from leader to follower index.
+        // This is the list of settings that should be replicated:
+        Set<Setting<?>> replicatedSettings = new HashSet<>();
+
+        // These fields need to be replicated otherwise documents that can be indexed in the leader index cannot
+        // be indexed in the follower index:
+        replicatedSettings.add(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPER_DYNAMIC_SETTING);
+        replicatedSettings.add(IndexSettings.MAX_NGRAM_DIFF_SETTING);
+        replicatedSettings.add(IndexSettings.MAX_SHINGLE_DIFF_SETTING);
+        replicatedSettings.add(EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS);
+
+        for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
+            if (setting.isDynamic()) {
+                boolean notReplicated = TransportResumeFollowAction.WHITE_LISTED_SETTINGS.contains(setting);
+                boolean replicated = replicatedSettings.contains(setting);
+                assertThat("setting [" + setting.getKey() + "] is not classified as replicated xor not replicated",
+                    notReplicated ^ replicated, is(true));
+            }
         }
     }
 

@@ -104,7 +104,8 @@ public class NioTransportIT extends NioIntegTestCase {
         ExceptionThrowingNioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                                       PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                                       CircuitBreakerService circuitBreakerService) {
-            super(settings, threadPool, networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
+            super(settings, Version.CURRENT, threadPool, networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry,
+                circuitBreakerService);
         }
 
         @Override

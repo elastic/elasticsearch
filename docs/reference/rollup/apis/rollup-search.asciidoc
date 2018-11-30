@@ -30,6 +30,7 @@ Rules for the `index` parameter:
 or using `_all`, is not permitted
 - Multiple non-rollup indices may be specified
 - Only one rollup index may be specified.  If more than one are supplied an exception will be thrown
+- Index patterns may be used, but if they match more than one rollup index an exception will be thrown.
 
 ==== Request Body
 

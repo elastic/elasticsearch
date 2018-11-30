@@ -19,11 +19,9 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
-import com.amazonaws.services.s3.model.HeadBucketRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
@@ -31,15 +29,13 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Locale;
 
-class S3BlobStore extends AbstractComponent implements BlobStore {
+class S3BlobStore implements BlobStore {
 
     private final S3Service service;
 
@@ -55,9 +51,8 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final StorageClass storageClass;
 
-    S3BlobStore(Settings settings, S3Service service, String clientName, String bucket, boolean serverSideEncryption,
+    S3BlobStore(S3Service service, String clientName, String bucket, boolean serverSideEncryption,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass) {
-        super(settings);
         this.service = service;
         this.clientName = clientName;
         this.bucket = bucket;
@@ -65,29 +60,6 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
-
-        // Note: the method client.doesBucketExist() may return 'true' is the bucket exists
-        // but we don't have access to it (ie, 403 Forbidden response code)
-        try (AmazonS3Reference clientReference = clientReference()) {
-            SocketAccess.doPrivilegedVoid(() -> {
-                try {
-                    clientReference.client().headBucket(new HeadBucketRequest(bucket));
-                } catch (final AmazonServiceException e) {
-                    if (e.getStatusCode() == 301) {
-                        throw new IllegalArgumentException("the bucket [" + bucket + "] is in a different region than you configured", e);
-                    } else if (e.getStatusCode() == 403) {
-                        throw new IllegalArgumentException("you do not have permissions to access the bucket [" + bucket + "]", e);
-                    } else if (e.getStatusCode() == 404) {
-                        throw new IllegalArgumentException(
-                                "the bucket [" + bucket + "] does not exist;"
-                                        + " please create it before creating an S3 snapshot repository backed by it",
-                                e);
-                    } else {
-                        throw new IllegalArgumentException("error checking the existence of bucket [" + bucket + "]", e);
-                    }
-                }
-            });
-        }
     }
 
     @Override

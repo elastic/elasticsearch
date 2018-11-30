@@ -14,8 +14,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,9 +33,9 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
     public SqlTranslateRequest() {
     }
 
-    public SqlTranslateRequest(Mode mode, String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
-                               int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-        super(mode, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
+    public SqlTranslateRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
+                               int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
+        super(query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout, requestInfo);
     }
 
     public SqlTranslateRequest(StreamInput in) throws IOException {
@@ -57,17 +58,15 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
 
     public static SqlTranslateRequest fromXContent(XContentParser parser, Mode mode) {
         SqlTranslateRequest request = PARSER.apply(parser, null);
-        request.mode(mode);
+        request.requestInfo(new RequestInfo(mode));
         return request;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test parsing of SqlTranslateRequest, so we can reuse SqlQuerySerialization
-        return new SqlQueryRequest(mode(), query(), params(), timeZone(), fetchSize(),
-            requestTimeout(), pageTimeout(), filter(), null).toXContent(builder, params);
+        return new SqlQueryRequest(query(), params(), timeZone(), fetchSize(), requestTimeout(),
+            pageTimeout(), filter(), null, requestInfo()).toXContent(builder, params);
 
     }
-
-
 }

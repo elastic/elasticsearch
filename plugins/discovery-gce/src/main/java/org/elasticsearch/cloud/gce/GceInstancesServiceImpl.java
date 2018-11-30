@@ -19,14 +19,6 @@
 
 package org.elasticsearch.cloud.gce;
 
-import java.io.IOException;
-import java.security.GeneralSecurityException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Function;
-
 import com.google.api.client.googleapis.compute.ComputeCredential;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.GenericUrl;
@@ -41,17 +33,29 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cloud.gce.util.Access;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
 
-public class GceInstancesServiceImpl extends AbstractComponent implements GceInstancesService {
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Function;
+
+public class GceInstancesServiceImpl implements GceInstancesService {
+    
+    private static final Logger logger = LogManager.getLogger(GceInstancesServiceImpl.class);
 
     // all settings just used for testing - not registered by default
     public static final Setting<Boolean> GCE_VALIDATE_CERTIFICATES =
@@ -94,6 +98,7 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
         return instances;
     }
 
+    private final Settings settings;
     private Compute client;
     private TimeValue refreshInterval = null;
     private long lastRefresh;
@@ -107,7 +112,7 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
     private final boolean validateCerts;
 
     public GceInstancesServiceImpl(Settings settings) {
-        super(settings);
+        this.settings = settings;
         this.validateCerts = GCE_VALIDATE_CERTIFICATES.get(settings);
         this.project = resolveProject();
         this.zones = resolveZones();

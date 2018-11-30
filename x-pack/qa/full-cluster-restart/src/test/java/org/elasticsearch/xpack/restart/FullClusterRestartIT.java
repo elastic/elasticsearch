@@ -19,7 +19,7 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
@@ -132,7 +132,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 }
                 // run upgrade API
                 Response upgradeResponse = client().performRequest(
-                        new Request("POST", "_xpack/migration/upgrade/" + concreteSecurityIndex));
+                        new Request("POST", "_migration/upgrade/" + concreteSecurityIndex));
                 logger.info("upgrade response:\n{}", toStr(upgradeResponse));
             }
 
@@ -176,7 +176,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             waitForYellow(".watches,bwc_watch_index,.watcher-history*");
 
             logger.info("checking if the upgrade procedure on the new cluster is required");
-            Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/_xpack/migration/assistance")));
+            Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/_migration/assistance")));
             logger.info(response);
 
             @SuppressWarnings("unchecked") Map<String, Object> indices = (Map<String, Object>) response.get("indices");
@@ -189,7 +189,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
                 logger.info("starting upgrade procedure on the new cluster");
 
-                Request migrationAssistantRequest = new Request("POST", "_xpack/migration/upgrade/.watches");
+                Request migrationAssistantRequest = new Request("POST", "_migration/upgrade/.watches");
                 migrationAssistantRequest.addParameter("error_trace", "true");
                 Map<String, Object> upgradeResponse = entityAsMap(client().performRequest(migrationAssistantRequest));
                 assertThat(upgradeResponse.get("timed_out"), equalTo(Boolean.FALSE));
@@ -198,7 +198,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
                 logger.info("checking that upgrade procedure on the new cluster is no longer required");
                 Map<String, Object> responseAfter = entityAsMap(client().performRequest(
-                        new Request("GET", "/_xpack/migration/assistance")));
+                        new Request("GET", "/_migration/assistance")));
                 @SuppressWarnings("unchecked") Map<String, Object> indicesAfter = (Map<String, Object>) responseAfter.get("indices");
                 assertNull(indicesAfter.get(".watches"));
             } else {
@@ -414,6 +414,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34774")
     public void testSqlFailsOnIndexWithTwoTypes() throws IOException {
         // TODO this isn't going to trigger until we backport to 6.1
         assumeTrue("It is only possible to build an index that sql doesn't like before 6.0.0",
@@ -427,7 +428,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(doc2);
             return;
         }
-        Request sqlRequest = new Request("POST", "/_xpack/sql");
+        final Request sqlRequest;
+        if (isRunningAgainstOldCluster()) {
+            sqlRequest = new Request("POST", "/_xpack/sql");
+        } else {
+            sqlRequest = new Request("POST", "/_sql");
+        }
         sqlRequest.setJsonEntity("{\"query\":\"SELECT * FROM testsqlfailsonindexwithtwotypes\"}");
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(sqlRequest));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());

@@ -88,13 +88,6 @@ Which will yield the following response:
                 "metrics" : [
                   "avg"
                 ]
-              },
-              {
-                "field": "timestamp",
-                "metrics": [
-                  "max",
-                  "min"
-                 ]
               }
             ],
             "timeout" : "20s",
@@ -108,7 +101,13 @@ Which will yield the following response:
             "pages_processed" : 0,
             "documents_processed" : 0,
             "rollups_indexed" : 0,
-            "trigger_count" : 0
+            "trigger_count" : 0,
+            "index_failures": 0,
+            "index_time_in_ms": 0,
+            "index_total": 0,
+            "search_failures": 0,
+            "search_time_in_ms": 0,
+            "search_total": 0
           }
         }
     ]
@@ -215,13 +214,6 @@ Which will yield the following response:
                 "metrics" : [
                   "avg"
                 ]
-              },
-              {
-                "field": "timestamp",
-                "metrics": [
-                  "min",
-                  "max"
-                ]
               }
             ],
             "timeout" : "20s",
@@ -235,7 +227,13 @@ Which will yield the following response:
             "pages_processed" : 0,
             "documents_processed" : 0,
             "rollups_indexed" : 0,
-            "trigger_count" : 0
+            "trigger_count" : 0,
+            "index_failures": 0,
+            "index_time_in_ms": 0,
+            "index_total": 0,
+            "search_failures": 0,
+            "search_time_in_ms": 0,
+            "search_total": 0
           }
         },
         {
@@ -271,13 +269,6 @@ Which will yield the following response:
                 "metrics" : [
                   "avg"
                 ]
-              },
-              {
-                "field": "timestamp",
-                "metrics": [
-                  "min",
-                  "max"
-                 ]
               }
             ],
             "timeout" : "20s",
@@ -291,7 +282,13 @@ Which will yield the following response:
             "pages_processed" : 0,
             "documents_processed" : 0,
             "rollups_indexed" : 0,
-            "trigger_count" : 0
+            "trigger_count" : 0,
+            "index_failures": 0,
+            "index_time_in_ms": 0,
+            "index_total": 0,
+            "search_failures": 0,
+            "search_time_in_ms": 0,
+            "search_total": 0
           }
         }
     ]

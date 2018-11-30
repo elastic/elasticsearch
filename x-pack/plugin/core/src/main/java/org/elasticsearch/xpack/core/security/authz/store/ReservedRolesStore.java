@@ -72,8 +72,25 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 "cluster:admin/xpack/watcher/watch/delete",
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
-                                RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build() },
+                                RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build(),
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("metricbeat-*").privileges("index", "create_index").build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("remote_monitoring_collector", new RoleDescriptor(
+                        "remote_monitoring_collector",
+                        new String[] {
+                            "monitor"
+                        },
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("monitor").build(),
+                            RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("read").build()
+                        },
+                        null,
+                        null,
+                        null,
+                        MetadataUtils.DEFAULT_RESERVED_METADATA,
+                        null
+                ))
                 .put("ingest_admin", new RoleDescriptor("ingest_admin", new String[] { "manage_index_templates", "manage_pipeline" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 // reporting_user doesn't have any privileges in Elasticsearch, and Kibana authorizes privileges based on this role
@@ -94,7 +111,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         null))
                 .put(KibanaUser.ROLE_NAME, new RoleDescriptor(KibanaUser.ROLE_NAME,
                         new String[] {
-                            "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml",
+                            "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml", "manage_token"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*", ".reporting-*").privileges("all").build(),

@@ -28,7 +28,7 @@ import java.util.Set;
 
 public final class ParameterMap implements Map<String, Object> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =
+    private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(ParameterMap.class));
 
     private final Map<String, Object> params;
@@ -64,7 +64,7 @@ public final class ParameterMap implements Map<String, Object> {
     public Object get(final Object key) {
         String deprecationMessage = deprecations.get(key);
         if (deprecationMessage != null) {
-            DEPRECATION_LOGGER.deprecated(deprecationMessage);
+            deprecationLogger.deprecated(deprecationMessage);
         }
         return params.get(key);
     }

@@ -19,11 +19,13 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
@@ -34,7 +36,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -57,7 +58,7 @@ import java.util.stream.Collectors;
  * REST calls.
  */
 public class ClientYamlTestClient implements Closeable {
-    private static final Logger logger = Loggers.getLogger(ClientYamlTestClient.class);
+    private static final Logger logger = LogManager.getLogger(ClientYamlTestClient.class);
 
     private static final ContentType YAML_CONTENT_TYPE = ContentType.create("application/yaml");
 

@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.tasks;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -29,12 +31,12 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -49,10 +51,14 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+
 /**
  * Service that can store task results.
  */
-public class TaskResultsService extends AbstractComponent {
+public class TaskResultsService {
+
+    private static final Logger logger = LogManager.getLogger(TaskResultsService.class);
 
     public static final String TASK_INDEX = ".tasks";
 
@@ -69,9 +75,8 @@ public class TaskResultsService extends AbstractComponent {
     private final ClusterService clusterService;
 
     @Inject
-    public TaskResultsService(Settings settings, Client client, ClusterService clusterService) {
-        super(settings);
-        this.client = client;
+    public TaskResultsService(Client client, ClusterService clusterService) {
+        this.client = new OriginSettingClient(client, TASKS_ORIGIN);
         this.clusterService = clusterService;
     }
 

@@ -42,6 +42,7 @@ public class JobStatsCollector extends Collector {
      */
     public static final Setting<TimeValue> JOB_STATS_TIMEOUT = collectionTimeoutSetting("ml.job.stats.timeout");
 
+    private final Settings settings;
     private final ThreadContext threadContext;
     private final MachineLearningClient client;
 
@@ -52,7 +53,8 @@ public class JobStatsCollector extends Collector {
 
     JobStatsCollector(final Settings settings, final ClusterService clusterService,
                       final XPackLicenseState licenseState, final MachineLearningClient client, final ThreadContext threadContext) {
-        super(settings, JobStatsMonitoringDoc.TYPE, clusterService, JOB_STATS_TIMEOUT, licenseState);
+        super(JobStatsMonitoringDoc.TYPE, clusterService, JOB_STATS_TIMEOUT, licenseState);
+        this.settings = settings;
         this.client = client;
         this.threadContext = threadContext;
     }

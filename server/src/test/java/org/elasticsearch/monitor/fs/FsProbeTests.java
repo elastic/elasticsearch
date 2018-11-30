@@ -21,7 +21,6 @@ package org.elasticsearch.monitor.fs;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
 import org.elasticsearch.test.ESTestCase;
@@ -51,7 +50,7 @@ public class FsProbeTests extends ESTestCase {
     public void testFsInfo() throws IOException {
 
         try (NodeEnvironment env = newNodeEnvironment()) {
-            FsProbe probe = new FsProbe(Settings.EMPTY, env);
+            FsProbe probe = new FsProbe(env);
 
             FsInfo stats = probe.stats(null, null);
             assertNotNull(stats);
@@ -166,7 +165,7 @@ public class FsProbeTests extends ESTestCase {
                 " 253       1 dm-1 112 0 4624 13 0 0 0 0 0 5 13",
                 " 253       2 dm-2 47802 0 710658 49312 1371977 0 64126096 33730596 0 1058193 33781827"));
 
-        final FsProbe probe = new FsProbe(Settings.EMPTY, null) {
+        final FsProbe probe = new FsProbe(null) {
             @Override
             List<String> readProcDiskStats() throws IOException {
                 return diskStats.get();

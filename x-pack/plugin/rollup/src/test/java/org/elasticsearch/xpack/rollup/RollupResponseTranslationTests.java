@@ -231,7 +231,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         MultiSearchResponse.Item missing = new MultiSearchResponse.Item(null, new IndexNotFoundException("foo"));
         Exception e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.verifyResponse(missing));
-        assertThat(e.getMessage(), equalTo("no such index"));
+        assertThat(e.getMessage(), equalTo("no such index [foo]"));
     }
 
     public void testTranslateRollup() {
@@ -287,7 +287,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         Exception e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.translateResponse(new MultiSearchResponse.Item[]{missing}, context));
-        assertThat(e.getMessage(), equalTo("no such index"));
+        assertThat(e.getMessage(), equalTo("no such index [foo]"));
     }
 
     public void testMissingFilter() {

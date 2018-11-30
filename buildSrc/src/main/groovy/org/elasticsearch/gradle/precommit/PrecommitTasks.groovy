@@ -22,6 +22,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
+import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -47,7 +48,8 @@ class PrecommitTasks {
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('filepermissions', FilePermissionsTask.class),
             configureJarHell(project),
-            configureThirdPartyAudit(project)
+            configureThirdPartyAudit(project),
+            configureTestingConventions(project)
         ]
 
         // tasks with just tests don't need dependency licenses, so this flag makes adding
@@ -86,6 +88,10 @@ class PrecommitTasks {
             description: 'Runs all non-test checks.',
             dependsOn: precommitTasks
         ])
+    }
+
+    static Task configureTestingConventions(Project project) {
+        project.getTasks().create("testingConventions", TestingConventionsTasks.class)
     }
 
     private static Task configureJarHell(Project project) {
@@ -220,7 +226,7 @@ class PrecommitTasks {
     private static Task configureLoggerUsage(Project project) {
         project.configurations.create('loggerUsagePlugin')
         project.dependencies.add('loggerUsagePlugin',
-                "org.elasticsearch.test:logger-usage:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")
+                "org.elasticsearch.test:logger-usage:${VersionProperties.elasticsearch}")
         return project.tasks.create('loggerUsageCheck', LoggerUsageTask.class) {
             classpath = project.configurations.loggerUsagePlugin
             javaHome = project.runtimeJavaHome

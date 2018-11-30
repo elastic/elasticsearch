@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.writer.RecordWriter;
+import org.elasticsearch.xpack.core.ml.process.writer.RecordWriter;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
@@ -182,25 +182,6 @@ public class Detector implements ToXContentObject, Writeable {
             DetectorFunction.NON_ZERO_COUNT,
             DetectorFunction.LOW_NON_ZERO_COUNT,
             DetectorFunction.HIGH_NON_ZERO_COUNT
-    );
-
-    /**
-     * The set of functions that must not be used with overlapping buckets
-     */
-    public static final EnumSet<DetectorFunction> NO_OVERLAPPING_BUCKETS_FUNCTIONS = EnumSet.of(
-            DetectorFunction.RARE,
-            DetectorFunction.FREQ_RARE
-    );
-
-    /**
-     * The set of functions that should not be used with overlapping buckets
-     * as they gain no benefit but have overhead
-     */
-    public static final EnumSet<DetectorFunction> OVERLAPPING_BUCKETS_FUNCTIONS_NOT_NEEDED = EnumSet.of(
-            DetectorFunction.MIN,
-            DetectorFunction.MAX,
-            DetectorFunction.TIME_OF_DAY,
-            DetectorFunction.TIME_OF_WEEK
     );
 
     /**

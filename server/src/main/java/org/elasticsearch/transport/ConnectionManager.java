@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -27,10 +27,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,13 +50,13 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * the connection when the connection manager is closed.
  */
 public class ConnectionManager implements Closeable {
+
     private static final Logger logger = LogManager.getLogger(ConnectionManager.class);
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
     private final KeyedLock<String> connectionLock = new KeyedLock<>();
     private final Transport transport;
     private final ThreadPool threadPool;
-    private final TimeValue pingSchedule;
     private final ConnectionProfile defaultProfile;
     private final Lifecycle lifecycle = new Lifecycle();
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -67,19 +64,14 @@ public class ConnectionManager implements Closeable {
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
     public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool) {
-        this(settings, transport, threadPool, buildDefaultConnectionProfile(settings));
+        this(ConnectionProfile.buildDefaultConnectionProfile(settings), transport, threadPool);
     }
 
-    public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool, ConnectionProfile defaultProfile) {
+    public ConnectionManager(ConnectionProfile connectionProfile, Transport transport, ThreadPool threadPool) {
         this.transport = transport;
         this.threadPool = threadPool;
-        this.pingSchedule = TcpTransport.PING_SCHEDULE.get(settings);
-        this.defaultProfile = defaultProfile;
+        this.defaultProfile = connectionProfile;
         this.lifecycle.moveToStarted();
-
-        if (pingSchedule.millis() > 0) {
-            threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, new ScheduledPing());
-        }
     }
 
     public void addListener(TransportConnectionListener listener) {
@@ -203,7 +195,7 @@ public class ConnectionManager implements Closeable {
             threadPool.generic().execute(() -> {
                 closeLock.writeLock().lock();
                 try {
-                    // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
+                    // we are holding a write lock so nobody adds to the connectedNodes / openConnections map - it's safe to first close
                     // all instances and then clear them maps
                     Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
                     while (iterator.hasNext()) {
@@ -252,43 +244,8 @@ public class ConnectionManager implements Closeable {
         }
     }
 
-    private class ScheduledPing extends AbstractLifecycleRunnable {
-
-        private ScheduledPing() {
-            super(lifecycle, logger);
-        }
-
-        @Override
-        protected void doRunInLifecycle() {
-            for (Map.Entry<DiscoveryNode, Transport.Connection> entry : connectedNodes.entrySet()) {
-                Transport.Connection connection = entry.getValue();
-                if (connection.sendPing() == false) {
-                    logger.warn("attempted to send ping to connection without support for pings [{}]", connection);
-                }
-            }
-        }
-
-        @Override
-        protected void onAfterInLifecycle() {
-            try {
-                threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, this);
-            } catch (EsRejectedExecutionException ex) {
-                if (ex.isExecutorShutdown()) {
-                    logger.debug("couldn't schedule new ping execution, executor is shutting down", ex);
-                } else {
-                    throw ex;
-                }
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            if (lifecycle.stoppedOrClosed()) {
-                logger.trace("failed to send ping transport message", e);
-            } else {
-                logger.warn("failed to send ping transport message", e);
-            }
-        }
+    ConnectionProfile getConnectionProfile() {
+        return defaultProfile;
     }
 
     private static final class DelegatingNodeConnectionListener implements TransportConnectionListener {
@@ -322,24 +279,5 @@ public class ConnectionManager implements Closeable {
                 listener.onConnectionClosed(connection);
             }
         }
-    }
-
-    public static ConnectionProfile buildDefaultConnectionProfile(Settings settings) {
-        int connectionsPerNodeRecovery = TransportService.CONNECTIONS_PER_NODE_RECOVERY.get(settings);
-        int connectionsPerNodeBulk = TransportService.CONNECTIONS_PER_NODE_BULK.get(settings);
-        int connectionsPerNodeReg = TransportService.CONNECTIONS_PER_NODE_REG.get(settings);
-        int connectionsPerNodeState = TransportService.CONNECTIONS_PER_NODE_STATE.get(settings);
-        int connectionsPerNodePing = TransportService.CONNECTIONS_PER_NODE_PING.get(settings);
-        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-        builder.setConnectTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
-        builder.setHandshakeTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
-        builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
-        builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
-        // if we are not master eligible we don't need a dedicated channel to publish the state
-        builder.addConnections(DiscoveryNode.isMasterNode(settings) ? connectionsPerNodeState : 0, TransportRequestOptions.Type.STATE);
-        // if we are not a data-node we don't need any dedicated channels for recovery
-        builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
-        builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
-        return builder.build();
     }
 }

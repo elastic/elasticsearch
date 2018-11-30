@@ -42,9 +42,10 @@ recommend that you explicitly add this setting to avoid confusion.
 A comma-separated list of settings that are omitted from the results of the
 <<cluster-nodes-info,cluster nodes info API>>. You can use wildcards to include
 multiple settings in the list.  For example, the following value hides all the
-settings for the ad1 realm: `xpack.security.authc.realms.ad1.*`. The API already
-omits all `ssl` settings, `bind_dn`, and `bind_password` due to the
-sensitive nature of the information.
+settings for the ad1 active_directory realm:
+`xpack.security.authc.realms.active_directory.ad1.*`.
+The API already omits all `ssl` settings, `bind_dn`, and `bind_password` due to
+the sensitive nature of the information.
 
 `xpack.security.fips_mode.enabled`::
 Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
@@ -149,18 +150,15 @@ namespace in `elasticsearch.yml`. For example:
 ----------------------------------------
 xpack.security.authc.realms:
 
-    realm1:
-        type: native
+    native.realm1:
         order: 0
         ...
 
-    realm2:
-        type: ldap
+    ldap.realm2:
         order: 1
         ...
 
-    realm3:
-        type: active_directory
+    active_directory.realm3:
         order: 2
         ...
     ...
@@ -287,7 +285,7 @@ this setting is not valid. For more information on
 the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
 
 `authorization_realms`::
-The names of the realms that should be consulted for delegate authorization.
+The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the LDAP realm does not perform role mapping and
 instead loads the user from the listed realms. The referenced realms are
 consulted in the order that they are defined in this list.
@@ -796,7 +794,7 @@ Specifies the {xpack-ref}/security-files.html[location] of the
 Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `authorization_realms`::
-The names of the realms that should be consulted for delegate authorization.
+The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the PKI realm does not perform role mapping and
 instead loads the user from the listed realms.
 See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
@@ -925,7 +923,7 @@ Specifies whether to populate the {es} user's metadata with the values that are
 provided by the SAML attributes. Defaults to `true`.
 
 `authorization_realms`::
-The names of the realms that should be consulted for delegate authorization.
+The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the SAML realm does not perform role mapping and
 instead loads the user from the listed realms.
 See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
@@ -1171,6 +1169,12 @@ this period of time. Specify the time period using the standard {es}
 
 `cache.max_users`:: The maximum number of user entries that can live in the
 cache at any given time. Defaults to 100,000.
+
+`authorization_realms`::
+The names of the realms that should be consulted for delegated authorization.
+If this setting is used, then the Kerberos realm does not perform role mapping and
+instead loads the user from the listed realms.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm]
 
 [float]
 [[load-balancing]]

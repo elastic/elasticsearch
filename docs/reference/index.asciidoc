@@ -55,11 +55,15 @@ include::index-modules.asciidoc[]
 
 include::ingest.asciidoc[]
 
+include::ilm/index.asciidoc[]
+
 include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]
 
 include::rollup/index.asciidoc[]
+
+include::frozen-indices.asciidoc[]
 
 include::rest-api/index.asciidoc[]
 

@@ -25,6 +25,8 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
@@ -52,6 +54,10 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.RethrottleRequest;
+import org.elasticsearch.client.core.MultiTermVectorsRequest;
+import org.elasticsearch.client.core.MultiTermVectorsResponse;
+import org.elasticsearch.client.core.TermVectorsRequest;
+import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -704,14 +710,15 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             for (BulkItemResponse bulkItemResponse : bulkResponse) { // <1>
                 DocWriteResponse itemResponse = bulkItemResponse.getResponse(); // <2>
 
-                if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.INDEX
-                        || bulkItemResponse.getOpType() == DocWriteRequest.OpType.CREATE) { // <3>
+                switch (bulkItemResponse.getOpType()) {
+                case INDEX:    // <3>
+                case CREATE:
                     IndexResponse indexResponse = (IndexResponse) itemResponse;
-
-                } else if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.UPDATE) { // <4>
+                    break;
+                case UPDATE:   // <4>
                     UpdateResponse updateResponse = (UpdateResponse) itemResponse;
-
-                } else if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.DELETE) { // <5>
+                    break;
+                case DELETE:   // <5>
                     DeleteResponse deleteResponse = (DeleteResponse) itemResponse;
                 }
             }
@@ -724,8 +731,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::bulk-errors
             for (BulkItemResponse bulkItemResponse : bulkResponse) {
                 if (bulkItemResponse.isFailed()) { // <1>
-                    BulkItemResponse.Failure failure = bulkItemResponse.getFailure(); // <2>
-
+                    BulkItemResponse.Failure failure =
+                            bulkItemResponse.getFailure(); // <2>
                 }
             }
             // end::bulk-errors
@@ -744,6 +751,16 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.waitForActiveShards(2); // <1>
             request.waitForActiveShards(ActiveShardCount.ALL); // <2>
             // end::bulk-request-active-shards
+            // tag::bulk-request-pipeline
+            request.pipeline("pipelineId"); // <1>
+            // end::bulk-request-pipeline
+            // tag::bulk-request-routing
+            request.routing("routingId"); // <1>
+            // end::bulk-request-routing
+
+            // tag::bulk-request-index-type
+            BulkRequest defaulted = new BulkRequest("posts","_doc"); // <1>
+            // end::bulk-request-index-type
 
             // tag::bulk-execute-listener
             ActionListener<BulkResponse> listener = new ActionListener<BulkResponse>() {
@@ -835,8 +852,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::reindex-request-remote
             request.setRemoteInfo(
                 new RemoteInfo(
-                    "https", "localhost", 9002, null, new BytesArray(new MatchAllQueryBuilder().toString()),
-                    "user", "pass", Collections.emptyMap(), new TimeValue(100, TimeUnit.MILLISECONDS),
+                    "https", "localhost", 9002, null,
+                    new BytesArray(new MatchAllQueryBuilder().toString()),
+                    "user", "pass", Collections.emptyMap(),
+                    new TimeValue(100, TimeUnit.MILLISECONDS),
                     new TimeValue(100, TimeUnit.SECONDS)
                 )
             ); // <1>
@@ -857,7 +876,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
 
             // tag::reindex-execute
-            BulkByScrollResponse bulkResponse = client.reindex(request, RequestOptions.DEFAULT);
+            BulkByScrollResponse bulkResponse =
+                    client.reindex(request, RequestOptions.DEFAULT);
             // end::reindex-execute
             assertSame(0, bulkResponse.getSearchFailures().size());
             assertSame(0, bulkResponse.getBulkFailures().size());
@@ -874,9 +894,12 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             long bulkRetries = bulkResponse.getBulkRetries(); // <10>
             long searchRetries = bulkResponse.getSearchRetries(); // <11>
             TimeValue throttledMillis = bulkResponse.getStatus().getThrottled(); // <12>
-            TimeValue throttledUntilMillis = bulkResponse.getStatus().getThrottledUntil(); // <13>
-            List<ScrollableHitSource.SearchFailure> searchFailures = bulkResponse.getSearchFailures(); // <14>
-            List<BulkItemResponse.Failure> bulkFailures = bulkResponse.getBulkFailures(); // <15>
+            TimeValue throttledUntilMillis =
+                    bulkResponse.getStatus().getThrottledUntil(); // <13>
+            List<ScrollableHitSource.SearchFailure> searchFailures =
+                    bulkResponse.getSearchFailures(); // <14>
+            List<BulkItemResponse.Failure> bulkFailures =
+                    bulkResponse.getBulkFailures(); // <15>
             // end::reindex-response
         }
         {
@@ -884,8 +907,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setSourceIndices("source1");
             request.setDestIndex("dest");
 
+            ActionListener<BulkByScrollResponse> listener;
             // tag::reindex-execute-listener
-            ActionListener<BulkByScrollResponse> listener = new ActionListener<BulkByScrollResponse>() {
+            listener = new ActionListener<BulkByScrollResponse>() {
                 @Override
                 public void onResponse(BulkByScrollResponse bulkResponse) {
                     // <1>
@@ -935,8 +959,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::rethrottle-request-execution
         }
 
+        ActionListener<ListTasksResponse> listener;
         // tag::rethrottle-request-async-listener
-        ActionListener<ListTasksResponse> listener = new ActionListener<ListTasksResponse>() {
+        listener = new ActionListener<ListTasksResponse>() {
             @Override
             public void onResponse(ListTasksResponse response) {
                 // <1>
@@ -955,9 +980,12 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
         RethrottleRequest request = new RethrottleRequest(taskId);
         // tag::rethrottle-execute-async
-        client.reindexRethrottleAsync(request, RequestOptions.DEFAULT, listener);       // <1>
-        client.updateByQueryRethrottleAsync(request, RequestOptions.DEFAULT, listener); // <2>
-        client.deleteByQueryRethrottleAsync(request, RequestOptions.DEFAULT, listener); // <3>
+        client.reindexRethrottleAsync(request,
+                RequestOptions.DEFAULT, listener); // <1>
+        client.updateByQueryRethrottleAsync(request,
+                RequestOptions.DEFAULT, listener); // <2>
+        client.deleteByQueryRethrottleAsync(request,
+                RequestOptions.DEFAULT, listener); // <3>
         // end::rethrottle-execute-async
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
@@ -986,7 +1014,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // tag::update-by-query-request
-            UpdateByQueryRequest request = new UpdateByQueryRequest("source1", "source2"); // <1>
+            UpdateByQueryRequest request =
+                    new UpdateByQueryRequest("source1", "source2"); // <1>
             // end::update-by-query-request
             // tag::update-by-query-request-conflicts
             request.setConflicts("proceed"); // <1>
@@ -1030,7 +1059,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::update-by-query-request-indicesOptions
 
             // tag::update-by-query-execute
-            BulkByScrollResponse bulkResponse = client.updateByQuery(request, RequestOptions.DEFAULT);
+            BulkByScrollResponse bulkResponse =
+                    client.updateByQuery(request, RequestOptions.DEFAULT);
             // end::update-by-query-execute
             assertSame(0, bulkResponse.getSearchFailures().size());
             assertSame(0, bulkResponse.getBulkFailures().size());
@@ -1046,17 +1076,21 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             long bulkRetries = bulkResponse.getBulkRetries(); // <9>
             long searchRetries = bulkResponse.getSearchRetries(); // <10>
             TimeValue throttledMillis = bulkResponse.getStatus().getThrottled(); // <11>
-            TimeValue throttledUntilMillis = bulkResponse.getStatus().getThrottledUntil(); // <12>
-            List<ScrollableHitSource.SearchFailure> searchFailures = bulkResponse.getSearchFailures(); // <13>
-            List<BulkItemResponse.Failure> bulkFailures = bulkResponse.getBulkFailures(); // <14>
+            TimeValue throttledUntilMillis =
+                    bulkResponse.getStatus().getThrottledUntil(); // <12>
+            List<ScrollableHitSource.SearchFailure> searchFailures =
+                    bulkResponse.getSearchFailures(); // <13>
+            List<BulkItemResponse.Failure> bulkFailures =
+                    bulkResponse.getBulkFailures(); // <14>
             // end::update-by-query-response
         }
         {
             UpdateByQueryRequest request = new UpdateByQueryRequest();
             request.indices("source1");
 
+            ActionListener<BulkByScrollResponse> listener;
             // tag::update-by-query-execute-listener
-            ActionListener<BulkByScrollResponse> listener = new ActionListener<BulkByScrollResponse>() {
+            listener = new ActionListener<BulkByScrollResponse>() {
                 @Override
                 public void onResponse(BulkByScrollResponse bulkResponse) {
                     // <1>
@@ -1104,7 +1138,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // tag::delete-by-query-request
-            DeleteByQueryRequest request = new DeleteByQueryRequest("source1", "source2"); // <1>
+            DeleteByQueryRequest request =
+                    new DeleteByQueryRequest("source1", "source2"); // <1>
             // end::delete-by-query-request
             // tag::delete-by-query-request-conflicts
             request.setConflicts("proceed"); // <1>
@@ -1138,7 +1173,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::delete-by-query-request-indicesOptions
 
             // tag::delete-by-query-execute
-            BulkByScrollResponse bulkResponse = client.deleteByQuery(request, RequestOptions.DEFAULT);
+            BulkByScrollResponse bulkResponse =
+                    client.deleteByQuery(request, RequestOptions.DEFAULT);
             // end::delete-by-query-execute
             assertSame(0, bulkResponse.getSearchFailures().size());
             assertSame(0, bulkResponse.getBulkFailures().size());
@@ -1153,17 +1189,21 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             long bulkRetries = bulkResponse.getBulkRetries(); // <8>
             long searchRetries = bulkResponse.getSearchRetries(); // <9>
             TimeValue throttledMillis = bulkResponse.getStatus().getThrottled(); // <10>
-            TimeValue throttledUntilMillis = bulkResponse.getStatus().getThrottledUntil(); // <11>
-            List<ScrollableHitSource.SearchFailure> searchFailures = bulkResponse.getSearchFailures(); // <12>
-            List<BulkItemResponse.Failure> bulkFailures = bulkResponse.getBulkFailures(); // <13>
+            TimeValue throttledUntilMillis =
+                    bulkResponse.getStatus().getThrottledUntil(); // <11>
+            List<ScrollableHitSource.SearchFailure> searchFailures =
+                    bulkResponse.getSearchFailures(); // <12>
+            List<BulkItemResponse.Failure> bulkFailures =
+                    bulkResponse.getBulkFailures(); // <13>
             // end::delete-by-query-response
         }
         {
             DeleteByQueryRequest request = new DeleteByQueryRequest();
             request.indices("source1");
 
+            ActionListener<BulkByScrollResponse> listener;
             // tag::delete-by-query-execute-listener
-            ActionListener<BulkByScrollResponse> listener = new ActionListener<BulkByScrollResponse>() {
+            listener = new ActionListener<BulkByScrollResponse>() {
                 @Override
                 public void onResponse(BulkByScrollResponse bulkResponse) {
                     // <1>
@@ -1426,14 +1466,16 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
 
                 @Override
-                public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                public void afterBulk(long executionId, BulkRequest request,
+                        Throwable failure) {
                     // <4>
                 }
             };
 
             BulkProcessor bulkProcessor = BulkProcessor.builder(
-                            (request, bulkListener) -> client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
-                            listener).build(); // <5>
+                    (request, bulkListener) ->
+                        client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
+                    listener).build(); // <5>
             // end::bulk-processor-init
             assertNotNull(bulkProcessor);
 
@@ -1484,7 +1526,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
 
                 @Override
-                public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                public void afterBulk(long executionId, BulkRequest request,
+                        Throwable failure) {
                     logger.error("Failed to execute bulk", failure); // <3>
                 }
             };
@@ -1492,7 +1535,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::bulk-processor-options
             BulkProcessor.Builder builder = BulkProcessor.builder(
-                    (request, bulkListener) -> client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener);
+                    (request, bulkListener) ->
+                        client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
+                    listener);
             builder.setBulkActions(500); // <1>
             builder.setBulkSize(new ByteSizeValue(1L, ByteSizeUnit.MB)); // <2>
             builder.setConcurrentRequests(0); // <3>
@@ -1501,6 +1546,205 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     .constantBackoff(TimeValue.timeValueSeconds(1L), 3)); // <5>
             // end::bulk-processor-options
         }
+    }
+
+    // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
+    public void testTermVectors() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping("_doc", "user", "type=keyword");
+        CreateIndexResponse authorsResponse = client.indices().create(authorsRequest, RequestOptions.DEFAULT);
+        assertTrue(authorsResponse.isAcknowledged());
+        client.index(new IndexRequest("index", "_doc", "1").source("user", "kimchy"), RequestOptions.DEFAULT);
+        Response refreshResponse = client().performRequest(new Request("POST", "/authors/_refresh"));
+        assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
+
+        {
+            // tag::term-vectors-request
+            TermVectorsRequest request = new TermVectorsRequest("authors", "_doc", "1");
+            request.setFields("user");
+            // end::term-vectors-request
+        }
+
+        {
+            // tag::term-vectors-request-artificial
+
+            XContentBuilder docBuilder = XContentFactory.jsonBuilder();
+            docBuilder.startObject().field("user", "guest-user").endObject();
+            TermVectorsRequest request = new TermVectorsRequest("authors",
+                "_doc",
+                docBuilder); // <1>
+            // end::term-vectors-request-artificial
+
+            // tag::term-vectors-request-optional-arguments
+            request.setFieldStatistics(false); // <1>
+            request.setTermStatistics(true); // <2>
+            request.setPositions(false); // <3>
+            request.setOffsets(false); // <4>
+            request.setPayloads(false); // <5>
+
+            Map<String, Integer> filterSettings = new HashMap<>();
+            filterSettings.put("max_num_terms", 3);
+            filterSettings.put("min_term_freq", 1);
+            filterSettings.put("max_term_freq", 10);
+            filterSettings.put("min_doc_freq", 1);
+            filterSettings.put("max_doc_freq", 100);
+            filterSettings.put("min_word_length", 1);
+            filterSettings.put("max_word_length", 10);
+
+            request.setFilterSettings(filterSettings);  // <6>
+
+            Map<String, String> perFieldAnalyzer = new HashMap<>();
+            perFieldAnalyzer.put("user", "keyword");
+            request.setPerFieldAnalyzer(perFieldAnalyzer);  // <7>
+
+            request.setRealtime(false); // <8>
+            request.setRouting("routing"); // <9>
+            // end::term-vectors-request-optional-arguments
+        }
+
+        TermVectorsRequest request = new TermVectorsRequest("authors", "_doc", "1");
+        request.setFields("user");
+
+        // tag::term-vectors-execute
+        TermVectorsResponse response =
+                client.termvectors(request, RequestOptions.DEFAULT);
+        // end::term-vectors-execute
+
+
+        // tag::term-vectors-response
+        String index = response.getIndex(); // <1>
+        String type = response.getType(); // <2>
+        String id = response.getId(); // <3>
+        boolean found = response.getFound(); // <4>
+        // end::term-vectors-response
+
+        if (response.getTermVectorsList() != null) {
+            // tag::term-vectors-term-vectors
+            for (TermVectorsResponse.TermVector tv : response.getTermVectorsList()) {
+                String fieldname = tv.getFieldName(); // <1>
+                int docCount = tv.getFieldStatistics().getDocCount(); // <2>
+                long sumTotalTermFreq =
+                        tv.getFieldStatistics().getSumTotalTermFreq(); // <3>
+                long sumDocFreq = tv.getFieldStatistics().getSumDocFreq(); // <4>
+                if (tv.getTerms() != null) {
+                    List<TermVectorsResponse.TermVector.Term> terms =
+                            tv.getTerms(); // <5>
+                    for (TermVectorsResponse.TermVector.Term term : terms) {
+                        String termStr = term.getTerm(); // <6>
+                        int termFreq = term.getTermFreq(); // <7>
+                        int docFreq = term.getDocFreq(); // <8>
+                        long totalTermFreq = term.getTotalTermFreq(); // <9>
+                        float score = term.getScore(); // <10>
+                        if (term.getTokens() != null) {
+                            List<TermVectorsResponse.TermVector.Token> tokens =
+                                    term.getTokens(); // <11>
+                            for (TermVectorsResponse.TermVector.Token token : tokens) {
+                                int position = token.getPosition(); // <12>
+                                int startOffset = token.getStartOffset(); // <13>
+                                int endOffset = token.getEndOffset(); // <14>
+                                String payload = token.getPayload(); // <15>
+                            }
+                        }
+                    }
+                }
+            }
+            // end::term-vectors-term-vectors
+        }
+
+        ActionListener<TermVectorsResponse> listener;
+        // tag::term-vectors-execute-listener
+        listener = new ActionListener<TermVectorsResponse>() {
+            @Override
+            public void onResponse(TermVectorsResponse termVectorsResponse) {
+                // <1>
+            }
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::term-vectors-execute-listener
+        CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+        // tag::term-vectors-execute-async
+        client.termvectorsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::term-vectors-execute-async
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+    }
+
+
+    // Not entirely sure if _mtermvectors belongs to CRUD, and in the absence of a better place, will have it here
+    public void testMultiTermVectors() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping("_doc", "user", "type=text");
+        CreateIndexResponse authorsResponse = client.indices().create(authorsRequest, RequestOptions.DEFAULT);
+        assertTrue(authorsResponse.isAcknowledged());
+        client.index(new IndexRequest("index", "_doc", "1").source("user", "kimchy"), RequestOptions.DEFAULT);
+        client.index(new IndexRequest("index", "_doc", "2").source("user", "s1monw"), RequestOptions.DEFAULT);
+        Response refreshResponse = client().performRequest(new Request("POST", "/authors/_refresh"));
+        assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
+
+        {
+            // tag::multi-term-vectors-request
+            MultiTermVectorsRequest request = new MultiTermVectorsRequest(); // <1>
+            TermVectorsRequest tvrequest1 =
+                new TermVectorsRequest("authors", "_doc", "1");
+            tvrequest1.setFields("user");
+            request.add(tvrequest1); // <2>
+
+            XContentBuilder docBuilder = XContentFactory.jsonBuilder();
+            docBuilder.startObject().field("user", "guest-user").endObject();
+            TermVectorsRequest tvrequest2 =
+                new TermVectorsRequest("authors", "_doc", docBuilder);
+            request.add(tvrequest2); // <3>
+            // end::multi-term-vectors-request
+        }
+
+        // tag::multi-term-vectors-request-template
+        TermVectorsRequest tvrequestTemplate =
+            new TermVectorsRequest("authors", "_doc", "fake_id"); // <1>
+        tvrequestTemplate.setFields("user");
+        String[] ids = {"1", "2"};
+        MultiTermVectorsRequest request =
+            new MultiTermVectorsRequest(ids, tvrequestTemplate); // <2>
+        // end::multi-term-vectors-request-template
+
+        // tag::multi-term-vectors-execute
+        MultiTermVectorsResponse response =
+            client.mtermvectors(request, RequestOptions.DEFAULT);
+        // end::multi-term-vectors-execute
+
+        // tag::multi-term-vectors-response
+        List<TermVectorsResponse> tvresponseList =
+            response.getTermVectorsResponses(); // <1>
+        if (tvresponseList != null) {
+            for (TermVectorsResponse tvresponse : tvresponseList) {
+            }
+        }
+        // end::multi-term-vectors-response
+
+        ActionListener<MultiTermVectorsResponse> listener;
+        // tag::multi-term-vectors-execute-listener
+        listener = new ActionListener<MultiTermVectorsResponse>() {
+            @Override
+            public void onResponse(MultiTermVectorsResponse mtvResponse) {
+                // <1>
+            }
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::multi-term-vectors-execute-listener
+        CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+        // tag::multi-term-vectors-execute-async
+        client.mtermvectorsAsync(
+            request, RequestOptions.DEFAULT, listener); // <1>
+        // end::multi-term-vectors-execute-async
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
     }
 
     @SuppressWarnings("unused")
@@ -1541,7 +1785,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 "index",         // <1>
                 "type",          // <2>
                 "example_id"));  // <3>
-            request.add(new MultiGetRequest.Item("index", "type", "another_id"));  // <4>
+            request.add(new MultiGetRequest.Item("index", "type", "another_id")); // <4>
             // end::multi-get-request
 
             // Add a missing index so we can test it.
@@ -1592,11 +1836,12 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // TODO status is broken! fix in a followup
             // assertEquals(RestStatus.NOT_FOUND, ee.status());        // <4>
             assertThat(e.getMessage(),
-                containsString("reason=no such index"));               // <5>
+                containsString("reason=no such index [missing_index]")); // <5>
             // end::multi-get-indexnotfound
 
+            ActionListener<MultiGetResponse> listener;
             // tag::multi-get-execute-listener
-            ActionListener<MultiGetResponse> listener = new ActionListener<MultiGetResponse>() {
+            listener = new ActionListener<MultiGetResponse>() {
                 @Override
                 public void onResponse(MultiGetResponse response) {
                     // <1>

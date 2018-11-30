@@ -253,8 +253,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     iteration.transportService.sendRequest(node, "action", new TestRequest(),
                             TransportRequestOptions.EMPTY, new TransportResponseHandler<TestResponse>() {
                         @Override
-                        public TestResponse newInstance() {
-                            return new TestResponse();
+                        public TestResponse read(StreamInput in) {
+                            return new TestResponse(in);
                         }
 
                         @Override
@@ -416,7 +416,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             }
             DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(transportService.getLocalDiscoNode()).build();
             ClusterState build = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
-            channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build, 0L));
+            channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build, 0L, false));
         }
 
         void blockRequest() {
@@ -435,5 +435,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
     private static class TestResponse extends TransportResponse {
 
+        private TestResponse() {}
+        private TestResponse(StreamInput in) {}
     }
 }

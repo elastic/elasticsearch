@@ -29,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.ExplainableSearchScript;
+import org.elasticsearch.script.ExplainableScoreScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -94,7 +94,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         }
     }
 
-    static class MyScript extends ScoreScript implements ExplainableSearchScript {
+    static class MyScript extends ScoreScript implements ExplainableScoreScript {
 
         MyScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
             super(params, lookup, leafContext);

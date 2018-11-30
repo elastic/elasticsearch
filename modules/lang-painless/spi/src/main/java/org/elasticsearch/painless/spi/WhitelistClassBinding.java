@@ -42,9 +42,7 @@ public class WhitelistClassBinding {
     /** The method name for this class binding. */
     public final String methodName;
 
-    /**
-     * The canonical type name for the return type.
-     */
+    /** The canonical type name for the return type. */
     public final String returnCanonicalTypeName;
 
     /**

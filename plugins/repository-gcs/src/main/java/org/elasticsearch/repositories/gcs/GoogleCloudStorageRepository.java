@@ -19,10 +19,13 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -38,6 +41,7 @@ import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.simpleString;
 
 class GoogleCloudStorageRepository extends BlobStoreRepository {
+    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageRepository.class);
 
     // package private for testing
     static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
@@ -55,6 +59,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
             byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope, Property.Dynamic);
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
 
+    private final Settings settings;
     private final GoogleCloudStorageService storageService;
     private final BlobPath basePath;
     private final boolean compress;
@@ -66,6 +71,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
                                         NamedXContentRegistry namedXContentRegistry,
                                         GoogleCloudStorageService storageService) {
         super(metadata, environment.settings(), namedXContentRegistry);
+        this.settings = environment.settings();
         this.storageService = storageService;
 
         String basePath = BASE_PATH.get(metadata.settings());
@@ -88,7 +94,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
 
     @Override
     protected GoogleCloudStorageBlobStore createBlobStore() {
-        return new GoogleCloudStorageBlobStore(settings, bucket, clientName, storageService);
+        return new GoogleCloudStorageBlobStore(bucket, clientName, storageService);
     }
 
     @Override

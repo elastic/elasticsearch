@@ -212,7 +212,7 @@ public class WatcherExecutorServiceBenchmark {
 
         @Override
         protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
-            return new ScheduleTriggerEngineMock(settings, scheduleRegistry, clock);
+            return new ScheduleTriggerEngineMock(scheduleRegistry, clock);
         }
     }
 }

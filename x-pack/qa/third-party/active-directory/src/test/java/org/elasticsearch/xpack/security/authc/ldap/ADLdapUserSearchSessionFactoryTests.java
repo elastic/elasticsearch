@@ -67,6 +67,7 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
         return secureSettings;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     public void testUserSearchWithActiveDirectory() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
@@ -90,8 +91,8 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
         });
         Settings fullSettings = builder.build();
         sslService = new SSLService(fullSettings, TestEnvironment.newEnvironment(fullSettings));
-        RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-                new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("ad", "ad-as-ldap-test"), globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "Bruce Banner";

@@ -139,10 +139,6 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         return (AB) this;
     }
 
-    public Map<String, MultiValuesSourceFieldConfig> fields() {
-        return fields;
-    }
-
     /**
      * Sets the {@link ValueType} for the value produced by this aggregation
      */
@@ -156,13 +152,6 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     /**
-     * Gets the {@link ValueType} for the value produced by this aggregation
-     */
-    public ValueType valueType() {
-        return valueType;
-    }
-
-    /**
      * Sets the format to use for the output of the aggregation.
      */
     @SuppressWarnings("unchecked")
@@ -172,13 +161,6 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         }
         this.format = format;
         return (AB) this;
-    }
-
-    /**
-     * Gets the format to use for the output of the aggregation.
-     */
-    public String format() {
-        return format;
     }
 
     @Override

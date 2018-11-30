@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.security.authc.support;
 import com.unboundid.ldap.sdk.DN;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.util.LDAPSDKUsageException;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
@@ -159,7 +159,7 @@ public interface UserRoleMapper {
      *
      */
     class DistinguishedNamePredicate implements Predicate<FieldExpression.FieldValue> {
-        private static final Logger LOGGER = Loggers.getLogger(DistinguishedNamePredicate.class);
+        private static final Logger LOGGER = LogManager.getLogger(DistinguishedNamePredicate.class);
 
         private final String string;
         private final DN dn;

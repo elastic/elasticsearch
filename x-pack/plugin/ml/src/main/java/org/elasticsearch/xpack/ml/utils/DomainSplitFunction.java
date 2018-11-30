@@ -22,7 +22,7 @@ import java.util.StringJoiner;
 
 public final class DomainSplitFunction {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =
+    private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(DomainSplitFunction.class));
 
     private static final int MAX_DOMAIN_PART_LENGTH = 63;
@@ -163,7 +163,7 @@ public final class DomainSplitFunction {
     public static List<String> domainSplit(String host, Map<String, Object> params) {
         // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("domainSplit",
+            deprecationLogger.deprecatedAndMaybeLog("domainSplit",
                 "Method [domainSplit] taking params is deprecated. Remove the params argument.");
             return null;
         });

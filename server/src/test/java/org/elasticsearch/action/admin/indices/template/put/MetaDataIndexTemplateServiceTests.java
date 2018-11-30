@@ -183,8 +183,8 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null,
                 xContentRegistry,
                 true);
-        MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService,
-                new AliasValidator(Settings.EMPTY), null,
+        MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(null, createIndexService,
+                new AliasValidator(), null,
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry);
 
         final List<Throwable> throwables = new ArrayList<>();
@@ -217,7 +217,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 xContentRegistry(),
                 true);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(
-                Settings.EMPTY, clusterService, createIndexService, new AliasValidator(Settings.EMPTY), indicesService,
+                clusterService, createIndexService, new AliasValidator(), indicesService,
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
 
         final List<Throwable> throwables = new ArrayList<>();

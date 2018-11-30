@@ -213,7 +213,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     private final DocValueFormat format;
     private final boolean keyed;
     private final long minDocCount;
-    private final EmptyBucketInfo emptyBucketInfo;
+    final EmptyBucketInfo emptyBucketInfo;
 
     InternalHistogram(String name, List<Bucket> buckets, BucketOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo,
             DocValueFormat formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,
@@ -302,7 +302,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         final PriorityQueue<IteratorAndCurrent> pq = new PriorityQueue<IteratorAndCurrent>(aggregations.size()) {
             @Override
             protected boolean lessThan(IteratorAndCurrent a, IteratorAndCurrent b) {
-                return a.current.key < b.current.key;
+                return Double.compare(a.current.key, b.current.key) < 0;
             }
         };
         for (InternalAggregation aggregation : aggregations) {
@@ -405,7 +405,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                         iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
                         key = nextKey(key);
                     }
-                    assert key == nextBucket.key;
+                    assert key == nextBucket.key || Double.isNaN(nextBucket.key) : "key: " + key + ", nextBucket.key: " + nextBucket.key;
                 }
                 lastBucket = iter.next();
             } while (iter.hasNext());

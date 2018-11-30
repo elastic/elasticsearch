@@ -36,7 +36,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class TcpTransportHandshakerTests extends ESTestCase {
+public class TransportHandshakerTests extends ESTestCase {
 
     private TcpTransportHandshaker handshaker;
     private DiscoveryNode node;

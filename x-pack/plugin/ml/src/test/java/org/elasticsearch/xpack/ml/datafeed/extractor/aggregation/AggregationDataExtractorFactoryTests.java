@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Date;
 
@@ -32,7 +31,7 @@ public class AggregationDataExtractorFactoryTests extends ESTestCase {
         client = mock(Client.class);
     }
 
-    public void testNewExtractor_GivenAlignedTimes() throws IOException {
+    public void testNewExtractor_GivenAlignedTimes() {
         AggregationDataExtractorFactory factory = createFactory(1000L);
 
         AggregationDataExtractor dataExtractor = (AggregationDataExtractor) factory.newExtractor(2000, 5000);
@@ -41,7 +40,7 @@ public class AggregationDataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractor.getContext().end, equalTo(5000L));
     }
 
-    public void testNewExtractor_GivenNonAlignedTimes() throws IOException {
+    public void testNewExtractor_GivenNonAlignedTimes() {
         AggregationDataExtractorFactory factory = createFactory(1000L);
 
         AggregationDataExtractor dataExtractor = (AggregationDataExtractor) factory.newExtractor(3980, 9200);
@@ -50,7 +49,7 @@ public class AggregationDataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractor.getContext().end, equalTo(9000L));
     }
 
-    private AggregationDataExtractorFactory createFactory(long histogramInterval) throws IOException {
+    private AggregationDataExtractorFactory createFactory(long histogramInterval) {
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder().addAggregator(
                 AggregationBuilders.histogram("time").field("time").interval(histogramInterval).subAggregation(
                         AggregationBuilders.max("time").field("time")));

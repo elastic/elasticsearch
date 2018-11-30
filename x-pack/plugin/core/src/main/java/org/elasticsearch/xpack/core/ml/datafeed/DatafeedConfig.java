@@ -603,7 +603,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         public void setParsedQuery(QueryBuilder query) {
             try {
                 setQuery(QUERY_TRANSFORMER.toMap(ExceptionsHelper.requireNonNull(query, QUERY.getPreferredName())));
-            } catch (IOException | IllegalArgumentException exception) {
+            } catch (IOException | XContentParseException exception) {
                 if (exception.getCause() instanceof IllegalArgumentException) {
                     // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
                     throw ExceptionsHelper.unprocessableEntityException(
@@ -625,7 +625,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         public void setParsedAggregations(AggregatorFactories.Builder aggregations) {
             try {
                 setAggregations(AGG_TRANSFORMER.toMap(aggregations));
-            } catch (IOException | IllegalArgumentException exception) {
+            } catch (IOException | XContentParseException exception) {
                 // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
                 if (exception.getCause() instanceof IllegalArgumentException) {
                     throw ExceptionsHelper.unprocessableEntityException(

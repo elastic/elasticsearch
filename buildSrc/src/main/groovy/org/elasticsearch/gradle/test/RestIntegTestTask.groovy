@@ -115,11 +115,6 @@ public class RestIntegTestTask extends DefaultTask {
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured
         project.gradle.projectsEvaluated {
-            // we need to do this here to give projects a chance to change it
-            if (includePackaged) {
-                copyRestSpec.include 'rest-api-spec/test/**'
-            }
-
             if (enabled == false) {
                 runner.enabled = false
                 clusterInit.enabled = false

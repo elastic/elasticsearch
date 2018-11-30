@@ -52,11 +52,11 @@ import static org.elasticsearch.gateway.GatewayService.Updaters.recoverClusterBl
 import static org.elasticsearch.gateway.GatewayService.Updaters.removeStateNotRecoveredBlock;
 import static org.elasticsearch.gateway.GatewayService.Updaters.updateRoutingTable;
 import static org.elasticsearch.gateway.GatewayService.Updaters.upgradeAndArchiveUnknownOrInvalidSettings;
-import static org.elasticsearch.mock.orig.Mockito.mock;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 
 public class GatewayServiceTests extends ESTestCase {
 
@@ -101,8 +101,8 @@ public class GatewayServiceTests extends ESTestCase {
         runUpgradeSettings(MetaData.Builder::transientSettings, MetaData::transientSettings);
     }
 
-    private void runUpgradeSettings(
-            final BiConsumer<MetaData.Builder, Settings> applySettingsToBuilder, final Function<MetaData, Settings> metaDataSettings) {
+    private void runUpgradeSettings(final BiConsumer<MetaData.Builder, Settings> applySettingsToBuilder,
+                                    final Function<MetaData, Settings> metaDataSettings) {
         final Setting<String> oldSetting = Setting.simpleString("foo.old", Setting.Property.Dynamic, Setting.Property.NodeScope);
         final Setting<String> newSetting = Setting.simpleString("foo.new", Setting.Property.Dynamic, Setting.Property.NodeScope);
         final Set<Setting<?>> settingsSet =

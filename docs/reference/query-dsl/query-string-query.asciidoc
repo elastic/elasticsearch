@@ -320,11 +320,9 @@ By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.
 [float]
 ==== Minimum should match
 
-Since the `query_string` doesn't split on whitespace anymore, its value is
-analyzed entirely. One query is created for each field and finally the field
-queries are merged into a single query. When the final query is a boolean query
-with a single clause which is the disjunction max over the fields, the
-`minimum_should_match` parameter can't be applied.
+The `query_string` splits the query around each operator to create a boolean
+query for the entire input. You can use `minimum_should_match` to control how
+many "should" clauses in the resulting query should match.
 
 [source,js]
 --------------------------------------------------

@@ -83,8 +83,9 @@ setup:
       reason: hits.total is returned as an object in 7.0.0
   - do:
       search:
-        query:
-          match_all: {}
+        body:
+          query:
+            match_all: {}
 
-  - match: {hits.total.value:    2}
+  - match: {hits.total.value: 2}
   - match: {hits.total.relation: eq}

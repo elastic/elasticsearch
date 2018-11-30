@@ -730,13 +730,15 @@ GET test/_doc/2
   "_type": "_doc",
   "_id": "2",
   "_version": 1,
+  "_seq_no": 22,
+  "_primary_term": 1,
   "found": true,
   "_source": {
     "foo": "bar"
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term": 1/"_primary_term" : $body._primary_term/]
 ////
 
 The source document can also use dot delimited fields to represent nested fields.
@@ -967,6 +969,8 @@ GET test/_doc/2
   "_type": "_doc",
   "_id": "2",
   "_version": 1,
+  "_seq_no": 34,
+  "_primary_term": 1,
   "found": true,
   "_source": {
     "tags": [
@@ -976,7 +980,7 @@ GET test/_doc/2
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 ////
 
 
@@ -1088,6 +1092,8 @@ GET test/_doc/1
   "_type": "_doc",
   "_id": "1",
   "_version": 1,
+  "_seq_no": 60,
+  "_primary_term": 1,
   "found": true,
   "_source": {
     "href": {
@@ -1097,7 +1103,7 @@ GET test/_doc/1
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 Regular expressions can be expensive and should be avoided if viable
@@ -1548,11 +1554,11 @@ PUT /myindex/_doc/1?pipeline=monthlyindex
     "successful" : 1,
     "failed" : 0
   },
-  "_seq_no" : 0,
+  "_seq_no" : 55,
   "_primary_term" : 1
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 The above request will not index this document into the `myindex` index, but into the `myindex-2016-04-01` index because
@@ -2787,11 +2793,11 @@ Response from the index request:
     "successful": 1,
     "failed": 0
   },
-  "_seq_no": 0,
+  "_seq_no": 66,
   "_primary_term": 1,
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 Indexed document:
 
@@ -2963,11 +2969,11 @@ The response from the above index request:
     "successful": 1,
     "failed": 0
   },
-  "_seq_no": 0,
+  "_seq_no": 89,
   "_primary_term": 1,
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 In the above response, you can see that our document was actually indexed into `my_index` instead of
 `any_index`. This type of manipulation is often convenient in pipelines that have various branches of transformation,

@@ -57,6 +57,8 @@ Which returns
   "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
+  "_seq_no": 22,
+  "_primary_term": 1,
   "_source": {
     "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36",
     "user_agent": {
@@ -73,7 +75,7 @@ Which returns
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term": 1/"_primary_term" : $body._primary_term/]
 
 ===== Using a custom regex file
 To use a custom regex file for parsing the user agents, that file has to be put into the `config/ingest-user-agent` directory and

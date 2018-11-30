@@ -31,10 +31,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.Percentile;
-import org.elasticsearch.search.aggregations.metrics.PercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -78,18 +74,14 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
                 Iterator<Percentile> rankIterator = ranks.iterator();
                 Percentile rank = rankIterator.next();
                 assertEquals(0.1, rank.getValue(), 0d);
-                // TODO: Fix T-Digest: this assertion should pass but we currently get ~15
-                // https://github.com/elastic/elasticsearch/issues/14851
-                // assertThat(rank.getPercent(), Matchers.equalTo(0d));
+                assertThat(rank.getPercent(), Matchers.equalTo(0d));
                 rank = rankIterator.next();
                 assertEquals(0.5, rank.getValue(), 0d);
                 assertThat(rank.getPercent(), Matchers.greaterThan(0d));
                 assertThat(rank.getPercent(), Matchers.lessThan(100d));
                 rank = rankIterator.next();
                 assertEquals(12, rank.getValue(), 0d);
-                // TODO: Fix T-Digest: this assertion should pass but we currently get ~59
-                // https://github.com/elastic/elasticsearch/issues/14851
-                // assertThat(rank.getPercent(), Matchers.equalTo(100d));
+                assertThat(rank.getPercent(), Matchers.equalTo(100d));
                 assertFalse(rankIterator.hasNext());
             }
         }

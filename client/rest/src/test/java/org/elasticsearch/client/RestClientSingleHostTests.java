@@ -357,10 +357,17 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         for (String warningHeaderText : warningHeaderTexts) {
             options.addHeader("Warning", warningHeaderText);
         }
+        boolean thisRequestStrictDeprecationMode;
+        if (randomBoolean()) {
+            thisRequestStrictDeprecationMode = randomBoolean();
+            options.setOverrideStrictDeprecationMode(thisRequestStrictDeprecationMode);
+        } else {
+            thisRequestStrictDeprecationMode = strictDeprecationMode;
+        }
         request.setOptions(options);
 
         Response response;
-        if (strictDeprecationMode) {
+        if (thisRequestStrictDeprecationMode) {
             try {
                 restClient.performRequest(request);
                 fail("expected ResponseException because strict deprecation mode is enabled");

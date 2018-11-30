@@ -36,19 +36,27 @@ import java.util.ArrayList;
  * manipulated without changing Elasticsearch's behavior.
  */
 public final class RequestOptions {
+    /**
+     * Default request options.
+     */
     public static final RequestOptions DEFAULT = new Builder(
-            Collections.<Header>emptyList(), HeapBufferedResponseConsumerFactory.DEFAULT).build();
+            Collections.<Header>emptyList(), HeapBufferedResponseConsumerFactory.DEFAULT, null).build();
 
     private final List<Header> headers;
     private final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
+    private final Boolean overrideStrictDeprecationMode;
 
     private RequestOptions(Builder builder) {
         this.headers = Collections.unmodifiableList(new ArrayList<>(builder.headers));
         this.httpAsyncResponseConsumerFactory = builder.httpAsyncResponseConsumerFactory;
+        this.overrideStrictDeprecationMode = builder.overrideStrictDeprecationMode;
     }
 
+    /**
+     * Create a builder that contains these options but can be modified.
+     */
     public Builder toBuilder() {
-        return new Builder(headers, httpAsyncResponseConsumerFactory);
+        return new Builder(headers, httpAsyncResponseConsumerFactory, overrideStrictDeprecationMode);
     }
 
     /**
@@ -66,6 +74,15 @@ public final class RequestOptions {
      */
     public HttpAsyncResponseConsumerFactory getHttpAsyncResponseConsumerFactory() {
         return httpAsyncResponseConsumerFactory;
+    }
+
+    /**
+     * Override for the client's default for
+     * {@link RestClientBuilder#setStrictDeprecationMode strict deprecation}
+     * . Null means accept the client's default.
+     */
+    public Boolean getOverrideStrictDeprecationMode() {
+        return overrideStrictDeprecationMode;
     }
 
     @Override
@@ -106,13 +123,21 @@ public final class RequestOptions {
         return Objects.hash(headers, httpAsyncResponseConsumerFactory);
     }
 
+    /**
+     * Builds {@link RequestOptions}. Get one by calling
+     * {@link RequestOptions#toBuilder} on {@link RequestOptions#DEFAULT} or
+     * any other {@linkplain RequestOptions}.
+     */
     public static class Builder {
         private final List<Header> headers;
         private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
+        private Boolean overrideStrictDeprecationMode;
 
-        private Builder(List<Header> headers, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {
+        private Builder(List<Header> headers, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
+                Boolean overrideStrictDeprecationMode) {
             this.headers = new ArrayList<>(headers);
             this.httpAsyncResponseConsumerFactory = httpAsyncResponseConsumerFactory;
+            this.overrideStrictDeprecationMode = overrideStrictDeprecationMode;
         }
 
         /**
@@ -140,6 +165,15 @@ public final class RequestOptions {
         public void setHttpAsyncResponseConsumerFactory(HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {
             this.httpAsyncResponseConsumerFactory =
                     Objects.requireNonNull(httpAsyncResponseConsumerFactory, "httpAsyncResponseConsumerFactory cannot be null");
+        }
+
+        /**
+         * Override the client's default for
+         * {@link RestClientBuilder#setStrictDeprecationMode strict deprecation}
+         * . Null means accept the client's default
+         */
+        public void setOverrideStrictDeprecationMode(Boolean overrideStrictDeprecationMode) {
+            this.overrideStrictDeprecationMode = overrideStrictDeprecationMode;
         }
     }
 

@@ -29,6 +29,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -618,7 +619,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Whether the used REST client should return any response containing at
      * least one warning header as a failure.
+     * @deprecated always run in strict mode and use
+     *   {@link RequestOptions.Builder#setOverrideStrictDeprecationMode} to
+     *   enable perissive mode for individual requests
      */
+    @Deprecated
     protected boolean getStrictDeprecationMode() {
         return true;
     }

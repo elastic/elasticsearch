@@ -274,12 +274,15 @@ public class RestClient implements Closeable {
         setHeaders(httpRequest, request.getOptions().getHeaders());
         FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(listener);
         long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextNode(), httpRequest, ignoreErrorCodes,
+        boolean thisRequestStrictDeprecationMode = request.getOptions().getOverrideStrictDeprecationMode() == null ?
+                strictDeprecationMode : request.getOptions().getOverrideStrictDeprecationMode();
+        performRequestAsync(startTime, nextNode(), httpRequest, ignoreErrorCodes, thisRequestStrictDeprecationMode,
                 request.getOptions().getHttpAsyncResponseConsumerFactory(), failureTrackingResponseListener);
     }
 
     private void performRequestAsync(final long startTime, final NodeTuple<Iterator<Node>> nodeTuple, final HttpRequestBase request,
                                      final Set<Integer> ignoreErrorCodes,
+                                     final boolean thisRequestStrictDeprecationMode,
                                      final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                      final FailureTrackingResponseListener listener) {
         final Node node = nodeTuple.nodes.next();
@@ -298,7 +301,7 @@ public class RestClient implements Closeable {
                     Response response = new Response(request.getRequestLine(), node.getHost(), httpResponse);
                     if (isSuccessfulResponse(statusCode) || ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
                         onResponse(node);
-                        if (strictDeprecationMode && response.hasWarnings()) {
+                        if (thisRequestStrictDeprecationMode && response.hasWarnings()) {
                             listener.onDefinitiveFailure(new ResponseException(response));
                         } else {
                             listener.onSuccess(response);
@@ -343,7 +346,8 @@ public class RestClient implements Closeable {
                     } else {
                         listener.trackFailure(exception);
                         request.reset();
-                        performRequestAsync(startTime, nodeTuple, request, ignoreErrorCodes, httpAsyncResponseConsumerFactory, listener);
+                        performRequestAsync(startTime, nodeTuple, request, ignoreErrorCodes,
+                                thisRequestStrictDeprecationMode, httpAsyncResponseConsumerFactory, listener);
                     }
                 } else {
                     listener.onDefinitiveFailure(exception);

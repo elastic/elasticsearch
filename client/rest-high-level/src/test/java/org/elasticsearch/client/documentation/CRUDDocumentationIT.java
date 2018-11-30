@@ -1843,7 +1843,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // TODO status is broken! fix in a followup
             // assertEquals(RestStatus.NOT_FOUND, ee.status());        // <4>
             assertThat(e.getMessage(),
-                containsString("reason=no such index [missing_index]"));               // <5>
+              containsString("reason=no such index [missing_index]")); // <5>
             // end::multi-get-indexnotfound
 
             ActionListener<MultiGetResponse> listener;

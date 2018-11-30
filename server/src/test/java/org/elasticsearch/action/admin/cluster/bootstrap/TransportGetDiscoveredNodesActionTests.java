@@ -68,7 +68,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
-import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
@@ -259,30 +258,15 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         assertWaitConditionFailedOnDuplicate(getDiscoveredNodesRequest, '[' + ip + "] matches [");
     }
 
-    public void testGetsDiscoveredNodesDuplicateIp() throws InterruptedException {
+    public void testGetsDiscoveredNodesDuplicateName() throws InterruptedException {
         setupGetDiscoveredNodesAction();
         final CountDownLatch latch = new CountDownLatch(1);
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequest.setRequiredNodes(
-            Arrays.asList(localNode.getAddress().getAddress(), otherNode.getAddress().getAddress()));
+        String name = localNode.getName();
+        getDiscoveredNodesRequest.setRequiredNodes(Arrays.asList(name, name));
         getDiscoveredNodesRequest.setWaitForNodes(1);
         getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
-        transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
-            @Override
-            public void handleResponse(GetDiscoveredNodesResponse response) {
-                throw new AssertionError("should not be called");
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                Throwable t = exp.getRootCause();
-                assertThat(t, instanceOf(IllegalArgumentException.class));
-                assertThat(t.getMessage(), is("There are duplicate entries in [cluster.initial_master_nodes]"));
-                latch.countDown();
-            }
-        });
-
-        latch.await(10L, TimeUnit.SECONDS);
+        assertWaitConditionFailedOnDuplicate(getDiscoveredNodesRequest, "[" + localNode + "] matches [" + name + ", " + name + ']');
     }
 
     public void testGetsDiscoveredNodesWithDuplicateMatchNameAndAddress() throws InterruptedException {

@@ -135,15 +135,11 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
     }
 
     private static boolean checkWaitRequirements(GetDiscoveredNodesRequest request, Set<DiscoveryNode> nodes) {
-        List<String> requirements = request.getRequiredNodes();
-        if (requirements.size() != new HashSet<>(requirements).size()) {
-            throw new IllegalArgumentException("There are duplicate entries in [cluster.initial_master_nodes]");
-        }
-
         if (nodes.size() < request.getWaitForNodes()) {
             return false;
         }
 
+        List<String> requirements = request.getRequiredNodes();
         final Set<DiscoveryNode> selectedNodes = new HashSet<>();
         for (final String requirement : requirements) {
             final Set<DiscoveryNode> matchingNodes
@@ -159,8 +155,7 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
             for (final DiscoveryNode matchingNode : matchingNodes) {
                 if (selectedNodes.add(matchingNode) == false) {
                     throw new IllegalArgumentException("[" + matchingNode + "] matches " +
-                        requirements.stream().filter(r -> matchesRequirement(matchingNode, requirement))
-                            .collect(Collectors.toList()));
+                        requirements.stream().filter(r -> matchesRequirement(matchingNode, requirement)).collect(Collectors.toList()));
                 }
             }
         }

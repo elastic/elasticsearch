@@ -317,4 +317,87 @@ The example above creates a boolean query:
 that matches documents with the term `ny` or the conjunction `new AND york`.
 By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.
 
+[float]
+==== Minimum should match
+
+Since the `query_string` doesn't split on whitespace anymore, its value is
+analyzed entirely. One query is created for each field and finally the field
+queries are merged into a single query. When the final query is a boolean query
+with a single clause which is the disjunction max over the fields, the
+`minimum_should_match` parameter can't be applied.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "query_string": {
+            "fields": [
+                "title"
+            ],
+            "query": "this that thus",
+            "minimum_should_match": 2
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The example above creates a boolean query:
+
+`(title:this title:that title:thus)~2`
+
+that matches documents with at least two of the terms `this`, `that` or `thus`
+in the single field `title`.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "query_string": {
+            "fields": [
+                "title",
+                "content"
+            ],
+            "query": "this that thus",
+            "minimum_should_match": 2
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The example above creates a boolean query:
+
+`((content:this content:that content:thus) | (title:this title:that title:thus))`
+
+that matches documents with the disjunction max over the fields `title` and
+`content`. Here the `minimum_should_match` parameter can't be applied.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "query_string": {
+            "fields": [
+                "title",
+                "content"
+            ],
+            "query": "this OR that OR thus",
+            "minimum_should_match": 2
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The example above creates a boolean query:
+
+`((content:this | title:this) (content:that | title:that) (content:thus | title:thus))~2`
+
+that matches documents with at least two of the three `SHOULD` clauses, each of
+them made of the disjunction max over the fields for each term.
+
 include::query-string-syntax.asciidoc[]

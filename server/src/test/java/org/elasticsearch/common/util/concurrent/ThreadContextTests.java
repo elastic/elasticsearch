@@ -55,6 +55,31 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("1", threadContext.getHeader("default"));
     }
 
+    public void testStashWithOrigin() {
+        final String origin = randomAlphaOfLengthBetween(4, 16);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        final boolean setOtherValues = randomBoolean();
+        if (setOtherValues) {
+            threadContext.putTransient("foo", "bar");
+            threadContext.putHeader("foo", "bar");
+        }
+
+        assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
+        try (ThreadContext.StoredContext storedContext = threadContext.stashWithOrigin(origin)) {
+            assertEquals(origin, threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
+            assertNull(threadContext.getTransient("foo"));
+            assertNull(threadContext.getTransient("bar"));
+        }
+
+        assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
+
+        if (setOtherValues) {
+            assertEquals("bar", threadContext.getTransient("foo"));
+            assertEquals("bar", threadContext.getHeader("foo"));
+        }
+    }
+
     public void testStashAndMerge() {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
         ThreadContext threadContext = new ThreadContext(build);

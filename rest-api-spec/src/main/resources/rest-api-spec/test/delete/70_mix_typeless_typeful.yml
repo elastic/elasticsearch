@@ -29,6 +29,8 @@
           type:   some_random_type
           id:     1
 
+ - match:   { error.root_cause.0.reason:   "/Rejecting.mapping.update.to.\\[index\\].as.the.final.mapping.would.have.more.than.1.type.*/" }
+
  - do:
       delete:
           index:  index

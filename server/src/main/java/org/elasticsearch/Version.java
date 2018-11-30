@@ -203,6 +203,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 int index = Collections.binarySearch(versions, tmp);
                 if (index < 0) {
                     index = -2 - index;
+                } else {
+                    assert false : "Version [" + tmp + "] is declared but absent from the switch statement in Version#fromId";
                 }
                 final org.apache.lucene.util.Version luceneVersion;
                 if (index == -1) {

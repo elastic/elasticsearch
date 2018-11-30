@@ -27,8 +27,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexNotFoundException;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -1503,12 +1501,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // version number and no checksum, even though the index itself is perfectly fine to restore, this
                     // empty shard would cause exceptions to be thrown.  Since there is no data to restore from an empty
                     // shard anyway, we just create the empty shard here and then exit.
-                    IndexWriter writer = new IndexWriter(store.directory(), new IndexWriterConfig(null)
-                        .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                        .setOpenMode(IndexWriterConfig.OpenMode.CREATE)
-                        .setIndexCreatedVersionMajor(version.luceneVersion.major)
-                        .setCommitOnClose(true));
-                    writer.close();
+                    store.createEmpty(targetShard.indexSettings().getIndexMetaData().getCreationVersion().luceneVersion);
                     return;
                 }
 

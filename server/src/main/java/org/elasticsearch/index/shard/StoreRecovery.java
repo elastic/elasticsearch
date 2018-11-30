@@ -149,11 +149,8 @@ final class StoreRecovery {
             final long maxSeqNo, final long maxUnsafeAutoIdTimestamp, IndexMetaData indexMetaData, int shardId, boolean split,
             boolean hasNested) throws IOException {
 
-        // clean target directory (if previous recovery attempt failed) and create a fresh segment file with the proper lucene version
-        Lucene.cleanLuceneIndex(target);
         assert sources.length > 0;
         final int luceneIndexCreatedVersionMajor = Lucene.readSegmentInfos(sources[0]).getIndexCreatedVersionMajor();
-        new SegmentInfos(luceneIndexCreatedVersionMajor).commit(target);
 
         final Directory hardLinkOrCopyTarget = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
 
@@ -164,7 +161,8 @@ final class StoreRecovery {
             // later once we stared it up otherwise we would need to wait for it here
             // we also don't specify a codec here and merges should use the engines for this index
             .setMergePolicy(NoMergePolicy.INSTANCE)
-            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+            .setOpenMode(IndexWriterConfig.OpenMode.CREATE)
+            .setIndexCreatedVersionMajor(luceneIndexCreatedVersionMajor);
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
         }

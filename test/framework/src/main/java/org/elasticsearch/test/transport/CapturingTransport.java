@@ -21,7 +21,6 @@ package org.elasticsearch.test.transport;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
@@ -100,11 +99,7 @@ public class CapturingTransport implements Transport {
         StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this, threadPool),
             settings, this, threadPool);
         connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> nodeConnected(discoveryNode));
-        connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> {
-            PlainActionFuture<Connection> future = PlainActionFuture.newFuture();
-            openConnection(discoveryNode, null, future);
-            return future.actionGet();
-        });
+        connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
         return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
             connectionManager);
     }
@@ -229,31 +224,7 @@ public class CapturingTransport implements Transport {
 
     @Override
     public PendingConnection openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
-        listener.onResponse(new Connection() {
-            @Override
-            public DiscoveryNode getNode() {
-                return node;
-            }
-
-            @Override
-            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                throws TransportException {
-                onSendRequest(requestId, action, request, node);
-            }
-
-            @Override
-            public void addCloseListener(ActionListener<Void> listener) {
-            }
-
-            @Override
-            public boolean isClosed() {
-                return false;
-            }
-
-            @Override
-            public void close() {
-            }
-        });
+        listener.onResponse(createConnection(node));
         return new PendingConnection(Collections.emptyList());
     }
 
@@ -353,4 +324,31 @@ public class CapturingTransport implements Transport {
         return false;
     }
 
+    private Connection createConnection(DiscoveryNode node) {
+        return new Connection() {
+            @Override
+            public DiscoveryNode getNode() {
+                return node;
+            }
+
+            @Override
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                throws TransportException {
+                onSendRequest(requestId, action, request, node);
+            }
+
+            @Override
+            public void addCloseListener(ActionListener<Void> listener) {
+            }
+
+            @Override
+            public boolean isClosed() {
+                return false;
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+    }
 }

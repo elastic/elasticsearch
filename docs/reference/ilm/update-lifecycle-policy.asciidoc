@@ -1,9 +1,14 @@
 [role="xpack"]
 [testenv="basic"]
 [[update-lifecycle-policy]]
-== Update lifecycle policy
+== Update Lifecycle Policy
+++++
+<titleabbrev>Update Policy</titleabbrev>
+++++
 
-Updating existing ILM policies is useful to fix mistakes or change
+beta[]
+
+You can update an existing lifecycle policy to fix mistakes or change
 strategies for newly created indices. It is possible to update policy definitions
 and an index's `index.lifecycle.name` settings independently. To prevent the situation
 that phase definitions are modified while currently being executed on an index, each index
@@ -13,6 +18,8 @@ There are three scenarios for examining the behavior updating policies and
 their effects on policy execution on indices.
 
 === Updates to policies not managing indices
+
+beta[]
 
 Indices not referencing an existing policy that is updated will not be affected.
 If an index is assigned to the policy, it will be assigned the latest version of that policy
@@ -127,6 +134,8 @@ the policy.
 
 === Updates to executing policies
 
+beta[]
+
 Indices preserve the phase definition from the latest policy version that existed
 at the time that it entered that phase. Changes to the currently-executing phase within policy updates will
 not be reflected during execution. This means that updates to the `hot` phase, for example, will not affect
@@ -173,8 +182,8 @@ PUT my_index
 // TEST[continued]
 ////
 
-The <<ilm-explain,Explain API>> is useful to introspect managed indices to see which phase definition they are currently executing.
-Using this API, we can find out that `my_index` is currently attempting to be rolled over.
+The <<ilm-explain-lifecycle,Explain API>> is useful to introspect managed indices to see which phase definition they are currently executing.
+Using this API, we can find out that `my_index` is currently checking if it is ready to be rolled over.
 
 [source,js]
 --------------------------------------------------
@@ -196,7 +205,7 @@ GET my_index/_ilm/explain
       "phase_time_millis": 1538475653317,
       "action": "rollover",
       "action_time_millis": 1538475653317,
-      "step": "attempt_rollover",
+      "step": "check-rollover-ready",
       "step_time_millis": 1538475653317,
       "phase_execution": {
         "policy": "my_executing_policy",
@@ -216,11 +225,7 @@ GET my_index/_ilm/explain
 }
 --------------------------------------------------
 // CONSOLE
-// TESTRESPONSE[s/"lifecycle_date_millis": 1538475653281/"lifecycle_date_millis": $body.indices.my_index.lifecycle_date_millis/]
-// TESTRESPONSE[s/"phase_time_millis": 1538475653317/"phase_time_millis": $body.indices.my_index.phase_time_millis/]
-// TESTRESPONSE[s/"action_time_millis": 1538475653317/"action_time_millis": $body.indices.my_index.action_time_millis/]
-// TESTRESPONSE[s/"step_time_millis": 1538475653317/"step_time_millis": $body.indices.my_index.step_time_millis/]
-// TESTRESPONSE[s/"modified_date_in_millis": 1538475653317/"modified_date_in_millis": $body.indices.my_index.phase_execution.modified_date_in_millis/]
+// TESTRESPONSE[skip:no way to know if we will get this response immediately]
 
 Updating `my_executing_policy` to have no rollover action and, instead, go directly into a newly introduced `warm` phase.
 
@@ -276,7 +281,7 @@ GET my_index/_ilm/explain
       "phase_time_millis": 1538475653317,
       "action": "rollover",
       "action_time_millis": 1538475653317,
-      "step": "attempt_rollover",
+      "step": "check-rollover-ready",
       "step_time_millis": 1538475653317,
       "phase_execution": {
         "policy": "my_executing_policy",
@@ -296,11 +301,7 @@ GET my_index/_ilm/explain
 }
 --------------------------------------------------
 // CONSOLE
-// TESTRESPONSE[s/"lifecycle_date_millis": 1538475653281/"lifecycle_date_millis": $body.indices.my_index.lifecycle_date_millis/]
-// TESTRESPONSE[s/"phase_time_millis": 1538475653317/"phase_time_millis": $body.indices.my_index.phase_time_millis/]
-// TESTRESPONSE[s/"action_time_millis": 1538475653317/"action_time_millis": $body.indices.my_index.action_time_millis/]
-// TESTRESPONSE[s/"step_time_millis": 1538475653317/"step_time_millis": $body.indices.my_index.step_time_millis/]
-// TESTRESPONSE[s/"modified_date_in_millis": 1538475653317/"modified_date_in_millis": $body.indices.my_index.phase_execution.modified_date_in_millis/]
+// TESTRESPONSE[skip:no way to know if we will get this response immediately]
 
 After indexing one document into `my_index` so that rollover succeeds and moves onto the next phase, we will notice something new. The
 index will move into the next phase in the updated version 2 of its policy.
@@ -358,6 +359,8 @@ GET my_index/_ilm/explain
 `my_index` will move to the next phase in the latest policy definition, which is the newly added `warm` phase.
 
 === Switching policies for an index
+
+beta[]
 
 Setting `index.lifecycle.name` to a different policy behaves much like a policy update, but instead of just
 switching to a different version, it switches to a different policy.

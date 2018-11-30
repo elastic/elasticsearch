@@ -1031,7 +1031,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     static final class ValidateUpgradedSecurityIndex implements BiConsumer<DiscoveryNode, ClusterState> {
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
-            if (state.getNodes().getMinNodeVersion().before(Version.V_7_0_0_alpha1)) {
+            if (state.getNodes().getMinNodeVersion().before(Version.V_7_0_0)) {
                 IndexMetaData indexMetaData = state.getMetaData().getIndices().get(SECURITY_INDEX_NAME);
                 if (indexMetaData != null && INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()) < INTERNAL_INDEX_FORMAT) {
                     throw new IllegalStateException("Security index is not on the current version [" + INTERNAL_INDEX_FORMAT + "] - " +

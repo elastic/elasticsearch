@@ -51,7 +51,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -100,7 +99,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 /**
  * Service responsible for submitting create index requests
  */
-public class MetaDataCreateIndexService extends AbstractComponent {
+public class MetaDataCreateIndexService {
     private static final Logger logger = LogManager.getLogger(MetaDataCreateIndexService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
@@ -575,7 +574,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             final int numberOfShards;
             final Version indexVersionCreated =
                     Version.fromId(Integer.parseInt(indexSettingsBuilder.get(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey())));
-            if (indexVersionCreated.before(Version.V_7_0_0_alpha1)) {
+            if (indexVersionCreated.before(Version.V_7_0_0)) {
                 numberOfShards = 5;
             } else {
                 numberOfShards = 1;
@@ -603,7 +602,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                       final boolean forbidPrivateIndexSettings) throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
 
-        Optional<String> shardAllocation = checkShardLimit(settings, clusterState, deprecationLogger);
+        Optional<String> shardAllocation = checkShardLimit(settings, clusterState);
         shardAllocation.ifPresent(validationErrors::add);
 
         if (validationErrors.isEmpty() == false) {
@@ -618,14 +617,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
      *
      * @param settings The settings of the index to be created.
      * @param clusterState The current cluster state.
-     * @param deprecationLogger The logger to use to emit a deprecation warning, if appropriate.
      * @return If present, an error message to be used to reject index creation. If empty, a signal that this operation may be carried out.
      */
-    static Optional<String> checkShardLimit(Settings settings, ClusterState clusterState, DeprecationLogger deprecationLogger) {
+    static Optional<String> checkShardLimit(Settings settings, ClusterState clusterState) {
         int shardsToCreate = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings)
             * (1 + IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
 
-        return IndicesService.checkShardLimit(shardsToCreate, clusterState, deprecationLogger);
+        return IndicesService.checkShardLimit(shardsToCreate, clusterState);
     }
 
     List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
@@ -799,7 +797,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
      * the less default split operations are supported
      */
     public static int calculateNumRoutingShards(int numShards, Version indexVersionCreated) {
-        if (indexVersionCreated.onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (indexVersionCreated.onOrAfter(Version.V_7_0_0)) {
             // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
             // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
             // will always have the behavior of the min node in the cluster.

@@ -20,6 +20,8 @@ package org.elasticsearch.transport;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -114,6 +116,7 @@ import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnec
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
+    private static final Logger logger = LogManager.getLogger(TcpTransport.class);
 
     public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = "transport_worker";
 
@@ -164,8 +167,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
 
     // This is the number of bytes necessary to read the message size
-    public static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
-    public static final int PING_DATA_SIZE = -1;
+    private static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
+    private static final int PING_DATA_SIZE = -1;
     protected final CounterMetric successfulPings = new CounterMetric();
     protected final CounterMetric failedPings = new CounterMetric();
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
@@ -179,7 +182,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final CircuitBreakerService circuitBreakerService;
     private final Version version;
     protected final ThreadPool threadPool;
-    private final BigArrays bigArrays;
+    protected final BigArrays bigArrays;
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
 
@@ -194,7 +197,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
-    protected final boolean compress;
+    protected final boolean compressResponses;
     private volatile BoundTransportAddress boundAddress;
     private final String transportName;
 
@@ -218,7 +221,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.bigArrays = bigArrays;
         this.circuitBreakerService = circuitBreakerService;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.compress = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
+        this.compressResponses = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
         this.transportLogger = new TransportLogger();
@@ -284,6 +287,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final List<TcpChannel> channels;
         private final DiscoveryNode node;
         private final Version version;
+        private final boolean compress;
         private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
         NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
@@ -297,6 +301,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     typeMapping.put(type, handle);
             }
             version = handshakeVersion;
+            compress = connectionProfile.getCompressionEnabled();
         }
 
         @Override
@@ -345,24 +350,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         public void close() {
             if (isClosing.compareAndSet(false, true)) {
                 try {
-                    if (lifecycle.stopped()) {
-                        /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't
-                         * have a gazillion connections sitting in TIME_WAIT to free up resources quickly.
-                         * This is really the only part where we close the connection from the server side
-                         * otherwise the client (node) initiates the TCP closing sequence which doesn't cause
-                         * these issues. Setting this by default from the beginning can have unexpected
-                         * side-effects an should be avoided, our protocol is designed in a way that clients
-                         * close connection which is how it should be*/
-
-                        channels.forEach(c -> {
-                            try {
-                                c.setSoLinger(0);
-                            } catch (IOException e) {
-                                logger.warn(new ParameterizedMessage("unexpected exception when setting SO_LINGER on channel {}", c), e);
-                            }
-                        });
-                    }
-
                     boolean block = lifecycle.stopped() && Transports.isTransportThread(Thread.currentThread()) == false;
                     CloseableChannel.closeChannels(channels, block);
                 } finally {
@@ -384,6 +371,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
+
+            if (compress) {
+                options = TransportRequestOptions.builder(options).withCompress(true).build();
+            }
             sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion(), (byte) 0);
         }
     }
@@ -573,8 +564,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     // package private for tests
-    public static int resolvePublishPort(ProfileSettings profileSettings, List<InetSocketAddress> boundAddresses,
-                                         InetAddress publishInetAddress) {
+    static int resolvePublishPort(ProfileSettings profileSettings, List<InetSocketAddress> boundAddresses,
+                                  InetAddress publishInetAddress) {
         int publishPort = profileSettings.publishPort;
 
         // if port not explicitly provided, search for port of address in boundAddresses that matches publishInetAddress
@@ -811,16 +802,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     protected abstract void stopInternal();
 
-    public boolean canCompress(TransportRequest request) {
-        return compress && (!(request instanceof BytesTransportRequest));
+    private boolean canCompress(TransportRequest request) {
+        return request instanceof BytesTransportRequest == false;
     }
 
     private void sendRequestToChannel(final DiscoveryNode node, final TcpChannel channel, final long requestId, final String action,
                                       final TransportRequest request, TransportRequestOptions options, Version channelVersion,
                                       byte status) throws IOException, TransportException {
-        if (compress) {
-            options = TransportRequestOptions.builder(options).withCompress(true).build();
-        }
 
         // only compress if asked and the request is not bytes. Otherwise only
         // the header part is compressed, and the "body" can't be extracted as compressed
@@ -935,10 +923,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final String action,
         TransportResponseOptions options,
         byte status) throws IOException {
-        if (compress) {
+        if (compressResponses && options.compress() == false) {
             options = TransportResponseOptions.builder(options).withCompress(true).build();
         }
-        status = TransportStatus.setResponse(status); // TODO share some code with sendRequest
+
+        status = TransportStatus.setResponse(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, options.compress());
         boolean addedReleaseListener = false;
@@ -1159,7 +1148,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public static class HttpOnTransportException extends ElasticsearchException {
 
-        public HttpOnTransportException(String msg) {
+        private HttpOnTransportException(String msg) {
             super(msg);
         }
 
@@ -1346,7 +1335,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     getInFlightRequestBreaker().addWithoutBreaking(messageLengthBytes);
                 }
                 transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, features, profileName,
-                    messageLengthBytes);
+                    messageLengthBytes, TransportStatus.isCompress(status));
                 final TransportRequest request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(remoteAddress));
                 // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
@@ -1356,8 +1345,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             // the circuit breaker tripped
             if (transportChannel == null) {
-                transportChannel =
-                    new TcpTransportChannel(this, channel, transportName, action, requestId, version, features, profileName, 0);
+                transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, features,
+                    profileName, 0, TransportStatus.isCompress(status));
             }
             try {
                 transportChannel.sendResponse(e);
@@ -1416,8 +1405,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    public void executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
-        handshaker.sendHandshake(responseHandlers.newRequestId(), node, channel, timeout, listener);
+    public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile, ActionListener<Version> listener) {
+        handshaker.sendHandshake(responseHandlers.newRequestId(), node, channel, profile.getHandshakeTimeout(), listener);
     }
 
     final int getNumPendingHandshakes() {
@@ -1629,7 +1618,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             if (countDown.countDown()) {
                 final TcpChannel handshakeChannel = channels.get(0);
                 try {
-                    executeHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout(), new ActionListener<Version>() {
+                    executeHandshake(node, handshakeChannel, connectionProfile, new ActionListener<Version>() {
                         @Override
                         public void onResponse(Version version) {
                             NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);

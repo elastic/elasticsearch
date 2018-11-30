@@ -36,6 +36,8 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.Future;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -73,6 +75,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  * sending out ping requests to other nodes.
  */
 public class Netty4Transport extends TcpTransport {
+    private static final Logger logger = LogManager.getLogger(Netty4Transport.class);
 
     static {
         Netty4Utils.setup();
@@ -169,9 +172,8 @@ public class Netty4Transport extends TcpTransport {
     private void createServerBootstrap(ProfileSettings profileSettings, NioEventLoopGroup eventLoopGroup) {
         String name = profileSettings.profileName;
         if (logger.isDebugEnabled()) {
-            logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], "
-                    + "receive_predictor[{}->{}]",
-                name, workerCount, profileSettings.portOrRange, profileSettings.bindHosts, profileSettings.publishHosts, compress,
+            logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], receive_predictor[{}->{}]",
+                name, workerCount, profileSettings.portOrRange, profileSettings.bindHosts, profileSettings.publishHosts,
                 receivePredictorMin, receivePredictorMax);
         }
 

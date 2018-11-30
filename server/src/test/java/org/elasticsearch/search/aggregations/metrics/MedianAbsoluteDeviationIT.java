@@ -441,7 +441,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
                     .script(new Script(
                         ScriptType.INLINE,
                         AggregationTestScriptsPlugin.NAME,
-                        "doc['values'].values",
+                        "doc['values']",
                         Collections.emptyMap())))
             .execute()
             .actionGet();

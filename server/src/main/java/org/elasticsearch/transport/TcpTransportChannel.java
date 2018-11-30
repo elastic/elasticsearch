@@ -26,6 +26,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class TcpTransportChannel implements TransportChannel {
+
+    private final AtomicBoolean released = new AtomicBoolean();
     private final TcpTransport transport;
     private final Version version;
     private final Set<String> features;
@@ -33,12 +35,12 @@ public final class TcpTransportChannel implements TransportChannel {
     private final long requestId;
     private final String profileName;
     private final long reservedBytes;
-    private final AtomicBoolean released = new AtomicBoolean();
     private final String channelType;
     private final TcpChannel channel;
+    private final boolean compressResponse;
 
     TcpTransportChannel(TcpTransport transport, TcpChannel channel, String channelType, String action, long requestId, Version version,
-                        Set<String> features, String profileName, long reservedBytes) {
+                        Set<String> features, String profileName, long reservedBytes, boolean compressResponse) {
         this.version = version;
         this.features = features;
         this.channel = channel;
@@ -48,6 +50,7 @@ public final class TcpTransportChannel implements TransportChannel {
         this.profileName = profileName;
         this.reservedBytes = reservedBytes;
         this.channelType = channelType;
+        this.compressResponse = compressResponse;
     }
 
     @Override
@@ -57,12 +60,13 @@ public final class TcpTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
-        sendResponse(response, TransportResponseOptions.EMPTY);
-    }
-
-    @Override
-    public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
         try {
+            TransportResponseOptions options;
+            if (compressResponse) {
+                options = TransportResponseOptions.builder().withCompress(true).build();
+            } else {
+                options = TransportResponseOptions.EMPTY;
+            }
             transport.sendResponse(version, features, channel, response, requestId, action, options);
         } finally {
             release(false);

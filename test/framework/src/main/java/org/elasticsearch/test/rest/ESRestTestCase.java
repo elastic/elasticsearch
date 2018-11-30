@@ -55,7 +55,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import javax.net.ssl.SSLContext;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -69,7 +68,6 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -476,7 +474,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeRollupJobs() throws IOException, InterruptedException {
-        Response response = adminClient().performRequest(new Request("GET", "/_xpack/rollup/job/_all"));
+        String rollupPrefix = nodeVersions.stream().anyMatch(node -> node.before(Version.V_7_0_0)) ? "/_xpack/rollup" : "/_rollup";
+
+        Response response = adminClient().performRequest(new Request("GET", rollupPrefix + "/job/_all"));
         Map<String, Object> jobs = entityAsMap(response);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> jobConfigs =
@@ -489,29 +489,18 @@ public abstract class ESRestTestCase extends ESTestCase {
         for (Map<String, Object> jobConfig : jobConfigs) {
             @SuppressWarnings("unchecked")
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
-            Request request = new Request("POST", "/_xpack/rollup/job/" + jobId + "/_stop");
+            Request request = new Request("POST", rollupPrefix + "/job/" + jobId + "/_stop");
             request.addParameter("ignore", "404");
+            request.addParameter("wait_for_completion", "true");
+            request.addParameter("timeout", "10s");
             logger.debug("stopping rollup job [{}]", jobId);
             adminClient().performRequest(request);
         }
 
-        // TODO this is temporary until StopJob API gains the ability to block until stopped
-        awaitBusy(() -> {
-            Request request = new Request("GET", "/_xpack/rollup/job/_all");
-            try {
-                Response jobsResponse = adminClient().performRequest(request);
-                String body = EntityUtils.toString(jobsResponse.getEntity());
-                // If the body contains any of the non-stopped states, at least one job is not finished yet
-                return Arrays.stream(new String[]{"started", "aborting", "stopping", "indexing"}).noneMatch(body::contains);
-            } catch (IOException e) {
-                return false;
-            }
-        }, 10, TimeUnit.SECONDS);
-
         for (Map<String, Object> jobConfig : jobConfigs) {
             @SuppressWarnings("unchecked")
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
-            Request request = new Request("DELETE", "/_xpack/rollup/job/" + jobId);
+            Request request = new Request("DELETE", rollupPrefix + "/job/" + jobId);
             request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
             logger.debug("deleting rollup job [{}]", jobId);
             adminClient().performRequest(request);

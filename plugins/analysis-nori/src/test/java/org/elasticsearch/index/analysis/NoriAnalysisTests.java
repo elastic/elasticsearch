@@ -37,6 +37,7 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -76,6 +77,22 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
     }
 
     public void testNoriAnalyzerUserDict() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "nori")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++", "C샤프", "세종", "세종시 세종 시")
+            .build();
+        TestAnalysis analysis = createTestAnalysis(settings);
+        Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
+        try (TokenStream stream = analyzer.tokenStream("", "세종시" )) {
+            assertTokenStreamContents(stream, new String[] {"세종", "시"});
+        }
+
+        try (TokenStream stream = analyzer.tokenStream("", "c++world")) {
+            assertTokenStreamContents(stream, new String[] {"c++", "world"});
+        }
+    }
+
+    public void testNoriAnalyzerUserDictPath() throws Exception {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.my_analyzer.type", "nori")
             .put("index.analysis.analyzer.my_analyzer.user_dictionary", "user_dict.txt")

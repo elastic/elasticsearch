@@ -268,7 +268,11 @@ final class RemoteResponseParsers {
             "/", true, a -> (Version) a[0]);
     static {
         ConstructingObjectParser<Version, XContentType> versionParser = new ConstructingObjectParser<>(
-                "version", true, a -> Version.fromString((String) a[0]));
+                "version", true, a -> Version.fromString(
+                    ((String) a[0])
+                        .replace("-SNAPSHOT", "")
+                        .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
+        ));
         versionParser.declareString(constructorArg(), new ParseField("number"));
         MAIN_ACTION_PARSER.declareObject(constructorArg(), versionParser, new ParseField("version"));
     }

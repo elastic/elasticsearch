@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
@@ -58,7 +59,7 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
                     List<String> currentlyUsedBy = findJobsUsingFilter(jobs, filterId);
                     if (!currentlyUsedBy.isEmpty()) {
                         listener.onFailure(ExceptionsHelper.conflictStatusException(
-                            "Cannot delete filter, currently used by jobs: " + currentlyUsedBy));
+                                Messages.getMessage(Messages.FILTER_CANNOT_DELETE, filterId, currentlyUsedBy)));
                     } else {
                         deleteFilter(filterId, listener);
                     }

@@ -134,10 +134,10 @@
   - length: { profile: 1 }
 
 ---
-"Test with rest_total_hits_as_int":
+"Test with new response format":
   - skip:
-      version: " - 6.5.99"
-      reason: rest_total_hits_as_int was introduced in 6.6.0
+      version: " - 6.99.99"
+      reason: hits.total is returned as an object in 7.0.0
 
   - do:
       index:
@@ -155,7 +155,8 @@
 
   - do:
       search_template:
-        rest_total_hits_as_int: true
         body: { "id": "template_1", "params": {} }
 
-  - match: { hits.total: 0 }
+  - match: { hits.total.value: 0 }
+  - match: { hits.total.relation: eq }
+

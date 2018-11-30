@@ -61,6 +61,7 @@ public class RestIntegTestTask extends DefaultTask {
         clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
         runner.dependsOn(clusterInit)
         runner.classpath = project.sourceSets.test.runtimeClasspath
+        runner.testClassesDirs = project.sourceSets.test.output.classesDirs
         clusterConfig = project.extensions.create("${name}Cluster", ClusterConfiguration.class, project)
 
         // override/add more for rest tests

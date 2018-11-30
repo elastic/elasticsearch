@@ -42,11 +42,12 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client());
         Job indexJob = buildJobBuilder(indexJobId).build();
         // Same as index job but has extra fields in its custom settings
-        // which will be used to check the config was not overwritten
+        // which will be used to check the config was overwritten
         Job migratedJob = MlConfigMigrator.updateJobForMigration(indexJob);
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<IndexResponse> indexResponseHolder = new AtomicReference<>();
+        // put a job representing a previously migrated job
         blockingCall(actionListener -> jobConfigProvider.putJob(migratedJob, actionListener), indexResponseHolder, exceptionHolder);
 
         ClusterService clusterService = mock(ClusterService.class);
@@ -62,11 +63,9 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
                 failedIdsHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
-        // even though we've tried to overwrite job 'job-already-migrated'
-        // that is not a failure
         assertThat(failedIdsHolder.get(), empty());
 
-        // Check job foo has been indexed and job-already-migrated is not overwritten
+        // Check job foo has been indexed and job-already-migrated has been overwritten
         AtomicReference<List<Job.Builder>> jobsHolder = new AtomicReference<>();
         blockingCall(actionListener -> jobConfigProvider.expandJobs("*", true, false, actionListener),
                 jobsHolder, exceptionHolder);
@@ -80,7 +79,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         assertNull(fooJob.getCustomSettings());
         Job alreadyMigratedJob = jobsHolder.get().get(1).build();
         assertEquals("job-already-migrated", alreadyMigratedJob.getId());
-        assertTrue(alreadyMigratedJob.getCustomSettings().containsKey(MlConfigMigrator.MIGRATED_FROM_VERSION));
+        assertNull(alreadyMigratedJob.getCustomSettings());
     }
 
     public void testMigrateConfigs() throws InterruptedException {

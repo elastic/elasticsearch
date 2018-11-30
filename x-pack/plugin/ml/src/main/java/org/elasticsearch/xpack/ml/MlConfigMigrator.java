@@ -222,7 +222,7 @@ public class MlConfigMigrator {
 
     /**
      * Remove the datafeeds and jobs listed in the parameters from
-     * mlMetadata if they exist. An account of emoved jobs and datafeeds
+     * mlMetadata if they exist. An account of removed jobs and datafeeds
      * is returned in the result structure alongside a new MlMetadata
      * with the config removed.
      *
@@ -241,7 +241,7 @@ public class MlConfigMigrator {
             }
         }
 
-        SortedMap<String, DatafeedConfig> currentDatafeeds = new TreeMap<>(mlMetadata.getDatafeeds());
+        Map<String, DatafeedConfig> currentDatafeeds = new HashMap<>(mlMetadata.getDatafeeds());
         List<String> removedDatafeedIds = new ArrayList<>();
         for (String datafeedId : datafeedsToRemove) {
             if (currentDatafeeds.remove(datafeedId) != null) {
@@ -322,10 +322,10 @@ public class MlConfigMigrator {
         Set<String> openJobIds = MlTasks.openJobIds(persistentTasks);
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-            return mlMetadata.getJobs().values().stream()
-                    .filter(job -> openJobIds.contains(job.getId()) == false)
-                    .collect(Collectors.toList());
-        }
+        return mlMetadata.getJobs().values().stream()
+                .filter(job -> openJobIds.contains(job.getId()) == false)
+                .collect(Collectors.toList());
+    }
 
     /**
      * Find the configurations for stopped datafeeds in the cluster state.

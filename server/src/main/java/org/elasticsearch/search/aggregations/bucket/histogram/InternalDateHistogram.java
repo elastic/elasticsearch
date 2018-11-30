@@ -219,7 +219,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     private final boolean keyed;
     private final long minDocCount;
     private final long offset;
-    private final EmptyBucketInfo emptyBucketInfo;
+    final EmptyBucketInfo emptyBucketInfo;
 
     InternalDateHistogram(String name, List<Bucket> buckets, BucketOrder order, long minDocCount, long offset,
             EmptyBucketInfo emptyBucketInfo,

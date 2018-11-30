@@ -317,7 +317,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     deleteResponse.getVersion(), deleteResponse.getResult());
 
                 final GetResult getResult = UpdateHelper.extractGetResult(updateRequest, concreteIndex,
-                    deleteResponse.getPrimaryTerm(), deleteResponse.getSeqNo(), deleteResponse.getVersion(),
+                    deleteResponse.getSeqNo(), deleteResponse.getPrimaryTerm(), deleteResponse.getVersion(),
                     translate.updatedSourceAsMap(), translate.updateSourceContentType(), null);
 
                 updateResponse.setGetResult(getResult);

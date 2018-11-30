@@ -186,7 +186,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 Tuple<XContentType, Map<String, Object>> sourceAndContent =
                                         XContentHelper.convertToMap(upsertSourceBytes, true, upsertRequest.getContentType());
                                 update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(),
-                                    response.getPrimaryTerm(), response.getSeqNo(), response.getVersion(), sourceAndContent.v2(),
+                                    response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(), sourceAndContent.v2(),
                                     sourceAndContent.v1(), upsertSourceBytes));
                             } else {
                                 update.setGetResult(null);
@@ -207,7 +207,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(),
                                 response.getVersion(), response.getResult());
                             update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(),
-                                response.getPrimaryTerm(), response.getSeqNo(), response.getVersion(),
+                                response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(),
                                 result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
@@ -222,7 +222,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 response.getId(), response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(),
                                 response.getResult());
                             update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(),
-                                response.getPrimaryTerm(), response.getSeqNo(), response.getVersion(),
+                                response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(),
                                 result.updatedSourceAsMap(), result.updateSourceContentType(), null));
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);

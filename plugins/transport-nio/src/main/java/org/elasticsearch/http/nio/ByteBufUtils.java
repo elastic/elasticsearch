@@ -54,9 +54,14 @@ class ByteBufUtils {
                 while ((slice = iterator.next()) != null) {
                     buffers.add(Unpooled.wrappedBuffer(slice.bytes, slice.offset, slice.length));
                 }
-                final CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
-                composite.addComponents(true, buffers);
-                return composite;
+
+                if (buffers.size() == 1) {
+                    return buffers.get(0);
+                } else {
+                    CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
+                    composite.addComponents(true, buffers);
+                    return composite;
+                }
             } catch (IOException ex) {
                 throw new AssertionError("no IO happens here", ex);
             }

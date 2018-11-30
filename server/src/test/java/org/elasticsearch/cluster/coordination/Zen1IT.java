@@ -38,6 +38,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -224,5 +225,41 @@ public class Zen1IT extends ESIntegTestCase {
 
     public void testUpgradingFromZen1ToZen2ClusterWithFiveNodes() throws Exception {
         testRollingUpgradeFromZen1ToZen2(5);
+    }
+
+    private void testMultipleNodeMigrationFromZen1ToZen2(int nodeCount) throws Exception {
+        final List<String> oldNodes = internalCluster().startNodes(nodeCount, ZEN1_SETTINGS);
+        createIndex("test",
+            Settings.builder()
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, nodeCount) // causes rebalancing
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, nodeCount > 1 ? 1 : 0)
+                .build());
+        ensureGreen("test");
+
+        internalCluster().startNodes(nodeCount, ZEN2_SETTINGS);
+
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+            .put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), String.join(",", oldNodes))).get();
+
+        waitForRelocation();
+
+        while (internalCluster().size() > nodeCount) {
+            internalCluster().stopRandomNode(settings -> oldNodes.contains(NODE_NAME_SETTING.get(settings)));
+        }
+
+        ensureGreen("test");
+    }
+
+    public void testMultipleNodeMigrationFromZen1ToZen2WithOneNode() throws Exception {
+        testMultipleNodeMigrationFromZen1ToZen2(1);
+    }
+
+    public void testMultipleNodeMigrationFromZen1ToZen2WithTwoNodes() throws Exception {
+        testMultipleNodeMigrationFromZen1ToZen2(2);
+    }
+
+    public void testMultipleNodeMigrationFromZen1ToZen2WithThreeNodes() throws Exception {
+        testMultipleNodeMigrationFromZen1ToZen2(3);
     }
 }

@@ -37,6 +37,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
@@ -44,8 +46,8 @@ import java.util.Map;
 public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMapperParser {
 
     public static final String CONTENT_TYPE = "dense_vector";
-    public static int MAX_DIMS_COUNT = 500; //maximum allowed number of dimensions
-    private static final int INT_BYTES = Integer.BYTES;
+    public static short MAX_DIMS_COUNT = 500; //maximum allowed number of dimensions
+    private static final byte INT_BYTES = 4;
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new DenseVectorFieldType();
@@ -149,28 +151,26 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
         }
 
         // encode array of floats as array of integers and store into buf
+        // this code is here and not int the VectorEncoderDecoder so not to create extra arrays
         byte[] buf = new byte[0];
         int offset = 0;
         int dim = 0;
         for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
-            if (token == Token.VALUE_NUMBER) {
-                float value = context.parser().floatValue(true);
-                if (buf.length < (offset + INT_BYTES)) {
-                    buf = ArrayUtil.grow(buf, (offset + INT_BYTES));
-                }
-                int intValue = Float.floatToIntBits(value);
-                buf[offset] =  (byte) (intValue >> 24);
-                buf[offset+1] = (byte) (intValue >> 16);
-                buf[offset+2] = (byte) (intValue >>  8);
-                buf[offset+3] = (byte) intValue;
-                offset += INT_BYTES;
-                dim++;
-                if (dim >= MAX_DIMS_COUNT) {
-                    throw new IllegalArgumentException(
-                        "[dense_vector] field has exceeded the maximum allowed number of dimensions of :[" + MAX_DIMS_COUNT + "]");
-                }
-            } else {
-                throw new IllegalArgumentException("[dense_vector] field takes an array of floats, but got unexpected token " + token);
+            ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
+            float value = context.parser().floatValue(true);
+            if (buf.length < (offset + INT_BYTES)) {
+                buf = ArrayUtil.grow(buf, (offset + INT_BYTES));
+            }
+            int intValue = Float.floatToIntBits(value);
+            buf[offset] =  (byte) (intValue >> 24);
+            buf[offset+1] = (byte) (intValue >> 16);
+            buf[offset+2] = (byte) (intValue >>  8);
+            buf[offset+3] = (byte) intValue;
+            offset += INT_BYTES;
+            dim++;
+            if (dim >= MAX_DIMS_COUNT) {
+                throw new IllegalArgumentException(
+                    "[dense_vector] field has exceeded the maximum allowed number of dimensions of :[" + MAX_DIMS_COUNT + "]");
             }
         }
         BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(buf, 0, offset));
@@ -189,23 +189,5 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-
-    //**************STATIC HELPER METHODS***********************************
-    // Decodes a BytesRef into an array of floats
-    public static float[] decodeVector(BytesRef vectorBR) {
-        int dimCount = (vectorBR.length - vectorBR.offset) / INT_BYTES;
-        float[] vector = new float[dimCount];
-        int offset = vectorBR.offset;
-        for (int dim = 0; dim < dimCount; dim++) {
-            int intValue = ((vectorBR.bytes[offset] & 0xFF) << 24)   |
-                ((vectorBR.bytes[offset+1] & 0xFF) << 16) |
-                ((vectorBR.bytes[offset+2] & 0xFF) <<  8) |
-                (vectorBR.bytes[offset+3] & 0xFF);
-            vector[dim] = Float.intBitsToFloat(intValue);
-            offset = offset + INT_BYTES;
-        }
-        return vector;
     }
 }

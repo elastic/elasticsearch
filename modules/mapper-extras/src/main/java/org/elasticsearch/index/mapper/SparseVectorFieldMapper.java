@@ -44,9 +44,8 @@ import java.util.Map;
 public class SparseVectorFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "sparse_vector";
-    public static int MAX_DIMS_COUNT = 500; //maximum allowed number of dimensions
-    public static int MAX_DIMS_NUMBER = 65000; //maximum allowed dimension's number
-    private static final int INT_BYTES = Integer.BYTES;
+    public static short MAX_DIMS_COUNT = 500; //maximum allowed number of dimensions
+    public static int MAX_DIMS_NUMBER = 65535; //maximum allowed dimension's number
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new SparseVectorFieldType();
@@ -164,11 +163,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     dim = Integer.parseInt(context.parser().currentName());
                     if (dim < 0 || dim > MAX_DIMS_NUMBER) {
                         throw new IllegalArgumentException("[sparse_vector]'s dimension number must be " +
-                            "a non-negative integer value not exceeding [" + MAX_DIMS_NUMBER + "]");
+                            "a non-negative integer value not exceeding [" + MAX_DIMS_NUMBER + "], got [" + dim + "]");
                     }
                 } catch (NumberFormatException e) {
                     throw new IllegalArgumentException("[sparse_vector]'s dimensions should be integers represented as strings, but got ["
-                        + context.parser().currentName() + "]");
+                        + context.parser().currentName() + "]", e);
                 }
             } else if (token == Token.VALUE_NUMBER) {
                 value = context.parser().floatValue(true);
@@ -189,7 +188,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             }
         }
 
-        BytesRef br = encodeSparseVector(values, dims, dimCount);
+        BytesRef br = VectorEncoderDecoder.encodeSparseVector(dims, values, dimCount);
         BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), br);
         context.doc().addWithKey(fieldType().name(), field);
     }
@@ -200,115 +199,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
         throw new AssertionError("parse is implemented directly");
     }
 
-
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }
-
-
-    //*************STATIC HELPER METHODS******************************
-
-    // insert dim into the sorted array of dims
-    // insert value in the array of values in the same position as the corresponding dim
-    public static void sortedInsertDimValue(float[] values, int[] dims, float value, int dim, final int dimIndex) {
-        int newDimIndex = dimIndex;
-        while (newDimIndex > 0 && (dims[newDimIndex - 1] > dim)) {
-            // move higher valued dimension to the right
-            dims[newDimIndex] = dims[newDimIndex - 1] ;
-            values[newDimIndex] = values[newDimIndex - 1] ;
-            newDimIndex --;
-        }
-        dims[newDimIndex] = dim;
-        values[newDimIndex] = value;
-    }
-
-    /**
-     * Encodes a sparse array represented by values, dims and dimCount into a bytes array - BytesRef
-     * BytesRef: int[] floats encoded as integers values, 2 bytes for each dimension
-     * @param values - values of the sparse array
-     * @param dims - dims of the sparse array
-     * @param dimCount - number of the dimension
-     * @return BytesRef
-     */
-    private static BytesRef encodeSparseVector(float[] values, int[] dims, int dimCount) {
-        // 1. Sort dimensions in the ascending order and sort values in the same order as their corresponding dimensions
-        // as we expect that data should be already provided as sorted by dim,
-        // we expect just a single pass in this bubble sort algorithm
-        int temp;
-        float tempValue;
-        int n = dimCount;
-        boolean swapped = true;
-        while (swapped) {
-            swapped = false;
-            for (int i = 1; i <= n-1; i++){
-                if (dims[i-1] > dims[i]) {
-                    swapped = true;
-                    temp = dims[i];
-                    dims[i] = dims[i-1];
-                    dims[i-1] = temp;
-                    tempValue = values[i];
-                    values[i] = values[i-1];
-                    values[i-1] = tempValue;
-                }
-            }
-            n = n - 1;
-        }
-
-        byte[] buf = new byte[dimCount * (INT_BYTES + 2)];
-
-        // 2. Encode values
-        int offset = 0;
-        for (int dim = 0; dim < dimCount; dim++) {
-            int intValue = Float.floatToIntBits(values[dim]);
-            buf[offset] =  (byte) (intValue >> 24);
-            buf[offset+1] = (byte) (intValue >> 16);
-            buf[offset+2] = (byte) (intValue >>  8);
-            buf[offset+3] = (byte) intValue;
-            offset += INT_BYTES;
-        }
-
-        // 3. Encode dimensions
-        // as each dimension is a positive value that doesn't exceed 65000, 2 bytes is enough for encoding it
-        for (int dim = 0; dim < dimCount; dim++) {
-            buf[offset] = (byte) (dims[dim] >>  8);
-            buf[offset+1] = (byte) dims[dim];
-            offset += 2;
-        }
-        return new BytesRef(buf);
-    }
-
-
-    // Decodes the first part of the BytesRef into vector values
-    public static float[] decodeVector(BytesRef vectorBR) {
-        int dimCount = (vectorBR.length - vectorBR.offset) / (INT_BYTES + 2);
-        float[] vector = new float[dimCount];
-        int offset = vectorBR.offset;
-        for (int dim = 0; dim < dimCount; dim++) {
-            int intValue = ((vectorBR.bytes[offset] & 0xFF) << 24)   |
-                ((vectorBR.bytes[offset+1] & 0xFF) << 16) |
-                ((vectorBR.bytes[offset+2] & 0xFF) <<  8) |
-                (vectorBR.bytes[offset+3] & 0xFF);
-            vector[dim] = Float.intBitsToFloat(intValue);
-            offset = offset + INT_BYTES;
-        }
-        return vector;
-    }
-
-    /**
-     * Decodes the second part of BytesRef into vector dimensions
-     * executed after SparseVectorFieldMapper.decodeVector(vectorBR);
-     * @param vectorBR - vector decoded in BytesRef
-     * @param dimCount - number of dimensions
-     */
-    public static int[] decodeVectorDims(BytesRef vectorBR, int dimCount) {
-        int[] dims = new int[dimCount];
-        int offset =  vectorBR.offset + INT_BYTES * dimCount; //calculate the offset from where dims are encoded
-        for (int dim = 0; dim < dimCount; dim++) {
-            dims[dim] = ((vectorBR.bytes[offset] & 0xFF) << 8) | (vectorBR.bytes[offset+1] & 0xFF);
-            offset += 2;
-        }
-        return dims;
-    }
-
 }

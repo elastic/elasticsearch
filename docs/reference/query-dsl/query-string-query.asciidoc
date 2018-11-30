@@ -28,14 +28,14 @@ GET /_search
     "query": {
         "query_string" : {
             "default_field" : "content",
-            "query" : "(new york city) OR (big apple)"
+            "query" : "(new york city) OR (big apple)" <1>
         }
     }
 }
 --------------------------------------------------
 // CONSOLE
 
-... will be split into `new york city` and `big apple` and each part is then
+<1> will be split into `new york city` and `big apple` and each part is then
 analyzed independently by the analyzer configured for the field.
 
 WARNING: Whitespaces are not considered operators, this means that `new york city`

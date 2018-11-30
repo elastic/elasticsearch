@@ -65,6 +65,8 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
+import org.elasticsearch.client.ml.MlInfoRequest;
+import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
@@ -1754,6 +1756,44 @@ public final class MachineLearningClient {
             MLRequestConverters::deleteFilter,
             options,
             AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets Machine Learning information about default values and limits.
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-info.html">Machine Learning info</a>
+     *
+     * @param request The request of Machine Learning info
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return response info about default values and limits
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public MlInfoResponse getMlInfo(MlInfoRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::mlInfo,
+            options,
+            MlInfoResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets Machine Learning information about default values and limits, asynchronously.
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-info.html">Machine Learning info</a>
+     *
+     * @param request The request of Machine Learning info
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getMlInfoAsync(MlInfoRequest request, RequestOptions options, ActionListener<MlInfoResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::mlInfo,
+            options,
+            MlInfoResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

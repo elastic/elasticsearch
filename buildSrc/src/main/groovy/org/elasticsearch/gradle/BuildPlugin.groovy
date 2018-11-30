@@ -910,7 +910,7 @@ class BuildPlugin implements Plugin<Project> {
                 args '-n', 'hw.physicalcpu'
                 standardOutput = stdout
             }
-            return stdout.toString('UTF-8')
+            return stdout.toString('UTF-8').trim();
         }
         return 'auto';
     }

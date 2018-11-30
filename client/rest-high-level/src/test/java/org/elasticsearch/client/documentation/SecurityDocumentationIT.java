@@ -45,6 +45,8 @@ import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
+import org.elasticsearch.client.security.DeleteUserRequest;
+import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
@@ -183,6 +185,67 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testDeleteUser() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        addUser(client, "testUser", "testPassword");
+
+        {
+            // tag::delete-user-request
+            DeleteUserRequest deleteUserRequest = new DeleteUserRequest(
+                "testUser");    // <1>
+            // end::delete-user-request
+
+            // tag::delete-user-execute
+            DeleteUserResponse deleteUserResponse = client.security().deleteUser(deleteUserRequest, RequestOptions.DEFAULT);
+            // end::delete-user-execute
+
+            // tag::delete-user-response
+            boolean found = deleteUserResponse.isAcknowledged();    // <1>
+            // end::delete-user-response
+            assertTrue(found);
+
+            // check if deleting the already deleted user again will give us a different response
+            deleteUserResponse = client.security().deleteUser(deleteUserRequest, RequestOptions.DEFAULT);
+            assertFalse(deleteUserResponse.isAcknowledged());
+        }
+
+        {
+            DeleteUserRequest deleteUserRequest = new DeleteUserRequest("testUser", RefreshPolicy.IMMEDIATE);
+
+            ActionListener<DeleteUserResponse> listener;
+            //tag::delete-user-execute-listener
+            listener = new ActionListener<DeleteUserResponse>() {
+                @Override
+                public void onResponse(DeleteUserResponse deleteUserResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::delete-user-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::delete-user-execute-async
+            client.security().deleteUserAsync(deleteUserRequest, RequestOptions.DEFAULT, listener); // <1>
+            //end::delete-user-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    private void addUser(RestHighLevelClient client, String userName, String password) throws IOException {
+        User user = new User(userName, Collections.singletonList(userName));
+        PutUserRequest request = new PutUserRequest(user, password.toCharArray(), true, RefreshPolicy.NONE);
+        PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
+        assertTrue(response.isCreated());
     }
 
     public void testPutRoleMapping() throws Exception {
@@ -532,6 +595,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::authenticate-response
             User user = response.getUser(); // <1>
             boolean enabled = response.enabled(); // <2>
+            final String authenticationRealmName = response.getAuthenticationRealm().getName(); // <3>
+            final String authenticationRealmType = response.getAuthenticationRealm().getType(); // <4>
+            final String lookupRealmName = response.getLookupRealm().getName(); // <5>
+            final String lookupRealmType = response.getLookupRealm().getType(); // <6>
             //end::authenticate-response
 
             assertThat(user.getUsername(), is("test_user"));
@@ -540,6 +607,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(user.getEmail(), nullValue());
             assertThat(user.getMetadata().isEmpty(), is(true));
             assertThat(enabled, is(true));
+            assertThat(authenticationRealmName, is("default_file"));
+            assertThat(authenticationRealmType, is("file"));
+            assertThat(lookupRealmName, is("default_file"));
+            assertThat(lookupRealmType, is("file"));
         }
 
         {

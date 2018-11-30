@@ -47,7 +47,6 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 /**
  * Datafeed configuration options. Describes where to proactively pull input
@@ -619,7 +618,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
         }
 
-        public void setQuery(Map<String, Object> query) {
+        void setQuery(Map<String, Object> query) {
             this.query = ExceptionsHelper.requireNonNull(query, QUERY.getPreferredName());
         }
 
@@ -641,7 +640,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
         }
 
-        public void setAggregations(Map<String, Object> aggregations) {
+        void setAggregations(Map<String, Object> aggregations) {
             this.aggregations = aggregations;
         }
 

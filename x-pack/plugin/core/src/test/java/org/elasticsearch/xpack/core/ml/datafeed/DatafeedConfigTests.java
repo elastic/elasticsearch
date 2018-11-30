@@ -155,12 +155,87 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             "    \"scroll_size\": 1234\n" +
             "}";
 
+    private static final String ANACHRONISTIC_QUERY_DATAFEED = "{\n" +
+            "    \"datafeed_id\": \"farequote-datafeed\",\n" +
+            "    \"job_id\": \"farequote\",\n" +
+            "    \"frequency\": \"1h\",\n" +
+            "    \"indices\": [\"farequote1\", \"farequote2\"],\n" +
+                 //query:match:type stopped being supported in 6.x
+            "    \"query\": {\"match\" : {\"query\":\"fieldName\", \"type\": \"phrase\"}},\n" +
+            "    \"scroll_size\": 1234\n" +
+            "}";
+
+    private static final String ANACHRONISTIC_AGG_DATAFEED = "{\n" +
+        "    \"datafeed_id\": \"farequote-datafeed\",\n" +
+        "    \"job_id\": \"farequote\",\n" +
+        "    \"frequency\": \"1h\",\n" +
+        "    \"indices\": [\"farequote1\", \"farequote2\"],\n" +
+        "    \"aggregations\": {\n" +
+        "    \"buckets\": {\n" +
+        "      \"date_histogram\": {\n" +
+        "        \"field\": \"time\",\n" +
+        "        \"interval\": \"360s\",\n" +
+        "        \"time_zone\": \"UTC\"\n" +
+        "      },\n" +
+        "      \"aggregations\": {\n" +
+        "        \"time\": {\n" +
+        "          \"max\": {\"field\": \"time\"}\n" +
+        "        },\n" +
+        "        \"airline\": {\n" +
+        "          \"terms\": {\n" +
+        "            \"field\": \"airline\",\n" +
+        "            \"size\": 0\n" + //size: 0 stopped being supported in 6.x
+        "          }\n" +
+        "        }\n" +
+        "      }\n" +
+        "    }\n" +
+        "  }\n" +
+        "}";
+
     public void testFutureConfigParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
         XContentParseException e = expectThrows(XContentParseException.class,
                 () -> DatafeedConfig.STRICT_PARSER.apply(parser, null).build());
         assertEquals("[6:5] [datafeed_config] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
+    }
+
+    public void testPastQueryConfigParse() throws IOException {
+        try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_QUERY_DATAFEED)) {
+
+            DatafeedConfig config = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> config.getParsedQuery());
+            assertEquals("[match] query doesn't support multiple fields, found [query] and [type]", e.getMessage());
+        }
+
+        try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_QUERY_DATAFEED)) {
+
+            XContentParseException e = expectThrows(XContentParseException.class,
+                () -> DatafeedConfig.STRICT_PARSER.apply(parser, null).build());
+            assertEquals("[6:25] [datafeed_config] failed to parse field [query]", e.getMessage());
+        }
+    }
+
+    public void testPastAggConfigParse() throws IOException {
+        try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_AGG_DATAFEED)) {
+
+            DatafeedConfig.Builder configBuilder = DatafeedConfig.LENIENT_PARSER.apply(parser, null);
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> configBuilder.build());
+            assertEquals(
+                "Datafeed [farequote-datafeed] aggregations are not parsable: [size] must be greater than 0. Found [0] in [airline]",
+                e.getMessage());
+        }
+
+        try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_AGG_DATAFEED)) {
+
+            XContentParseException e = expectThrows(XContentParseException.class,
+                () -> DatafeedConfig.STRICT_PARSER.apply(parser, null).build());
+            assertEquals("[8:25] [datafeed_config] failed to parse field [aggregations]", e.getMessage());
+        }
     }
 
     public void testFutureMetadataParse() throws IOException {

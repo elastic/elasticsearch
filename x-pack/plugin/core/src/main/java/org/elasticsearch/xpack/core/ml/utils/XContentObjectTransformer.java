@@ -55,10 +55,6 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
         return new XContentObjectTransformer<>(searchRegistry, AbstractQueryBuilder::parseInnerQueryBuilder);
     }
 
-    public static XContentObjectTransformer withSearchRegistry(CheckedFunction<XContentParser, ToXContentObject, IOException> parserFunction) {
-        return new  XContentObjectTransformer<>(searchRegistry, parserFunction);
-    }
-
     XContentObjectTransformer(NamedXContentRegistry registry, CheckedFunction<XContentParser, T, IOException> parserFunction) {
         this.parserFunction = parserFunction;
         this.registry = registry;

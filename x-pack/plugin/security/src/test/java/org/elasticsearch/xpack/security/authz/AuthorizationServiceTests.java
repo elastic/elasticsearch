@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -163,6 +164,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -179,6 +181,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private Map<String, RoleDescriptor> roleMap = new HashMap<>();
     private CompositeRolesStore rolesStore;
+    private ApiKeyService apiKeyService;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -228,9 +231,10 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
             return Void.TYPE;
         }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
+        apiKeyService = mock(ApiKeyService.class);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings),
-            mock(ApiKeyService.class));
+            apiKeyService);
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
@@ -624,7 +628,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, mock(ApiKeyService.class));
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, apiKeyService);
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() }, null);
@@ -651,7 +655,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new AnonymousUser(settings));
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings),
-            mock(ApiKeyService.class));
+            apiKeyService);
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
@@ -964,7 +968,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous_user_role").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, mock(ApiKeyService.class));
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, apiKeyService);
         roleMap.put("anonymous_user_role", new RoleDescriptor("anonymous_user_role", new String[]{"all"},
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null));
         mockEmptyMetaData();
@@ -1000,7 +1004,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous_user_role").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, mock(ApiKeyService.class));
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, apiKeyService);
         roleMap.put("anonymous_user_role", new RoleDescriptor("anonymous_user_role", new String[]{"all"},
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null));
         mockEmptyMetaData();
@@ -1362,6 +1366,14 @@ public class AuthorizationServiceTests extends ESTestCase {
         return authentication;
     }
 
+    private Authentication createAuthentication(User user, AuthenticationType type) throws IOException {
+        RealmRef lookedUpBy = user.authenticatedUser() == user ? null : new RealmRef("looked", "up", "by");
+        Authentication authentication =
+            new Authentication(user, new RealmRef("test", "test", "foo"), lookedUpBy, Version.CURRENT, type, Collections.emptyMap());
+        authentication.writeToContext(threadContext);
+        return authentication;
+    }
+
     private ClusterState mockEmptyMetaData() {
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
@@ -1457,5 +1469,21 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, action, transportRequest), action, "test user");
         verify(auditTrail).accessDenied(requestId, authentication, action, clearScrollRequest, new String[]{role.getName()});
+    }
+
+    public void testApiKeyAuthUsesApiKeyService() throws IOException {
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final Authentication authentication = createAuthentication(new User("test api key user", "api_key"), AuthenticationType.API_KEY);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[4];
+            listener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+            return Void.TYPE;
+        }).when(apiKeyService).getRoleForApiKey(eq(authentication), eq(threadContext), eq(rolesStore), any(FieldPermissionsCache.class),
+            any(ActionListener.class));
+
+        authorize(authentication, "cluster:admin/foo", new ClearScrollRequest());
+        verify(apiKeyService).getRoleForApiKey(eq(authentication), eq(threadContext), eq(rolesStore), any(FieldPermissionsCache.class),
+            any(ActionListener.class));
+        verifyZeroInteractions(rolesStore);
     }
 }

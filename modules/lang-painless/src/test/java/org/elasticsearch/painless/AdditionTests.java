@@ -24,8 +24,7 @@ package org.elasticsearch.painless;
 public class AdditionTests extends ScriptTestCase {
 
     public void testBasics() throws Exception {
-        exec("Character c = Character.valueOf((char)'c'); org.elasticsearch.painless.FeatureTest.staticNumberTest(c);");
-        //assertEquals(3.0, exec("double x = 1; byte y = 2; return x + y;"));
+        assertEquals(3.0, exec("double x = 1; byte y = 2; return x + y;"));
     }
 
     public void testInt() throws Exception {

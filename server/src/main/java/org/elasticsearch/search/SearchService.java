@@ -147,7 +147,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Setting.boolSetting("search.default_allow_partial_results", true, Property.Dynamic, Property.NodeScope);
 
     public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT =
-        Setting.intSetting("search.max_open_scroll_context", 150, 0, Property.NodeScope);
+        Setting.intSetting("search.max_open_scroll_context", 150, 0, Property.Dynamic, Property.NodeScope);
 
 
     private final ThreadPool threadPool;
@@ -177,6 +177,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile boolean defaultAllowPartialSearchResults;
 
     private volatile boolean lowLevelCancellation;
+
+    private volatile int maxOpenScrollContext;
 
     private final Cancellable keepAliveReaper;
 
@@ -218,6 +220,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 this::setDefaultAllowPartialSearchResults);
 
+        maxOpenScrollContext = MAX_OPEN_SCROLL_CONTEXT.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_SCROLL_CONTEXT, this::setMaxOpenScrollContext);
 
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
@@ -249,6 +253,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return defaultAllowPartialSearchResults;
     }
 
+    private void setMaxOpenScrollContext(int maxOpenScrollContext) {
+        this.maxOpenScrollContext = maxOpenScrollContext;
+    }
+    
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
     }
@@ -598,10 +606,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     final SearchContext createAndPutContext(ShardSearchRequest request) throws IOException {
-        if (request.scroll() != null && openScrollContexts.get() >= MAX_OPEN_SCROLL_CONTEXT.get(clusterService.getSettings())) {
+        if (request.scroll() != null && openScrollContexts.get() >= maxOpenScrollContext) {
             throw new ElasticsearchException(
                 "Trying to create too many scroll contexts. Must be less than or equal to: [" +
-                    MAX_OPEN_SCROLL_CONTEXT.get(clusterService.getSettings()) + "]. " + "This limit can be set by changing the ["
+                    maxOpenScrollContext + "]. " + "This limit can be set by changing the ["
                     + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
         }
 

@@ -394,6 +394,8 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
+Adding explicit operators forces each term to be considered as a separate clause.
+
 The example above creates a boolean query:
 
 `((content:this | title:this) (content:that | title:that) (content:thus | title:thus))~2`

@@ -2067,6 +2067,8 @@ public class RestHighLevelClient implements Closeable {
         public void usedDeprecatedName(String usedName, String modernName) {}
         @Override
         public void usedDeprecatedField(String usedName, String replacedWith) {}
+        @Override
+        public void deprecated(String message, Object... params) {}
     };
 
     static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {

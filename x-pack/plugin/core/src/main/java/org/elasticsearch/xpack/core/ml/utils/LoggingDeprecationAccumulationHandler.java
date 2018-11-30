@@ -41,6 +41,13 @@ public class LoggingDeprecationAccumulationHandler implements DeprecationHandler
             replacedWith));
     }
 
+    @Override
+    public void deprecated(final String message, final Object... params) {
+        final String formattedMessage = LoggerMessageFormat.format(message, params);
+        LoggingDeprecationHandler.INSTANCE.deprecated(formattedMessage);
+        deprecations.add(formattedMessage);
+    }
+
     /**
      * The collected deprecation warnings
      */

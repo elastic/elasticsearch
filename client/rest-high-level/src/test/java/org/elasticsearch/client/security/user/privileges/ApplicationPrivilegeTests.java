@@ -58,6 +58,10 @@ public class ApplicationPrivilegeTests extends ESTestCase {
                 @Override
                 public void usedDeprecatedField(String usedName, String replacedWith) {
                 }
+
+                @Override
+                public void deprecated(String message, Object... params) {
+                }
             }, json));
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put("description", "Read access to myapp");

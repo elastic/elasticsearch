@@ -19,9 +19,11 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
@@ -43,6 +45,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * TermVectorsRequest.
  */
 public class RestTermVectorsAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestTermVectorsAction.class));
+    static final String ENDPOINT_DEPRECATION_MESSAGE = "The _termvector" +
+        " endpoint is deprecated, use _termvectors (plural) instead.";
+
     public RestTermVectorsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
@@ -50,7 +57,6 @@ public class RestTermVectorsAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_termvectors", this);
 
-        // we keep usage of _termvector as alias for now
         controller.registerHandler(GET, "/{index}/{type}/_termvector", this);
         controller.registerHandler(POST, "/{index}/{type}/_termvector", this);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_termvector", this);
@@ -64,6 +70,10 @@ public class RestTermVectorsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.path().endsWith("_termvector")) {
+            deprecationLogger.deprecated(ENDPOINT_DEPRECATION_MESSAGE);
+        }
+
         TermVectorsRequest termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("type"), request.param("id"));
         if (request.hasContentOrSourceParam()) {
             try (XContentParser parser = request.contentOrSourceParamParser()) {

@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -352,12 +353,29 @@ public class IndicesPermissionTests extends ESTestCase {
                         IndexPrivilege.READ, "index-2-*"));
         assertThat(permissionForSubsetSuccess_WhenQueryIsASubset.isSubsetOf(permissionBase), equalTo(SubsetResult.isASubset()));
 
-        final IndicesPermission permissionForSubsetSuccess_QueryIsNotASubset = indicesPermission(
+        final IndicesPermission permissionForSubsetSuccess_QueryIsMaybeASubset = indicesPermission(
                 group(fieldPermissions(new String[] { "f1", "f2" }, null),
                         Collections.singleton(new BytesArray("{diff}")),
                         IndexPrivilege.ALL, "index-1-*"));
-        assertThat(permissionForSubsetSuccess_QueryIsNotASubset.isSubsetOf(permissionBase),
+        assertThat(permissionForSubsetSuccess_QueryIsMaybeASubset.isSubsetOf(permissionBase),
                 equalTo(SubsetResult.mayBeASubset(Collections.singleton(Sets.newHashSet("index-1-*")))));
+
+        final IndicesPermission permissionForSubsetSuccess_MultiGroupQueryIsMaybeASubset = indicesPermission(
+                group(fieldPermissions(new String[] { "f1", "f2" }, null),
+                        Collections.singleton(new BytesArray("{diff}")),
+                        IndexPrivilege.ALL, "index-1-*"),
+                group(fieldPermissions(new String[] { "f1", "f2" }, null),
+                        Collections.singleton(new BytesArray("{diff}")),
+                        IndexPrivilege.READ, "index-1-1-*"),
+                group(fieldPermissions(new String[] { "f1", "f2" }, null),
+                        Collections.singleton(new BytesArray("{diff}")),
+                        IndexPrivilege.READ, "index-2-*"));
+        final Set<Set<String>> expected = new HashSet<>();
+        expected.add(Sets.newHashSet("index-1-*"));
+        expected.add(Sets.newHashSet("index-1-1-*"));
+        expected.add(Sets.newHashSet("index-2-*"));
+        assertThat(permissionForSubsetSuccess_MultiGroupQueryIsMaybeASubset.isSubsetOf(permissionBase),
+                equalTo(SubsetResult.mayBeASubset(expected)));
     }
 
     public void testSubsetOf_WithQueryNullCases() {

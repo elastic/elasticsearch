@@ -140,7 +140,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
         if (this.groups() == null || this.groups().length == 0) {
             return SubsetResult.isASubset();
         }
-        Set<Set<String>> combineDLSQueriesFromIndexPrivilegeMatchingTheseNames = null;
+        Set<Set<String>> combineDLSQueriesFromIndexPrivilegeMatchingTheseNames = new HashSet<>();
         for (Group thisGroup : this.groups()) {
             boolean granted = false;
             Set<Set<String>> maybeGroupIndices = Collections.emptySet();
@@ -150,16 +150,17 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
                     if (result.result() == Result.YES) {
                         granted = true;
                         maybeGroupIndices.clear();
-                    } else if (granted == false && result.result() == Result.MAYBE) {
-                        maybeGroupIndices = Sets.union(maybeGroupIndices, result.setOfIndexNamesForCombiningDLSQueries());
+                        break;
+                    } else if (result.result() == Result.MAYBE) {
                         granted = true;
+                        maybeGroupIndices = Sets.union(maybeGroupIndices, result.setOfIndexNamesForCombiningDLSQueries());
                     }
                 }
             }
             if (granted == false) {
                 return SubsetResult.isNotASubset();
             } else {
-                combineDLSQueriesFromIndexPrivilegeMatchingTheseNames = maybeGroupIndices;
+                combineDLSQueriesFromIndexPrivilegeMatchingTheseNames.addAll(maybeGroupIndices);
             }
         }
         if (combineDLSQueriesFromIndexPrivilegeMatchingTheseNames.isEmpty()) {
@@ -309,9 +310,9 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
 
         private SubsetResult isDlsASubset(Group other) {
             SubsetResult result;
-            if (this.getQuery() == other.getQuery()) {
+            if (null == this.getQuery() && null == other.getQuery()) {
                 result = SubsetResult.isASubset();
-            } else if (this.getQuery() != null && other.getQuery() == null) { 
+            } else if (this.getQuery() != null && other.getQuery() == null) {
                 result = SubsetResult.isASubset();
             } else if (this.getQuery() == null && other.getQuery() != null) {
                 result = SubsetResult.mayBeASubset(Collections.singleton(Sets.newHashSet(this.indices())));
@@ -320,7 +321,6 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             } else {
                 result = SubsetResult.mayBeASubset(Collections.singleton(Sets.newHashSet(this.indices())));
             }
-
             return result;
         }
 

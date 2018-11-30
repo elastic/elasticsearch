@@ -31,11 +31,9 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -403,12 +401,14 @@ public class ApiKeyService {
      * @throws IOException thrown in case of invalid query template or if unable
      * to parse the query
      */
-    private List<RoleDescriptor> modifyRoleDescriptorsToMakeItASubset(final List<RoleDescriptor> subsetRoleDescriptors,
+    // pkg private for testing
+    List<RoleDescriptor> modifyRoleDescriptorsToMakeItASubset(final List<RoleDescriptor> subsetRoleDescriptors,
             final List<RoleDescriptor> existingRoleDescriptors, final SubsetResult result, final User user) throws IOException {
-        final Map<Set<String>, BoolQueryBuilder> indexNamePatternsToBoolQueryBuilder = new HashMap<>();
+        final Map<Integer, BoolQueryBuilder> uniqueIndicesPrivsFromSubsetRDToBoolQueryBuilder = new HashMap<>();
         for (Set<String> indexNamePattern : result.setOfIndexNamesForCombiningDLSQueries()) {
             final Automaton indexNamesAutomaton = Automatons.patterns(indexNamePattern);
             final BoolQueryBuilder parentFilterQueryBuilder = QueryBuilders.boolQuery();
+            boolean addFilterClause = false;
             // Now find the index name patterns from all existing role descriptors that
             // match and combine queries
             for (RoleDescriptor existingRD : existingRoleDescriptors) {
@@ -420,14 +420,12 @@ public class ApiKeyService {
                         try (XContentParser parser = XContentFactory.xContent(templateResult).createParser(xContentRegistry,
                                 LoggingDeprecationHandler.INSTANCE, templateResult)) {
                             parentFilterQueryBuilder.should(AbstractQueryBuilder.parseInnerQueryBuilder(parser));
+                            addFilterClause = true;
                         }
                     }
                 }
             }
-            parentFilterQueryBuilder.minimumShouldMatch(1);
 
-            final BoolQueryBuilder outerBoolQueryBuilder = QueryBuilders.boolQuery();
-            outerBoolQueryBuilder.filter(parentFilterQueryBuilder);
             // Iterate on subset role descriptors and combine queries if the
             // index name patterns match.
             for (RoleDescriptor subsetRD : subsetRoleDescriptors) {
@@ -437,22 +435,26 @@ public class ApiKeyService {
                                 scriptService, user);
                         try (XContentParser parser = XContentFactory.xContent(templateResult).createParser(xContentRegistry,
                                 LoggingDeprecationHandler.INSTANCE, templateResult)) {
-                            outerBoolQueryBuilder.should(AbstractQueryBuilder.parseInnerQueryBuilder(parser));
+                            final BoolQueryBuilder outerBoolQueryBuilder = QueryBuilders.boolQuery();
+                            if (addFilterClause) {
+                                parentFilterQueryBuilder.minimumShouldMatch(1);
+                                outerBoolQueryBuilder.filter(parentFilterQueryBuilder);
+                                outerBoolQueryBuilder.should(AbstractQueryBuilder.parseInnerQueryBuilder(parser));
+                                outerBoolQueryBuilder.minimumShouldMatch(1);
+                                uniqueIndicesPrivsFromSubsetRDToBoolQueryBuilder.put(ip.hashCode(), outerBoolQueryBuilder);
+                            }
                         }
                     }
                 }
             }
-            outerBoolQueryBuilder.minimumShouldMatch(1);
-            indexNamePatternsToBoolQueryBuilder.put(indexNamePattern, outerBoolQueryBuilder);
         }
 
         final List<RoleDescriptor> modifiedSubsetDescriptors = new ArrayList<>();
         for (RoleDescriptor subsetRD : subsetRoleDescriptors) {
             final Set<IndicesPrivileges> updates = new HashSet<>();
             for (IndicesPrivileges indicesPriv : subsetRD.getIndicesPrivileges()) {
-                Set<String> indices = Sets.newHashSet(indicesPriv.getIndices());
-                if (indexNamePatternsToBoolQueryBuilder.get(indices) != null) {
-                    final BoolQueryBuilder boolQueryBuilder = indexNamePatternsToBoolQueryBuilder.get(indices);
+                if (uniqueIndicesPrivsFromSubsetRDToBoolQueryBuilder.get(indicesPriv.hashCode()) != null) {
+                    final BoolQueryBuilder boolQueryBuilder = uniqueIndicesPrivsFromSubsetRDToBoolQueryBuilder.get(indicesPriv.hashCode());
                     final XContentBuilder builder = XContentFactory.jsonBuilder();
                     boolQueryBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     updates.add(IndicesPrivileges.builder()

@@ -516,13 +516,19 @@ wait_for_elasticsearch_status() {
 # $1 - expected version
 check_elasticsearch_version() {
     local version=$1
-    local versionToCheck=$(echo $version | sed -e 's/-SNAPSHOT//' | sed -e 's/-\(alpha\|beta\|rc\)[0-9]//')
+    local versionToCheck
+    local major=$(echo ${version} | cut -d. -f1 )
+    if [ $major -ge 7 ] ; then
+        versionToCheck=$version
+    else
+        versionToCheck=$(echo ${version} | sed -e 's/-SNAPSHOT//')
+    fi
 
     run curl -s localhost:9200
     [ "$status" -eq 0 ]
 
     echo $output | grep \"number\"\ :\ \"$versionToCheck\" || {
-        echo "Installed an unexpected version:"
+        echo "Expected $versionToCheck but installed an unexpected version:"
         curl -s localhost:9200
         false
     }

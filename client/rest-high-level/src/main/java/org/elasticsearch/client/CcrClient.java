@@ -20,9 +20,13 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
+import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
+import org.elasticsearch.client.ccr.ResumeFollowRequest;
+import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 
 import java.io.IOException;
@@ -74,6 +78,7 @@ public final class CcrClient {
      *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void putFollowAsync(PutFollowRequest request,
                                RequestOptions options,
@@ -89,7 +94,7 @@ public final class CcrClient {
     }
 
     /**
-     * Instructs a follower index the pause the following of a leader index.
+     * Instructs a follower index to pause the following of a leader index.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-pause-follow.html">
      * the docs</a> for more.
@@ -110,13 +115,14 @@ public final class CcrClient {
     }
 
     /**
-     * Asynchronously instruct a follower index the pause the following of a leader index.
+     * Asynchronously instruct a follower index to pause the following of a leader index.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-pause-follow.html">
      * the docs</a> for more.
      *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
     public void pauseFollowAsync(PauseFollowRequest request,
                                  RequestOptions options,
@@ -128,6 +134,183 @@ public final class CcrClient {
             AcknowledgedResponse::fromXContent,
             listener,
             Collections.emptySet());
+    }
+
+    /**
+     * Instructs a follower index to resume the following of a leader index.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-resume-follow.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse resumeFollow(ResumeFollowRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            CcrRequestConverters::resumeFollow,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously instruct a follower index to resume the following of a leader index.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-resume-follow.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void resumeFollowAsync(ResumeFollowRequest request,
+                                  RequestOptions options,
+                                  ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            CcrRequestConverters::resumeFollow,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Instructs a follower index to unfollow and become a regular index.
+     * Note that index following needs to be paused and the follower index needs to be closed.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-unfollow.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse unfollow(UnfollowRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            CcrRequestConverters::unfollow,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously instructs a follower index to unfollow and become a regular index.
+     * Note that index following needs to be paused and the follower index needs to be closed.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-unfollow.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void unfollowAsync(UnfollowRequest request,
+                              RequestOptions options,
+                              ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            CcrRequestConverters::unfollow,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Stores an auto follow pattern.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-put-auto-follow-pattern.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse putAutoFollowPattern(PutAutoFollowPatternRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            CcrRequestConverters::putAutoFollowPattern,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously stores an auto follow pattern.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-put-auto-follow-pattern.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void putAutoFollowPatternAsync(PutAutoFollowPatternRequest request,
+                                          RequestOptions options,
+                                          ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            CcrRequestConverters::putAutoFollowPattern,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes an auto follow pattern.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-delete-auto-follow-pattern.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse deleteAutoFollowPattern(DeleteAutoFollowPatternRequest request,
+                                                        RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            CcrRequestConverters::deleteAutoFollowPattern,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Deletes an auto follow pattern.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-delete-auto-follow-pattern.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void deleteAutoFollowPatternAsync(DeleteAutoFollowPatternRequest request,
+                                             RequestOptions options,
+                                             ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            CcrRequestConverters::deleteAutoFollowPattern,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
     }
 
 }

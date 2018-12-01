@@ -131,7 +131,7 @@ public class DiscoveryModule {
         discoveryTypes.put(ZEN2_DISCOVERY_TYPE, () -> new Coordinator(NODE_NAME_SETTING.get(settings), settings, clusterSettings,
             transportService, namedWriteableRegistry, allocationService, masterService,
             () -> gatewayMetaState.getPersistedState(settings, (ClusterApplierService) clusterApplier), hostsProvider, clusterApplier,
-            Randomness.get()));
+            joinValidators, Randomness.get()));
         discoveryTypes.put("single-node", () -> new SingleNodeDiscovery(settings, transportService, masterService, clusterApplier,
             gatewayMetaState));
         for (DiscoveryPlugin plugin : plugins) {

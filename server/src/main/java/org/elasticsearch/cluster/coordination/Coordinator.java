@@ -69,12 +69,14 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -117,6 +119,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final LeaderChecker leaderChecker;
     private final FollowersChecker followersChecker;
     private final ClusterApplier clusterApplier;
+    private final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators;
     @Nullable
     private Releasable electionScheduler;
     @Nullable
@@ -139,13 +142,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     public Coordinator(String nodeName, Settings settings, ClusterSettings clusterSettings, TransportService transportService,
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
                        Supplier<CoordinationState.PersistedState> persistedStateSupplier, UnicastHostsProvider unicastHostsProvider,
-                       ClusterApplier clusterApplier, Random random) {
+                       ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random) {
         super(settings);
         this.settings = settings;
         this.transportService = transportService;
         this.masterService = masterService;
+        this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
-            this::getCurrentTerm, this::handleJoinRequest, this::joinLeaderInTerm);
+            this::getCurrentTerm, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators);
         this.persistedStateSupplier = persistedStateSupplier;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
@@ -277,6 +281,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     + lastKnownLeader + ", rejecting");
             }
 
+            if (publishRequest.getAcceptedState().term() > coordinationState.get().getLastAcceptedState().term()) {
+                // only do join validation if we have not accepted state from this master yet
+                onJoinValidators.stream().forEach(a -> a.accept(getLocalNode(), publishRequest.getAcceptedState()));
+            }
+
             ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
             final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
 
@@ -389,6 +398,41 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         logger.trace("handleJoinRequest: as {}, handling {}", mode, joinRequest);
         transportService.connectToNode(joinRequest.getSourceNode());
 
+        final ClusterState stateForJoinValidation = getStateForMasterService();
+
+        if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
+            // we do this in a couple of places including the cluster update thread. This one here is really just best effort
+            // to ensure we fail as fast as possible.
+            onJoinValidators.stream().forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
+            if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
+                JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
+                    stateForJoinValidation.getNodes().getMinNodeVersion());
+            }
+
+            // validate the join on the joining node, will throw a failure if it fails the validation
+            joinHelper.sendValidateJoinRequest(joinRequest.getSourceNode(), stateForJoinValidation, new ActionListener<Empty>() {
+                @Override
+                public void onResponse(Empty empty) {
+                    try {
+                        processJoinRequest(joinRequest, joinCallback);
+                    } catch (Exception e) {
+                        joinCallback.onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("failed to validate incoming join request from node [{}]",
+                        joinRequest.getSourceNode()), e);
+                    joinCallback.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
+                }
+            });
+        } else {
+            processJoinRequest(joinRequest, joinCallback);
+        }
+    }
+
+    private void processJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
         synchronized (mutex) {
             final CoordinationState coordState = coordinationState.get();
@@ -514,7 +558,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     // visible for testing
-    public DiscoveryNode getLocalNode() {
+    DiscoveryNode getLocalNode() {
         return transportService.getLocalNode();
     }
 

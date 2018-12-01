@@ -45,6 +45,7 @@ To set the policy for an index there are two options:
 1. Apply the policy to an index template and bootstrap creating the first index
 2. Apply the policy to a new index in a create index request
 
+[[applying-policy-to-template]]
 === Applying a policy to an index template
 
 beta[]

@@ -218,19 +218,20 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
                 ContextSetup that = (ContextSetup) o;
                 return Objects.equals(index, that.index) &&
                     Objects.equals(document, that.document) &&
-                    Objects.equals(query, that.query);
+                    Objects.equals(query, that.query) &&
+                    Objects.equals(xContentType, that.xContentType);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(index, document, query);
+                return Objects.hash(index, document, query, xContentType);
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeOptionalString(index);
                 out.writeOptionalBytesReference(document);
-                out.writeOptionalString(xContentType != null ? xContentType.mediaType(): null);
+                out.writeOptionalString(xContentType != null ? xContentType.mediaTypeWithoutParameters(): null);
                 out.writeOptionalNamedWriteable(query);
             }
 
@@ -347,11 +348,13 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         // For testing only:
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             builder.field(SCRIPT_FIELD.getPreferredName(), script);
             builder.field(CONTEXT_FIELD.getPreferredName(), context.name);
             if (contextSetup != null) {
                 builder.field(CONTEXT_SETUP_FIELD.getPreferredName(), contextSetup);
             }
+            builder.endObject();
             return builder;
         }
 

@@ -890,4 +890,23 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));
         Assert.assertThat(request.getEntity(), nullValue());
     }
+
+    public void testTemplatesExistRequest() {
+        final int numberOfNames = ESTestCase.usually()
+            ? 1
+            : ESTestCase.randomIntBetween(2, 20);
+        final String[] names = ESTestCase.randomArray(numberOfNames, numberOfNames, String[]::new,
+            () -> ESTestCase.randomAlphaOfLengthBetween(1, 100));
+        final Map<String, String> expectedParams = new HashMap<>();
+        final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
+        RequestConvertersTests.setRandomMasterTimeout(getIndexTemplatesRequest, expectedParams);
+        RequestConvertersTests.setRandomLocal(getIndexTemplatesRequest, expectedParams);
+        assertThat(getIndexTemplatesRequest.names(), equalTo(names));
+
+        final Request request = IndicesRequestConverters.templatesExist(getIndexTemplatesRequest);
+        assertThat(request.getMethod(), equalTo(HttpHead.METHOD_NAME));
+        assertThat(request.getEndpoint(), equalTo("/_template/" + String.join(",", names)));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+    }
 }

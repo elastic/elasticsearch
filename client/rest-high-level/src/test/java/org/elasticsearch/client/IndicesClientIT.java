@@ -1360,6 +1360,39 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(notFound.status(), equalTo(RestStatus.NOT_FOUND));
     }
 
+    public void testIndexTemplatesExist() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+
+        {
+            for (String suffix : Arrays.asList("1", "2")) {
+
+                final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest()
+                    .name("template-" + suffix)
+                    .patterns(Arrays.asList("pattern-" + suffix, "name-" + suffix))
+                    .alias(new Alias("alias-" + suffix));
+                assertTrue(execute(putRequest, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
+
+                final GetIndexTemplatesRequest existsRequest = new GetIndexTemplatesRequest("template-" + suffix);
+                assertTrue(execute(existsRequest, client.indices()::existsTemplate, client.indices()::existsTemplateAsync));
+            }
+        }
+
+        {
+            final String[] templateNames = randomBoolean()
+                ? new String[]{ "*-1", "template-2" }
+                : new String[]{ "template-*" };
+            final GetIndexTemplatesRequest bothRequest = new GetIndexTemplatesRequest(templateNames);
+            assertTrue(execute(bothRequest, client.indices()::existsTemplate, client.indices()::existsTemplateAsync));
+        }
+
+        {
+            final GetIndexTemplatesRequest neitherRequest = new GetIndexTemplatesRequest("neither-*");
+            assertFalse(execute(neitherRequest, client.indices()::existsTemplate, client.indices()::existsTemplateAsync));
+        }
+
+
+    }
+
     public void testAnalyze() throws Exception {
 
         RestHighLevelClient client = highLevelClient();

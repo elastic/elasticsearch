@@ -2328,6 +2328,59 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    public void testTemplatesExist() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+        {
+            final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
+            putRequest.patterns(Collections.singletonList("foo"));
+            assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        {
+            // tag::templates-exist-request
+            GetIndexTemplatesRequest request;
+            request = new GetIndexTemplatesRequest("my-template"); // <1>
+            request = new GetIndexTemplatesRequest("template-1", "template-2"); // <2>
+            request = new GetIndexTemplatesRequest("my-*"); // <3>
+            // end::templates-exist-request
+
+            // tag::templates-exist-request-optionals
+            request.local(true); // <1>
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <2>
+            request.masterNodeTimeout("1m"); // <3>
+            // end::templates-exist-request-optionals
+
+            // tag::templates-exist-execute
+            boolean exists = client.indices().existsTemplate(request, RequestOptions.DEFAULT);
+            // end::templates-exist-execute
+            assertTrue(exists);
+
+            // tag::templates-exist-execute-listener
+            ActionListener<Boolean> listener = new ActionListener<Boolean>() {
+                @Override
+                public void onResponse(Boolean aBoolean) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::templates-exist-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::templates-exist-execute-async
+            client.indices().existsTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::templates-exist-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+    }
+
     @SuppressWarnings("unused")
     public void testValidateQuery() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();

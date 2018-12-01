@@ -53,6 +53,7 @@ import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Locale;
 
 final class IndicesRequestConverters {
@@ -388,6 +389,26 @@ final class IndicesRequestConverters {
         String[] names = getIndexTemplatesRequest.names();
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_template").addCommaSeparatedPathParts(names).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withLocal(getIndexTemplatesRequest.local());
+        params.withMasterTimeout(getIndexTemplatesRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request templatesExist(GetIndexTemplatesRequest getIndexTemplatesRequest) {
+        if (getIndexTemplatesRequest.names() == null || getIndexTemplatesRequest.names().length == 0) {
+            throw new IllegalArgumentException("Must provide at least one index template name");
+        }
+
+        if (Arrays.stream(getIndexTemplatesRequest.names()).anyMatch(indexTemplate -> Strings.hasText(indexTemplate) == false)) {
+            throw new IllegalArgumentException("Index template names must not be null and must be non empty");
+        }
+
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_template")
+            .addCommaSeparatedPathParts(getIndexTemplatesRequest.names())
+            .build();
+        final Request request = new Request(HttpHead.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withLocal(getIndexTemplatesRequest.local());
         params.withMasterTimeout(getIndexTemplatesRequest.masterNodeTimeout());

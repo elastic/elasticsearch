@@ -813,6 +813,35 @@ public final class IndicesClient {
     }
 
     /**
+     * Uses the Index Templates API to determine if index templates exist
+     *
+     * @param getIndexTemplatesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return true if any index templates in the request exist, false otherwise
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public boolean existsTemplate(GetIndexTemplatesRequest getIndexTemplatesRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequest(getIndexTemplatesRequest, IndicesRequestConverters::templatesExist, options,
+            RestHighLevelClient::convertExistsResponse, emptySet());
+    }
+
+    /**
+     * Uses the Index Templates API to determine if index templates exist
+     *
+     * @param getIndexTemplatesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion. The listener will be called with the value {@code true}
+     *                 if any index templates in the request exist, false otherwise
+     */
+    public void existsTemplateAsync(GetIndexTemplatesRequest getIndexTemplatesRequest,
+                                    RequestOptions options,
+                                    ActionListener<Boolean> listener) {
+
+        restHighLevelClient.performRequestAsync(getIndexTemplatesRequest, IndicesRequestConverters::templatesExist, options,
+            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+    }
+
+    /**
      * Calls the analyze API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-analyze.html">Analyze API on elastic.co</a>

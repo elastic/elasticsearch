@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
@@ -70,9 +71,12 @@ public class RootJsonFieldTypeTests extends FieldTypeTestCase {
     public void testExistsQuery() {
         RootJsonFieldType ft = new RootJsonFieldType();
         ft.setName("field");
+        assertEquals(
+            new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))),
+            ft.existsQuery(null));
 
-        Query expected = new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field")));
-        assertEquals(expected, ft.existsQuery(null));
+        ft.setHasDocValues(true);
+        assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(null));
     }
 
     public void testFuzzyQuery() {

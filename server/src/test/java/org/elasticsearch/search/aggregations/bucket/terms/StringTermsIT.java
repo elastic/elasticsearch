@@ -78,6 +78,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "s_value";
     private static final String MULTI_VALUED_FIELD_NAME = "s_values";
+    private static final String JSON_FIELD_NAME = "labels";
     private static Map<String, Map<String, Object>> expectedMultiSortBuckets;
 
     @Override
@@ -126,7 +127,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertAcked(client().admin().indices().prepareCreate("idx")
                 .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
                         MULTI_VALUED_FIELD_NAME, "type=keyword",
-                        "tag", "type=keyword").get());
+                        "tag", "type=keyword",
+                        JSON_FIELD_NAME, "type=json").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             builders.add(client().prepareIndex("idx", "type").setSource(
@@ -138,7 +140,12 @@ public class StringTermsIT extends AbstractTermsTestCase {
                             .startArray(MULTI_VALUED_FIELD_NAME)
                                 .value("val" + i)
                                 .value("val" + (i + 1))
-                            .endArray().endObject()));
+                            .endArray()
+                            .startObject(JSON_FIELD_NAME)
+                                .field("priority", "urgent")
+                                .field("release", "v1.2." + i)
+                            .endObject()
+                        .endObject()));
         }
 
         getMultiSortDocs(builders);
@@ -1107,6 +1114,44 @@ public class StringTermsIT extends AbstractTermsTestCase {
             assertThat(bucket.getDocCount(), equalTo(i == 0 ? 5L : 2L));
             i++;
         }
+    }
+
+    public void testJsonField() {
+        TermsAggregationBuilder builder = terms("terms")
+            .field(JSON_FIELD_NAME)
+            .collectMode(randomFrom(SubAggCollectionMode.values()))
+            .executionHint(randomExecutionHint());
+
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(builder)
+            .get();
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(6));
+
+        Bucket bucket1 = terms.getBuckets().get(0);
+        assertEquals("urgent", bucket1.getKey());
+        assertEquals(5, bucket1.getDocCount());
+
+        Bucket bucket2 = terms.getBuckets().get(1);
+        assertEquals("v1.2.0", bucket2.getKey());
+        assertEquals(1, bucket2.getDocCount());
+    }
+
+    public void testKeyedJsonField() {
+        TermsAggregationBuilder builder =  terms("terms")
+            .field(JSON_FIELD_NAME + ".priority")
+            .collectMode(randomFrom(SubAggCollectionMode.values()))
+            .executionHint(randomExecutionHint());
+
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
+            () -> client().prepareSearch("idx")
+                .addAggregation(builder)
+                .get());
+        assertEquals("Aggregations are not supported on keyed [json] fields.", e.getCause().getMessage());
     }
 
     public void testOtherDocCount() {

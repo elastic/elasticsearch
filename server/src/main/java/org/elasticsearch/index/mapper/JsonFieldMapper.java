@@ -24,12 +24,12 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +41,8 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -93,7 +95,7 @@ public final class JsonFieldMapper extends FieldMapper {
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setHasDocValues(false);
+            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
@@ -127,14 +129,6 @@ public final class JsonFieldMapper extends FieldMapper {
             return super.indexOptions(indexOptions);
         }
 
-        @Override
-        public Builder docValues(boolean docValues) {
-            if (docValues) {
-                throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields do not support doc values");
-            }
-            return super.docValues(docValues);
-        }
-
         public Builder depthLimit(int depthLimit) {
             if (depthLimit < 0) {
                 throw new IllegalArgumentException("[depth_limit] must be positive, got " + depthLimit);
@@ -164,11 +158,6 @@ public final class JsonFieldMapper extends FieldMapper {
         @Override
         public Builder copyTo(CopyTo copyTo) {
             throw new UnsupportedOperationException("[copy_to] is not supported for [" + CONTENT_TYPE + "] fields.");
-        }
-
-        @Override
-        protected boolean defaultDocValues(Version indexCreated) {
-            return false;
         }
 
         @Override
@@ -323,6 +312,7 @@ public final class JsonFieldMapper extends FieldMapper {
                 CONTENT_TYPE + "] fields.");
         }
 
+        @Override
         public BytesRef indexedValueForSearch(Object value) {
             if (value == null) {
                 return null;
@@ -333,6 +323,11 @@ public final class JsonFieldMapper extends FieldMapper {
                 : value.toString();
             String keyedValue = JsonFieldParser.createKeyedValue(key, stringValue);
             return new BytesRef(keyedValue);
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            throw new IllegalArgumentException("Aggregations are not supported on keyed [" + typeName() + "] fields.");
         }
     }
 
@@ -396,7 +391,11 @@ public final class JsonFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
         }
 
         @Override
@@ -420,6 +419,12 @@ public final class JsonFieldMapper extends FieldMapper {
             throw new UnsupportedOperationException("[wildcard] queries are not currently supported on [" +
                 CONTENT_TYPE + "] fields.");
         }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            failIfNoDocValues();
+            return new DocValuesIndexFieldData.Builder();
+        }
     }
 
     private final JsonFieldParser fieldParser;
@@ -438,7 +443,7 @@ public final class JsonFieldMapper extends FieldMapper {
         this.depthLimit = depthLimit;
         this.ignoreAbove = ignoreAbove;
         this.fieldParser = new JsonFieldParser(fieldType.name(), keyedFieldName(),
-            depthLimit, ignoreAbove, fieldType.nullValueAsString());
+            fieldType, depthLimit, ignoreAbove);
     }
 
     @Override
@@ -476,7 +481,9 @@ public final class JsonFieldMapper extends FieldMapper {
             return;
         }
 
-        if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
+        if (fieldType.indexOptions() == IndexOptions.NONE
+                && !fieldType.hasDocValues()
+                && !fieldType.stored()) {
             context.parser().skipChildren();
             return;
         }
@@ -490,22 +497,22 @@ public final class JsonFieldMapper extends FieldMapper {
             fields.add(new StoredField(fieldType.name(), storedValue));
         }
 
-        if (fieldType().indexOptions() != IndexOptions.NONE) {
-            XContentParser indexedFieldsParser = context.parser();
+        XContentParser indexedFieldsParser = context.parser();
 
-            // If store is enabled, we've already consumed the content to produce the stored field. Here we
-            // 'reset' the parser, so that we can traverse the content again.
-            if (storedValue != null) {
-                indexedFieldsParser = JsonXContent.jsonXContent.createParser(context.parser().getXContentRegistry(),
-                    context.parser().getDeprecationHandler(),
-                    storedValue.bytes);
-                indexedFieldsParser.nextToken();
-            }
-
-            fields.addAll(fieldParser.parse(indexedFieldsParser));
+        // If store is enabled, we've already consumed the content to produce the stored field. Here we
+        // 'reset' the parser, so that we can traverse the content again.
+        if (storedValue != null) {
+            indexedFieldsParser = JsonXContent.jsonXContent.createParser(context.parser().getXContentRegistry(),
+                context.parser().getDeprecationHandler(),
+                storedValue.bytes);
+            indexedFieldsParser.nextToken();
         }
 
-        createFieldNamesField(context, fields);
+        fields.addAll(fieldParser.parse(indexedFieldsParser));
+
+        if (!fieldType.hasDocValues()) {
+            createFieldNamesField(context, fields);
+        }
     }
 
     @Override

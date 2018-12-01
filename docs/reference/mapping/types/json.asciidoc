@@ -154,6 +154,12 @@ parameters are accepted:
     objects. If a JSON field exceeds this limit, then an error will be
     thrown. Defaults to `20`.
 
+<<doc-values,`doc_values`>>::
+
+    Should the field be stored on disk in a column-stride fashion, so that it
+    can later be used for sorting, aggregations, or scripting? Accepts `true`
+    (default) or `false`.
+
 <<ignore-above,`ignore_above`>>::
 
     Leaf values longer than this limit will not be indexed. By default, there

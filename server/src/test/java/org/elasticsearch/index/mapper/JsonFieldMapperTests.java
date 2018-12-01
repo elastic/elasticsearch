@@ -81,8 +81,9 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
 
         ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "type", "1", doc, XContentType.JSON));
 
+        // Check the root fields.
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
+        assertEquals(2, fields.length);
 
         assertEquals("field", fields[0].name());
         assertEquals(new BytesRef("value"), fields[0].binaryValue());
@@ -90,8 +91,13 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         assertTrue(fields[0].fieldType().omitNorms());
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
 
+        assertEquals("field", fields[1].name());
+        assertEquals(new BytesRef("value"), fields[1].binaryValue());
+        assertEquals(DocValuesType.SORTED_SET, fields[1].fieldType().docValuesType());
+
+        // Check the keyed fields.
         IndexableField[] keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
-        assertEquals(1, keyedFields.length);
+        assertEquals(2, keyedFields.length);
 
         assertEquals("field._keyed", keyedFields[0].name());
         assertEquals(new BytesRef("key\0value"), keyedFields[0].binaryValue());
@@ -99,9 +105,13 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         assertTrue(keyedFields[0].fieldType().omitNorms());
         assertEquals(DocValuesType.NONE, keyedFields[0].fieldType().docValuesType());
 
+        assertEquals("field._keyed", keyedFields[1].name());
+        assertEquals(new BytesRef("key\0value"), keyedFields[1].binaryValue());
+        assertEquals(DocValuesType.SORTED_SET, keyedFields[1].fieldType().docValuesType());
+
+        // Check that there is no 'field names' field.
         IndexableField[] fieldNamesFields = parsedDoc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
-        assertEquals(1, fieldNamesFields.length);
-        assertEquals("field", fieldNamesFields[0].stringValue());
+        assertEquals(0, fieldNamesFields.length);
     }
 
     public void testDisableIndex() throws Exception {
@@ -126,39 +136,23 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         .endObject());
 
         ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "type", "1", doc, XContentType.JSON));
+
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        assertEquals(1, fields.length);
+        assertEquals(DocValuesType.SORTED_SET, fields[0].fieldType().docValuesType());
+
+        IndexableField[] keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(1, keyedFields.length);
+        assertEquals(DocValuesType.SORTED_SET, keyedFields[0].fieldType().docValuesType());
     }
 
-    public void testEnableDocValues() throws Exception {
+    public void testDisableDocValues() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "json")
-                        .field("doc_values", true)
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> parser.parse("type", new CompressedXContent(mapping)));
-        assertEquals("[json] fields do not support doc values", e.getMessage());
-    }
-
-    public void testEnableStore() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("store_and_index")
-                        .field("type", "json")
-                        .field("store", true)
-                    .endObject()
-                    .startObject("store_only")
-                        .field("type", "json")
-                        .field("index", false)
-                        .field("store", true)
+                        .field("doc_values", false)
                     .endObject()
                 .endObject()
             .endObject()
@@ -168,10 +162,52 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(mapping, mapper.mappingSource().toString());
 
         BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                .startObject("store_only")
+            .startObject("field")
+            .field("key", "value")
+            .endObject()
+            .endObject());
+
+        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "type", "1", doc, XContentType.JSON));
+
+        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(1, fields.length);
+        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
+
+        IndexableField[] keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(1, keyedFields.length);
+        assertEquals(DocValuesType.NONE, keyedFields[0].fieldType().docValuesType());
+
+        IndexableField[] fieldNamesFields = parsedDoc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
+        assertEquals(1, fieldNamesFields.length);
+        assertEquals("field", fieldNamesFields[0].stringValue());
+    }
+
+    public void testEnableStore() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("store")
+                        .field("type", "json")
+                        .field("store", true)
+                    .endObject()
+                    .startObject("store_only")
+                        .field("type", "json")
+                        .field("index", false)
+                        .field("store", true)
+                        .field("doc_values", false)
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
+                .startObject("store")
                     .field("key", "value")
                 .endObject()
-                .startObject("store_and_index")
+                .startObject("store_only")
                     .field("key", "value")
                 .endObject()
             .endObject());
@@ -181,21 +217,23 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         BytesReference storedValue = BytesReference.bytes(JsonXContent.contentBuilder()
             .prettyPrint()
             .startObject()
-            .field("key", "value")
+                .field("key", "value")
             .endObject());
+
+        IndexableField[] store = parsedDoc.rootDoc().getFields("store");
+        assertEquals(3, store.length);
+
+        assertTrue(store[0].fieldType().stored());
+        assertEquals(storedValue.toBytesRef(), store[0].binaryValue());
+        assertFalse(store[1].fieldType().stored());
+        assertFalse(store[2].fieldType().stored());
+        assertEquals(DocValuesType.SORTED_SET, store[2].fieldType().docValuesType());
 
         IndexableField[] storeOnly = parsedDoc.rootDoc().getFields("store_only");
         assertEquals(1, storeOnly.length);
 
         assertTrue(storeOnly[0].fieldType().stored());
         assertEquals(storedValue.toBytesRef(), storeOnly[0].binaryValue());
-
-        IndexableField[] storeAndIndex = parsedDoc.rootDoc().getFields("store_and_index");
-        assertEquals(2, storeAndIndex.length);
-
-        assertTrue(storeAndIndex[0].fieldType().stored());
-        assertEquals(storedValue.toBytesRef(), storeAndIndex[0].binaryValue());
-        assertFalse(storeAndIndex[1].fieldType().stored());
     }
 
     public void testIndexOptions() throws IOException {
@@ -308,16 +346,16 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "type", "1", doc, XContentType.JSON));
 
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(3, fields.length);
+        assertEquals(6, fields.length);
         assertEquals(new BytesRef("value"), fields[0].binaryValue());
-        assertEquals(new BytesRef("true"), fields[1].binaryValue());
-        assertEquals(new BytesRef("false"), fields[2].binaryValue());
+        assertEquals(new BytesRef("true"), fields[2].binaryValue());
+        assertEquals(new BytesRef("false"), fields[4].binaryValue());
 
         IndexableField[] keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
-        assertEquals(3, keyedFields.length);
+        assertEquals(6, keyedFields.length);
         assertEquals(new BytesRef("key1\0value"), keyedFields[0].binaryValue());
-        assertEquals(new BytesRef("key2\0true"), keyedFields[1].binaryValue());
-        assertEquals(new BytesRef("key3\0false"), keyedFields[2].binaryValue());
+        assertEquals(new BytesRef("key2\0true"), keyedFields[2].binaryValue());
+        assertEquals(new BytesRef("key3\0false"), keyedFields[4].binaryValue());
     }
 
     public void testDepthLimit() throws IOException {
@@ -409,12 +447,14 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(0, fields.length);
 
         IndexableField[] otherFields = parsedDoc.rootDoc().getFields("other_field");
-        assertEquals(1, otherFields.length);
+        assertEquals(2, otherFields.length);
         assertEquals(new BytesRef("placeholder"), otherFields[0].binaryValue());
+        assertEquals(new BytesRef("placeholder"), otherFields[1].binaryValue());
 
         IndexableField[] prefixedOtherFields = parsedDoc.rootDoc().getFields("other_field._keyed");
-        assertEquals(1, prefixedOtherFields.length);
+        assertEquals(2, prefixedOtherFields.length);
         assertEquals(new BytesRef("key\0placeholder"), prefixedOtherFields[0].binaryValue());
+        assertEquals(new BytesRef("key\0placeholder"), prefixedOtherFields[1].binaryValue());
     }
 
     public void testSplitQueriesOnWhitespace() throws IOException {

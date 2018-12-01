@@ -22,7 +22,9 @@ setup:
             - '{"index": {"_index": "test", "_type": "test", "_id": "2"}}'
             - '{"text" : "Its cold outside, theres no kind of atmosphere"}'
             - '{"index": {"_index": "test", "_type": "test", "_id": "3"}}'
-            - '{"text" : "Baby its cold outside"}'
+            - '{"text" : "Baby its cold there outside"}'
+            - '{"index": {"_index": "test", "_type": "test", "_id": "4"}}'
+            - '{"text" : "Outside it is cold and wet"}'
 
   - do:
         search:
@@ -36,3 +38,16 @@ setup:
                   ordered: true
   - match:
         count: { hits.total: 2 }
+
+  - do:
+        search:
+          index: test
+          body:
+            query:
+              intervals:
+                field: text
+                source:
+                  match: "cold outside"
+                  ordered: false
+  - match:
+        count: { hits.total: 3 }

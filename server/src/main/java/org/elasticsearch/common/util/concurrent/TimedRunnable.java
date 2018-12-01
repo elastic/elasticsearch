@@ -94,4 +94,7 @@ class TimedRunnable extends AbstractRunnable {
         return Math.max(finishTimeNanos - startTimeNanos, 1);
     }
 
+    Runnable unwrap() {
+        return original;
+    }
 }

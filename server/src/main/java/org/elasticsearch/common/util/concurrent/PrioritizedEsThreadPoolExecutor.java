@@ -122,7 +122,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
         command = wrapRunnable(command);
-        doExecute(command);
+        execute(command);
         if (timeout.nanos() >= 0) {
             if (command instanceof TieBreakingPrioritizedRunnable) {
                 ((TieBreakingPrioritizedRunnable) command).scheduleTimeout(timer, timeoutCallback, timeout);
@@ -149,6 +149,14 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         }
     }
 
+    @Override
+    protected Runnable unwrap(Runnable runnable) {
+        if (runnable instanceof TieBreakingPrioritizedRunnable) {
+            return super.unwrap(((TieBreakingPrioritizedRunnable) runnable).unwrap());
+        } else {
+            return super.unwrap(runnable);
+        }
+    }
 
     @Override
     protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
@@ -246,11 +254,14 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                 runnable = null;
                 timeoutFuture = null;
             }
+        }
 
+        Runnable unwrap() {
+            return runnable;
         }
     }
 
-    private final class PrioritizedFutureTask<T> extends FutureTask<T> implements Comparable<PrioritizedFutureTask> {
+    private static final class PrioritizedFutureTask<T> extends FutureTask<T> implements Comparable<PrioritizedFutureTask> {
 
         final Object task;
         final Priority priority;

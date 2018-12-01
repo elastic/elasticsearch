@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -724,7 +725,7 @@ public class AutodetectProcessManager {
      * operations are initially added to a queue and a worker thread from ml autodetect threadpool will process each
      * operation at a time.
      */
-    class AutodetectWorkerExecutorService extends AbstractExecutorService {
+    static class AutodetectWorkerExecutorService extends AbstractExecutorService {
 
         private final ThreadContext contextHolder;
         private final CountDownLatch awaitTermination = new CountDownLatch(1);
@@ -779,6 +780,7 @@ public class AutodetectProcessManager {
                         } catch (Exception e) {
                             logger.error("error handling job operation", e);
                         }
+                        EsExecutors.rethrowErrors(contextHolder.unwrap(runnable));
                     }
                 }
             } catch (InterruptedException e) {

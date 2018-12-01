@@ -89,11 +89,8 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     @Override
-    public void execute(final Runnable command) {
-        doExecute(wrapRunnable(command));
-    }
-
-    protected void doExecute(final Runnable command) {
+    public final void execute(Runnable command) {
+        command = wrapRunnable(command);
         try {
             super.execute(command);
         } catch (EsRejectedExecutionException ex) {
@@ -115,6 +112,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);
+        EsExecutors.rethrowErrors(unwrap(r));
         assert assertDefaultContext(r);
     }
 

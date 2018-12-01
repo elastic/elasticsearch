@@ -78,12 +78,18 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
     }
 
     @Override
-    protected void doExecute(final Runnable command) {
-        // we are submitting a task, it has not yet started running (because super.excute() has not
-        // been called), but it could be immediately run, or run at a later time. We need the time
-        // this task entered the queue, which we get by creating a TimedRunnable, which starts the
-        // clock as soon as it is created.
-        super.doExecute(this.runnableWrapper.apply(command));
+    protected Runnable wrapRunnable(Runnable command) {
+        return super.wrapRunnable(this.runnableWrapper.apply(command));
+    }
+
+    @Override
+    protected Runnable unwrap(Runnable runnable) {
+        final Runnable unwrapped = super.unwrap(runnable);
+        if (unwrapped instanceof TimedRunnable) {
+            return ((TimedRunnable) unwrapped).unwrap();
+        } else {
+            return unwrapped;
+        }
     }
 
     /**
@@ -146,11 +152,12 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
         // total time as a combination of the time in the queue and time spent running the task. We
         // only want runnables that did not throw errors though, because they could be fast-failures
         // that throw off our timings, so only check when t is null.
-        assert r instanceof TimedRunnable : "expected only TimedRunnables in queue";
-        final long taskNanos = ((TimedRunnable) r).getTotalNanos();
+        assert super.unwrap(r) instanceof TimedRunnable : "expected only TimedRunnables in queue";
+        final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
+        final long taskNanos = timedRunnable.getTotalNanos();
         final long totalNanos = totalTaskNanos.addAndGet(taskNanos);
 
-        final long taskExecutionNanos = ((TimedRunnable) r).getTotalExecutionNanos();
+        final long taskExecutionNanos = timedRunnable.getTotalExecutionNanos();
         assert taskExecutionNanos >= 0 : "expected task to always take longer than 0 nanoseconds, got: " + taskExecutionNanos;
         executionEWMA.addValue(taskExecutionNanos);
 

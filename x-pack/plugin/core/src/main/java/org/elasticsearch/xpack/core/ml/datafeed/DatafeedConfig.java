@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -707,7 +708,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (histogramAggregation.getTimeZone() != null && histogramAggregation.getTimeZone().equals("UTC") == false) {
                 throw ExceptionsHelper.badRequestException("ML requires date_histogram.time_zone to be UTC");
             }
-            checkNoMoreHistogramAggregations(histogramAggregation.subAggregations);
+            checkNoMoreHistogramAggregations(histogramAggregation.getSubAggregations());
             checkHistogramAggregationHasChildMaxTimeAgg(histogramAggregation);
             checkHistogramIntervalIsPositive(histogramAggregation);
         }
@@ -721,16 +722,16 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 if (semiParsedAggregation.isHistogram()) {
                     throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_MAX_ONE_DATE_HISTOGRAM);
                 }
-                checkNoMoreHistogramAggregations(semiParsedAggregation.subAggregations);
+                checkNoMoreHistogramAggregations(semiParsedAggregation.getSubAggregations());
             }
         }
 
         static void checkHistogramAggregationHasChildMaxTimeAgg(SemiParsedAggregation histogramAggregation) {
             String timeField = histogramAggregation.getField();
 
-            for (Map.Entry<String, Object> agg : histogramAggregation.subAggregations.entrySet()) {
+            for (Map.Entry<String, Object> agg : histogramAggregation.getSubAggregations().entrySet()) {
                 SemiParsedAggregation semiParsedAggregation = new SemiParsedAggregation(agg);
-                if (semiParsedAggregation.type != null && semiParsedAggregation.type.equals(MaxAggregationBuilder.NAME)) {
+                if (semiParsedAggregation.getType() != null && semiParsedAggregation.getTimeZone().equals(MaxAggregationBuilder.NAME)) {
                     if (semiParsedAggregation.getField() != null && semiParsedAggregation.getField().equals(timeField)) {
                         return;
                     }
@@ -795,9 +796,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
      * None of the regular Aggregation parsing validations are done from this class, only really used for ML specific validations
      */
     static class SemiParsedAggregation {
-        final String name;
-        final String type;
-        final Map<String, Object> subAggregations = new HashMap<>();
+        private final String name;
+        private final String type;
+        private final Map<String, Object> subAggregations = new HashMap<>();
         private final Map<String, Object> aggOptions;
 
         /**
@@ -805,23 +806,25 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
          * fields used in our validations are readily available.
          *
          * @param agg The single entry of the form {@code {"aggname":{"aggtype":{options}, "aggs|aggregations"{subaggs}}}}
-         * @throws IllegalArgumentException
+         * @throws IllegalArgumentException when agg is incorrectly formatted
          */
         @SuppressWarnings("unchecked")
         SemiParsedAggregation(Map.Entry<String, Object> agg) {
+            String foundName = agg.getKey();
             String foundType = null;
             Map<String, Object> foundAggOptions = new HashMap<>();
             if (agg.getValue() instanceof Map == false) {
-                throw new IllegalArgumentException("Aggregation [" + agg.getKey() + "] definition incorrectly formatted");
+                throw new IllegalArgumentException("Aggregation [" + foundName + "] definition incorrectly formatted");
             }
             Map<String, Object> definition = (Map<String, Object>) agg.getValue();
             for (Map.Entry<String, Object> entry : definition.entrySet()) {
                 switch (entry.getKey()) {
+                    // Get our sub-aggregations if there are any
                     case "aggregations":
                     case "aggs":
                         if (entry.getValue() instanceof Map == false) {
                             throw new IllegalArgumentException(
-                                "Aggregation [" + agg.getKey() + "] sub aggregation definition incorrectly formatted");
+                                "Aggregation [" + foundName + "] sub aggregation definition incorrectly formatted");
                         }
                         Map<String, Object> subAgg = (Map<String, Object>) entry.getValue();
                         subAgg.forEach((name, value) -> subAggregations.merge(name, value, (oldValue, newValue) -> newValue));
@@ -830,13 +833,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                         break;
                     default:
                         if (entry.getValue() instanceof Map == false) {
-                            throw new IllegalArgumentException("Aggregation [" + agg.getKey() + "] options incorrectly formatted");
+                            throw new IllegalArgumentException("Aggregation [" + foundName + "] options incorrectly formatted");
                         }
                         foundType = entry.getKey();
                         foundAggOptions = (Map<String, Object>) entry.getValue();
                 }
             }
-            name = agg.getKey();
+            name = foundName;
             type = foundType;
             aggOptions = foundAggOptions;
         }
@@ -868,6 +871,18 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 return aggOptions.get("field").toString();
             }
             return null;
+        }
+
+        String getName() {
+            return name;
+        }
+
+        String getType() {
+            return type;
+        }
+
+        Map<String, Object> getSubAggregations() {
+            return subAggregations;
         }
     }
 }

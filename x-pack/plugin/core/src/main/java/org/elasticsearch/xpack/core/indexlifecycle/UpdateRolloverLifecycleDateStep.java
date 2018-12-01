@@ -14,6 +14,10 @@ import org.elasticsearch.index.Index;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
+/**
+ * Copies the lifecycle reference date to a new index created by rolling over an alias.
+ * Used so that the "age" of an index doesn't get reset on rollover.
+ */
 public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
     public static final String NAME = "update-rollover-lifecycle-date";
 
@@ -32,7 +36,8 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
         }
         RolloverInfo rolloverInfo = indexMetaData.getRolloverInfos().get(rolloverAlias);
         if (rolloverInfo == null) {
-            throw new IllegalStateException("index [" + indexMetaData.getIndex().getName() + "] has not rolled over yet");
+            throw new IllegalStateException("no rollover info found for [" + indexMetaData.getIndex().getName() + "] with alias [" +
+                rolloverAlias + "], the index has not yet rolled over with that alias");
         }
 
         LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState

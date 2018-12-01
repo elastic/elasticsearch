@@ -99,9 +99,9 @@ public class IndexLifecycleRequestConvertersTests extends ESTestCase {
         setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
 
         Request request = IndexLifecycleRequestConverters.removeIndexLifecyclePolicy(req);
-        assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         String idxString = Strings.arrayToCommaDelimitedString(indices);
-        assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm"));
+        assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm/remove"));
         assertThat(request.getParameters(), equalTo(expectedParams));
     }
 
@@ -142,17 +142,15 @@ public class IndexLifecycleRequestConvertersTests extends ESTestCase {
     }
 
     public void testExplainLifecycle() throws Exception {
-        ExplainLifecycleRequest req = new ExplainLifecycleRequest();
-        String[] indices = rarely() ? null : randomIndicesNames(0, 10);
-        req.indices(indices);
+        ExplainLifecycleRequest req = new ExplainLifecycleRequest(randomIndicesNames(1, 10));
         Map<String, String> expectedParams = new HashMap<>();
         setRandomMasterTimeout(req, expectedParams);
         setRandomIndicesOptions(req::indicesOptions, req::indicesOptions, expectedParams);
 
         Request request = IndexLifecycleRequestConverters.explainLifecycle(req);
         assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
-        String idxString = Strings.arrayToCommaDelimitedString(indices);
-        assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm/explain"));
+        String idxString = Strings.arrayToCommaDelimitedString(req.getIndices());
+        assertThat(request.getEndpoint(), equalTo("/" + idxString + "/" + "_ilm/explain"));
         assertThat(request.getParameters(), equalTo(expectedParams));
     }
 

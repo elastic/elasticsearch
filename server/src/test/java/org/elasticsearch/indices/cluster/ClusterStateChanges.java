@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices.cluster;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
@@ -67,7 +69,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryA
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -105,11 +106,12 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ClusterStateChanges extends AbstractComponent {
+public class ClusterStateChanges {
     private static final Settings SETTINGS = Settings.builder()
             .put(PATH_HOME_SETTING.getKey(), "dummy")
             .build();
 
+    private static final Logger logger = LogManager.getLogger(ClusterStateChanges.class);
     private final AllocationService allocationService;
     private final ClusterService clusterService;
     private final ShardStateAction.ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
@@ -189,15 +191,15 @@ public class ClusterStateChanges extends AbstractComponent {
 
         transportCloseIndexAction = new TransportCloseIndexAction(SETTINGS, transportService, clusterService, threadPool,
             indexStateService, clusterSettings, actionFilters, indexNameExpressionResolver, destructiveOperations);
-        transportOpenIndexAction = new TransportOpenIndexAction(SETTINGS, transportService,
+        transportOpenIndexAction = new TransportOpenIndexAction(transportService,
             clusterService, threadPool, indexStateService, actionFilters, indexNameExpressionResolver, destructiveOperations);
-        transportDeleteIndexAction = new TransportDeleteIndexAction(SETTINGS, transportService,
+        transportDeleteIndexAction = new TransportDeleteIndexAction(transportService,
             clusterService, threadPool, deleteIndexService, actionFilters, indexNameExpressionResolver, destructiveOperations);
-        transportUpdateSettingsAction = new TransportUpdateSettingsAction(SETTINGS,
+        transportUpdateSettingsAction = new TransportUpdateSettingsAction(
             transportService, clusterService, threadPool, metaDataUpdateSettingsService, actionFilters, indexNameExpressionResolver);
-        transportClusterRerouteAction = new TransportClusterRerouteAction(SETTINGS,
+        transportClusterRerouteAction = new TransportClusterRerouteAction(
             transportService, clusterService, threadPool, allocationService, actionFilters, indexNameExpressionResolver);
-        transportCreateIndexAction = new TransportCreateIndexAction(SETTINGS,
+        transportCreateIndexAction = new TransportCreateIndexAction(
             transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
 
         ElectMasterService electMasterService = new ElectMasterService(SETTINGS);

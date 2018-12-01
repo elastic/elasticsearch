@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
@@ -36,10 +35,9 @@ import java.util.TreeMap;
 public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
-    public TransportDeleteLifecycleAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
+    public TransportDeleteLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(DeleteLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, Request::new);
     }
 

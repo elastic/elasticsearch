@@ -19,7 +19,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -45,9 +44,9 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
     private final ClusterService clusterService;
 
     @Inject
-    public TransportDeleteFilterAction(Settings settings, TransportService transportService,
-                                       ActionFilters actionFilters, ClusterService clusterService, Client client) {
-        super(settings, DeleteFilterAction.NAME, transportService, actionFilters,
+    public TransportDeleteFilterAction(TransportService transportService, ActionFilters actionFilters,
+                                       ClusterService clusterService, Client client) {
+        super(DeleteFilterAction.NAME, transportService, actionFilters,
             (Supplier<DeleteFilterAction.Request>) DeleteFilterAction.Request::new);
         this.clusterService = clusterService;
         this.client = client;

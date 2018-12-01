@@ -19,11 +19,14 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
 import java.util.Locale;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -47,9 +50,17 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         AtomicBoolean stopped = new AtomicBoolean();
         Thread[] threads = new Thread[between(1, 8)];
         AtomicInteger docID = new AtomicInteger();
+        Semaphore availableDocs = new Semaphore(0);
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 while (stopped.get() == false) {
+                    try {
+                        if (availableDocs.tryAcquire(10, TimeUnit.MILLISECONDS) == false) {
+                            continue;
+                        }
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
                     if (frequently()) {
                         String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 10)); // sometimes update
                         IndexResponse indexResponse = leaderClient().prepareIndex("leader-index", "doc", id)
@@ -64,6 +75,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
             });
             threads[i].start();
         }
+        availableDocs.release(between(100, 200));
         PutFollowAction.Request follow = putFollow("leader-index", "follower-index");
         follow.getFollowRequest().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
         follow.getFollowRequest().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
@@ -73,8 +85,9 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         follow.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         logger.info("--> follow params {}", Strings.toString(follow.getFollowRequest()));
         followerClient().execute(PutFollowAction.INSTANCE, follow).get();
+        disableDelayedAllocation("follower-index");
         ensureFollowerGreen("follower-index");
-        atLeastDocsIndexed(followerClient(), "follower-index", between(20, 60));
+        awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex("follower-index"), 0), between(30, 80));
         final ClusterState clusterState = getFollowerCluster().clusterService().state();
         for (ShardRouting shardRouting : clusterState.routingTable().allShards("follower-index")) {
             if (shardRouting.primary()) {
@@ -83,17 +96,18 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 break;
             }
         }
+        availableDocs.release(between(50, 200));
         ensureFollowerGreen("follower-index");
-        atLeastDocsIndexed(followerClient(), "follower-index", between(80, 150));
+        availableDocs.release(between(50, 200));
+        awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex("follower-index"), 0), between(100, 150));
         stopped.set(true);
         for (Thread thread : threads) {
             thread.join();
         }
-        assertSameDocCount("leader-index", "follower-index");
+        assertIndexFullyReplicatedToFollower("leader-index", "follower-index");
         pauseFollow("follower-index");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33337")
     public void testFollowIndexAndCloseNode() throws Exception {
         getFollowerCluster().ensureAtLeastNumDataNodes(3);
         String leaderIndexSettings = getIndexSettings(3, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
@@ -101,18 +115,23 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         ensureLeaderGreen("index1");
 
         AtomicBoolean run = new AtomicBoolean(true);
+        Semaphore availableDocs = new Semaphore(0);
         Thread thread = new Thread(() -> {
             int counter = 0;
             while (run.get()) {
-                final String source = String.format(Locale.ROOT, "{\"f\":%d}", counter++);
                 try {
-                    leaderClient().prepareIndex("index1", "doc")
-                        .setSource(source, XContentType.JSON)
-                        .setTimeout(TimeValue.timeValueSeconds(1))
-                        .get();
-                } catch (Exception e) {
-                    logger.error("Error while indexing into leader index", e);
+                    if (availableDocs.tryAcquire(10, TimeUnit.MILLISECONDS) == false) {
+                        continue;
+                    }
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
                 }
+                final String source = String.format(Locale.ROOT, "{\"f\":%d}", counter++);
+                IndexResponse indexResp = leaderClient().prepareIndex("index1", "doc")
+                    .setSource(source, XContentType.JSON)
+                    .setTimeout(TimeValue.timeValueSeconds(1))
+                    .get();
+                logger.info("--> index id={} seq_no={}", indexResp.getId(), indexResp.getSeqNo());
             }
         });
         thread.start();
@@ -125,19 +144,20 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         followRequest.getFollowRequest().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         followRequest.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        disableDelayedAllocation("index2");
+        logger.info("--> follow params {}", Strings.toString(followRequest.getFollowRequest()));
 
-        long maxNumDocsReplicated = Math.min(1000, randomLongBetween(followRequest.getFollowRequest().getMaxReadRequestOperationCount(),
-            followRequest.getFollowRequest().getMaxReadRequestOperationCount() * 10));
-        long minNumDocsReplicated = maxNumDocsReplicated / 3L;
-        logger.info("waiting for at least [{}] documents to be indexed and then stop a random data node", minNumDocsReplicated);
-        atLeastDocsIndexed(followerClient(), "index2", minNumDocsReplicated);
+        int maxOpsPerRead = followRequest.getFollowRequest().getMaxReadRequestOperationCount();
+        int maxNumDocsReplicated = Math.min(between(50, 500), between(maxOpsPerRead, maxOpsPerRead * 10));
+        availableDocs.release(maxNumDocsReplicated / 2 + 1);
+        atLeastDocsIndexed(followerClient(), "index2", maxNumDocsReplicated / 3);
         getFollowerCluster().stopRandomNonMasterNode();
-        logger.info("waiting for at least [{}] documents to be indexed", maxNumDocsReplicated);
-        atLeastDocsIndexed(followerClient(), "index2", maxNumDocsReplicated);
+        availableDocs.release(maxNumDocsReplicated / 2 + 1);
+        atLeastDocsIndexed(followerClient(), "index2", maxNumDocsReplicated * 2 / 3);
         run.set(false);
         thread.join();
 
-        assertSameDocCount("index1", "index2");
+        assertIndexFullyReplicatedToFollower("index1", "index2");
         pauseFollow("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), 3);
     }
@@ -188,15 +208,15 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
             }
         });
         flushingOnFollower.start();
-        atLeastDocsIndexed(followerClient(), "follower-index", 50);
+        awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex("follower-index"), 0), 50);
         followerClient().admin().indices().prepareUpdateSettings("follower-index")
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas + 1).build()).get();
         ensureFollowerGreen("follower-index");
-        atLeastDocsIndexed(followerClient(), "follower-index", 100);
+        awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex("follower-index"), 0), 100);
         stopped.set(true);
         flushingOnFollower.join();
         indexingOnLeader.join();
-        assertSameDocCount("leader-index", "follower-index");
+        assertIndexFullyReplicatedToFollower("leader-index", "follower-index");
         pauseFollow("follower-index");
     }
 

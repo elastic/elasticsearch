@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +41,7 @@ import static org.mockito.Mockito.when;
 
 public class MetaDataIndexStateServiceTests extends ESTestCase {
 
-    public void testValidateShardLimitDeprecationWarning() {
+    public void testValidateShardLimit() {
         int nodesInCluster = randomIntBetween(2,100);
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
         Settings clusterSettings = Settings.builder()
@@ -55,13 +56,13 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             .toArray(new Index[2]);
 
         DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-        MetaDataIndexStateService.validateShardLimit(state, indices, deprecationLogger);
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        assertWarnings("In a future major version, this request will fail because this action would add [" +
-            totalShards + "] total shards, but this cluster currently has [" + currentShards + "]/[" + maxShards + "] maximum shards open."+
-            " Before upgrading, reduce the number of shards in your cluster or adjust the cluster setting [cluster.max_shards_per_node].");
+        ValidationException exception = expectThrows(ValidationException.class,
+            () -> MetaDataIndexStateService.validateShardLimit(state, indices));
+        assertEquals("Validation Failed: 1: this action would add [" + totalShards + "] total shards, but this cluster currently has [" +
+            currentShards + "]/[" + maxShards + "] maximum shards open;", exception.getMessage());
     }
 
     public static ClusterState createClusterForShardLimitTest(int nodesInCluster, int openIndexShards, int openIndexReplicas,

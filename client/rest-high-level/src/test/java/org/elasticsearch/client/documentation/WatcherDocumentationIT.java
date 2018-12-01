@@ -34,9 +34,13 @@ import org.elasticsearch.client.watcher.ActionStatus;
 import org.elasticsearch.client.watcher.ActionStatus.AckStatus;
 import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.client.watcher.DeactivateWatchResponse;
+import org.elasticsearch.client.watcher.GetWatchRequest;
+import org.elasticsearch.client.watcher.GetWatchResponse;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.client.watcher.WatchStatus;
+import org.elasticsearch.client.watcher.WatcherStatsRequest;
+import org.elasticsearch.client.watcher.WatcherStatsResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -46,6 +50,7 @@ import org.elasticsearch.client.watcher.PutWatchRequest;
 import org.elasticsearch.client.watcher.PutWatchResponse;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -100,7 +105,7 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             };
             // end::start-watch-service-execute-listener
-            
+
             CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
@@ -190,6 +195,51 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-put-watch-execute-async
             client.watcher().putWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-put-watch-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            //tag::get-watch-request
+            GetWatchRequest request = new GetWatchRequest("my_watch_id");
+            //end::get-watch-request
+
+            //tag::get-watch-execute
+            GetWatchResponse response = client.watcher().getWatch(request, RequestOptions.DEFAULT);
+            //end::get-watch-execute
+
+            //tag::get-watch-response
+            String watchId = response.getId(); // <1>
+            boolean found = response.isFound(); // <2>
+            long version = response.getVersion(); // <3>
+            WatchStatus status = response.getStatus(); // <4>
+            BytesReference source = response.getSource(); // <5>
+            //end::get-watch-response
+        }
+
+        {
+            GetWatchRequest request = new GetWatchRequest("my_other_watch_id");
+            // tag::get-watch-execute-listener
+            ActionListener<GetWatchResponse> listener = new ActionListener<GetWatchResponse>() {
+                @Override
+                public void onResponse(GetWatchResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-watch-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-watch-execute-async
+            client.watcher().getWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-watch-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -405,6 +455,51 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
 
+        }
+    }
+
+    public void testWatcherStats() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            //tag::watcher-stats-request
+            WatcherStatsRequest request = new WatcherStatsRequest(true, true);
+            //end::watcher-stats-request
+
+            //tag::watcher-stats-execute
+            WatcherStatsResponse response = client.watcher().watcherStats(request, RequestOptions.DEFAULT);
+            //end::watcher-stats-execute
+
+            //tag::watcher-stats-response
+            List<WatcherStatsResponse.Node> nodes = response.getNodes(); // <1>
+            //end::watcher-stats-response
+        }
+
+        {
+            WatcherStatsRequest request = new WatcherStatsRequest();
+
+            // tag::watcher-stats-execute-listener
+            ActionListener<WatcherStatsResponse> listener = new ActionListener<WatcherStatsResponse>() {
+                @Override
+                public void onResponse(WatcherStatsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::watcher-stats-execute-listener
+
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::watcher-stats-execute-async
+            client.watcher().watcherStatsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::watcher-stats-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 

@@ -62,9 +62,9 @@ include::../execution.asciidoc[]
 
 
 [id="{upid}-{api}-response"]
-==== TermVectorsResponse
+==== Term Vectors Response
 
-The `TermVectorsResponse` contains the following information:
++{response}+ contains the following information:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -77,7 +77,7 @@ include-tagged::{doc-tests-file}[{api}-response]
 
 
 ===== Inspecting Term Vectors
-If `TermVectorsResponse` contains non-null list of term vectors,
+If +{response}+ contains non-null list of term vectors,
 more information about each term vector can be obtained using the following:
 
 ["source","java",subs="attributes,callouts,macros"]

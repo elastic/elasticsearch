@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,14 +31,13 @@ public class TransportPauseFollowAction extends TransportMasterNodeAction<PauseF
 
     @Inject
     public TransportPauseFollowAction(
-            final Settings settings,
             final TransportService transportService,
             final ActionFilters actionFilters,
             final ClusterService clusterService,
             final ThreadPool threadPool,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final PersistentTasksService persistentTasksService) {
-        super(settings, PauseFollowAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(PauseFollowAction.NAME, transportService, clusterService, threadPool, actionFilters,
             PauseFollowAction.Request::new, indexNameExpressionResolver);
         this.persistentTasksService = persistentTasksService;
     }

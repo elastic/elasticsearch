@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -66,6 +68,8 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
  * Basic service for accessing remote clusters via gateway nodes
  */
 public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
     static {
         // remove search.remote.* settings in 8.0.0
@@ -173,6 +177,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             key -> timeSetting(key, TcpTransport.PING_SCHEDULE, Setting.Property.NodeScope),
             REMOTE_CLUSTERS_SEEDS);
 
+    public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
+        "cluster.remote.",
+        "transport.compress",
+        key -> boolSetting(key, Transport.TRANSPORT_TCP_COMPRESS, Setting.Property.NodeScope),
+        REMOTE_CLUSTERS_SEEDS);
+
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
             && (node.isMasterNode() == false  || node.isDataNode() || node.isIngestNode());
 
@@ -219,11 +229,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
                 if (remote == null) { // this is a new cluster we have to add a new representation
                     String clusterAlias = entry.getKey();
-                    TimeValue pingSchedule = REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings);
-                    ConnectionManager connectionManager = new ConnectionManager(settings, transportService.transport,
-                        transportService.threadPool, pingSchedule);
-                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, connectionManager,
-                        numRemoteConnections, getNodePredicate(settings), proxyAddress);
+                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
+                        getNodePredicate(settings), proxyAddress);
                     remoteClusters.put(clusterAlias, remote);
                 }
 

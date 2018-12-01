@@ -44,9 +44,13 @@ if (project == rootProject) {
 // we update the version property to reflect if we are building a snapshot or a release build
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
-Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
+File propsFile = project.file('version.properties')
+Properties props = VersionPropertiesLoader.loadBuildSrcVersion(propsFile)
 version = props.getProperty("elasticsearch")
 processResources {
+  inputs.file(propsFile)
+  // We need to be explicit with the version because we add snapshot and qualifier to it based on properties
+  inputs.property("dynamic_elasticsearch_version", props.getProperty("elasticsearch"))
   doLast {
     Writer writer = file("$destinationDir/version.properties").newWriter()
     try {
@@ -61,8 +65,8 @@ processResources {
  *         Java version                                                      *
  *****************************************************************************/
 
-if (JavaVersion.current() < JavaVersion.VERSION_1_10) {
-  throw new GradleException('At least Java 10 is required to build elasticsearch gradle tools')
+if (JavaVersion.current() < JavaVersion.VERSION_11) {
+  throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
 }
 // Gradle 4.10 does not support setting this to 11 yet
 targetCompatibility = "10"
@@ -85,7 +89,10 @@ compileMinimumRuntimeGroovy {
   sourceCompatibility = minimumRuntimeVersion
 }
 dependencies {
-  compile sourceSets.minimumRuntime.output
+  if (project.ext.has("isEclipse") == false || project.ext.isEclipse == false) {
+      // eclipse is confused if this is set explicitly
+    compile sourceSets.minimumRuntime.output
+  }
   minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
   minimumRuntimeCompile localGroovy()
 }
@@ -116,6 +123,7 @@ dependencies {
   compile "org.elasticsearch:jna:4.5.1"
   compile 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
   compile 'de.thetaphi:forbiddenapis:2.6'
+  compile 'com.avast.gradle:docker-compose-gradle-plugin:0.4.5'
   testCompile "junit:junit:${props.getProperty('junit')}"
 }
 
@@ -138,7 +146,6 @@ if (project == rootProject) {
     if (System.getProperty("repos.mavenLocal") != null) {
       mavenLocal()
     }
-    mavenCentral()
   }
   test {
     include "**/*Tests.class"
@@ -189,6 +196,7 @@ if (project != rootProject) {
             ).asPath,
     )
     systemProperty 'test.local-test-repo-path', "${rootProject.buildDir}/local-test-repo"
+    systemProperty 'test.version_under_test', version
     systemProperty 'test.lucene-snapshot-revision', (versions.lucene =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
   }
   check.dependsOn(integTest)
@@ -241,7 +249,7 @@ class VersionPropertiesLoader {
                       elasticsearch
       )
     }
-    String qualifier = systemProperties.getProperty("build.version_qualifier", "alpha1");
+    String qualifier = systemProperties.getProperty("build.version_qualifier", "");
     if (qualifier.isEmpty() == false) {
       if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
         throw new IllegalStateException("Invalid qualifier: " + qualifier)

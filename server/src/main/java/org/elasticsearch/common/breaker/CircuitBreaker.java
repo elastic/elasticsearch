@@ -62,7 +62,7 @@ public interface CircuitBreaker {
     String ACCOUNTING = "accounting";
 
     enum Type {
-        // A regular or child MemoryCircuitBreaker
+        // A regular or ChildMemoryCircuitBreaker
         MEMORY,
         // A special parent-type for the hierarchy breaker service
         PARENT,

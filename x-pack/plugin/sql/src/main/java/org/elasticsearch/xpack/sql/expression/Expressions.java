@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
 
+import static java.lang.String.format;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
@@ -71,11 +72,11 @@ public final class Expressions {
 
     public static boolean nullable(List<? extends Expression> exps) {
         for (Expression exp : exps) {
-            if (!exp.nullable()) {
-                return false;
+            if (exp.nullable()) {
+                return true;
             }
         }
-        return true;
+        return false;
     }
 
     public static boolean foldable(List<? extends Expression> exps) {
@@ -101,6 +102,10 @@ public final class Expressions {
 
     public static String name(Expression e) {
         return e instanceof NamedExpression ? ((NamedExpression) e).name() : e.nodeName();
+    }
+
+    public static boolean isNull(Expression e) {
+        return e.dataType() == DataType.NULL || (e.foldable() && e.fold() == null);
     }
 
     public static List<String> names(Collection<? extends Expression> e) {
@@ -137,12 +142,20 @@ public final class Expressions {
         throw new SqlIllegalArgumentException("Cannot create pipe for {}", e);
     }
 
+    public static List<Pipe> pipe(List<Expression> expressions) {
+        List<Pipe> pipes = new ArrayList<>(expressions.size());
+        for (Expression e : expressions) {
+            pipes.add(pipe(e));
+        }
+        return pipes;
+    }
+
     public static TypeResolution typeMustBeBoolean(Expression e, String operationName, ParamOrdinal paramOrd) {
         return typeMustBe(e, dt -> dt == DataType.BOOLEAN, operationName, paramOrd, "boolean");
     }
 
     public static TypeResolution typeMustBeInteger(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt.isInteger, operationName, paramOrd, "integer");
+        return typeMustBe(e, DataType::isInteger, operationName, paramOrd, "integer");
     }
 
     public static TypeResolution typeMustBeNumeric(Expression e, String operationName, ParamOrdinal paramOrd) {
@@ -161,27 +174,18 @@ public final class Expressions {
         return typeMustBe(e, dt -> dt.isNumeric() || dt == DataType.DATE, operationName, paramOrd, "numeric", "date");
     }
 
-    private static TypeResolution typeMustBe(Expression e,
+    public static TypeResolution typeMustBe(Expression e,
                                              Predicate<DataType> predicate,
                                              String operationName,
-                                             ParamOrdinal pOrd,
+                                             ParamOrdinal paramOrd,
                                              String... acceptedTypes) {
-
         return predicate.test(e.dataType()) || DataTypes.isNull(e.dataType())?
             TypeResolution.TYPE_RESOLVED :
-            new TypeResolution(incorrectTypeErrorMessage(e, operationName, pOrd, acceptedTypes));
-
-    }
-
-    private static String incorrectTypeErrorMessage(Expression e,
-                                                    String operationName,
-                                                    ParamOrdinal paramOrd,
-                                                    String... acceptedTypes) {
-        return String.format(Locale.ROOT, "[%s]%s argument must be [%s], found value [%s] type [%s]",
-            operationName,
-            paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : " " + paramOrd.name().toLowerCase(Locale.ROOT),
-            Strings.arrayToDelimitedString(acceptedTypes, " or "),
-            Expressions.name(e),
-            e.dataType().esType);
+            new TypeResolution(format(Locale.ROOT, "[%s]%s argument must be [%s], found value [%s] type [%s]",
+                    operationName,
+                    paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : " " + paramOrd.name().toLowerCase(Locale.ROOT),
+                    Strings.arrayToDelimitedString(acceptedTypes, " or "),
+                    Expressions.name(e),
+                    e.dataType().esType));
     }
 }

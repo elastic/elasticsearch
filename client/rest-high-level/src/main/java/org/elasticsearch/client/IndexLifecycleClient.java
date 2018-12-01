@@ -20,7 +20,7 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.client.indexlifecycle.ExplainLifecycleResponse;
@@ -29,9 +29,9 @@ import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyResponse;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyResponse;
+import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 
@@ -47,8 +47,8 @@ public class IndexLifecycleClient {
     }
 
     /**
-     * Retrieve one or more lifecycle policy definition
-     * See <a href="https://fix-me-when-we-have-docs.com">
+     * Retrieve one or more lifecycle policy definition. See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/java-rest-high-ilm-ilm-get-lifecycle-policy.html">
      * the docs</a> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -62,8 +62,8 @@ public class IndexLifecycleClient {
     }
 
     /**
-     * Asynchronously retrieve one or more lifecycle policy definition
-     * See <a href="https://fix-me-when-we-have-docs.com">
+     * Asynchronously retrieve one or more lifecycle policy definition. See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/java-rest-high-ilm-ilm-get-lifecycle-policy.html">
      * the docs</a> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -76,8 +76,8 @@ public class IndexLifecycleClient {
     }
 
     /**
-     * Create or modify a lifecycle definition
-     * See <a href="https://fix-me-when-we-have-docs.com">
+     * Create or modify a lifecycle definition. See <a href=
+     * "https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/java-rest-high-ilm-ilm-put-lifecycle-policy.html">
      * the docs</a> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -91,8 +91,8 @@ public class IndexLifecycleClient {
     }
 
     /**
-     * Asynchronously create or modify a lifecycle definition
-     * See <a href="https://fix-me-when-we-have-docs.com">
+     * Asynchronously create or modify a lifecycle definition. See <a href=
+     * "https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/java-rest-high-ilm-ilm-put-lifecycle-policy.html">
      * the docs</a> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -282,7 +282,7 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse retryLifecycleStep(RetryLifecyclePolicyRequest request, RequestOptions options) throws IOException {
+    public AcknowledgedResponse retryLifecyclePolicy(RetryLifecyclePolicyRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::retryLifecycle, options,
             AcknowledgedResponse::fromXContent, emptySet());
     }
@@ -295,8 +295,8 @@ public class IndexLifecycleClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void retryLifecycleStepAsync(RetryLifecyclePolicyRequest request, RequestOptions options,
-        ActionListener<AcknowledgedResponse> listener) {
+    public void retryLifecyclePolicyAsync(RetryLifecyclePolicyRequest request, RequestOptions options,
+                                          ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::retryLifecycle, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }

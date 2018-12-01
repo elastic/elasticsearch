@@ -26,12 +26,16 @@ import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.ActivateWatchResponse;
 import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchResponse;
+import org.elasticsearch.client.watcher.GetWatchRequest;
+import org.elasticsearch.client.watcher.GetWatchResponse;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.client.watcher.DeleteWatchRequest;
 import org.elasticsearch.client.watcher.DeleteWatchResponse;
 import org.elasticsearch.client.watcher.PutWatchRequest;
 import org.elasticsearch.client.watcher.PutWatchResponse;
+import org.elasticsearch.client.watcher.WatcherStatsRequest;
+import org.elasticsearch.client.watcher.WatcherStatsResponse;
 
 import java.io.IOException;
 
@@ -125,6 +129,34 @@ public final class WatcherClient {
                               ActionListener<PutWatchResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::putWatch, options,
             PutWatchResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Gets a watch from the cluster
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-get-watch.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetWatchResponse getWatch(GetWatchRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, WatcherRequestConverters::getWatch, options,
+            GetWatchResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously gets a watch into the cluster
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-get-watch.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getWatchAsync(GetWatchRequest request, RequestOptions options,
+                              ActionListener<GetWatchResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::getWatch, options,
+            GetWatchResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -235,6 +267,33 @@ public final class WatcherClient {
     public void activateWatchAsync(ActivateWatchRequest request, RequestOptions options, ActionListener<ActivateWatchResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::activateWatch, options,
             ActivateWatchResponse::fromXContent, listener, singleton(404));
+    }
+
+    /**
+     * Get the watcher stats
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stats.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public WatcherStatsResponse watcherStats(WatcherStatsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, WatcherRequestConverters::watcherStats, options,
+            WatcherStatsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously get the watcher stats
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stats.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void watcherStatsAsync(WatcherStatsRequest request, RequestOptions options, ActionListener<WatcherStatsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::watcherStats, options,
+            WatcherStatsResponse::fromXContent, listener, emptySet());
     }
 
 }

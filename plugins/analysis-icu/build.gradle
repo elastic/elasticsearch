@@ -40,9 +40,3 @@ dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
 }
 
-// Muted: https://github.com/elastic/elasticsearch/issues/35173
-integTestRunner {
-    systemProperty 'tests.rest.blacklist', 
-        'analysis_icu/10_basic/Normalization with a UnicodeSet Filter,' +
-          'analysis_icu/10_basic/Normalization with a CamcelCase UnicodeSet Filter'
-}

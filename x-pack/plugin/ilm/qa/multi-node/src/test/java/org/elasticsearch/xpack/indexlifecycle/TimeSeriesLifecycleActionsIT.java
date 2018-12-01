@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
@@ -29,12 +30,15 @@ import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ShrinkStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.indexlifecycle.WaitForRolloverReadyStep;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -44,6 +48,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
@@ -156,7 +161,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "  \"next_step\": {\n" +
             "    \"phase\": \"hot\",\n" +
             "    \"action\": \"rollover\",\n" +
-            "    \"name\": \"attempt_rollover\"\n" +
+            "    \"name\": \"attempt-rollover\"\n" +
             "  }\n" +
             "}");
         client().performRequest(moveToStepRequest);
@@ -175,6 +180,41 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
     }
 
+    public void testRetryFailedShrinkAction() throws Exception {
+        int numShards = 6;
+        int divisor = randomFrom(2, 3, 6);
+        int expectedFinalShards = numShards / divisor;
+        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        createNewSingletonPolicy("warm", new ShrinkAction(numShards + randomIntBetween(1, numShards)));
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            String failedStep = getFailedStepForIndex(index);
+            assertThat(failedStep, equalTo(ShrinkStep.NAME));
+        });
+
+        // update policy to be correct
+        createNewSingletonPolicy("warm", new ShrinkAction(expectedFinalShards));
+        updatePolicy(index, policy);
+
+        // retry step
+        Request retryRequest = new Request("POST", index + "/_ilm/retry");
+        assertOK(client().performRequest(retryRequest));
+
+        // assert corrected policy is picked up and index is shrunken
+        assertBusy(() -> {
+            logger.error(explainIndex(index));
+            assertTrue(indexExists(shrunkenIndex));
+            assertTrue(aliasExists(shrunkenIndex, index));
+            Map<String, Object> settings = getOnlyIndexSettings(shrunkenIndex);
+            assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
+            assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
+        });
+        expectThrows(ResponseException.class, this::indexDocument);
+    }
+
     public void testRolloverAction() throws Exception {
         String originalIndex = index + "-000001";
         String secondIndex = index + "-000002";
@@ -190,6 +230,34 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         index(client(), originalIndex, "_id", "foo", "bar");
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
         assertBusy(() -> assertTrue(indexExists(originalIndex)));
+    }
+
+    public void testRolloverAlreadyExists() throws Exception {
+        String originalIndex = index + "-000001";
+        String secondIndex = index + "-000002";
+        createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+        // create policy
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
+        // update policy on index
+        updatePolicy(originalIndex, policy);
+        // Manually create the new index
+        Request request = new Request("PUT", "/" + secondIndex);
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build()) + "}");
+        client().performRequest(request);
+        // wait for the shards to initialize
+        ensureGreen(secondIndex);
+        // index another doc to trigger the policy
+        index(client(), originalIndex, "_id", "foo", "bar");
+        assertBusy(() -> {
+            logger.info(originalIndex + ": " + getStepKeyForIndex(originalIndex));
+            logger.info(secondIndex + ": " + getStepKeyForIndex(secondIndex));
+            assertThat(getStepKeyForIndex(originalIndex), equalTo(new StepKey("hot", RolloverAction.NAME, ErrorStep.NAME)));
+            assertThat(getFailedStepForIndex(originalIndex), equalTo(WaitForRolloverReadyStep.NAME));
+            assertThat(getReasonForIndex(originalIndex), containsString("already exists"));
+        });
     }
 
     public void testAllocateOnlyAllocation() throws Exception {
@@ -365,6 +433,26 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     }
 
+    public void testInvalidPolicyNames() throws UnsupportedEncodingException {
+        ResponseException ex;
+
+        policy = randomAlphaOfLengthBetween(0,10) + "," + randomAlphaOfLengthBetween(0,10);
+        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
+        assertThat(ex.getCause().getMessage(), containsString("invalid policy name"));
+        
+        policy = randomAlphaOfLengthBetween(0,10) + "%20" + randomAlphaOfLengthBetween(0,10);
+        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
+        assertThat(ex.getCause().getMessage(), containsString("invalid policy name"));
+
+        policy = "_" + randomAlphaOfLengthBetween(1, 20);
+        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
+        assertThat(ex.getMessage(), containsString("invalid policy name"));
+
+        policy = randomAlphaOfLengthBetween(256, 1000);
+        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
+        assertThat(ex.getMessage(), containsString("invalid policy name"));
+    }
+
     private void createFullPolicy(TimeValue hotTime) throws IOException {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1));
@@ -436,6 +524,33 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     private StepKey getStepKeyForIndex(String indexName) throws IOException {
+        Map<String, Object> indexResponse = explainIndex(indexName);
+        if (indexResponse == null) {
+            return new StepKey(null, null, null);
+        }
+
+        String phase = (String) indexResponse.get("phase");
+        String action = (String) indexResponse.get("action");
+        String step = (String) indexResponse.get("step");
+        return new StepKey(phase, action, step);
+    }
+
+    private String getFailedStepForIndex(String indexName) throws IOException {
+        Map<String, Object> indexResponse = explainIndex(indexName);
+        if (indexResponse == null) return null;
+
+        return (String) indexResponse.get("failed_step");
+    }
+
+    @SuppressWarnings("unchecked")
+    private String getReasonForIndex(String indexName) throws IOException {
+        Map<String, Object> indexResponse = explainIndex(indexName);
+        if (indexResponse == null) return null;
+
+        return ((Map<String, String>) indexResponse.get("step_info")).get("reason");
+    }
+
+    private Map<String, Object> explainIndex(String indexName) throws IOException {
         Request explainRequest = new Request("GET", indexName + "/_ilm/explain");
         Response response = client().performRequest(explainRequest);
         Map<String, Object> responseMap;
@@ -443,15 +558,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
 
-        @SuppressWarnings("unchecked") Map<String, String> indexResponse = ((Map<String, Map<String, String>>) responseMap.get("indices"))
+        @SuppressWarnings("unchecked") Map<String, Object> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"))
             .get(indexName);
-        if (indexResponse == null) {
-            return new StepKey(null, null, null);
-        }
-        String phase = indexResponse.get("phase");
-        String action = indexResponse.get("action");
-        String step = indexResponse.get("step");
-        return new StepKey(phase, action, step);
+        return indexResponse;
     }
 
     private void indexDocument() throws IOException {

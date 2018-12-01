@@ -3,6 +3,8 @@
 [[using-policies-rollover]]
 == Using policies to manage index rollover
 
+beta[]
+
 The rollover action enables you to automatically roll over to a new index based
 on the index size, document count, or age. When a rollover is triggered, a new
 index is created, the write alias is updated to point to the new index, and all
@@ -18,6 +20,13 @@ rollover parameters. The rollover is performed once any of the criteria are
 met. Because the criteria are checked periodically, the index might grow
 slightly beyond the specified threshold. To control how often the critera are
 checked, specify the `indices.lifecycle.poll_interval` cluster setting.
+
+IMPORTANT: New indices created via rollover will not automatically inherit the
+policy used by the old index, and will not use any policy by default. Therefore,
+it is highly recommended to apply the policy via
+<<applying-policy-to-template,index template>>, including a Rollover alias
+setting, for your indices which specifies the policy you wish to use for each
+new index.
 
 The rollover action takes the following parameters:
 

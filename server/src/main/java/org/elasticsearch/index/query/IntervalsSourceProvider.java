@@ -1,11 +1,5 @@
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchesIterator;
-import org.apache.lucene.search.intervals.IntervalIterator;
 import org.apache.lucene.search.intervals.Intervals;
 import org.apache.lucene.search.intervals.IntervalsSource;
 import org.elasticsearch.common.ParseField;
@@ -24,15 +18,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public abstract class IntervalsSourceProvider implements NamedWriteable, ToXContentObject {
 
-    public abstract ESIntervalsSource getSource(MappedFieldType fieldType) throws IOException;
+    public abstract IntervalsSource getSource(MappedFieldType fieldType) throws IOException;
 
     @Override
     public abstract int hashCode();
@@ -69,30 +63,39 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         ORDERED {
             @Override
-            public ESIntervalsSource source(List<ESIntervalsSource> subSources) {
-                return null;
+            public IntervalsSource source(List<IntervalsSource> subSources) {
+                if (subSources.size() == 1) {
+                    return subSources.get(0);
+                }
+                return Intervals.ordered(subSources.toArray(new IntervalsSource[0]));
             }
         },
         UNORDERED {
             @Override
-            public ESIntervalsSource source(List<ESIntervalsSource> subSources) {
-                return null;
+            public IntervalsSource source(List<IntervalsSource> subSources) {
+                if (subSources.size() == 1) {
+                    return subSources.get(0);
+                }
+                return Intervals.unordered(subSources.toArray(new IntervalsSource[0]));
             }
         },
         BLOCK {
             @Override
-            public ESIntervalsSource source(List<ESIntervalsSource> subSources) {
-                return PHRASE.source(subSources);
+            public IntervalsSource source(List<IntervalsSource> subSources) {
+                if (subSources.size() == 1) {
+                    return subSources.get(0);
+                }
+                return Intervals.phrase(subSources.toArray(new IntervalsSource[0]));
             }
         },
         PHRASE {
             @Override
-            public ESIntervalsSource source(List<ESIntervalsSource> subSources) {
-                return new ESIntervalsSource.PhraseIntervalsSource(subSources);
+            public IntervalsSource source(List<IntervalsSource> subSources) {
+                return BLOCK.source(subSources);
             }
         } ;
 
-        public abstract ESIntervalsSource source(List<ESIntervalsSource> subSources);
+        public abstract IntervalsSource source(List<IntervalsSource> subSources);
 
     }
 
@@ -102,9 +105,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         private final String text;
         private final int maxWidth;
-        private final Type type;
+        private final MappedFieldType.IntervalType type;
 
-        public Match(String text, int maxWidth, Type type) {
+        public Match(String text, int maxWidth, MappedFieldType.IntervalType type) {
             this.text = text;
             this.maxWidth = maxWidth;
             this.type = type;
@@ -113,21 +116,16 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public Match(StreamInput in) throws IOException {
             this.text = in.readString();
             this.maxWidth = in.readInt();
-            this.type = in.readEnum(Type.class);
+            this.type = in.readEnum(MappedFieldType.IntervalType.class);
         }
 
         @Override
-        public ESIntervalsSource getSource(MappedFieldType fieldType) throws IOException {
-            if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-                throw new IllegalArgumentException("Cannot create source against field [" + fieldType.name() + "] with no positions indexed");
-            }
-            Analyzer analyzer = fieldType.searchAnalyzer();
-            List<ESIntervalsSource> subSources = ESIntervalsSource.analyzeQuery(fieldType.name(), text, analyzer);
-            ESIntervalsSource combination = type.source(subSources);
+        public IntervalsSource getSource(MappedFieldType fieldType) throws IOException {
+            IntervalsSource source = fieldType.intervals(text, type);
             if (maxWidth != Integer.MAX_VALUE) {
-                return ESIntervalsSource.maxwidth(maxWidth, combination);
+                return Intervals.maxwidth(maxWidth, source);
             }
-            return combination;
+            return source;
         }
 
         @Override
@@ -162,7 +160,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             builder.startObject(NAME);
             builder.field("text", text);
             builder.field("max_width", maxWidth);
-            builder.field("type", type.toString());
+            builder.field("type", type.toString().toLowerCase(Locale.ROOT));
             return builder.endObject().endObject();
         }
 
@@ -170,13 +168,16 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             args -> {
                 String text = (String) args[0];
                 int max_width = (args[1] == null ? Integer.MAX_VALUE : (Integer) args[1]);
-                Type type = (args[2] == null ? Type.ORDERED : (Type) args[2]);
+                MappedFieldType.IntervalType type = (args[2] == null
+                    ? MappedFieldType.IntervalType.UNORDERED
+                    : (MappedFieldType.IntervalType) args[2]);
                 return new Match(text, max_width, type);
             });
         static {
             PARSER.declareString(constructorArg(), new ParseField("text"));
             PARSER.declareInt(optionalConstructorArg(), new ParseField("max_width"));
-            PARSER.declareField(optionalConstructorArg(), (p, c) -> Type.valueOf(p.text()),
+            PARSER.declareField(optionalConstructorArg(),
+                (p, c) -> MappedFieldType.IntervalType.valueOf(p.text().toUpperCase(Locale.ROOT)),
                 new ParseField("type"), ObjectParser.ValueType.STRING);
         }
 
@@ -200,12 +201,12 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public ESIntervalsSource getSource(MappedFieldType fieldType) throws IOException {
-            List<ESIntervalsSource> sources = new ArrayList<>();
+        public IntervalsSource getSource(MappedFieldType fieldType) throws IOException {
+            List<IntervalsSource> sources = new ArrayList<>();
             for (IntervalsSourceProvider provider : subSources) {
                 sources.add(provider.getSource(fieldType));
             }
-            return ESIntervalsSource.disjunction(sources);
+            return Intervals.or(sources.toArray(new IntervalsSource[0]));
         }
 
         @Override
@@ -241,16 +242,18 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             return builder.endObject();
         }
 
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<Disjunction, Void> PARSER = new ConstructingObjectParser<>(NAME,
+            args -> {
+                List<IntervalsSourceProvider> subSources = (List<IntervalsSourceProvider>)args[0];
+                return new Disjunction(subSources);
+            });
+        static {
+            PARSER.declareObjectArray(constructorArg(), (p, c) -> IntervalsSourceProvider.fromXContent(p), new ParseField("sources"));
+        }
+
         public static Disjunction fromXContent(XContentParser parser) throws IOException {
-            if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
-                throw new ParsingException(parser.getTokenLocation(), "Expected start array");
-            }
-            List<IntervalsSourceProvider> subSources = new ArrayList<>();
-            do {
-                subSources.add(IntervalsSourceProvider.fromXContent(parser));
-            }
-            while (parser.nextToken() != XContentParser.Token.END_ARRAY);
-            return new Disjunction(subSources);
+            return PARSER.parse(parser, null);
         }
     }
 
@@ -275,16 +278,16 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public ESIntervalsSource getSource(MappedFieldType fieldType) throws IOException {
-            List<ESIntervalsSource> ss = new ArrayList<>();
+        public IntervalsSource getSource(MappedFieldType fieldType) throws IOException {
+            List<IntervalsSource> ss = new ArrayList<>();
             for (IntervalsSourceProvider provider : subSources) {
                 ss.add(provider.getSource(fieldType));
             }
-            ESIntervalsSource source = type.source(ss);
+            IntervalsSource source = type.source(ss);
             if (maxWidth == Integer.MAX_VALUE) {
                 return source;
             }
-            return ESIntervalsSource.maxwidth(maxWidth, source);
+            return Intervals.maxwidth(maxWidth, source);
         }
 
         @Override
@@ -354,7 +357,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public enum Relation {
             CONTAINING {
                 @Override
-                ESIntervalsSource getSource(IntervalsSource source, IntervalsSource filter) {
+                IntervalsSource getSource(IntervalsSource source, IntervalsSource filter) {
                     return Intervals.containing(source, filter);
                 }
             }, NOT_CONTAINING {
@@ -378,7 +381,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                     return Intervals.nonOverlapping(source, filter);
                 }
             };
-            abstract ESIntervalsSource getSource(ESIntervalsSource source, ESIntervalsSource filter);
+            abstract IntervalsSource getSource(IntervalsSource source, IntervalsSource filter);
         }
 
         private final IntervalsSourceProvider source;
@@ -398,7 +401,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public ESIntervalsSource getSource(MappedFieldType fieldType) throws IOException {
+        public IntervalsSource getSource(MappedFieldType fieldType) throws IOException {
             IntervalsSource s = source.getSource(fieldType);
             IntervalsSource f = filter.getSource(fieldType);
             return relation.getSource(s, f);

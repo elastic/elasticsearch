@@ -3,6 +3,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.intervals.IntervalQuery;
 import org.apache.lucene.search.intervals.Intervals;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -45,7 +46,9 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
                     words.add(randomRealisticUnicodeOfLengthBetween(4, 20));
                 }
                 String text = String.join(" ", words);
-                return new IntervalsSourceProvider.Match(text, randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(1, 20), randomBoolean());
+                int mtypeOrd = randomInt(MappedFieldType.IntervalType.values().length - 1);
+                MappedFieldType.IntervalType type = MappedFieldType.IntervalType.values()[mtypeOrd];
+                return new IntervalsSourceProvider.Match(text, randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(1, 20), type);
         }
     }
 
@@ -81,7 +84,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             "{ \"field\" : \"" + STRING_FIELD_NAME + "\"," +
             "  \"source\" : { \"match\" : { " +
             "                       \"text\" : \"Hello world\"," +
-            "                       \"ordered\" : \"true\" } } } }";
+            "                       \"type\" : \"ordered\" } } } }";
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(STRING_FIELD_NAME,
             Intervals.ordered(Intervals.term("hello"), Intervals.term("world")));
@@ -89,23 +92,23 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     }
 
-    public void testCombineInterval() throws IOException {
-
+    public void testOrInterval() throws IOException {
         String json = "{ \"intervals\" : " +
             "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
             "  \"source\" : { " +
-            "       \"combine\" : {" +
-            "           \"type\" : \"or\"," +
-            "           \"sources\" : [" +
+            "       \"or\" : {" +
+            "           \"sources\": [" +
             "               { \"match\" : { \"text\" : \"one\" } }," +
-            "               { \"match\" : { \"text\" : \"two\" } } ]," +
-            "           \"max_width\" : 30 } } } }";
+            "               { \"match\" : { \"text\" : \"two\" } } ] } } } }";
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
         Query expected = new IntervalQuery(STRING_FIELD_NAME,
-            Intervals.maxwidth(30, Intervals.or(Intervals.term("one"), Intervals.term("two"))));
+            Intervals.or(Intervals.term("one"), Intervals.term("two")));
         assertEquals(expected, builder.toQuery(createShardContext()));
+    }
 
-        json = "{ \"intervals\" : " +
+    public void testCombineInterval() throws IOException {
+
+        String json = "{ \"intervals\" : " +
             "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
             "  \"source\" : { " +
             "       \"combine\" : {" +
@@ -118,8 +121,8 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             "                       { \"match\" : { \"text\" : \"two\" } }," +
             "                       { \"match\" : { \"text\" : \"three\" } } ] } } ]," +
             "           \"max_width\" : 30 } } } }";
-        builder = (IntervalQueryBuilder) parseQuery(json);
-        expected = new IntervalQuery(STRING_FIELD_NAME,
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(STRING_FIELD_NAME,
             Intervals.maxwidth(30, Intervals.ordered(
                 Intervals.term("one"),
                 Intervals.unordered(Intervals.term("two"), Intervals.term("three")))));

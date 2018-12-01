@@ -34,6 +34,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.intervals.IntervalsSource;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -374,6 +375,15 @@ public abstract class MappedFieldType extends FieldType {
             + "] which is of type [" + typeName() + "]");
     }
 
+    public enum IntervalType {
+        ORDERED, UNORDERED, PHRASE
+    }
+
+    public IntervalsSource intervals(String text, IntervalType type) throws IOException {
+        throw new IllegalArgumentException("Can only use interval queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
     /**
      * An enum used to describe the relation between the range of terms in a
      * shard when compared with a query range
@@ -465,4 +475,5 @@ public abstract class MappedFieldType extends FieldType {
         }
         return ((TermQuery) termQuery).getTerm();
     }
+
 }

@@ -489,7 +489,11 @@ public class NodeJoinTests extends ESTestCase {
                     } catch (InterruptedException | BrokenBarrierException e) {
                         throw new RuntimeException(e);
                     }
-                    joinNode(joinRequest);
+                    try {
+                        joinNode(joinRequest);
+                    } catch (CoordinationStateRejectedException e) {
+                        // ignore
+                    }
                 }, "process " + joinRequest)).collect(Collectors.toList());
 
         assertionThread.start();

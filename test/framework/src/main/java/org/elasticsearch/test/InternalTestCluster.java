@@ -158,6 +158,7 @@ import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1078,11 +1079,25 @@ public final class InternalTestCluster extends TestCluster {
         final int defaultMinMasterNodes = (numberOfMasterNodes / 2) + 1;
         final List<NodeAndClient> toStartAndPublish = new ArrayList<>(); // we want to start nodes in one go due to min master nodes
         final Runnable onTransportServiceStarted = () -> rebuildUnicastHostFiles(toStartAndPublish);
+
+        final int bootstrapNodeIndex;
+        if (prevNodeCount == 0 && autoManageMinMasterNodes) {
+            if (numSharedDedicatedMasterNodes > 0) {
+                bootstrapNodeIndex = randomIntBetween(0, numSharedDedicatedMasterNodes - 1);
+            } else if (numSharedDataNodes > 0) {
+                bootstrapNodeIndex = randomIntBetween(0, numSharedDataNodes - 1);
+            } else {
+                bootstrapNodeIndex = -1;
+            }
+        } else {
+            bootstrapNodeIndex = -1;
+        }
+
         for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
             final Settings.Builder settings = Settings.builder();
             settings.put(Node.NODE_MASTER_SETTING.getKey(), true);
             settings.put(Node.NODE_DATA_SETTING.getKey(), false);
-            if (prevNodeCount == 0 && autoManageMinMasterNodes) {
+            if (i == bootstrapNodeIndex) {
                 settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDedicatedMasterNodes);
             }
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes,
@@ -1095,7 +1110,7 @@ public final class InternalTestCluster extends TestCluster {
                 // if we don't have dedicated master nodes, keep things default
                 settings.put(Node.NODE_MASTER_SETTING.getKey(), false).build();
                 settings.put(Node.NODE_DATA_SETTING.getKey(), true).build();
-            } else if (prevNodeCount == 0 && autoManageMinMasterNodes) {
+            } else if (i == bootstrapNodeIndex) {
                 settings.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), numSharedDataNodes);
             }
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true, defaultMinMasterNodes,
@@ -1912,28 +1927,27 @@ public final class InternalTestCluster extends TestCluster {
      * Starts multiple nodes with the given settings and returns their names
      */
     public synchronized List<String> startNodes(Settings... settings) {
+        final int newMasterCount = Math.toIntExact(Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count());
         final int defaultMinMasterNodes;
         if (autoManageMinMasterNodes) {
-            int mastersDelta = (int) Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count();
-            defaultMinMasterNodes = getMinMasterNodes(getMasterNodesCount() + mastersDelta);
+            defaultMinMasterNodes = getMinMasterNodes(getMasterNodesCount() + newMasterCount);
         } else {
             defaultMinMasterNodes = -1;
         }
         final List<NodeAndClient> nodes = new ArrayList<>();
         final int prevMasterCount = getMasterNodesCount();
-        for (Settings nodeSettings : settings) {
-            final Settings nodeSettingsIncludingBootstrap;
-            if (prevMasterCount == 0 && autoManageMinMasterNodes) {
-                nodeSettingsIncludingBootstrap = Settings.builder()
-                    .put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(),
-                        (int) Stream.of(settings).filter(Node.NODE_MASTER_SETTING::get).count())
-                    .put(nodeSettings)
-                    .build();
-            } else {
-                nodeSettingsIncludingBootstrap = nodeSettings;
-            }
+        int bootstrapMasterNodeIndex = prevMasterCount == 0 && autoManageMinMasterNodes && newMasterCount > 0
+            ? randomIntBetween(0, newMasterCount - 1) : -1;
 
-            nodes.add(buildNode(nodeSettingsIncludingBootstrap, defaultMinMasterNodes, () -> rebuildUnicastHostFiles(nodes)));
+        for (Settings nodeSettings : settings) {
+            final Builder builder = Settings.builder();
+            if (Node.NODE_MASTER_SETTING.get(nodeSettings)) {
+                if (bootstrapMasterNodeIndex == 0) {
+                    builder.put(INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), newMasterCount);
+                }
+                bootstrapMasterNodeIndex -= 1;
+            }
+            nodes.add(buildNode(builder.put(nodeSettings).build(), defaultMinMasterNodes, () -> rebuildUnicastHostFiles(nodes)));
         }
         startAndPublishNodesAndClients(nodes);
         if (autoManageMinMasterNodes) {

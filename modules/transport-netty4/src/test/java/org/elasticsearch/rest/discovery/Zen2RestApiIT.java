@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.http.HttpServerTransport;
@@ -55,11 +56,15 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+        final Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
-            .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-            .put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 2)
-            .build();
+            .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE);
+
+        if (nodeOrdinal == 0) {
+            builder.put(ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING.getKey(), 2);
+        }
+
+        return builder.build();
     }
 
     @Override

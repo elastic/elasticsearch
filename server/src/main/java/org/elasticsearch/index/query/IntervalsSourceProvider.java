@@ -210,13 +210,16 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public int hashCode() {
-            return 0;
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Disjunction that = (Disjunction) o;
+            return Objects.equals(subSources, that.subSources);
         }
 
         @Override
-        public boolean equals(Object other) {
-            return false;
+        public int hashCode() {
+            return Objects.hash(subSources);
         }
 
         @Override

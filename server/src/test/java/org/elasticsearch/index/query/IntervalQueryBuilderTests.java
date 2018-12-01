@@ -29,6 +29,12 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
                 int relOrd = randomInt(IntervalsSourceProvider.Relate.Relation.values().length - 1);
                 return new IntervalsSourceProvider.Relate(source1, source2, IntervalsSourceProvider.Relate.Relation.values()[relOrd]);
             case 1:
+                int orCount = randomInt(4) + 1;
+                List<IntervalsSourceProvider> orSources = new ArrayList<>();
+                for (int i = 0; i < orCount; i++) {
+                    orSources.add(createRandomSource());
+                }
+                return new IntervalsSourceProvider.Disjunction(orSources);
             case 2:
             case 3:
                 int count = randomInt(5) + 1;

@@ -91,6 +91,38 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         return Arrays.asList(InternalSettingsPlugin.class);
     }
 
+    public void testTieBreak() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        mapping.indexAnalyzer("keyword");
+        createIndexAndMapping(mapping);
+
+        int numDocs = randomIntBetween(3, 50);
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        String[] entries = new String[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            String value = "a" + randomAlphaOfLengthBetween(1, 10);
+            entries[i] = value;
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                .setSource(jsonBuilder()
+                    .startObject()
+                    .startObject(FIELD)
+                    .field("input", value)
+                    .field("weight", 10)
+                    .endObject()
+                    .endObject()
+                ));
+        }
+        Arrays.sort(entries);
+        indexRandom(true, indexRequestBuilders);
+        for (int i = 1; i < numDocs; i++) {
+            CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
+                .prefix("a")
+                .size(i);
+            String[] topEntries = Arrays.copyOfRange(entries, 0, i);
+            assertSuggestions("foo", prefix, topEntries);
+        }
+    }
+
     public void testPrefix() throws Exception {
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
         createIndexAndMapping(mapping);

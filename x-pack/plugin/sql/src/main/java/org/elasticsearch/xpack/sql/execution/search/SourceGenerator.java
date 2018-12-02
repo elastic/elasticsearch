@@ -110,9 +110,15 @@ public abstract class SourceGenerator {
                     FieldAttribute fa = (FieldAttribute) attr;
                     fa = fa.isInexact() ? fa.exactAttribute() : fa;
 
-                    sortBuilder = fieldSort(fa.name());
+                    sortBuilder = fieldSort(fa.name())
+                            .missing(as.missing().position())
+                            .unmappedType(fa.dataType().esType);
+                    
                     if (fa.isNested()) {
-                        FieldSortBuilder fieldSort = fieldSort(fa.name());
+                        FieldSortBuilder fieldSort = fieldSort(fa.name())
+                                .missing(as.missing().position())
+                                .unmappedType(fa.dataType().esType);
+
                         NestedSortBuilder newSort = new NestedSortBuilder(fa.nestedParent().name());
                         NestedSortBuilder nestedSort = fieldSort.getNestedSort();
 

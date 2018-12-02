@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -21,7 +23,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -66,7 +67,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
  * {@code NativePrivilegeStore} is a store that reads/writes {@link ApplicationPrivilegeDescriptor} objects,
  * from an Elasticsearch index.
  */
-public class NativePrivilegeStore extends AbstractComponent {
+public class NativePrivilegeStore {
 
     private static final Collector<Tuple<String, String>, ?, Map<String, List<String>>> TUPLES_TO_MAP = Collectors.toMap(
         Tuple::v1,
@@ -74,13 +75,15 @@ public class NativePrivilegeStore extends AbstractComponent {
             a.addAll(b);
             return a;
         });
+    private static final Logger logger = LogManager.getLogger(NativePrivilegeStore.class);
 
+    private final Settings settings;
     private final Client client;
     private final SecurityClient securityClient;
     private final SecurityIndexManager securityIndexManager;
 
     public NativePrivilegeStore(Settings settings, Client client, SecurityIndexManager securityIndexManager) {
-        super(settings);
+        this.settings = settings;
         this.client = client;
         this.securityClient = new SecurityClient(client);
         this.securityIndexManager = securityIndexManager;
@@ -88,8 +91,11 @@ public class NativePrivilegeStore extends AbstractComponent {
 
     public void getPrivileges(Collection<String> applications, Collection<String> names,
                               ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
-        if (securityIndexManager.isAvailable() == false) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else if (applications != null && applications.size() == 1 && names != null && names.size() == 1) {
             getPrivilege(Objects.requireNonNull(Iterables.get(applications, 0)), Objects.requireNonNull(Iterables.get(names, 0)),
                 ActionListener.wrap(privilege ->
@@ -137,7 +143,10 @@ public class NativePrivilegeStore extends AbstractComponent {
     }
 
     void getPrivilege(String application, String name, ActionListener<ApplicationPrivilegeDescriptor> listener) {
-        if (securityIndexManager.isAvailable() == false) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
+        if (frozenSecurityIndex.isAvailable() == false) {
+            logger.warn(new ParameterizedMessage("failed to load privilege [{}] index not available", name),
+                frozenSecurityIndex.getUnavailableReason());
             listener.onResponse(null);
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure,
@@ -206,8 +215,11 @@ public class NativePrivilegeStore extends AbstractComponent {
 
     public void deletePrivileges(String application, Collection<String> names, WriteRequest.RefreshPolicy refreshPolicy,
                                  ActionListener<Map<String, List<String>>> listener) {
-        if (securityIndexManager.isAvailable() == false) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyMap());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(

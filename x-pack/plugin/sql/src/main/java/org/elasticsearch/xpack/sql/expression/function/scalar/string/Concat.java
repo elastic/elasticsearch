@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -15,10 +16,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.util.Locale;
-
-import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.string.ConcatFunctionProcessor.doProcessInScripts;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.ConcatFunctionProcessor.process;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
@@ -38,12 +36,12 @@ public class Concat extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = StringFunctionUtils.resolveStringInputType(left().dataType(), functionName());
-        if (sourceResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution sourceResolution = Expressions.typeMustBeString(left(), functionName(), ParamOrdinal.FIRST);
+        if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        return StringFunctionUtils.resolveStringInputType(right().dataType(), functionName());
+        return Expressions.typeMustBeString(right(), functionName(), ParamOrdinal.SECOND);
     }
 
     @Override
@@ -52,13 +50,18 @@ public class Concat extends BinaryScalarFunction {
     }
     
     @Override
+    public boolean nullable() {
+        return left().nullable() && right().nullable();
+    }
+
+    @Override
     public boolean foldable() {
         return left().foldable() && right().foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcessInScripts(left().fold(), right().fold());
+        return process(left().fold(), right().fold());
     }
     
     @Override
@@ -71,18 +74,6 @@ public class Concat extends BinaryScalarFunction {
         return NodeInfo.create(this, Concat::new, left(), right());
     }
 
-    @Override
-    protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2)
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s)"),
-                "concat",
-                leftScript.template(),
-                rightScript.template()),
-                paramsBuilder()
-                    .script(leftScript.params()).script(rightScript.params())
-                    .build(), dataType());
-    }
-    
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),

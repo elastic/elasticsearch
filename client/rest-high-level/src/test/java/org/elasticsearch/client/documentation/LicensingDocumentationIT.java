@@ -26,29 +26,35 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.license.StartTrialRequest;
+import org.elasticsearch.client.license.StartTrialResponse;
 import org.elasticsearch.client.license.StartBasicRequest;
 import org.elasticsearch.client.license.StartBasicResponse;
+import org.elasticsearch.client.license.GetBasicStatusResponse;
+import org.elasticsearch.client.license.GetTrialStatusResponse;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.GetLicenseResponse;
-import org.elasticsearch.protocol.xpack.license.LicensesStatus;
-import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.junit.After;
 import org.junit.BeforeClass;
+import org.elasticsearch.client.license.DeleteLicenseRequest;
+import org.elasticsearch.client.license.GetLicenseRequest;
+import org.elasticsearch.client.license.GetLicenseResponse;
+import org.elasticsearch.client.license.LicensesStatus;
+import org.elasticsearch.client.license.PutLicenseRequest;
+import org.elasticsearch.client.license.PutLicenseResponse;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.client.LicensingIT.putTrialLicense;
+import static org.elasticsearch.client.LicenseIT.putTrialLicense;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.core.Is.is;
 
 /**
  * Documentation for Licensing APIs in the high level java client.
@@ -232,6 +238,61 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testStartTrial() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::start-trial-execute
+            StartTrialRequest request = new StartTrialRequest(true); // <1>
+
+            StartTrialResponse response = client.license().startTrial(request, RequestOptions.DEFAULT);
+            // end::start-trial-execute
+
+            // tag::start-trial-response
+            boolean acknowledged = response.isAcknowledged();                              // <1>
+            boolean trialWasStarted = response.isTrialWasStarted();                        // <2>
+            String licenseType = response.getLicenseType();                                // <3>
+            String errorMessage = response.getErrorMessage();                              // <4>
+            String acknowledgeHeader = response.getAcknowledgeHeader();                    // <5>
+            Map<String, String[]> acknowledgeMessages = response.getAcknowledgeMessages(); // <6>
+            // end::start-trial-response
+
+            assertTrue(acknowledged);
+            assertFalse(trialWasStarted);
+            assertThat(licenseType, nullValue());
+            assertThat(errorMessage, is("Operation failed: Trial was already activated."));
+            assertThat(acknowledgeHeader, nullValue());
+            assertThat(acknowledgeMessages, nullValue());
+        }
+
+        {
+            StartTrialRequest request = new StartTrialRequest();
+
+            // tag::start-trial-execute-listener
+            ActionListener<StartTrialResponse> listener = new ActionListener<StartTrialResponse>() {
+                @Override
+                public void onResponse(StartTrialResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::start-trial-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::start-trial-execute-async
+            client.license().startTrialAsync(request, RequestOptions.DEFAULT, listener);
+            // end::start-trial-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testPostStartBasic() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -275,6 +336,32 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::start-basic-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetTrialStatus() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::get-trial-status-execute
+            GetTrialStatusResponse response = client.license().getTrialStatus(RequestOptions.DEFAULT);
+            //end::get-trial-status-execute
+
+            //tag::get-trial-status-response
+            boolean eligibleToStartTrial = response.isEligibleToStartTrial(); // <1>
+            //end::get-trial-status-response
+        }
+    }
+
+    public void testGetBasicStatus() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::get-basic-status-execute
+            GetBasicStatusResponse response = client.license().getBasicStatus(RequestOptions.DEFAULT);
+            //end::get-basic-status-execute
+
+            //tag::get-basic-status-response
+            boolean eligibleToStartbasic = response.isEligibleToStartBasic(); // <1>
+            //end::get-basic-status-response
         }
     }
 }

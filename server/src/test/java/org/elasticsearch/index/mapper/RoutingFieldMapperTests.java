@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RoutingFieldMapperTests extends ESSingleNodeTestCase {
@@ -33,7 +34,8 @@ public class RoutingFieldMapperTests extends ESSingleNodeTestCase {
     public void testRoutingMapper() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
@@ -48,14 +50,16 @@ public class RoutingFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
 
         try {
             docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("_routing", "foo").endObject()),XContentType.JSON));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("Field [_routing] is a metadata field and cannot be added inside a document"));
+            assertThat(e.getMessage(), e.getMessage(),
+                containsString("Field [_routing] is a metadata field and cannot be added inside a document"));
         }
     }
 }

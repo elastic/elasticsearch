@@ -47,13 +47,13 @@ import java.util.Locale;
  * A wrapper around ZonedDateTime that exposes joda methods for backcompat.
  */
 public class JodaCompatibleZonedDateTime {
-    private static final DeprecationLogger DEPRECATION_LOGGER =
+    private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(JodaCompatibleZonedDateTime.class));
 
     private static void logDeprecated(String key, String message, Object... params) {
         // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog(key, message, params);
+            deprecationLogger.deprecatedAndMaybeLog(key, message, params);
             return null;
         });
     }

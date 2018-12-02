@@ -69,7 +69,7 @@ public class EscapedFunctionsTests extends ESTestCase {
     private LikePattern likeEscape(String like, String character) {
         Expression exp = parser.createExpression(format(Locale.ROOT, "exp LIKE '%s' {escape '%s'}", like, character));
         assertThat(exp, instanceOf(Like.class));
-        return ((Like) exp).right();
+        return ((Like) exp).pattern();
     }
 
     private Function function(String name) {
@@ -142,9 +142,9 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testFunctionWithFunctionWithArgAndParams() {
         Function f = (Function) parser.createExpression("POWER(?, {fn POWER({fn ABS(?)}, {fN ABS(?)})})",
-                asList(new SqlTypedParamValue(DataType.LONG, 1),
-                       new SqlTypedParamValue(DataType.LONG, 1),
-                       new SqlTypedParamValue(DataType.LONG, 1)));
+                asList(new SqlTypedParamValue(DataType.LONG.esType, 1),
+                       new SqlTypedParamValue(DataType.LONG.esType, 1),
+                       new SqlTypedParamValue(DataType.LONG.esType, 1)));
 
         assertEquals("POWER", f.functionName());
         assertEquals(2, f.arguments().size());

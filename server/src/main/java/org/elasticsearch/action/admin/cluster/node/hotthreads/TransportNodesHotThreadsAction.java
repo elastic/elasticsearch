@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,9 +41,9 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
                                                                          NodeHotThreads> {
 
     @Inject
-    public TransportNodesHotThreadsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportNodesHotThreadsAction(ThreadPool threadPool, ClusterService clusterService,
                                           TransportService transportService, ActionFilters actionFilters) {
-        super(settings, NodesHotThreadsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(NodesHotThreadsAction.NAME, threadPool, clusterService, transportService, actionFilters,
             NodesHotThreadsRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeHotThreads.class);
     }
 

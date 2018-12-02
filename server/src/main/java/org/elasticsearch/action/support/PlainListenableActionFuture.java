@@ -19,11 +19,11 @@
 
 package org.elasticsearch.action.support;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.threadpool.ThreadPool;
 
 public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> implements ListenableActionFuture<T> {
@@ -76,7 +76,7 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
 
     private static final class DispatchingListenableActionFuture<T> extends PlainListenableActionFuture<T> {
 
-        private static final Logger logger = Loggers.getLogger(DispatchingListenableActionFuture.class);
+        private static final Logger logger = LogManager.getLogger(DispatchingListenableActionFuture.class);
         private final ThreadPool threadPool;
 
         private DispatchingListenableActionFuture(ThreadPool threadPool) {

@@ -24,44 +24,67 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
+import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
+import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.FindFileStructureRequest;
+import org.elasticsearch.client.ml.FindFileStructureRequestTests;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
+import org.elasticsearch.client.ml.GetCalendarEventsRequest;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
+import org.elasticsearch.client.ml.GetFiltersRequest;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
+import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
+import org.elasticsearch.client.ml.PostCalendarEventRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
+import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
+import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequestTests;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
+import org.elasticsearch.client.ml.calendars.ScheduledEvent;
+import org.elasticsearch.client.ml.calendars.ScheduledEventTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
+import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.JobUpdateTests;
+import org.elasticsearch.client.ml.job.config.MlFilter;
+import org.elasticsearch.client.ml.job.config.MlFilterTests;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -69,11 +92,16 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.core.IsNull.nullValue;
 
 public class MLRequestConvertersTests extends ESTestCase {
 
@@ -155,6 +183,14 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + ",otherjobs*/_close", request.getEndpoint());
         assertEquals("{\"job_id\":\"somejobid,otherjobs*\",\"timeout\":\"10m\",\"force\":true,\"allow_no_jobs\":false}",
             requestEntityToString(request));
+    }
+
+    public void testDeleteExpiredData() {
+        DeleteExpiredDataRequest deleteExpiredDataRequest = new DeleteExpiredDataRequest();
+
+        Request request = MLRequestConverters.deleteExpiredData(deleteExpiredDataRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/_delete_expired_data", request.getEndpoint());
     }
 
     public void testDeleteJob() {
@@ -266,7 +302,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.deleteDatafeed(deleteDatafeedRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/datafeeds/" + datafeedId, request.getEndpoint());
-        assertEquals(Boolean.toString(false), request.getParameters().get("force"));
+        assertFalse(request.getParameters().containsKey("force"));
 
         deleteDatafeedRequest.setForce(true);
         request = MLRequestConverters.deleteDatafeed(deleteDatafeedRequest);
@@ -353,6 +389,16 @@ public class MLRequestConvertersTests extends ESTestCase {
             request.getParameters().get(DeleteForecastRequest.ALLOW_NO_FORECASTS.getPreferredName()));
     }
 
+    public void testDeleteModelSnapshot() {
+        String jobId = randomAlphaOfLength(10);
+        String snapshotId = randomAlphaOfLength(10);
+        DeleteModelSnapshotRequest deleteModelSnapshotRequest = new DeleteModelSnapshotRequest(jobId, snapshotId);
+
+        Request request = MLRequestConverters.deleteModelSnapshot(deleteModelSnapshotRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId, request.getEndpoint());
+    }
+
     public void testGetBuckets() throws IOException {
         String jobId = randomAlphaOfLength(10);
         GetBucketsRequest getBucketsRequest = new GetBucketsRequest(jobId);
@@ -382,6 +428,55 @@ public class MLRequestConvertersTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             GetCategoriesRequest parsedRequest = GetCategoriesRequest.PARSER.apply(parser, null);
             assertThat(parsedRequest, equalTo(getCategoriesRequest));
+        }
+    }
+
+    public void testGetModelSnapshots() throws IOException {
+        String jobId = randomAlphaOfLength(10);
+        GetModelSnapshotsRequest getModelSnapshotsRequest = new GetModelSnapshotsRequest(jobId);
+        getModelSnapshotsRequest.setPageParams(new PageParams(100, 300));
+
+
+        Request request = MLRequestConverters.getModelSnapshots(getModelSnapshotsRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/model_snapshots", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            GetModelSnapshotsRequest parsedRequest = GetModelSnapshotsRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(getModelSnapshotsRequest));
+        }
+    }
+
+    public void testUpdateModelSnapshot() throws IOException {
+        String jobId = randomAlphaOfLength(10);
+        String snapshotId = randomAlphaOfLength(10);
+        UpdateModelSnapshotRequest updateModelSnapshotRequest = new UpdateModelSnapshotRequest(jobId, snapshotId);
+        updateModelSnapshotRequest.setDescription("My First Snapshot");
+        updateModelSnapshotRequest.setRetain(true);
+
+        Request request = MLRequestConverters.updateModelSnapshot(updateModelSnapshotRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId + "/_update", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            UpdateModelSnapshotRequest parsedRequest = UpdateModelSnapshotRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(updateModelSnapshotRequest));
+        }
+    }
+
+    public void testRevertModelSnapshot() throws IOException {
+        String jobId = randomAlphaOfLength(10);
+        String snapshotId = randomAlphaOfLength(10);
+        RevertModelSnapshotRequest revertModelSnapshotRequest = new RevertModelSnapshotRequest(jobId, snapshotId);
+        if (randomBoolean()) {
+            revertModelSnapshotRequest.setDeleteInterveningResults(randomBoolean());
+        }
+
+        Request request = MLRequestConverters.revertModelSnapshot(revertModelSnapshotRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId + "/_revert",
+            request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            RevertModelSnapshotRequest parsedRequest = RevertModelSnapshotRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(revertModelSnapshotRequest));
         }
     }
 
@@ -482,6 +577,26 @@ public class MLRequestConvertersTests extends ESTestCase {
         }
     }
 
+    public void testPutCalendarJob() {
+        String calendarId = randomAlphaOfLength(10);
+        String job1 = randomAlphaOfLength(5);
+        String job2 = randomAlphaOfLength(5);
+        PutCalendarJobRequest putCalendarJobRequest = new PutCalendarJobRequest(calendarId, job1, job2);
+        Request request = MLRequestConverters.putCalendarJob(putCalendarJobRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/calendars/" + calendarId + "/jobs/" + job1 + "," + job2, request.getEndpoint());
+    }
+
+    public void testDeleteCalendarJob() {
+        String calendarId = randomAlphaOfLength(10);
+        String job1 = randomAlphaOfLength(5);
+        String job2 = randomAlphaOfLength(5);
+        DeleteCalendarJobRequest deleteCalendarJobRequest = new DeleteCalendarJobRequest(calendarId, job1, job2);
+        Request request = MLRequestConverters.deleteCalendarJob(deleteCalendarJobRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/calendars/" + calendarId + "/jobs/" + job1 + "," + job2, request.getEndpoint());
+    }
+
     public void testGetCalendars() throws IOException {
         GetCalendarsRequest getCalendarsRequest = new GetCalendarsRequest();
         String expectedEndpoint = "/_xpack/ml/calendars";
@@ -509,6 +624,198 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.deleteCalendar(deleteCalendarRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/calendars/" + deleteCalendarRequest.getCalendarId(), request.getEndpoint());
+    }
+
+    public void testGetCalendarEvents() throws IOException {
+        String calendarId = randomAlphaOfLength(10);
+        GetCalendarEventsRequest getCalendarEventsRequest = new GetCalendarEventsRequest(calendarId);
+        getCalendarEventsRequest.setStart("2018-08-08T00:00:00Z");
+        getCalendarEventsRequest.setEnd("2018-09-08T00:00:00Z");
+        getCalendarEventsRequest.setPageParams(new PageParams(100, 300));
+        getCalendarEventsRequest.setJobId(randomAlphaOfLength(10));
+
+        Request request = MLRequestConverters.getCalendarEvents(getCalendarEventsRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/calendars/" + calendarId + "/events", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            GetCalendarEventsRequest parsedRequest = GetCalendarEventsRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(getCalendarEventsRequest));
+        }
+    }
+
+    public void testPostCalendarEvent() throws Exception {
+        String calendarId = randomAlphaOfLength(10);
+        List<ScheduledEvent> events = Arrays.asList(ScheduledEventTests.testInstance(),
+            ScheduledEventTests.testInstance(),
+            ScheduledEventTests.testInstance());
+        PostCalendarEventRequest postCalendarEventRequest = new PostCalendarEventRequest(calendarId, events);
+
+        Request request = MLRequestConverters.postCalendarEvents(postCalendarEventRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/calendars/" + calendarId + "/events", request.getEndpoint());
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder = postCalendarEventRequest.toXContent(builder, PostCalendarEventRequest.EXCLUDE_CALENDAR_ID_PARAMS);
+        assertEquals(Strings.toString(builder), requestEntityToString(request));
+    }
+
+    public void testDeleteCalendarEvent() {
+        String calendarId = randomAlphaOfLength(10);
+        String eventId = randomAlphaOfLength(5);
+        DeleteCalendarEventRequest deleteCalendarEventRequest = new DeleteCalendarEventRequest(calendarId, eventId);
+        Request request = MLRequestConverters.deleteCalendarEvent(deleteCalendarEventRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/calendars/" + calendarId + "/events/" + eventId, request.getEndpoint());
+    }
+
+    public void testPutFilter() throws IOException {
+        MlFilter filter = MlFilterTests.createRandomBuilder("foo").build();
+        PutFilterRequest putFilterRequest = new PutFilterRequest(filter);
+
+        Request request = MLRequestConverters.putFilter(putFilterRequest);
+
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/filters/foo"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            MlFilter parsedFilter = MlFilter.PARSER.apply(parser, null).build();
+            assertThat(parsedFilter, equalTo(filter));
+        }
+    }
+
+    public void testGetFilter() throws IOException {
+        String id = randomAlphaOfLength(10);
+        GetFiltersRequest getFiltersRequest = new GetFiltersRequest();
+
+        getFiltersRequest.setFilterId(id);
+
+        Request request = MLRequestConverters.getFilter(getFiltersRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/filters/" + id, request.getEndpoint());
+        assertThat(request.getParameters().get(PageParams.FROM.getPreferredName()), is(nullValue()));
+        assertThat(request.getParameters().get(PageParams.SIZE.getPreferredName()), is(nullValue()));
+
+        getFiltersRequest.setFrom(1);
+        getFiltersRequest.setSize(10);
+        request = MLRequestConverters.getFilter(getFiltersRequest);
+        assertThat(request.getParameters().get(PageParams.FROM.getPreferredName()), equalTo("1"));
+        assertThat(request.getParameters().get(PageParams.SIZE.getPreferredName()), equalTo("10"));
+    }
+
+    public void testUpdateFilter() throws IOException {
+        String filterId = randomAlphaOfLength(10);
+        UpdateFilterRequest updateFilterRequest = new UpdateFilterRequest(filterId);
+        updateFilterRequest.setDescription(randomAlphaOfLength(10));
+        updateFilterRequest.setRemoveItems(Arrays.asList("item1", "item2"));
+        updateFilterRequest.setAddItems(Arrays.asList("item3", "item5"));
+
+        Request request = MLRequestConverters.updateFilter(updateFilterRequest);
+
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/filters/"+filterId+"/_update"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            UpdateFilterRequest parsedFilterRequest = UpdateFilterRequest.PARSER.apply(parser, null);
+            assertThat(parsedFilterRequest, equalTo(updateFilterRequest));
+        }
+    }
+
+    public void testDeleteFilter() {
+        MlFilter filter = MlFilterTests.createRandomBuilder("foo").build();
+        DeleteFilterRequest deleteFilterRequest = new DeleteFilterRequest(filter.getId());
+
+        Request request = MLRequestConverters.deleteFilter(deleteFilterRequest);
+
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/filters/foo"));
+        assertNull(request.getEntity());
+    }
+
+    public void testMlInfo() {
+        MlInfoRequest infoRequest = new MlInfoRequest();
+
+        Request request = MLRequestConverters.mlInfo(infoRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/info"));
+        assertNull(request.getEntity());
+    }
+
+    public void testFindFileStructure() throws Exception {
+
+        String sample = randomAlphaOfLength(randomIntBetween(1000, 2000));
+        FindFileStructureRequest findFileStructureRequest = FindFileStructureRequestTests.createTestRequestWithoutSample();
+        findFileStructureRequest.setSample(sample.getBytes(StandardCharsets.UTF_8));
+        Request request = MLRequestConverters.findFileStructure(findFileStructureRequest);
+
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/find_file_structure", request.getEndpoint());
+        if (findFileStructureRequest.getLinesToSample() != null) {
+            assertEquals(findFileStructureRequest.getLinesToSample(), Integer.valueOf(request.getParameters().get("lines_to_sample")));
+        } else {
+            assertNull(request.getParameters().get("lines_to_sample"));
+        }
+        if (findFileStructureRequest.getTimeout() != null) {
+            assertEquals(findFileStructureRequest.getTimeout().toString(), request.getParameters().get("timeout"));
+        } else {
+            assertNull(request.getParameters().get("timeout"));
+        }
+        if (findFileStructureRequest.getCharset() != null) {
+            assertEquals(findFileStructureRequest.getCharset(), request.getParameters().get("charset"));
+        } else {
+            assertNull(request.getParameters().get("charset"));
+        }
+        if (findFileStructureRequest.getFormat() != null) {
+            assertEquals(findFileStructureRequest.getFormat(), FileStructure.Format.fromString(request.getParameters().get("format")));
+        } else {
+            assertNull(request.getParameters().get("format"));
+        }
+        if (findFileStructureRequest.getColumnNames() != null) {
+            assertEquals(findFileStructureRequest.getColumnNames(),
+                Arrays.asList(Strings.splitStringByCommaToArray(request.getParameters().get("column_names"))));
+        } else {
+            assertNull(request.getParameters().get("column_names"));
+        }
+        if (findFileStructureRequest.getHasHeaderRow() != null) {
+            assertEquals(findFileStructureRequest.getHasHeaderRow(), Boolean.valueOf(request.getParameters().get("has_header_row")));
+        } else {
+            assertNull(request.getParameters().get("has_header_row"));
+        }
+        if (findFileStructureRequest.getDelimiter() != null) {
+            assertEquals(findFileStructureRequest.getDelimiter().toString(), request.getParameters().get("delimiter"));
+        } else {
+            assertNull(request.getParameters().get("delimiter"));
+        }
+        if (findFileStructureRequest.getQuote() != null) {
+            assertEquals(findFileStructureRequest.getQuote().toString(), request.getParameters().get("quote"));
+        } else {
+            assertNull(request.getParameters().get("quote"));
+        }
+        if (findFileStructureRequest.getShouldTrimFields() != null) {
+            assertEquals(findFileStructureRequest.getShouldTrimFields(),
+                Boolean.valueOf(request.getParameters().get("should_trim_fields")));
+        } else {
+            assertNull(request.getParameters().get("should_trim_fields"));
+        }
+        if (findFileStructureRequest.getGrokPattern() != null) {
+            assertEquals(findFileStructureRequest.getGrokPattern(), request.getParameters().get("grok_pattern"));
+        } else {
+            assertNull(request.getParameters().get("grok_pattern"));
+        }
+        if (findFileStructureRequest.getTimestampFormat() != null) {
+            assertEquals(findFileStructureRequest.getTimestampFormat(), request.getParameters().get("timestamp_format"));
+        } else {
+            assertNull(request.getParameters().get("timestamp_format"));
+        }
+        if (findFileStructureRequest.getTimestampField() != null) {
+            assertEquals(findFileStructureRequest.getTimestampField(), request.getParameters().get("timestamp_field"));
+        } else {
+            assertNull(request.getParameters().get("timestamp_field"));
+        }
+        if (findFileStructureRequest.getExplain() != null) {
+            assertEquals(findFileStructureRequest.getExplain(), Boolean.valueOf(request.getParameters().get("explain")));
+        } else {
+            assertNull(request.getParameters().get("explain"));
+        }
+        assertEquals(sample, requestEntityToString(request));
     }
 
     private static Job createValidJob(String jobId) {

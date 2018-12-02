@@ -47,10 +47,17 @@ public class EpochSecondsDateFormatter implements DateFormatter {
                     // this is BWC compatible to joda time, nothing after the dot is allowed
                     return Instant.ofEpochSecond(seconds, 0).atZone(ZoneOffset.UTC);
                 }
+                // scientific notation it is!
+                if (inputs[1].contains("e")) {
+                    return Instant.ofEpochSecond(Double.valueOf(input).longValue()).atZone(ZoneOffset.UTC);
+                }
                 if (inputs[1].length() > 9) {
                     throw new DateTimeParseException("too much granularity after dot [" + input + "]", input, 0);
                 }
                 Long nanos = new BigDecimal(inputs[1]).movePointRight(9 - inputs[1].length()).longValueExact();
+                if (seconds < 0) {
+                    nanos = nanos * -1;
+                }
                 return Instant.ofEpochSecond(seconds, nanos).atZone(ZoneOffset.UTC);
             } else {
                 return Instant.ofEpochSecond(Long.valueOf(input)).atZone(ZoneOffset.UTC);

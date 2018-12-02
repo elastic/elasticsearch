@@ -19,6 +19,15 @@
 
 package org.elasticsearch.common.util;
 
+import com.carrotsearch.hppc.ObjectArrayList;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.InPlaceMergeSorter;
+import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
+
 import java.nio.file.Path;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -34,14 +43,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.RandomAccess;
 import java.util.Set;
-
-import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefArray;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.InPlaceMergeSorter;
-import org.apache.lucene.util.IntroSorter;
-import org.elasticsearch.common.Strings;
 
 /** Collections-related utility methods. */
 public class CollectionUtils {
@@ -246,7 +247,8 @@ public class CollectionUtils {
             return null;
         }
         if (value instanceof Map) {
-            return ((Map<?,?>) value).values();
+            Map<?,?> map = (Map<?,?>) value;
+            return () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
         } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
             return (Iterable<?>) value;
         } else if (value instanceof Object[]) {
@@ -305,7 +307,8 @@ public class CollectionUtils {
         sort(new BytesRefBuilder(), new BytesRefBuilder(), bytes, indices);
     }
 
-    private static void sort(final BytesRefBuilder scratch, final BytesRefBuilder scratch1, final BytesRefArray bytes, final int[] indices) {
+    private static void sort(final BytesRefBuilder scratch, final BytesRefBuilder scratch1,
+                             final BytesRefArray bytes, final int[] indices) {
 
         final int numValues = bytes.size();
         assert indices.length >= numValues;

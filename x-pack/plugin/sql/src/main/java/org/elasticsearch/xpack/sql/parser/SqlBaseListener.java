@@ -714,6 +714,16 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitCastTemplate(SqlBaseParser.CastTemplateContext ctx);
   /**
+   * Enter a parse tree produced by {@link SqlBaseParser#convertTemplate}.
+   * @param ctx the parse tree
+   */
+  void enterConvertTemplate(SqlBaseParser.ConvertTemplateContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#convertTemplate}.
+   * @param ctx the parse tree
+   */
+  void exitConvertTemplate(SqlBaseParser.ConvertTemplateContext ctx);
+  /**
    * Enter a parse tree produced by {@link SqlBaseParser#extractExpression}.
    * @param ctx the parse tree
    */
@@ -775,6 +785,18 @@ interface SqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitNullLiteral(SqlBaseParser.NullLiteralContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code intervalLiteral}
+   * labeled alternative in {@link SqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void enterIntervalLiteral(SqlBaseParser.IntervalLiteralContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code intervalLiteral}
+   * labeled alternative in {@link SqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void exitIntervalLiteral(SqlBaseParser.IntervalLiteralContext ctx);
   /**
    * Enter a parse tree produced by the {@code numericLiteral}
    * labeled alternative in {@link SqlBaseParser#constant}.
@@ -891,6 +913,26 @@ interface SqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitBooleanValue(SqlBaseParser.BooleanValueContext ctx);
+  /**
+   * Enter a parse tree produced by {@link SqlBaseParser#interval}.
+   * @param ctx the parse tree
+   */
+  void enterInterval(SqlBaseParser.IntervalContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#interval}.
+   * @param ctx the parse tree
+   */
+  void exitInterval(SqlBaseParser.IntervalContext ctx);
+  /**
+   * Enter a parse tree produced by {@link SqlBaseParser#intervalField}.
+   * @param ctx the parse tree
+   */
+  void enterIntervalField(SqlBaseParser.IntervalFieldContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#intervalField}.
+   * @param ctx the parse tree
+   */
+  void exitIntervalField(SqlBaseParser.IntervalFieldContext ctx);
   /**
    * Enter a parse tree produced by the {@code primitiveDataType}
    * labeled alternative in {@link SqlBaseParser#dataType}.

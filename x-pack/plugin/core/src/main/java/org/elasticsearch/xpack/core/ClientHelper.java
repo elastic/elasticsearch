@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -36,10 +36,16 @@ public final class ClientHelper {
     public static final Set<String> SECURITY_HEADER_FILTERS = Sets.newHashSet(AuthenticationServiceField.RUN_AS_USER_HEADER,
             AuthenticationField.AUTHENTICATION_KEY);
 
-    public static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
+    /**
+     * .
+     * @deprecated use ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME
+     */
+    @Deprecated
+    public static final String ACTION_ORIGIN_TRANSIENT_NAME = ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
     public static final String SECURITY_ORIGIN = "security";
     public static final String WATCHER_ORIGIN = "watcher";
     public static final String ML_ORIGIN = "ml";
+    public static final String INDEX_LIFECYCLE_ORIGIN = "index_lifecycle";
     public static final String MONITORING_ORIGIN = "monitoring";
     public static final String DEPRECATION_ORIGIN = "deprecation";
     public static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
@@ -49,18 +55,20 @@ public final class ClientHelper {
 
     /**
      * Stashes the current context and sets the origin in the current context. The original context is returned as a stored context
+     * @deprecated use ThreadContext.stashWithOrigin
      */
+    @Deprecated
     public static ThreadContext.StoredContext stashWithOrigin(ThreadContext threadContext, String origin) {
-        final ThreadContext.StoredContext storedContext = threadContext.stashContext();
-        threadContext.putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
-        return storedContext;
+        return threadContext.stashWithOrigin(origin);
     }
 
     /**
      * Returns a client that will always set the appropriate origin and ensure the proper context is restored by listeners
+     * @deprecated use {@link OriginSettingClient} instead
      */
+    @Deprecated
     public static Client clientWithOrigin(Client client, String origin) {
-        return new ClientWithOrigin(client, origin);
+        return new OriginSettingClient(client, origin);
     }
 
     /**
@@ -163,25 +171,5 @@ public final class ClientHelper {
         final ThreadContext.StoredContext storedContext = threadContext.stashContext();
         threadContext.copyHeaders(headers.entrySet());
         return storedContext;
-    }
-
-    private static final class ClientWithOrigin extends FilterClient {
-
-        private final String origin;
-
-        private ClientWithOrigin(Client in, String origin) {
-            super(in);
-            this.origin = origin;
-        }
-
-        @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse>
-        void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
-            final Supplier<ThreadContext.StoredContext> supplier = in().threadPool().getThreadContext().newRestorableContext(false);
-            try (ThreadContext.StoredContext ignore = in().threadPool().getThreadContext().stashContext()) {
-                in().threadPool().getThreadContext().putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
-                super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
-            }
-        }
     }
 }

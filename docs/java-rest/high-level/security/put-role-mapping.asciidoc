@@ -34,7 +34,7 @@ method:
 --------------------------------------------------
 include-tagged::{doc-tests}/SecurityDocumentationIT.java[put-role-mapping-execute-async]
 --------------------------------------------------
-<1> The `PutRoleMappingResponse` to execute and the `ActionListener` to use when
+<1> The `PutRoleMappingRequest` to execute and the `ActionListener` to use when
 the execution completes
 
 The asynchronous method does not block and returns immediately. Once the request

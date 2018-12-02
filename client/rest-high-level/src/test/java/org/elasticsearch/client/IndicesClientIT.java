@@ -70,6 +70,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
+import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -522,6 +525,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
         AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index(index).aliases(alias);
+        if (randomBoolean()) {
+            addAction.writeIndex(randomBoolean());
+        }
         addAction.routing("routing").searchRouting("search_routing").filter("{\"term\":{\"year\":2016}}");
         aliasesAddRequest.addAliasAction(addAction);
         AcknowledgedResponse aliasesAddResponse = execute(aliasesAddRequest, highLevelClient().indices()::updateAliases,
@@ -535,6 +541,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Map<String, Object> filter = (Map<String, Object>) getAlias.get("filter");
         Map<String, Object> term = (Map<String, Object>) filter.get("term");
         assertEquals(2016, term.get("year"));
+        Boolean isWriteIndex = (Boolean) getAlias.get("is_write_index");
+        assertThat(isWriteIndex, equalTo(addAction.writeIndex()));
 
         String alias2 = "alias2";
         IndicesAliasesRequest aliasesAddRemoveRequest = new IndicesAliasesRequest();
@@ -573,7 +581,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(nonExistentIndexRequest,
                 highLevelClient().indices()::updateAliases, highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+        assertThat(exception.getMessage(),
+            equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
 
         createIndex(index, Settings.EMPTY);
@@ -583,7 +592,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         exception = expectThrows(ElasticsearchStatusException.class,
                 () -> execute(mixedRequest, highLevelClient().indices()::updateAliases, highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+        assertThat(exception.getMessage(),
+            equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
         assertThat(exception.getMetadata("es.index"), not(hasItem(index)));
         assertThat(aliasExists(index, alias), equalTo(false));
@@ -595,7 +605,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         exception = expectThrows(ElasticsearchException.class, () -> execute(removeIndexRequest, highLevelClient().indices()::updateAliases,
                 highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+        assertThat(exception.getMessage(),
+            equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
         assertThat(exception.getMetadata("es.index"), not(hasItem(index)));
         assertThat(aliasExists(index, alias), equalTo(false));
@@ -1060,7 +1071,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(getAliasesResponse.getException().getMessage(),
-                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]"));
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest(alias);
@@ -1077,7 +1088,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(getAliasesResponse.getException().getMessage(),
-                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices(index, "non_existent_index").aliases(alias);
@@ -1085,7 +1096,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(getAliasesResponse.getException().getMessage(),
-                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices("non_existent_index*");
@@ -1199,7 +1210,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(indexUpdateSettingsRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
-        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+        assertThat(exception.getMessage(),
+            equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]"));
 
         createIndex(index, Settings.EMPTY);
         exception = expectThrows(ElasticsearchException.class, () -> execute(indexUpdateSettingsRequest,
@@ -1361,6 +1373,20 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         AnalyzeResponse detailsResponse = execute(detailsRequest, client.indices()::analyze, client.indices()::analyzeAsync);
 
         assertNotNull(detailsResponse.detail());
+    }
 
+    public void testFreezeAndUnfreeze() throws IOException {
+        createIndex("test", Settings.EMPTY);
+        RestHighLevelClient client = highLevelClient();
+
+        ShardsAcknowledgedResponse freeze = execute(new FreezeIndexRequest("test"), client.indices()::freeze,
+            client.indices()::freezeAsync);
+        assertTrue(freeze.isShardsAcknowledged());
+        assertTrue(freeze.isAcknowledged());
+
+        ShardsAcknowledgedResponse unfreeze = execute(new UnfreezeIndexRequest("test"), client.indices()::unfreeze,
+            client.indices()::unfreezeAsync);
+        assertTrue(unfreeze.isShardsAcknowledged());
+        assertTrue(unfreeze.isAcknowledged());
     }
 }

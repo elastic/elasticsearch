@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingUpgrader;
@@ -54,7 +53,7 @@ import java.util.stream.Stream;
 /**
  * Base class for all services and components that need up-to-date information about the registered remote clusters
  */
-public abstract class RemoteClusterAware extends AbstractComponent {
+public abstract class RemoteClusterAware {
 
     static {
         // remove search.remote.* settings in 8.0.0
@@ -167,7 +166,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
                     Setting.Property.NodeScope),
             REMOTE_CLUSTERS_SEEDS);
 
-
+    protected final Settings settings;
     protected final ClusterNameExpressionResolver clusterNameResolver;
 
     /**
@@ -175,8 +174,8 @@ public abstract class RemoteClusterAware extends AbstractComponent {
      * @param settings the nodes level settings
      */
     protected RemoteClusterAware(Settings settings) {
-        super(settings);
-        this.clusterNameResolver = new ClusterNameExpressionResolver(settings);
+        this.settings = settings;
+        this.clusterNameResolver = new ClusterNameExpressionResolver();
     }
 
     /**
@@ -228,8 +227,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
             TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 0);
             String hostName = address.substring(0, indexOfPortSeparator(address));
             return new DiscoveryNode("", clusterName + "#" + address, UUIDs.randomBase64UUID(), hostName, address,
-                    transportAddress, Collections
-                    .emptyMap(), EnumSet.allOf(DiscoveryNode.Role.class),
+                    transportAddress, Collections.singletonMap("server_name", hostName), EnumSet.allOf(DiscoveryNode.Role.class),
                     Version.CURRENT.minimumCompatibilityVersion());
         } else {
             TransportAddress transportAddress = new TransportAddress(RemoteClusterAware.parseSeedAddress(address));

@@ -18,7 +18,7 @@ import java.util.TimeZone;
 public class DayName extends NamedDateTimeFunction {
     
     public DayName(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+        super(location, field, timeZone, NameExtractor.DAY_NAME);
     }
 
     @Override
@@ -29,10 +29,5 @@ public class DayName extends NamedDateTimeFunction {
     @Override
     protected DayName replaceChild(Expression newChild) {
         return new DayName(location(), newChild, timeZone());
-    }
-
-    @Override
-    protected NameExtractor nameExtractor() {
-        return NameExtractor.DAY_NAME;
     }
 }

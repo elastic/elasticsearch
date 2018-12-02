@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.AbstractRecyclerC;
@@ -39,7 +38,7 @@ import static org.elasticsearch.common.recycler.Recyclers.dequeFactory;
 import static org.elasticsearch.common.recycler.Recyclers.none;
 
 /** A recycler of fixed-size pages. */
-public class PageCacheRecycler extends AbstractComponent implements Releasable {
+public class PageCacheRecycler implements Releasable {
 
     public static final Setting<Type> TYPE_SETTING =
         new Setting<>("cache.recycler.page.type", Type.CONCURRENT.name(), Type::parse, Property.NodeScope);
@@ -66,7 +65,6 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
     }
 
     public PageCacheRecycler(Settings settings) {
-        super(settings);
         final Type type = TYPE_SETTING.get(settings);
         final long limit = LIMIT_HEAP_SETTING.get(settings).getBytes();
         final int availableProcessors = EsExecutors.numberOfProcessors(settings);

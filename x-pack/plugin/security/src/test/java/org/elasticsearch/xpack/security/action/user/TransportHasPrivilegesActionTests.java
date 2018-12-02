@@ -72,7 +72,6 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
 
     @Before
     public void setup() {
-        final Settings settings = Settings.builder().build();
         user = new User(randomAlphaOfLengthBetween(4, 12));
         final ThreadPool threadPool = mock(ThreadPool.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -103,7 +102,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             return null;
         }).when(privilegeStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
 
-        action = new TransportHasPrivilegesAction(settings, threadPool, transportService, mock(ActionFilters.class), authorizationService,
+        action = new TransportHasPrivilegesAction(threadPool, transportService, mock(ActionFilters.class), authorizationService,
             privilegeStore);
     }
 
@@ -112,7 +111,10 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
      * (in this case that {@link DeleteAction} and {@link IndexAction} are satisfied by {@link IndexPrivilege#WRITE}).
      */
     public void testNamedIndexPrivilegesMatchApplicableActions() throws Exception {
-        role = Role.builder("test1").cluster(ClusterPrivilege.ALL).add(IndexPrivilege.WRITE, "academy").build();
+        role = Role.builder("test1")
+            .cluster(Collections.singleton("all"), Collections.emptyList())
+            .add(IndexPrivilege.WRITE, "academy")
+            .build();
 
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
         request.username(user.principal());
@@ -127,6 +129,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
 
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
+        assertThat(response.getUsername(), is(user.principal()));
         assertThat(response.isCompleteMatch(), is(true));
 
         assertThat(response.getClusterPrivileges().size(), equalTo(1));
@@ -164,6 +167,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
 
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
+        assertThat(response.getUsername(), is(user.principal()));
         assertThat(response.isCompleteMatch(), is(false));
         assertThat(response.getClusterPrivileges().size(), equalTo(2));
         assertThat(response.getClusterPrivileges().get("monitor"), equalTo(true));
@@ -206,6 +210,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 .indices("academy")
                 .privileges("read", "write")
                 .build(), Strings.EMPTY_ARRAY);
+        assertThat(response.getUsername(), is(user.principal()));
         assertThat(response.isCompleteMatch(), is(false));
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
         final ResourcePrivileges result = response.getIndexPrivileges().get(0);
@@ -290,6 +295,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
 
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
+        assertThat(response.getUsername(), is(user.principal()));
         assertThat(response.isCompleteMatch(), is(false));
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(8));
         assertThat(response.getIndexPrivileges(), containsInAnyOrder(

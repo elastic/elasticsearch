@@ -247,10 +247,7 @@ public class MockWebServer implements Closeable {
         latches.forEach(CountDownLatch::countDown);
 
         if (server.getExecutor() instanceof ExecutorService) {
-            try {
-                terminate((ExecutorService) server.getExecutor());
-            } catch (InterruptedException e) {
-            }
+            terminate((ExecutorService) server.getExecutor());
         }
         server.stop(0);
     }

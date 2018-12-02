@@ -28,6 +28,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
@@ -57,7 +58,6 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -174,7 +174,7 @@ import static org.junit.Assert.fail;
  */
 public final class InternalTestCluster extends TestCluster {
 
-    private final Logger logger = Loggers.getLogger(getClass());
+    private final Logger logger = LogManager.getLogger(getClass());
 
     public static final int DEFAULT_LOW_NUM_MASTER_NODES = 1;
     public static final int DEFAULT_HIGH_NUM_MASTER_NODES = 3;
@@ -696,13 +696,6 @@ public final class InternalTestCluster extends TestCluster {
         return suffix;
     }
 
-    /**
-     * Returns the common node name prefix for this test cluster.
-     */
-    public String nodePrefix() {
-        return nodePrefix;
-    }
-
     @Override
     public synchronized Client client() {
         ensureOpen();
@@ -804,21 +797,6 @@ public final class InternalTestCluster extends TestCluster {
         return null; // can't happen
     }
 
-    /**
-     * Returns a random node that applies to the given predicate.
-     * The predicate can filter nodes based on the nodes settings.
-     * If all nodes are filtered out this method will return <code>null</code>
-     */
-    public synchronized Client client(final Predicate<Settings> filterPredicate) {
-        ensureOpen();
-        final NodeAndClient randomNodeAndClient =
-                getRandomNodeAndClient(nodeAndClient -> filterPredicate.test(nodeAndClient.node.settings()));
-        if (randomNodeAndClient != null) {
-            return randomNodeAndClient.client(random);
-        }
-        return null;
-    }
-
     @Override
     public synchronized void close() {
         if (this.open.compareAndSet(true, false)) {
@@ -914,7 +892,7 @@ public final class InternalTestCluster extends TestCluster {
             return clientWrapper.apply(transportClient);
         }
 
-        void resetClient() throws IOException {
+        void resetClient() {
             if (closed.get() == false) {
                 Releasables.close(nodeClient, transportClient);
                 nodeClient = null;
@@ -930,28 +908,12 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
-        void closeNode() throws IOException {
-            markNodeDataDirsAsPendingForWipe(node);
-            node.close();
-        }
-
         /**
-         * closes the current node if not already closed, builds a new node object using the current node settings and starts it
+         * closes the node and prepares it to be restarted
          */
-        void restart(RestartCallback callback, boolean clearDataIfNeeded, int minMasterNodes) throws Exception {
-            if (!node.isClosed()) {
-                closeNode();
-            }
-            recreateNodeOnRestart(callback, clearDataIfNeeded, minMasterNodes, () -> rebuildUnicastHostFiles(emptyList()));
-            startNode();
-        }
-
-        /**
-         * rebuilds a new node object using the current node settings and starts it
-         */
-        void recreateNodeOnRestart(RestartCallback callback, boolean clearDataIfNeeded, int minMasterNodes,
-                                   Runnable onTransportServiceStarted) throws Exception {
+        Settings closeForRestart(RestartCallback callback, int minMasterNodes) throws Exception {
             assert callback != null;
+            close();
             Settings callbackSettings = callback.onNodeStopped(name);
             Settings.Builder newSettings = Settings.builder();
             if (callbackSettings != null) {
@@ -961,12 +923,9 @@ public final class InternalTestCluster extends TestCluster {
                 assert DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(newSettings.build()) == false : "min master nodes is auto managed";
                 newSettings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes).build();
             }
-            if (clearDataIfNeeded) {
-                clearDataIfNeeded(callback);
-            }
-            createNewNode(newSettings.build(), onTransportServiceStarted);
-            // make sure cached client points to new node
-            resetClient();
+            // delete data folders now, before we start other nodes that may claim it
+            clearDataIfNeeded(callback);
+            return newSettings.build();
         }
 
         private void clearDataIfNeeded(RestartCallback callback) throws IOException {
@@ -980,7 +939,10 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
-        private void createNewNode(final Settings newSettings, final Runnable onTransportServiceStarted) {
+        private void recreateNode(final Settings newSettings, final Runnable onTransportServiceStarted) {
+            if (closed.get() == false) {
+                throw new IllegalStateException("node " + name + " should be closed before recreating it");
+            }
             // use a new seed to make sure we have new node id
             final long newIdSeed = NodeEnvironment.NODE_ID_SEED_SETTING.get(node.settings()) + 1;
             Settings finalSettings = Settings.builder()
@@ -1000,6 +962,7 @@ public final class InternalTestCluster extends TestCluster {
                     onTransportServiceStarted.run();
                 }
             });
+            closed.set(false);
             markNodeDataDirsAsNotEligableForWipe(node);
         }
 
@@ -1009,7 +972,8 @@ public final class InternalTestCluster extends TestCluster {
                 resetClient();
             } finally {
                 closed.set(true);
-                closeNode();
+                markNodeDataDirsAsPendingForWipe(node);
+                node.close();
             }
         }
     }
@@ -1330,12 +1294,7 @@ public final class InternalTestCluster extends TestCluster {
                         } catch (AlreadyClosedException e) {
                             continue; // shard is closed - just ignore
                         }
-                        assertThat(replicaShardRouting + " local checkpoint mismatch",
-                            seqNoStats.getLocalCheckpoint(), equalTo(primarySeqNoStats.getLocalCheckpoint()));
-                        assertThat(replicaShardRouting + " global checkpoint mismatch",
-                            seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
-                        assertThat(replicaShardRouting + " max seq no mismatch",
-                            seqNoStats.getMaxSeqNo(), equalTo(primarySeqNoStats.getMaxSeqNo()));
+                        assertThat(replicaShardRouting + " seq_no_stats mismatch", seqNoStats, equalTo(primarySeqNoStats));
                         // the local knowledge on the primary of the global checkpoint equals the global checkpoint on the shard
                         assertThat(replicaShardRouting + " global checkpoint syncs mismatch", seqNoStats.getGlobalCheckpoint(),
                             equalTo(syncGlobalCheckpoints.get(replicaShardRouting.allocationId().getId())));
@@ -1388,7 +1347,7 @@ public final class InternalTestCluster extends TestCluster {
         });
     }
 
-    private void randomlyResetClients() throws IOException {
+    private void randomlyResetClients() {
         // only reset the clients on nightly tests, it causes heavy load...
         if (RandomizedTest.isNightly() && rarely(random)) {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
@@ -1584,6 +1543,7 @@ public final class InternalTestCluster extends TestCluster {
                 // if we're adding too many master-eligible nodes at once, we can't update the min master setting before adding the nodes.
                 updateMinMasterNodes(currentMasters + newMasters);
             }
+            rebuildUnicastHostFiles(nodeAndClients); // ensure that new nodes can find the existing nodes when they start
             List<Future<?>> futures = nodeAndClients.stream().map(node -> executor.submit(node::startNode)).collect(Collectors.toList());
 
             try {
@@ -1655,20 +1615,6 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Restarts a random node in the cluster
-     */
-    public void restartRandomNode() throws Exception {
-        restartRandomNode(EMPTY_CALLBACK);
-    }
-
-    /**
-     * Restarts a random node in the cluster and calls the callback during restart.
-     */
-    public void restartRandomNode(RestartCallback callback) throws Exception {
-        restartRandomNode(nc -> true, callback);
-    }
-
-    /**
      * Restarts a random data node in the cluster
      */
     public void restartRandomDataNode() throws Exception {
@@ -1721,13 +1667,6 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Restarts all nodes in a rolling restart fashion ie. only restarts on node a time.
      */
-    public void rollingRestart() throws Exception {
-        rollingRestart(EMPTY_CALLBACK);
-    }
-
-    /**
-     * Restarts all nodes in a rolling restart fashion ie. only restarts on node a time.
-     */
     public synchronized void rollingRestart(RestartCallback callback) throws Exception {
         int numNodesRestarted = 0;
         for (NodeAndClient nodeAndClient : nodes.values()) {
@@ -1747,7 +1686,10 @@ public final class InternalTestCluster extends TestCluster {
         if (updateMinMaster) {
             updateMinMasterNodes(masterNodesCount - 1);
         }
-        nodeAndClient.restart(callback, true, autoManageMinMasterNodes ? getMinMasterNodes(masterNodesCount) : -1);
+        final Settings newSettings = nodeAndClient.closeForRestart(callback,
+            autoManageMinMasterNodes ? getMinMasterNodes(masterNodesCount) : -1);
+        nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(emptyList()));
+        nodeAndClient.startNode();
         if (activeDisruptionScheme != null) {
             activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
         }
@@ -1768,19 +1710,20 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized void fullRestart(RestartCallback callback) throws Exception {
         int numNodesRestarted = 0;
+        final Settings[] newNodeSettings = new Settings[nextNodeId.get()];
         Map<Set<Role>, List<NodeAndClient>> nodesByRoles = new HashMap<>();
         Set[] rolesOrderedByOriginalStartupOrder =  new Set[nextNodeId.get()];
+        final int minMasterNodes = autoManageMinMasterNodes ? getMinMasterNodes(getMasterNodesCount()) : -1;
         for (NodeAndClient nodeAndClient : nodes.values()) {
             callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
-            logger.info("Stopping node [{}] ", nodeAndClient.name);
+            logger.info("Stopping and resetting node [{}] ", nodeAndClient.name);
             if (activeDisruptionScheme != null) {
                 activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
             }
-            nodeAndClient.closeNode();
-            // delete data folders now, before we start other nodes that may claim it
-            nodeAndClient.clearDataIfNeeded(callback);
             DiscoveryNode discoveryNode = getInstanceFromNode(ClusterService.class, nodeAndClient.node()).localNode();
-            rolesOrderedByOriginalStartupOrder[nodeAndClient.nodeAndClientId] = discoveryNode.getRoles();
+            final Settings newSettings = nodeAndClient.closeForRestart(callback, minMasterNodes);
+            newNodeSettings[nodeAndClient.nodeAndClientId()] = newSettings;
+            rolesOrderedByOriginalStartupOrder[nodeAndClient.nodeAndClientId()] = discoveryNode.getRoles();
             nodesByRoles.computeIfAbsent(discoveryNode.getRoles(), k -> new ArrayList<>()).add(nodeAndClient);
         }
 
@@ -1805,10 +1748,8 @@ public final class InternalTestCluster extends TestCluster {
         assert nodesByRoles.values().stream().collect(Collectors.summingInt(List::size)) == 0;
 
         for (NodeAndClient nodeAndClient : startUpOrder) {
-            logger.info("resetting node [{}] ", nodeAndClient.name);
-            // we already cleared data folders, before starting nodes up
-            nodeAndClient.recreateNodeOnRestart(callback, false, autoManageMinMasterNodes ? getMinMasterNodes(getMasterNodesCount()) : -1,
-                () -> rebuildUnicastHostFiles(startUpOrder));
+            logger.info("creating node [{}] ", nodeAndClient.name);
+            nodeAndClient.recreateNode(newNodeSettings[nodeAndClient.nodeAndClientId()], () -> rebuildUnicastHostFiles(startUpOrder));
         }
 
         startAndPublishNodesAndClients(startUpOrder);

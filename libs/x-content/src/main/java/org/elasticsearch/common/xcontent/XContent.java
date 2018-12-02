@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.Booleans;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -32,28 +30,6 @@ import java.util.Set;
  * A generic abstraction on top of handling content, inspired by JSON and pull parsing.
  */
 public interface XContent {
-
-    /*
-     * NOTE: This comment is only meant for maintainers of the Elasticsearch code base and is intentionally not a Javadoc comment as it
-     *       describes an undocumented system property.
-     *
-     *
-     * Determines whether the XContent parser will always check for duplicate keys. This behavior is enabled by default but
-     * can be disabled by setting the otherwise undocumented system property "es.xcontent.strict_duplicate_detection to "false".
-     *
-     * Before we've enabled this mode, we had custom duplicate checks in various parts of the code base. As the user can still disable this
-     * mode and fall back to the legacy duplicate checks, we still need to keep the custom duplicate checks around and we also need to keep
-     * the tests around.
-     *
-     * If this fallback via system property is removed one day in the future you can remove all tests that call this method and also remove
-     * the corresponding custom duplicate check code.
-     *
-     */
-    static boolean isStrictDuplicateDetectionEnabled() {
-        // Don't allow duplicate keys in JSON content by default but let the user opt out
-        return Booleans.parseBoolean(System.getProperty("es.xcontent.strict_duplicate_detection", "true"), true);
-    }
-
     /**
      * The type this content handles and produces.
      */

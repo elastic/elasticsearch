@@ -14,10 +14,10 @@ import org.apache.kerby.kerberos.kerb.client.KrbConfig;
 import org.apache.kerby.kerberos.kerb.server.KdcConfigKey;
 import org.apache.kerby.kerberos.kerb.server.SimpleKdcServer;
 import org.apache.kerby.util.NetworkUtil;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
  * Starts in memory Ldap server and then uses it as backend for Kdc Server.
  */
 public class SimpleKdcLdapServer {
-    private static final Logger logger = Loggers.getLogger(SimpleKdcLdapServer.class);
+    private static final Logger logger = LogManager.getLogger(SimpleKdcLdapServer.class);
 
     private Path workDir = null;
     private SimpleKdcServer simpleKdc;

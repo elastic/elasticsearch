@@ -18,16 +18,14 @@ public class BinaryArithmeticPipe extends BinaryPipe {
 
     private final BinaryArithmeticOperation operation;
 
-    public BinaryArithmeticPipe(Location location, Expression expression, Pipe left,
-            Pipe right, BinaryArithmeticOperation operation) {
+    public BinaryArithmeticPipe(Location location, Expression expression, Pipe left, Pipe right, BinaryArithmeticOperation operation) {
         super(location, expression, left, right);
         this.operation = operation;
     }
 
     @Override
     protected NodeInfo<BinaryArithmeticPipe> info() {
-        return NodeInfo.create(this, BinaryArithmeticPipe::new,
-            expression(), left(), right(), operation);
+        return NodeInfo.create(this, BinaryArithmeticPipe::new, expression(), left(), right(), operation);
     }
 
     @Override

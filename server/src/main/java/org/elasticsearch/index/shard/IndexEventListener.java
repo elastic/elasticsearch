@@ -81,7 +81,8 @@ public interface IndexEventListener {
      * @param currentState the new shard state
      * @param reason the reason for the state change if there is one, null otherwise
      */
-    default void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState, @Nullable String reason) {}
+    default void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState,
+                                            IndexShardState currentState, @Nullable String reason) {}
 
     /**
      * Called when a shard is marked as inactive

@@ -106,7 +106,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
             scripts.put("doc['num1'].value * factor", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles num1 = (ScriptDocValues.Doubles) doc.get("num1");
-                Double factor = (Double) vars.get("factor");
+                Map<String, Object> params = (Map<String, Object>) vars.get("params");
+                Double factor = (Double) params.get("factor");
                 return num1.getValue() * factor;
             });
 
@@ -130,12 +131,12 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
             scripts.put("return null", vars -> null);
 
-            scripts.put("doc['l'].values", vars -> docScript(vars, "l"));
-            scripts.put("doc['ml'].values", vars -> docScript(vars, "ml"));
-            scripts.put("doc['d'].values", vars -> docScript(vars, "d"));
-            scripts.put("doc['md'].values", vars -> docScript(vars, "md"));
-            scripts.put("doc['s'].values", vars -> docScript(vars, "s"));
-            scripts.put("doc['ms'].values", vars -> docScript(vars, "ms"));
+            scripts.put("doc['l']", vars -> docScript(vars, "l"));
+            scripts.put("doc['ml']", vars -> docScript(vars, "ml"));
+            scripts.put("doc['d']", vars -> docScript(vars, "d"));
+            scripts.put("doc['md']", vars -> docScript(vars, "md"));
+            scripts.put("doc['s']", vars -> docScript(vars, "s"));
+            scripts.put("doc['ms']", vars -> docScript(vars, "ms"));
 
             return scripts;
         }
@@ -924,7 +925,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         SearchRequestBuilder req = client().prepareSearch("index");
         for (String field : Arrays.asList("s", "ms", "l", "ml", "d", "md")) {
             req.addScriptField(field,
-                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + field + "'].values", Collections.emptyMap()));
+                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + field + "']", Collections.emptyMap()));
         }
         SearchResponse resp = req.get();
         assertSearchResponse(resp);

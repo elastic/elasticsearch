@@ -33,13 +33,13 @@ public class LikeEscapingParsingTests extends ESTestCase {
         Expression exp = null;
         boolean parameterized = randomBoolean();
         if (parameterized) {
-            exp = parser.createExpression("exp LIKE ?", singletonList(new SqlTypedParamValue(DataType.KEYWORD, pattern)));
+            exp = parser.createExpression("exp LIKE ?", singletonList(new SqlTypedParamValue(DataType.KEYWORD.esType, pattern)));
         } else {
             exp = parser.createExpression(String.format(Locale.ROOT, "exp LIKE '%s'", pattern));
         }
         assertThat(exp, instanceOf(Like.class));
         Like l = (Like) exp;
-        return l.right();
+        return l.pattern();
     }
 
     public void testNoEscaping() {

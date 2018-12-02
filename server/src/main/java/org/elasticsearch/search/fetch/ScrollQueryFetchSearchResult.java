@@ -36,6 +36,10 @@ public final class ScrollQueryFetchSearchResult extends SearchPhaseResult {
     public ScrollQueryFetchSearchResult() {
     }
 
+    public ScrollQueryFetchSearchResult(StreamInput in) throws IOException {
+        readFrom(in);
+    }
+
     public ScrollQueryFetchSearchResult(QueryFetchSearchResult result, SearchShardTarget shardTarget) {
         this.result = result;
         setSearchShardTarget(shardTarget);

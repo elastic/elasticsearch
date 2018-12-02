@@ -26,7 +26,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Base request builder for master node read operations that can be executed on the local node as well
  */
-public abstract class MasterNodeReadOperationRequestBuilder<Request extends MasterNodeReadRequest<Request>, Response extends ActionResponse, RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder>>
+public abstract class MasterNodeReadOperationRequestBuilder<Request extends MasterNodeReadRequest<Request>, Response extends ActionResponse,
+        RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder>>
         extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
     protected MasterNodeReadOperationRequestBuilder(ElasticsearchClient client, Action<Response> action, Request request) {

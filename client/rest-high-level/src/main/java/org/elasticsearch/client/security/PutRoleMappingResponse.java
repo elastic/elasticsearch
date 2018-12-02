@@ -64,11 +64,10 @@ public final class PutRoleMappingResponse {
     private static final ConstructingObjectParser<PutRoleMappingResponse, Void> PARSER = new ConstructingObjectParser<>(
             "put_role_mapping_response", true, args -> new PutRoleMappingResponse((boolean) args[0]));
     static {
-        PARSER.declareBoolean(constructorArg(), new ParseField("created"));
-        // To parse the "created" field we declare "role_mapping" field object.
-        // Once the nested field "created" is found parser constructs the target object and
-        // ignores the role_mapping object.
-        PARSER.declareObject((a,b) -> {}, (parser, context) -> null, new ParseField("role_mapping"));
+        ConstructingObjectParser<Boolean, Void> roleMappingParser = new ConstructingObjectParser<>(
+                "put_role_mapping_response.role_mapping", true, args -> (Boolean) args[0]);
+        roleMappingParser.declareBoolean(constructorArg(), new ParseField("created"));
+        PARSER.declareObject(constructorArg(), roleMappingParser::parse, new ParseField("role_mapping"));
     }
 
     public static PutRoleMappingResponse fromXContent(XContentParser parser) throws IOException {

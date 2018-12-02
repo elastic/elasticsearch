@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -20,15 +21,19 @@ import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -39,8 +44,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 class DatafeedJob {
 
-    private static final Logger LOGGER = Loggers.getLogger(DatafeedJob.class);
+    private static final Logger LOGGER = LogManager.getLogger(DatafeedJob.class);
     private static final int NEXT_TASK_DELAY_MS = 100;
+    static final long MISSING_DATA_CHECK_INTERVAL_MS = 900_000; //15 minutes in ms
 
     private final Auditor auditor;
     private final String jobId;
@@ -50,15 +56,19 @@ class DatafeedJob {
     private final Client client;
     private final DataExtractorFactory dataExtractorFactory;
     private final Supplier<Long> currentTimeSupplier;
+    private final DelayedDataDetector delayedDataDetector;
 
     private volatile long lookbackStartTimeMs;
+    private volatile long latestFinalBucketEndTimeMs;
+    private volatile long lastDataCheckTimeMs;
+    private volatile int lastDataCheckAudit;
     private volatile Long lastEndTimeMs;
     private AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
 
     DatafeedJob(String jobId, DataDescription dataDescription, long frequencyMs, long queryDelayMs,
-                 DataExtractorFactory dataExtractorFactory, Client client, Auditor auditor, Supplier<Long> currentTimeSupplier,
-                 long latestFinalBucketEndTimeMs, long latestRecordTimeMs) {
+                DataExtractorFactory dataExtractorFactory, Client client, Auditor auditor, Supplier<Long> currentTimeSupplier,
+                DelayedDataDetector delayedDataDetector, long latestFinalBucketEndTimeMs, long latestRecordTimeMs) {
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.frequencyMs = frequencyMs;
@@ -67,7 +77,8 @@ class DatafeedJob {
         this.client = client;
         this.auditor = auditor;
         this.currentTimeSupplier = currentTimeSupplier;
-
+        this.delayedDataDetector = delayedDataDetector;
+        this.latestFinalBucketEndTimeMs = latestFinalBucketEndTimeMs;
         long lastEndTime = Math.max(latestFinalBucketEndTimeMs, latestRecordTimeMs);
         if (lastEndTime > 0) {
             lastEndTimeMs = lastEndTime;
@@ -151,7 +162,47 @@ class DatafeedJob {
         request.setCalcInterim(true);
         request.setAdvanceTime(String.valueOf(end));
         run(start, end, request);
+        checkForMissingDataIfNecessary();
         return nextRealtimeTimestamp();
+    }
+
+    private void checkForMissingDataIfNecessary() {
+        if (isRunning() && !isIsolated && checkForMissingDataTriggered()) {
+
+            // Keep track of the last bucket time for which we did a missing data check
+            this.lastDataCheckTimeMs = this.currentTimeSupplier.get();
+            List<BucketWithMissingData> missingDataBuckets = delayedDataDetector.detectMissingData(latestFinalBucketEndTimeMs);
+            if (missingDataBuckets.isEmpty() == false) {
+
+                long totalRecordsMissing = missingDataBuckets.stream()
+                    .mapToLong(BucketWithMissingData::getMissingDocumentCount)
+                    .sum();
+                // The response is sorted by asc timestamp, so the last entry is the last bucket
+                Date lastBucketDate = missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket().getTimestamp();
+                int newAudit = Objects.hash(totalRecordsMissing, lastBucketDate);
+                if (newAudit != lastDataCheckAudit) {
+                    auditor.warning(jobId,
+                        Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, totalRecordsMissing,
+                            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(lastBucketDate.getTime())));
+                    lastDataCheckAudit = newAudit;
+                }
+            }
+        }
+    }
+
+    /**
+     * We wait a static interval of 15 minutes till the next missing data check.
+     *
+     * However, if our delayed data window is smaller than that, we will probably want to check at every available window (if freq. allows).
+     * This is to help to miss as few buckets in the delayed data check as possible.
+     *
+     * If our frequency/query delay are longer then our default interval or window size, we will end up looking for missing data on
+     * every real-time trigger. This should be OK as the we are pulling from the Index as such a slow pace, another query will
+     * probably not even be noticeable at such a large timescale.
+     */
+    private boolean checkForMissingDataTriggered() {
+        return this.currentTimeSupplier.get() > this.lastDataCheckTimeMs
+            + Math.min(MISSING_DATA_CHECK_INTERVAL_MS, delayedDataDetector.getWindow());
     }
 
     /**
@@ -260,7 +311,10 @@ class DatafeedJob {
         // we call flush the job is closed. Thus, we don't flush unless the
         // datafeed is still running.
         if (isRunning() && !isIsolated) {
-            flushJob(flushRequest);
+            Date lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
+            if (lastFinalizedBucketEnd != null) {
+                this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.getTime();
+            }
         }
 
         if (recordCount == 0) {

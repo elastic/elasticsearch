@@ -23,10 +23,15 @@ public class StatsResponsesTests extends AbstractStreamableTestCase<FollowStatsA
 
     @Override
     protected FollowStatsAction.StatsResponses createTestInstance() {
+        return createStatsResponse();
+    }
+
+    static FollowStatsAction.StatsResponses createStatsResponse() {
         int numResponses = randomIntBetween(0, 8);
         List<FollowStatsAction.StatsResponse> responses = new ArrayList<>(numResponses);
         for (int i = 0; i < numResponses; i++) {
             ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
+                randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
                 randomInt(),
@@ -38,6 +43,9 @@ public class StatsResponsesTests extends AbstractStreamableTestCase<FollowStatsA
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),

@@ -93,7 +93,7 @@ public class GetDatafeedStatsRequest extends ActionRequest implements ToXContent
         return datafeedIds;
     }
 
-    public Boolean isAllowNoDatafeeds() {
+    public Boolean getAllowNoDatafeeds() {
         return this.allowNoDatafeeds;
     }
 

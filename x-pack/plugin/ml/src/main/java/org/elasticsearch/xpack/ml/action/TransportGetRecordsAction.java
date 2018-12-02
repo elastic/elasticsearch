@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
@@ -27,11 +26,9 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
     private final Client client;
 
     @Inject
-    public TransportGetRecordsAction(Settings settings, TransportService transportService,
-                                     ActionFilters actionFilters, JobResultsProvider jobResultsProvider,
+    public TransportGetRecordsAction(TransportService transportService, ActionFilters actionFilters, JobResultsProvider jobResultsProvider,
                                      JobManager jobManager, Client client) {
-        super(settings, GetRecordsAction.NAME, transportService, actionFilters,
-            (Supplier<GetRecordsAction.Request>) GetRecordsAction.Request::new);
+        super(GetRecordsAction.NAME, transportService, actionFilters, (Supplier<GetRecordsAction.Request>) GetRecordsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         this.client = client;

@@ -493,7 +493,7 @@ public final class SecurityClient {
      * @return the response from the put role call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public PutRoleResponse getRoles(final PutRoleRequest request, final RequestOptions options) throws IOException {
+    public PutRoleResponse putRole(final PutRoleRequest request, final RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::putRole, options,
             PutRoleResponse::fromXContent, emptySet());
     }

@@ -22,15 +22,18 @@ package org.elasticsearch.client.security;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
 /**
  * Response when adding a role to the native roles store. Returns a
- * single boolean field for whether the role was created or updated.
+ * single boolean field for whether the role was created (true) or updated (false).
  */
 public final class PutRoleResponse {
 
@@ -65,6 +68,15 @@ public final class PutRoleResponse {
     }
 
     public static PutRoleResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+        // parse extraneous wrapper
+        ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureFieldName(parser, parser.nextToken(), "role");
+        parser.nextToken();
+        final PutRoleResponse roleResponse = PARSER.parse(parser, null);
+        ensureExpectedToken(Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        return roleResponse;
     }
 }

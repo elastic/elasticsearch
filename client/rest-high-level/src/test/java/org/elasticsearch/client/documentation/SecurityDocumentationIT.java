@@ -64,6 +64,8 @@ import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
+import org.elasticsearch.client.security.PutRoleRequest;
+import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
@@ -1023,18 +1025,63 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    // TODO: move all calls to high-level REST client once APIs for adding new role exist
-    private void addRole(String roleName) throws IOException {
-        Request addRoleRequest = new Request(HttpPost.METHOD_NAME, "/_xpack/security/role/" + roleName);
-        try (XContentBuilder builder = jsonBuilder()) {
-            builder.startObject();
-            {
-                builder.array("cluster", "all");
-            }
-            builder.endObject();
-            addRoleRequest.setEntity(new NStringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
+    public void testPutRole() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::put-role-execute
+            final Role role = Role.builder()
+                    .name("testPutRole")
+                    .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ARRAY))
+                    .build();
+            final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.NONE);
+            final PutRoleResponse response = client.security().putRole(request, RequestOptions.DEFAULT);
+            // end::put-role-execute
+            // tag::put-role-response
+            boolean isCreated = response.isCreated(); // <1>
+            // end::put-role-response
+            assertTrue(isCreated);
         }
-        client().performRequest(addRoleRequest);
+
+        {
+            final Role role = Role.builder()
+                    .name("testPutRole")
+                    .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ARRAY))
+                    .build();
+            final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.NONE);
+            // tag::put-role-execute-listener
+            ActionListener<PutRoleResponse> listener = new ActionListener<PutRoleResponse>() {
+                @Override
+                public void onResponse(PutRoleResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::put-role-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-role-execute-async
+            client.security().putRoleAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-role-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    private void addRole(String roleName) throws IOException {
+        final Role role = Role.builder()
+                .name(roleName)
+                .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ARRAY))
+                .build();
+        final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.IMMEDIATE);
+        highLevelClient().security().putRole(request, RequestOptions.DEFAULT);
     }
 
     public void testCreateToken() throws Exception {

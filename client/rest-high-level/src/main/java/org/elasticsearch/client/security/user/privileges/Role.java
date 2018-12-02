@@ -145,6 +145,10 @@ public final class Role {
         return metadata;
     }
 
+    public Map<String, Object> getTransientMetadata() {
+        return transientMetadata;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

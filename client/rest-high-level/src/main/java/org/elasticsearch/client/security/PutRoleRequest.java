@@ -79,6 +79,7 @@ public final class PutRoleRequest implements Validatable, ToXContentObject {
         builder.field(Role.GLOBAL.getPreferredName(), role.getGlobalApplicationPrivileges());
         builder.field(Role.INDICES.getPreferredName(), role.getIndicesPrivileges());
         builder.field(Role.METADATA.getPreferredName(), role.getMetadata());
+        builder.field(Role.TRANSIENT_METADATA.getPreferredName(), role.getTransientMetadata());
         builder.field(Role.RUN_AS.getPreferredName(), role.getRunAsPrivilege());
         return builder.endObject();
     }

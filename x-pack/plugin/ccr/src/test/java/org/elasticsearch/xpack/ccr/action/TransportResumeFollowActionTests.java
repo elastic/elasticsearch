@@ -73,16 +73,17 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         }
         {
             // should fail because leader index does not have soft deletes enabled
-            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
+            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false").build(), null);
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
         }
         {
             // should fail because the follower index does not have soft deletes enabled
-            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.builder()
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), null);
-            IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
+            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
+            IndexMetaData followIMD = createIMD("index2", 5, Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false").build(), customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(), equalTo("follower index [index2] does not have soft deletes enabled"));
         }
@@ -107,10 +108,8 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         }
         {
             // should fail, because index.xpack.ccr.following_index setting has not been enabled in leader index
-            IndexMetaData leaderIMD = createIMD("index1", 1,
-                Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), null);
-            IndexMetaData followIMD = createIMD("index2", 1,
-                Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), customMetaData);
+            IndexMetaData leaderIMD = createIMD("index1", 1, Settings.EMPTY, null);
+            IndexMetaData followIMD = createIMD("index2", 1, Settings.EMPTY, customMetaData);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
             mapperService.updateMapping(null, followIMD);
             Exception e = expectThrows(IllegalArgumentException.class,
@@ -180,7 +179,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), null);
             IndexMetaData followIMD = createIMD("index2", State.OPEN, mapping, 5, Settings.builder()
                 .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomFrom("true", null))
                 .put("index.analysis.analyzer.my_analyzer.type", "custom")
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), customMetaData);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
@@ -198,7 +197,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), null);
             IndexMetaData followIMD = createIMD("index2", State.OPEN, mapping, 5, Settings.builder()
                 .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomFrom("true", null))
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s")
                 .put("index.analysis.analyzer.my_analyzer.type", "custom")
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), customMetaData);

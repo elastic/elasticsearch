@@ -381,7 +381,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                         // has a leader index uuid custom metadata entry that matches with uuid of leaderIndexMetaData variable
                         // If so then handle it differently: not follow it, but just add an entry to
                         // AutoFollowMetadata#followedLeaderIndexUUIDs
-                        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)) {
+                        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetaData.getSettings())) {
                             leaderIndicesToFollow.add(leaderIndexMetaData.getIndex());
                         }
                     }

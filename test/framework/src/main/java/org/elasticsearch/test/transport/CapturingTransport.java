@@ -29,6 +29,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -99,7 +100,7 @@ public class CapturingTransport implements Transport {
         StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this, threadPool),
             settings, this, threadPool);
         connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> nodeConnected(discoveryNode));
-        connectionManager.setDefaultConnectBehavior((cm, discoveryNode) -> openConnection(discoveryNode, null));
+        connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
         return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
             connectionManager);
     }
@@ -223,32 +224,9 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-        return new Connection() {
-            @Override
-            public DiscoveryNode getNode() {
-                return node;
-            }
-
-            @Override
-            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                throws TransportException {
-                onSendRequest(requestId, action, request, node);
-            }
-
-            @Override
-            public void addCloseListener(ActionListener<Void> listener) {
-            }
-
-            @Override
-            public boolean isClosed() {
-                return false;
-            }
-
-            @Override
-            public void close() {
-            }
-        };
+    public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+        listener.onResponse(createConnection(node));
+        return () -> {};
     }
 
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
@@ -347,4 +325,31 @@ public class CapturingTransport implements Transport {
         return false;
     }
 
+    private Connection createConnection(DiscoveryNode node) {
+        return new Connection() {
+            @Override
+            public DiscoveryNode getNode() {
+                return node;
+            }
+
+            @Override
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                throws TransportException {
+                onSendRequest(requestId, action, request, node);
+            }
+
+            @Override
+            public void addCloseListener(ActionListener<Void> listener) {
+            }
+
+            @Override
+            public boolean isClosed() {
+                return false;
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+    }
 }

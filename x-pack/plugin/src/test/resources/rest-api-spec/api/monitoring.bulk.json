@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/monitoring/current/appendix-api-bulk.html",
     "methods": ["POST", "PUT"],
     "url": {
-      "path": "/monitoring/_bulk",
-      "paths": ["/monitoring/_bulk", "/monitoring/{type}/_bulk"],
+      "path": "/_monitoring/bulk",
+      "paths": ["/_monitoring/bulk", "/_monitoring/{type}/bulk"],
       "parts": {
         "type": {
           "type" : "string",

@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 
-public class FIPS140JKSKeystoreBootstrapCheck implements BootstrapCheck {
+public class KeystoreCheck extends FIPSChecks {
 
     /**
      * Test if the node fails the check.

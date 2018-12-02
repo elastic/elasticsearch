@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
@@ -17,7 +16,7 @@ import java.util.EnumSet;
 /**
  * A bootstrap check which enforces the licensing of FIPS
  */
-final class FIPS140LicenseBootstrapCheck implements BootstrapCheck {
+public class LicenseCheck extends FIPSChecks {
 
     static final EnumSet<License.OperationMode> ALLOWED_LICENSE_OPERATION_MODES =
         EnumSet.of(License.OperationMode.PLATINUM, License.OperationMode.TRIAL);

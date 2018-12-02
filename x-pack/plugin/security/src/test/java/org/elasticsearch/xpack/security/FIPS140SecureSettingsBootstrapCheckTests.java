@@ -34,7 +34,7 @@ public class FIPS140SecureSettingsBootstrapCheckTests extends ESTestCase {
             .put("xpack.security.fips_mode.enabled", "true");
         Environment env = TestEnvironment.newEnvironment(builder.build());
         generateV2Keystore(env);
-        assertTrue(new FIPS140SecureSettingsBootstrapCheck(builder.build(), env).check(new BootstrapContext(builder.build(),
+        assertTrue(new SecureSettingsCheck(builder.build(), env).check(new BootstrapContext(builder.build(),
             null)).isFailure());
     }
 
@@ -53,7 +53,7 @@ public class FIPS140SecureSettingsBootstrapCheckTests extends ESTestCase {
                 throw e;
             }
         }
-        assertFalse(new FIPS140SecureSettingsBootstrapCheck(builder.build(), env).check(new BootstrapContext(builder.build(),
+        assertFalse(new SecureSettingsCheck(builder.build(), env).check(new BootstrapContext(builder.build(),
             null)).isFailure());
     }
 

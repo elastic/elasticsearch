@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Locale;
 
-public class FIPS140PasswordHashingAlgorithmBootstrapCheck implements BootstrapCheck {
+public class PasswordHashingAlgorithmCheck extends FIPSChecks {
 
     /**
      * Test if the node fails the check.

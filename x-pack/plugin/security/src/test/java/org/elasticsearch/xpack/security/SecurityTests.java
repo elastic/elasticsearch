@@ -302,7 +302,7 @@ public class SecurityTests extends ESTestCase {
         new Security.ValidateLicenseForFIPS(false).accept(node, state);
 
         final boolean isLicenseValidForFips =
-            FIPS140LicenseBootstrapCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode());
+            LicenseCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode());
         if (isLicenseValidForFips) {
             new Security.ValidateLicenseForFIPS(true).accept(node, state);
         } else {

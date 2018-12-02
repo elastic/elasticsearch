@@ -286,6 +286,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     private final List<BootstrapCheck> bootstrapChecks;
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
 
+	private final FIPSChecks FIPSChecks;
+
     public Security(Settings settings, final Path configPath) {
         this(settings, configPath, Collections.emptyList());
     }
@@ -303,12 +305,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             checks.addAll(Arrays.asList(
                 new TokenSSLBootstrapCheck(),
                 new PkiRealmBootstrapCheck(getSslService()),
-                new TLSLicenseBootstrapCheck(),
-                new FIPS140SecureSettingsBootstrapCheck(settings, env),
-                new FIPS140JKSKeystoreBootstrapCheck(),
-                new FIPS140PasswordHashingAlgorithmBootstrapCheck(),
-                new FIPS140LicenseBootstrapCheck()));
+                new TLSLicenseBootstrapCheck()));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
+            this.FIPSChecks = new FIPSChecks();
             this.bootstrapChecks = Collections.unmodifiableList(checks);
             Automatons.updateConfiguration(settings);
         } else {
@@ -1065,7 +1064,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             if (inFipsMode) {
                 License license = LicenseService.getLicense(state.metaData());
                 if (license != null &&
-                    FIPS140LicenseBootstrapCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
+                    LicenseCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
                     throw new IllegalStateException("FIPS mode cannot be used with a [" + license.operationMode() +
                         "] license. It is only allowed with a Platinum or Trial license.");
 

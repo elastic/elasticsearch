@@ -19,7 +19,6 @@
 
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -27,15 +26,11 @@ import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
-import java.util.concurrent.Delayed;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
-import java.util.concurrent.RunnableScheduledFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 /**
@@ -223,68 +218,8 @@ public interface Scheduler {
         }
 
         @Override
-        protected <V> RunnableScheduledFuture<V> decorateTask(Runnable runnable, RunnableScheduledFuture<V> task) {
-            return new SafeRunnableScheduledFuture<>(task);
-        }
-    }
-
-    /**
-     * RunnableScheduledFuture implementation that delegates to another instance, but
-     * ensures to properly bubble up Throwable instances of type Error.
-     */
-    class SafeRunnableScheduledFuture<V> implements RunnableScheduledFuture<V> {
-
-        private final RunnableScheduledFuture<V> task;
-
-        public SafeRunnableScheduledFuture(RunnableScheduledFuture<V> task) {
-            this.task = task;
-        }
-
-        @Override
-        @SuppressForbidden(reason = "just delegating access")
-        public boolean cancel(boolean mayInterruptIfRunning) {
-            return task.cancel(mayInterruptIfRunning);
-        }
-
-        @Override
-        public boolean isCancelled() {
-            return task.isCancelled();
-        }
-
-        @Override
-        public boolean isDone() {
-            return task.isDone();
-        }
-
-        @Override
-        public V get() throws InterruptedException, ExecutionException {
-            return task.get();
-        }
-
-        @Override
-        public V get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-            return task.get(timeout, unit);
-        }
-
-        @Override
-        public void run() {
-            task.run();
-            EsExecutors.rethrowErrors(task);
-        }
-
-        @Override
-        public int compareTo(Delayed o) {
-            return task.compareTo(o);
-        }
-
-        @Override
-        public long getDelay(TimeUnit unit) {
-            return task.getDelay(unit);
-        }
-
-        @Override
-        public boolean isPeriodic() {
-            return task.isPeriodic();
+        protected void afterExecute(Runnable r, Throwable t) {
+            EsExecutors.rethrowErrors(r);
         }
     }
 }

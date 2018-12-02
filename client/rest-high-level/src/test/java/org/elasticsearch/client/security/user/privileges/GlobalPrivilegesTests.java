@@ -36,6 +36,28 @@ public class GlobalPrivilegesTests extends AbstractXContentTestCase<GlobalPrivil
 
     private static long idCounter = 0;
 
+    public static GlobalOperationPrivilege createNewRandom(String category) {
+        final Map<String, Object> privilege = new HashMap<>();
+        for (int i = 0; i < randomIntBetween(1, 4); i++) {
+            if (randomBoolean()) {
+                privilege.put(randomAlphaOfLength(2) + idCounter++, randomAlphaOfLengthBetween(0, 4));
+            } else {
+                privilege.put(randomAlphaOfLength(2) + idCounter++, Arrays.asList(generateRandomStringArray(4, 4, false)));
+            }
+        }
+        return new GlobalOperationPrivilege(category, randomAlphaOfLength(2) + idCounter++, privilege);
+    }
+
+    private static GlobalOperationPrivilege buildRandomGlobalScopedPrivilege() {
+        return createNewRandom("application");
+    }
+
+    public static ApplicationResourcePrivileges createNewRandom() {
+        return new ApplicationResourcePrivileges(randomAlphaOfLengthBetween(1, 8),
+                Arrays.asList(randomArray(1, 8, size -> new String[size], () -> randomAlphaOfLengthBetween(1, 8))),
+                Arrays.asList(randomArray(1, 8, size -> new String[size], () -> randomAlphaOfLengthBetween(1, 8)))); 
+    }
+
     @Override
     protected GlobalPrivileges createTestInstance() {
         final List<GlobalOperationPrivilege> privilegeList = Arrays
@@ -83,14 +105,6 @@ public class GlobalPrivilegesTests extends AbstractXContentTestCase<GlobalPrivil
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new GlobalPrivileges(Arrays.asList(privilege, sameOperationPrivilege)));
         assertThat(e.getMessage(), is("Different privileges for the same category and operation are not permitted"));
-    }
-
-    private static GlobalOperationPrivilege buildRandomGlobalScopedPrivilege() {
-        final Map<String, Object> privilege = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(1, 4); i++) {
-            privilege.put(randomAlphaOfLength(2) + idCounter++, randomAlphaOfLengthBetween(1, 4));
-        }
-        return new GlobalOperationPrivilege("application", randomAlphaOfLength(2) + idCounter++, privilege);
     }
 
     public void testEqualsHashCode() {

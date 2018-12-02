@@ -58,7 +58,7 @@ public final class IndicesPrivileges implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<IndicesPrivileges, Void> PARSER =
-        new ConstructingObjectParser<>("indices_privileges", false, constructorObjects -> {
+        new ConstructingObjectParser<>("indices_privileges", true, constructorObjects -> {
                 int i = 0;
                 final Collection<String> indices = (Collection<String>) constructorObjects[i++];
                 final Collection<String> privileges = (Collection<String>) constructorObjects[i++];
@@ -73,7 +73,7 @@ public final class IndicesPrivileges implements ToXContentObject {
     static {
         @SuppressWarnings("unchecked")
         final ConstructingObjectParser<Tuple<Collection<String>, Collection<String>>, Void> fls_parser =
-                new ConstructingObjectParser<>( "field_level_parser", false, constructorObjects -> {
+                new ConstructingObjectParser<>( "field_level_parser", true, constructorObjects -> {
                         int i = 0;
                         final Collection<String> grantFields = (Collection<String>) constructorObjects[i++];
                         final Collection<String> exceptFields = (Collection<String>) constructorObjects[i];
@@ -217,12 +217,12 @@ public final class IndicesPrivileges implements ToXContentObject {
         builder.startObject();
         builder.field(NAMES.getPreferredName(), indices);
         builder.field(PRIVILEGES.getPreferredName(), privileges);
-        if (isUsingFieldLevelSecurity()) {
+        if (grantedFields != null || deniedFields != null) {
             builder.startObject(FIELD_PERMISSIONS.getPreferredName());
             if (grantedFields != null) {
                 builder.field(GRANT_FIELDS.getPreferredName(), grantedFields);
             }
-            if (hasDeniedFields()) {
+            if (deniedFields != null) {
                 builder.field(EXCEPT_FIELDS.getPreferredName(), deniedFields);
             }
             builder.endObject();

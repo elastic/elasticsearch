@@ -1,7 +1,7 @@
 setup:
   - skip:
-    - version: " - 6.99.99"
-    - reason:  "Implemented in 7.0"
+      version: " - 6.99.99"
+      reason:  "Implemented in 7.0"
 
   - do:
         indices.create:
@@ -26,6 +26,8 @@ setup:
             - '{"index": {"_index": "test", "_type": "test", "_id": "4"}}'
             - '{"text" : "Outside it is cold and wet"}'
 
+---
+"Test ordered matching":
   - do:
         search:
           index: test
@@ -34,11 +36,13 @@ setup:
               intervals:
                 field: text
                 source:
-                  match: "cold outside"
-                  ordered: true
-  - match:
-        count: { hits.total: 2 }
+                  match:
+                    text: "cold outside"
+                    type: ordered
+  - match: { hits.total: 2 }
 
+---
+"Test default unordered matching":
   - do:
         search:
           index: test
@@ -47,9 +51,8 @@ setup:
               intervals:
                 field: text
                 source:
-                  match: "cold outside"
-                  ordered: false
-  - match:
-        count: { hits.total: 3 }
+                  match:
+                    text: "cold outside"
+  - match: { hits.total: 3 }
 
 

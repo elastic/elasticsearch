@@ -76,7 +76,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -479,30 +478,7 @@ public class AuthorizationService {
      * @param roleDescriptorsListener listener for a response or a failure.
      */
     public void roleDescriptors(final User user, final ActionListener<Set<RoleDescriptor>> roleDescriptorsListener) {
-        Objects.requireNonNull(roleDescriptorsListener, "action listener for response is required.");
-        final Set<String> roleNames = getRoleNames(user);
-        if (roleNames.isEmpty()) {
-            roleDescriptorsListener.onResponse(null);
-        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) { 
-            roleDescriptorsListener.onResponse(Collections.singleton(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR));
-        } else {
-            rolesStore.getRoleDescriptors(roleNames, roleDescriptorsListener);
-        }
-    }
-
-    private Set<String> getRoleNames(final User user) {
-        if (user == null) {
-            return Collections.emptySet();
-        }
-        final Set<String> roleNames = new HashSet<>();
-        Collections.addAll(roleNames, user.roles());
-        if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
-            if (anonymousUser.roles().length == 0) {
-                throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
-            }
-            Collections.addAll(roleNames, anonymousUser.roles());
-        }
-        return roleNames;
+        rolesStore.getRoleDescriptors(user, roleDescriptorsListener);
     }
 
     private static boolean isCompositeAction(String action) {

@@ -28,6 +28,7 @@ import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.client.watcher.DeleteWatchRequest;
 import org.elasticsearch.client.watcher.PutWatchRequest;
+import org.elasticsearch.client.watcher.GetWatchRequest;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.client.watcher.WatcherStatsRequest;
@@ -89,6 +90,16 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         request.getEntity().writeTo(bos);
         assertThat(bos.toString("UTF-8"), is(body));
+    }
+
+    public void testGetWatch() throws Exception {
+        String watchId = randomAlphaOfLength(10);
+        GetWatchRequest getWatchRequest = new GetWatchRequest(watchId);
+
+        Request request = WatcherRequestConverters.getWatch(getWatchRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
+        assertThat(request.getEntity(), nullValue());
     }
 
     public void testDeactivateWatch() {

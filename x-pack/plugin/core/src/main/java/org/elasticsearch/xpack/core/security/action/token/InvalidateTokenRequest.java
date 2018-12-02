@@ -61,7 +61,8 @@ public final class InvalidateTokenRequest extends ActionRequest {
      * @param realmName the name of the realm for which all tokens will be invalidated
      * @param userName the principal of the user for which all tokens will be invalidated
      */
-    public InvalidateTokenRequest(@Nullable String tokenString, @Nullable String tokenType, @Nullable String realmName, @Nullable String userName) {
+    public InvalidateTokenRequest(@Nullable String tokenString, @Nullable String tokenType,
+                                  @Nullable String realmName, @Nullable String userName) {
         this.tokenString = tokenString;
         this.tokenType = Type.fromString(tokenType);
         this.realmName = realmName;

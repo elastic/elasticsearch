@@ -703,16 +703,18 @@ public final class TokenService {
                         ArrayList<String> invalidated = new ArrayList<>();
                         if (null != previousResult) {
                             failedRequestResponses.addAll((previousResult.getErrors()));
-                            previouslyInvalidated.addAll(Arrays.asList(previousResult.getPreviouslyInvalidatedTokens()));
-                            invalidated.addAll(Arrays.asList(previousResult.getInvalidatedTokens()));
+                            previouslyInvalidated.addAll(previousResult.getPreviouslyInvalidatedTokens());
+                            invalidated.addAll(previousResult.getInvalidatedTokens());
                         }
                         for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
                             if (bulkItemResponse.isFailed()) {
                                 Throwable cause = bulkItemResponse.getFailure().getCause();
+                                final String failedTokenDocId = getTokenIdFromDocumentId(bulkItemResponse.getFailure().getId());
                                 if (isShardNotAvailableException(cause)) {
-                                    retryTokenDocIds.add(getTokenIdFromDocumentId(bulkItemResponse.getFailure().getId()));
+                                    retryTokenDocIds.add(failedTokenDocId);
                                 }
                                 else {
+                                    traceLog("invalidate access token", failedTokenDocId, cause);
                                     failedRequestResponses.add(new ElasticsearchException("Error invalidating " + srcPrefix + ": ", cause));
                                 }
                             } else {
@@ -726,12 +728,13 @@ public final class TokenService {
                             }
                         }
                         if (retryTokenDocIds.isEmpty() == false) {
-                            TokensInvalidationResult incompleteResult = TokensInvalidationResult.emptyResultWithCounter(attemptCount.get());
+                            TokensInvalidationResult incompleteResult = new TokensInvalidationResult(invalidated, previouslyInvalidated,
+                                failedRequestResponses, attemptCount.get());
                             attemptCount.incrementAndGet();
                             indexInvalidation(retryTokenDocIds, listener, attemptCount, srcPrefix, incompleteResult);
                         }
-                        TokensInvalidationResult result = TokensInvalidationResult.emptyResultWithCounter(attemptCount.get());
-                        attemptCount.incrementAndGet();
+                        TokensInvalidationResult result = new TokensInvalidationResult(invalidated, previouslyInvalidated,
+                            failedRequestResponses, attemptCount.get());
                         listener.onResponse(result);
                     }, e -> {
                         Throwable cause = ExceptionsHelper.unwrapCause(e);
@@ -1301,7 +1304,7 @@ public final class TokenService {
     }
 
     /**
-     * Creates an {@link ElasticsearchSecurityException} that indicates the token was expired. It
+     * Creates an {@link ElasticsearchSecurityException} that indicates the token was malformed. It
      * is up to the client to re-authenticate and obtain a new token. The format for this response
      * is defined in <a href="https://tools.ietf.org/html/rfc6750#section-3.1"></a>
      */

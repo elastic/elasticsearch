@@ -34,8 +34,8 @@ public final class InvalidateTokenResponse extends ActionResponse implements ToX
     }
 
     private Boolean isCreated() {
-        return result.getInvalidatedTokens().length > 0
-            && result.getPreviouslyInvalidatedTokens().length == 0
+        return result.getInvalidatedTokens().size() > 0
+            && result.getPreviouslyInvalidatedTokens().isEmpty()
             && result.getErrors().isEmpty();
     }
 

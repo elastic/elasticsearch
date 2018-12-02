@@ -46,12 +46,13 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.SubsetResult;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.Closeable;
@@ -103,19 +104,19 @@ public class ApiKeyService {
     private final ClusterService clusterService;
     private final Hasher hasher;
     private final boolean enabled;
-    private final AuthorizationService authorizationService;
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
+    private final CompositeRolesStore compositeRolesStore;
 
     public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex, ClusterService clusterService,
-            AuthorizationService authorizationService, ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
+            CompositeRolesStore compositeRolesStore, ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
         this.clock = clock;
         this.client = client;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
         this.hasher = Hasher.resolve(PASSWORD_HASHING_ALGORITHM.get(settings));
-        this.authorizationService = authorizationService;
+        this.compositeRolesStore = compositeRolesStore;
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
     }
@@ -348,9 +349,9 @@ public class ApiKeyService {
     // pkg-scope for testing
     void checkIfRoleIsASubsetAndModifyRoleDescriptorsIfRequiredToMakeItASubset(final List<RoleDescriptor> requestRoleDescriptors,
             final Authentication authentication, ActionListener<List<RoleDescriptor>> listener) throws IOException {
-
-        authorizationService.roles(requestRoleDescriptors, ActionListener.wrap(thisRole -> {
-            authorizationService.roles(authentication.getUser(), ActionListener.wrap(otherRole -> {
+        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        compositeRolesStore.roles(requestRoleDescriptors, fieldPermissionsCache, ActionListener.wrap(thisRole -> {
+            compositeRolesStore.roles(authentication.getUser(), fieldPermissionsCache, ActionListener.wrap(otherRole -> {
                 final SubsetResult subsetResult = thisRole.isSubsetOf(otherRole);
 
                 if (subsetResult.result() == SubsetResult.Result.NO) {
@@ -359,7 +360,7 @@ public class ApiKeyService {
                 } else if (subsetResult.result() == SubsetResult.Result.MAYBE) {
                     // we can make this work, by combining DLS queries such that
                     // the resultant role descriptors are subset.
-                    authorizationService.roleDescriptors(authentication.getUser(), ActionListener.wrap(userRoleDescriptors -> {
+                    compositeRolesStore.getRoleDescriptors(authentication.getUser(), ActionListener.wrap(userRoleDescriptors -> {
                         final List<RoleDescriptor> otherRoleDescriptors = new ArrayList<>(userRoleDescriptors);
                         List<RoleDescriptor> roleDescriptors = modifyRoleDescriptorsToMakeItASubset(requestRoleDescriptors,
                                 otherRoleDescriptors, subsetResult, authentication.getUser());

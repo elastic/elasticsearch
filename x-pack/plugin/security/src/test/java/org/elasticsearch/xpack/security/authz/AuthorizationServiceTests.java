@@ -86,6 +86,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.GetLicenseAction;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -128,7 +129,9 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
+import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.junit.Before;
@@ -163,6 +166,7 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -177,11 +181,11 @@ public class AuthorizationServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private Map<String, RoleDescriptor> roleMap = new HashMap<>();
     private CompositeRolesStore rolesStore;
+    private NativePrivilegeStore privilegesStore;
 
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
-        rolesStore = mock(CompositeRolesStore.class);
         clusterService = mock(ClusterService.class);
         final Settings settings = Settings.builder()
             .put("cluster.remote.other_cluster.seeds", "localhost:9999")
@@ -194,7 +198,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
 
-        final NativePrivilegeStore privilegesStore = mock(NativePrivilegeStore.class);
+        privilegesStore = mock(NativePrivilegeStore.class);
         doAnswer(i -> {
                 assertThat(i.getArguments().length, equalTo(3));
                 final Object arg2 = i.getArguments()[2];
@@ -205,8 +209,21 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
         ).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
 
+        mockCompositeRolesStore(settings);
+
+        authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
+            auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings));
+    }
+
+    private void mockCompositeRolesStore(Settings settings) {
+        AnonymousUser anonymousUser = new AnonymousUser(settings);
+        CompositeRolesStore rolesStoreInstance = new CompositeRolesStore(settings, mock(FileRolesStore.class), mock(NativeRolesStore.class),
+                mock(ReservedRolesStore.class), privilegesStore, Collections.emptyList(), threadContext, mock(XPackLicenseState.class),
+                anonymousUser);
+        rolesStore = spy(rolesStoreInstance);
         doAnswer((i) -> {
             ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[2];
+            FieldPermissionsCache fieldPermissionsCache = (FieldPermissionsCache) i.getArguments()[1];
             Set<String> names = (Set<String>) i.getArguments()[0];
             assertNotNull(names);
             Set<RoleDescriptor> roleDescriptors = new HashSet<>();
@@ -221,13 +238,10 @@ public class AuthorizationServiceTests extends ESTestCase {
                 callback.onResponse(Role.EMPTY);
             } else {
                 CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegesStore,
-                    ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
-                );
+                        ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure));
             }
             return Void.TYPE;
         }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
-        authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
-            auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings));
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
@@ -620,6 +634,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         ClusterState state = mockEmptyMetaData();
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        mockCompositeRolesStore(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser);
 
@@ -646,6 +661,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false)
             .build();
         final Authentication authentication = createAuthentication(new AnonymousUser(settings));
+        mockCompositeRolesStore(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings));
 
@@ -956,6 +972,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportRequest request = new ClusterHealthRequest();
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous_user_role").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        mockCompositeRolesStore(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser);
         roleMap.put("anonymous_user_role", new RoleDescriptor("anonymous_user_role", new String[]{"all"},
@@ -983,6 +1000,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testAnonymousUserEnabledRoleAdded() {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous_user_role").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        mockCompositeRolesStore(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser);
         roleMap.put("anonymous_user_role", new RoleDescriptor("anonymous_user_role", new String[]{"all"},
@@ -1327,7 +1345,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService.roles(XPackUser.INSTANCE, rolesFuture);
         final Role roles = rolesFuture.actionGet();
         assertThat(roles, equalTo(XPackUser.ROLE));
-        verifyZeroInteractions(rolesStore);
+        verify(rolesStore, times(1)).roles(any(User.class), any(FieldPermissionsCache.class), any(ActionListener.class));
+        verifyNoMoreInteractions(rolesStore);
     }
 
     public void testGetRolesForSystemUserThrowsException() {

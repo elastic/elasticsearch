@@ -459,33 +459,7 @@ public class AuthorizationService {
     }
 
     public void roles(User user, ActionListener<Role> roleActionListener) {
-        // we need to special case the internal users in this method, if we apply the anonymous roles to every user including these system
-        // user accounts then we run into the chance of a deadlock because then we need to get a role that we may be trying to get as the
-        // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
-        // passed into this method. The XPackUser has the Superuser role and we can simply return that
-        if (SystemUser.is(user)) {
-            throw new IllegalArgumentException("the user [" + user.principal() + "] is the system user and we should never try to get its" +
-                " roles");
-        }
-        if (XPackUser.is(user)) {
-            assert XPackUser.INSTANCE.roles().length == 1;
-            roleActionListener.onResponse(XPackUser.ROLE);
-            return;
-        }
-        if (XPackSecurityUser.is(user)) {
-            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
-            return;
-        }
-
-        Set<String> roleNames = getRoleNames(user);
-
-        if (roleNames.isEmpty()) {
-            roleActionListener.onResponse(Role.EMPTY);
-        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
-            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
-        } else {
-            rolesStore.roles(roleNames, fieldPermissionsCache, roleActionListener);
-        }
+        rolesStore.roles(user, fieldPermissionsCache, roleActionListener);
     }
 
     /**

@@ -37,6 +37,11 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
@@ -97,11 +102,13 @@ public class CompositeRolesStore {
     private final AtomicLong numInvalidation = new AtomicLong();
     private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> builtInRoleProviders;
     private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> allRoleProviders;
+    private final boolean isAnonymousEnabled;
+    private final AnonymousUser anonymousUser;
 
     public CompositeRolesStore(Settings settings, FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore,
                                ReservedRolesStore reservedRolesStore, NativePrivilegeStore privilegeStore,
                                List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders,
-                               ThreadContext threadContext, XPackLicenseState licenseState) {
+                               ThreadContext threadContext, XPackLicenseState licenseState, AnonymousUser anonymousUser) {
         this.fileRolesStore = fileRolesStore;
         fileRolesStore.addListener(this::invalidate);
         this.nativeRolesStore = nativeRolesStore;
@@ -130,6 +137,8 @@ public class CompositeRolesStore {
             allList.addAll(rolesProviders);
             this.allRoleProviders = Collections.unmodifiableList(allList);
         }
+        this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
+        this.anonymousUser = anonymousUser;
     }
 
     public void roles(Set<String> roleNames, FieldPermissionsCache fieldPermissionsCache, ActionListener<Role> roleActionListener) {
@@ -196,6 +205,36 @@ public class CompositeRolesStore {
         buildRoleFromDescriptors(effectiveDescriptors, fieldPermissionsCache, privilegeStore, roleActionListener);
     }
 
+    public void roles(User user, FieldPermissionsCache fieldPermissionsCache, ActionListener<Role> roleActionListener) {
+        // we need to special case the internal users in this method, if we apply the anonymous roles to every user including these system
+        // user accounts then we run into the chance of a deadlock because then we need to get a role that we may be trying to get as the
+        // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
+        // passed into this method. The XPackUser has the Superuser role and we can simply return that
+        if (SystemUser.is(user)) {
+            throw new IllegalArgumentException("the user [" + user.principal() + "] is the system user and we should never try to get its" +
+                " roles");
+        }
+        if (XPackUser.is(user)) {
+            assert XPackUser.INSTANCE.roles().length == 1;
+            roleActionListener.onResponse(XPackUser.ROLE);
+            return;
+        }
+        if (XPackSecurityUser.is(user)) {
+            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+            return;
+        }
+
+        Set<String> roleNames = getRoleNames(user);
+
+        if (roleNames.isEmpty()) {
+            roleActionListener.onResponse(Role.EMPTY);
+        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+        } else {
+            roles(roleNames, fieldPermissionsCache, roleActionListener);
+        }
+    }
+
     public void getRoleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> listener) {
         roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
             if (rolesRetrievalResult.isSuccess()) {
@@ -204,6 +243,39 @@ public class CompositeRolesStore {
                 listener.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
             }
         }, listener::onFailure));
+    }
+
+    /**
+     * Get role descriptors for given user.
+     *
+     * @param user {@link User} object
+     * @param roleDescriptorsListener listener for a response or a failure.
+     */
+    public void getRoleDescriptors(final User user, final ActionListener<Set<RoleDescriptor>> roleDescriptorsListener) {
+        Objects.requireNonNull(roleDescriptorsListener, "action listener for response is required.");
+        final Set<String> roleNames = getRoleNames(user);
+        if (roleNames.isEmpty()) {
+            roleDescriptorsListener.onResponse(null);
+        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) { 
+            roleDescriptorsListener.onResponse(Collections.singleton(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR));
+        } else {
+            getRoleDescriptors(roleNames, roleDescriptorsListener);
+        }
+    }
+
+    private Set<String> getRoleNames(final User user) {
+        if (user == null) {
+            return Collections.emptySet();
+        }
+        final Set<String> roleNames = new HashSet<>();
+        Collections.addAll(roleNames, user.roles());
+        if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
+            if (anonymousUser.roles().length == 0) {
+                throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+            }
+            Collections.addAll(roleNames, anonymousUser.roles());
+        }
+        return roleNames;
     }
 
     private void roleDescriptors(Set<String> roleNames, ActionListener<RolesRetrievalResult> rolesResultListener) {

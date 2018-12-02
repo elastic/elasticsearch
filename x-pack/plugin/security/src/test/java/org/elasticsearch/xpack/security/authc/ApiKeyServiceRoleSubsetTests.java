@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.SubsetResult.Resul
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyServiceRoleSubsetTests.ExpectedResult.ExpectedRDQueryDetails;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
@@ -72,7 +71,7 @@ import static org.mockito.Mockito.when;
 public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
     private static final Logger logger = LogManager.getLogger(ApiKeyServiceRoleSubsetTests.class);
 
-    private AuthorizationService mockAuthzService = mock(AuthorizationService.class);
+    private CompositeRolesStore compositeRolesStore = mock(CompositeRolesStore.class);
     private ScriptService mockScriptService = mock(ScriptService.class);
     private ClusterService mockClusterService = mock(ClusterService.class);
     private SecurityIndexManager mockSecurityIndexManager = mock(SecurityIndexManager.class);
@@ -91,7 +90,7 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
         Map<String, ScriptContext<?>> contexts = Collections.singletonMap(TemplateScript.CONTEXT.name, TemplateScript.CONTEXT);
         mockScriptService = new ScriptService(Settings.EMPTY, engines, contexts);
         apiKeyService = new ApiKeyService(Settings.EMPTY, mockCock, mockClient, mockSecurityIndexManager, mockClusterService,
-                mockAuthzService, mockScriptService, xContentRegistry());
+                compositeRolesStore, mockScriptService, xContentRegistry());
         userForNotASubsetRole = new User("user_not_a_subset", "not-a-subset-role");
         userWithSuperUserRole = new User("superman", "superuser");
         userWithRoleForDLS = new User("user_with_2_roles_with_dls", "base-role-1", "base-role-2");
@@ -494,26 +493,28 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
     private void mockRolesForRoleDescriptors() {
         doAnswer((Answer) invocation -> {
             final List<RoleDescriptor> roleDescriptors = (List<RoleDescriptor>) invocation.getArguments()[0];
-            final ActionListener<Role> roleActionListener = (ActionListener<Role>) invocation.getArguments()[1];
-            CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, new FieldPermissionsCache(Settings.EMPTY), null,
+            final FieldPermissionsCache fieldPermissionsCache = (FieldPermissionsCache) invocation.getArguments()[1];
+            final ActionListener<Role> roleActionListener = (ActionListener<Role>) invocation.getArguments()[2];
+            CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, null,
                     roleActionListener);
 
             return null;
-        }).when(mockAuthzService).roles(any(List.class), any(ActionListener.class));
+        }).when(compositeRolesStore).roles(any(List.class), any(FieldPermissionsCache.class), any(ActionListener.class));
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private void mockRolesForUser() {
         doAnswer((Answer) invocation -> {
             final User user = (User) invocation.getArguments()[0];
-            final ActionListener<Role> roleActionListener = (ActionListener<Role>) invocation.getArguments()[1];
+            final FieldPermissionsCache fieldPermissionsCache = (FieldPermissionsCache) invocation.getArguments()[1];
+            final ActionListener<Role> roleActionListener = (ActionListener<Role>) invocation.getArguments()[2];
 
             switch (user.principal()) {
             case "user_not_a_subset": {
                 final PlainActionFuture<Set<RoleDescriptor>> roleDescriptorsActionListener = new PlainActionFuture<>();
-                mockAuthzService.roleDescriptors(user, roleDescriptorsActionListener);
+                compositeRolesStore.getRoleDescriptors(user, roleDescriptorsActionListener);
                 Set<RoleDescriptor> roleDescriptors = roleDescriptorsActionListener.actionGet();
-                CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, new FieldPermissionsCache(Settings.EMPTY), null,
+                CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, null,
                         roleActionListener);
                 break;
             }
@@ -523,16 +524,16 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
             }
             case "user_with_2_roles_with_dls": {
                 final PlainActionFuture<Set<RoleDescriptor>> roleDescriptorsActionListener = new PlainActionFuture<>();
-                mockAuthzService.roleDescriptors(user, roleDescriptorsActionListener);
+                compositeRolesStore.getRoleDescriptors(user, roleDescriptorsActionListener);
                 Set<RoleDescriptor> roleDescriptors = roleDescriptorsActionListener.actionGet();
-                CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, new FieldPermissionsCache(Settings.EMPTY), null,
+                CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, null,
                         roleActionListener);
                 break;
             }
             }
 
             return null;
-        }).when(mockAuthzService).roles(any(User.class), any(ActionListener.class));
+        }).when(compositeRolesStore).roles(any(User.class), any(FieldPermissionsCache.class), any(ActionListener.class));
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -566,7 +567,7 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
             }
 
             return null;
-        }).when(mockAuthzService).roleDescriptors(any(User.class), any(ActionListener.class));
+        }).when(compositeRolesStore).getRoleDescriptors(any(User.class), any(ActionListener.class));
     }
 
     private static RoleDescriptor buildRoleDescriptor(String name, String[] indices, String[] privileges, String query) {

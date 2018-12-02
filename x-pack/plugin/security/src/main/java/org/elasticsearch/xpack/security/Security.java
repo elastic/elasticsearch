@@ -467,7 +467,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
         }
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
-            reservedRolesStore, privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState());
+            reservedRolesStore, privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), anonymousUser);
         securityIndex.get().addIndexStateListener(allRolesStore::onSecurityIndexStateChange);
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
@@ -480,10 +480,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         components.add(authzService);
 
         final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService,
-                authzService, scriptService, xContentRegistry);
+                allRolesStore, scriptService, xContentRegistry);
         components.add(apiKeyService);
 
-        // TODO: remove depedency of api key service on authz service, till that time.
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
                 anonymousUser, tokenService, apiKeyService));
         components.add(authcService.get());

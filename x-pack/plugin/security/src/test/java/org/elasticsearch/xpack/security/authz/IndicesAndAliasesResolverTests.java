@@ -46,6 +46,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -66,6 +67,9 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
+import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
+import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.joda.time.DateTime;
@@ -94,6 +98,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class IndicesAndAliasesResolverTests extends ESTestCase {
@@ -150,7 +155,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         user = new User("user", "role");
         userDashIndices = new User("dash", "dash");
         userNoIndices = new User("test", "test");
-        rolesStore = mock(CompositeRolesStore.class);
+
         String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "missing", "foofoo-closed"};
         String[] dashIndices = new String[]{"-index10", "-index11", "-index20", "-index21"};
         roleMap = new HashMap<>();
@@ -164,28 +169,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             null));
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        doAnswer((i) -> {
-                ActionListener callback =
-                        (ActionListener) i.getArguments()[2];
-                Set<String> names = (Set<String>) i.getArguments()[0];
-                assertNotNull(names);
-                Set<RoleDescriptor> roleDescriptors = new HashSet<>();
-                for (String name : names) {
-                    RoleDescriptor descriptor = roleMap.get(name);
-                    if (descriptor != null) {
-                        roleDescriptors.add(descriptor);
-                    }
-                }
 
-                if (roleDescriptors.isEmpty()) {
-                    callback.onResponse(Role.EMPTY);
-                } else {
-                    CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, null,
-                            ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
-                    );
-                }
-                return Void.TYPE;
-            }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
+        mockCompositeRolesStore(settings);
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
@@ -193,6 +178,36 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 mock(AuditTrailService.class), new DefaultAuthenticationFailureHandler(Collections.emptyMap()), mock(ThreadPool.class),
                 new AnonymousUser(settings));
         defaultIndicesResolver = new IndicesAndAliasesResolver(settings, clusterService);
+    }
+
+    private void mockCompositeRolesStore(Settings settings) {
+        AnonymousUser anonymousUser = new AnonymousUser(settings);
+        NativePrivilegeStore nativePrivilegeStore = mock(NativePrivilegeStore.class);
+        CompositeRolesStore rolesStoreInstance = new CompositeRolesStore(settings, mock(FileRolesStore.class), mock(NativeRolesStore.class),
+                mock(ReservedRolesStore.class), nativePrivilegeStore, Collections.emptyList(), null, mock(XPackLicenseState.class),
+                anonymousUser);
+        rolesStore = spy(rolesStoreInstance);
+        doAnswer((i) -> {
+            ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[2];
+            FieldPermissionsCache fieldPermissionsCache = (FieldPermissionsCache) i.getArguments()[1];
+            Set<String> names = (Set<String>) i.getArguments()[0];
+            assertNotNull(names);
+            Set<RoleDescriptor> roleDescriptors = new HashSet<>();
+            for (String name : names) {
+                RoleDescriptor descriptor = roleMap.get(name);
+                if (descriptor != null) {
+                    roleDescriptors.add(descriptor);
+                }
+            }
+
+            if (roleDescriptors.isEmpty()) {
+                callback.onResponse(Role.EMPTY);
+            } else {
+                CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, nativePrivilegeStore,
+                        ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure));
+            }
+            return Void.TYPE;
+        }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
     }
 
     public void testDashIndicesAreAllowedInShardLevelRequests() {

@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -36,25 +35,29 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
     public static IntervalsSourceProvider fromXContent(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(), "Malformed IntervalsSource definition, expected start_object");
+            throw new ParsingException(parser.getTokenLocation(),
+                "Malformed IntervalsSource definition, expected [start_object] but found [" + parser.currentToken() + "]");
         }
         if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parser.getTokenLocation(), "Malformed IntervalsSource definition, no field after start_object");
+            throw new ParsingException(parser.getTokenLocation(),
+                "Malformed IntervalsSource definition, no field after start_object");
         }
         String sourceType = parser.currentName();
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(), "Malformed IntervalsSource definition, expected start_object after source name");
+            throw new ParsingException(parser.getTokenLocation(),
+                "Malformed IntervalsSource definition, expected [start_object] after source name but found ["
+                    + parser.currentToken() + "]");
         }
         IntervalsSourceProvider provider = parser.namedObject(IntervalsSourceProvider.class, sourceType, null);
         //end_object of the specific query (e.g. match, multi_match etc.) element
         if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(parser.getTokenLocation(),
-                "[" + sourceType + "] malformed source, expected [END_OBJECT] but found [" + parser.currentToken() + "]");
+                "[" + sourceType + "] malformed source, expected [end_object] but found [" + parser.currentToken() + "]");
         }
         //end_object of the query object
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(parser.getTokenLocation(),
-                "[" + sourceType + "] malformed source, expected [END_OBJECT] but found [" + parser.currentToken() + "]");
+                "[" + sourceType + "] malformed source, expected [end_object] but found [" + parser.currentToken() + "]");
         }
         return provider;
     }

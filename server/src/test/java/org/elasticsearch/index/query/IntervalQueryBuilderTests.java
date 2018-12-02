@@ -217,6 +217,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             IntervalQueryBuilder builder = new IntervalQueryBuilder(STRING_FIELD_NAME_2, provider);
             builder.doToQuery(createShardContext());
         });
-        assertThat(e.getMessage(), equalTo("Cannot create IntervalQuery over field [" + STRING_FIELD_NAME_2 + "] with no indexed positions"));
+        assertThat(e.getMessage(), equalTo("Cannot create IntervalQuery over field ["
+            + STRING_FIELD_NAME_2 + "] with no indexed positions"));
     }
 }

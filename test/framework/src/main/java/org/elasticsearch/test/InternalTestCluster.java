@@ -158,7 +158,6 @@ import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1083,9 +1082,9 @@ public final class InternalTestCluster extends TestCluster {
         final int bootstrapNodeIndex;
         if (prevNodeCount == 0 && autoManageMinMasterNodes) {
             if (numSharedDedicatedMasterNodes > 0) {
-                bootstrapNodeIndex = randomIntBetween(0, numSharedDedicatedMasterNodes - 1);
+                bootstrapNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDedicatedMasterNodes - 1);
             } else if (numSharedDataNodes > 0) {
-                bootstrapNodeIndex = randomIntBetween(0, numSharedDataNodes - 1);
+                bootstrapNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDataNodes - 1);
             } else {
                 bootstrapNodeIndex = -1;
             }
@@ -1937,7 +1936,7 @@ public final class InternalTestCluster extends TestCluster {
         final List<NodeAndClient> nodes = new ArrayList<>();
         final int prevMasterCount = getMasterNodesCount();
         int bootstrapMasterNodeIndex = prevMasterCount == 0 && autoManageMinMasterNodes && newMasterCount > 0
-            ? randomIntBetween(0, newMasterCount - 1) : -1;
+            ? RandomNumbers.randomIntBetween(random, 0, newMasterCount - 1) : -1;
 
         for (Settings nodeSettings : settings) {
             final Builder builder = Settings.builder();

@@ -13,10 +13,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Objects;
 
 /**
@@ -123,7 +123,8 @@ public abstract class MonitoringDoc implements ToXContentObject {
      * @return a string representing the timestamp
      */
     public static String toUTC(final long timestamp) {
-        return new DateTime(timestamp, DateTimeZone.UTC).toString();
+        //TODO that would break the formatting
+        return Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC).toString();
     }
 
     /**

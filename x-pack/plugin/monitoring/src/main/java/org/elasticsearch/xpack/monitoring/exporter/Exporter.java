@@ -11,10 +11,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.license.XPackLicenseState;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -113,11 +113,11 @@ public abstract class Exporter implements AutoCloseable {
 
     protected abstract void doClose();
 
-    protected static DateTimeFormatter dateTimeFormatter(final Config config) {
+    protected static DateFormatter dateTimeFormatter(final Config config) {
         Setting<String> setting = INDEX_NAME_TIME_FORMAT_SETTING.getConcreteSettingForNamespace(config.name);
         String format = setting.exists(config.settings()) ? setting.get(config.settings()) : INDEX_FORMAT;
         try {
-            return DateTimeFormat.forPattern(format).withZoneUTC();
+            return DateFormatter.forPattern(format).withZone(ZoneOffset.UTC);
         } catch (IllegalArgumentException e) {
             throw new SettingsException("[" + INDEX_NAME_TIME_FORMAT_SETTING.getKey() + "] invalid index name time format: ["
                     + format + "]", e);

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,13 +31,11 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuild
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -183,7 +182,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         // node_stats document collected for each node is at least 10 seconds old, corresponding to
         // 2 or 3 elapsed collection intervals.
         final int elapsedInSeconds = 10;
-        final DateTime startTime = DateTime.now(DateTimeZone.UTC);
+        final ZonedDateTime startTime = ZonedDateTime.now(ZoneOffset.UTC);
         assertBusy(() -> {
             IndicesExistsResponse indicesExistsResponse = client().admin().indices().prepareExists(".monitoring-*").get();
             if (indicesExistsResponse.isExists()) {
@@ -205,11 +204,11 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                     assertTrue(bucket.getDocCount() >= 1L);
 
                     Max subAggregation = bucket.getAggregations().get("agg_last_time_collected");
-                    DateTime lastCollection = new DateTime(Math.round(subAggregation.getValue()), DateTimeZone.UTC);
-                    assertTrue(lastCollection.plusSeconds(elapsedInSeconds).isBefore(DateTime.now(DateTimeZone.UTC)));
+                    ZonedDateTime lastCollection = Instant.ofEpochMilli(Math.round(subAggregation.getValue())).atZone(ZoneOffset.UTC);
+                    assertTrue(lastCollection.plusSeconds(elapsedInSeconds).isBefore(ZonedDateTime.now(ZoneOffset.UTC)));
                 }
             } else {
-                assertTrue(DateTime.now(DateTimeZone.UTC).isAfter(startTime.plusSeconds(elapsedInSeconds)));
+                assertTrue(ZonedDateTime.now(ZoneOffset.UTC).isAfter(startTime.plusSeconds(elapsedInSeconds)));
             }
         }, 30L, TimeUnit.SECONDS);
     }
@@ -258,9 +257,9 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         if (customTimeFormat == null) {
             customTimeFormat = "YYYY.MM.dd";
         }
-
-        DateTimeFormatter dateParser = ISODateTimeFormat.dateTime().withZoneUTC();
-        DateTimeFormatter dateFormatter = DateTimeFormat.forPattern(customTimeFormat).withZoneUTC();
+//TODO confirm this is the right format
+        DateFormatter dateParser = DateFormatter.forPattern("strict_date_time");
+        DateFormatter dateFormatter = DateFormatter.forPattern(customTimeFormat).withZone(ZoneOffset.UTC);
 
         SearchResponse searchResponse = client().prepareSearch(".monitoring-*").setSize(100).get();
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
@@ -290,7 +289,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 expectedSystem = MonitoredSystem.fromSystem((String) docSource.get("expected_system"));
             }
 
-            String dateTime = dateFormatter.print(dateParser.parseDateTime(timestamp));
+            String dateTime = dateFormatter.format(dateParser.parse(timestamp));
             final String expectedIndex = ".monitoring-" + expectedSystem.getSystem() + "-" + TEMPLATE_VERSION + "-" + dateTime;
             assertEquals("Expected " + expectedIndex + " but got " + hit.getIndex(), expectedIndex, hit.getIndex());
 

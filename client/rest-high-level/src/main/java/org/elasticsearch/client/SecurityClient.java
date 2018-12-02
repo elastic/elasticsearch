@@ -54,6 +54,8 @@ import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
+import org.elasticsearch.client.security.PutRoleRequest;
+import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 
@@ -459,12 +461,41 @@ public final class SecurityClient {
      *
      * @param request the request with the roles to get
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the delete role call
+     * @return the response from the get roles call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetRolesResponse getRoles(final GetRolesRequest request, final RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getRoles, options,
             GetRolesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously creates or updates a role in the native roles store.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role.html">
+     * the docs</a> for more.
+     *
+     * @param request  the request containing the role to create or update
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void putRoleAsync(PutRoleRequest request, RequestOptions options, ActionListener<PutRoleResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::putRole, options,
+                PutRoleResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Create or update a role in the native roles store.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role.html">
+     * the docs</a> for more.
+     *
+     * @param request the request containing the role to create or update
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the put role call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public PutRoleResponse getRoles(final PutRoleRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::putRole, options,
+            PutRoleResponse::fromXContent, emptySet());
     }
 
     /**

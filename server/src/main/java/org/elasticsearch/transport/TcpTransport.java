@@ -223,8 +223,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.transportLogger = new TransportLogger();
         this.handshaker = new TcpTransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> sendRequestToChannel(node, channel, requestId,
-                TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportRequest.Empty.INSTANCE, TransportRequestOptions.EMPTY, v,
-                TransportStatus.setHandshake((byte) 0)),
+                TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, new TcpTransportHandshaker.HandshakeRequest(version),
+                TransportRequestOptions.EMPTY, v, TransportStatus.setHandshake((byte) 0)),
             (v, features, channel, response, requestId) -> sendResponse(v, features, channel, response, requestId,
                 TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY, TransportStatus.setHandshake((byte) 0)));
         this.keepAlive = new TransportKeepAlive(threadPool, this::internalSendMessage);
@@ -1284,7 +1284,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         TransportChannel transportChannel = null;
         try {
             if (TransportStatus.isHandshake(status)) {
-                handshaker.handleHandshake(version, features, channel, requestId);
+                handshaker.handleHandshake(version, features, channel, requestId, stream);
             } else {
                 final RequestHandlerRegistry reg = getRequestHandler(action);
                 if (reg == null) {

@@ -81,8 +81,8 @@ public class TransportHandshakerTests extends ESTestCase {
         verify(responseSender).sendResponse(eq(Version.CURRENT), eq(Collections.emptySet()), eq(mockChannel), responseCaptor.capture(),
             eq(reqId));
 
-        TransportResponseHandler<TcpTransportHandshaker.VersionHandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
-        handler.handleResponse((TcpTransportHandshaker.VersionHandshakeResponse) responseCaptor.getValue());
+        TransportResponseHandler<TcpTransportHandshaker.HandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
+        handler.handleResponse((TcpTransportHandshaker.HandshakeResponse) responseCaptor.getValue());
 
         assertTrue(versionFuture.isDone());
         assertEquals(Version.CURRENT, versionFuture.actionGet());
@@ -97,7 +97,7 @@ public class TransportHandshakerTests extends ESTestCase {
 
         assertFalse(versionFuture.isDone());
 
-        TransportResponseHandler<TcpTransportHandshaker.VersionHandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
+        TransportResponseHandler<TcpTransportHandshaker.HandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
         handler.handleException(new TransportException("failed"));
 
         assertTrue(versionFuture.isDone());

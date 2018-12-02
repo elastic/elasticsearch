@@ -84,10 +84,15 @@ final class TcpTransportHandshaker {
     }
 
     void handleHandshake(Version version, Set<String> features, TcpChannel channel, long requestId) throws IOException {
-        handshakeResponseSender.sendResponse(version, features, channel, new VersionHandshakeResponse(this.version), requestId);
+        handshakeResponseSender.sendResponse(version, features, channel, new HandshakeResponse(this.version), requestId);
     }
 
-    TransportResponseHandler<VersionHandshakeResponse> removeHandlerForHandshake(long requestId) {
+    void handleHandshake(Version version, Set<String> features, TcpChannel channel, long requestId, StreamInput input) throws IOException {
+        HandshakeRequest handshakeRequest = new HandshakeRequest(input);
+        handshakeResponseSender.sendResponse(version, features, channel, new HandshakeResponse(this.version), requestId);
+    }
+
+    TransportResponseHandler<HandshakeResponse> removeHandlerForHandshake(long requestId) {
         return pendingHandshakes.remove(requestId);
     }
 
@@ -99,7 +104,7 @@ final class TcpTransportHandshaker {
         return numHandshakes.count();
     }
 
-    private class HandshakeResponseHandler implements TransportResponseHandler<VersionHandshakeResponse> {
+    private class HandshakeResponseHandler implements TransportResponseHandler<HandshakeResponse> {
 
         private final long requestId;
         private final Version currentVersion;
@@ -113,12 +118,12 @@ final class TcpTransportHandshaker {
         }
 
         @Override
-        public VersionHandshakeResponse read(StreamInput in) throws IOException {
-            return new VersionHandshakeResponse(in);
+        public HandshakeResponse read(StreamInput in) throws IOException {
+            return new HandshakeResponse(in);
         }
 
         @Override
-        public void handleResponse(VersionHandshakeResponse response) {
+        public void handleResponse(HandshakeResponse response) {
             if (isDone.compareAndSet(false, true)) {
                 Version version = response.version;
                 if (currentVersion.isCompatible(version) == false) {
@@ -149,17 +154,54 @@ final class TcpTransportHandshaker {
         }
     }
 
-    static final class VersionHandshakeResponse extends TransportResponse {
+    static final class HandshakeRequest extends TransportRequest {
+
+        private static final byte[] EMPTY_ARRAY = new byte[0];
+
+        private final Version version;
+        private final byte[] futureBytes;
+
+        HandshakeRequest(Version version) {
+            this.version = version;
+            this.futureBytes = EMPTY_ARRAY;
+        }
+
+        HandshakeRequest(StreamInput streamInput) throws IOException {
+            super(streamInput);
+            this.version = Version.readVersion(streamInput);
+            this.futureBytes = new byte[streamInput.available()];
+            streamInput.readBytes(futureBytes, 0, futureBytes.length);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) {
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            assert version != null;
+            Version.writeVersion(version, out);
+        }
+    }
+
+    static final class HandshakeResponse extends TransportResponse {
 
         private final Version version;
 
-        VersionHandshakeResponse(Version version) {
+        HandshakeResponse(Version version) {
             this.version = version;
         }
 
-        private VersionHandshakeResponse(StreamInput in) throws IOException {
+        private HandshakeResponse(StreamInput in) throws IOException {
             super.readFrom(in);
             version = Version.readVersion(in);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) {
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

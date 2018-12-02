@@ -19,10 +19,12 @@
 
 package org.elasticsearch.indices.stats;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -61,6 +63,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1006,7 +1009,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertEquals(total, shardTotal);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32506")
+    @Repeat(iterations = 1000)
+    @TestLogging("_root:TRACE")
     public void testFilterCacheStats() throws Exception {
         Settings settings = Settings.builder().put(indexSettings()).put("number_of_replicas", 0).build();
         assertAcked(prepareCreate("index").setSettings(settings).get());
@@ -1056,7 +1060,11 @@ public class IndexStatsIT extends ESIntegTestCase {
             persistGlobalCheckpoint("index");
             flush("index");
         }
+        ForceMergeResponse forceMergeResponse =
+            client().admin().indices().prepareForceMerge("index").setFlush(true).setMaxNumSegments(1).get();
+        assertAllSuccessful(forceMergeResponse);
         refresh();
+
         response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
         assertCumulativeQueryCacheStats(response);
         assertThat(response.getTotal().queryCache.getHitCount(), greaterThan(0L));

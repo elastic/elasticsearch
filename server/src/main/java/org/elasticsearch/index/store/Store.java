@@ -994,12 +994,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // only treat del files as per-commit files fnm files are generational but only for upgradable DV
                     perCommitStoreFiles.add(meta);
                 } else {
-                    List<StoreFileMetaData> perSegStoreFiles = perSegment.get(segmentId);
-                    if (perSegStoreFiles == null) {
-                        perSegStoreFiles = new ArrayList<>();
-                        perSegment.put(segmentId, perSegStoreFiles);
-                    }
-                    perSegStoreFiles.add(meta);
+                    perSegment.computeIfAbsent(segmentId, k -> new ArrayList<>()).add(meta);
                 }
             }
             final ArrayList<StoreFileMetaData> identicalFiles = new ArrayList<>();

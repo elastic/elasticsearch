@@ -36,6 +36,7 @@ import java.util.List;
 public class CcrRepository extends AbstractLifecycleComponent implements Repository {
 
     public static final String TYPE = "_ccr_";
+    public static final String NAME_PREFIX = "_ccr_";
 
     private final RepositoryMetaData metadata;
 

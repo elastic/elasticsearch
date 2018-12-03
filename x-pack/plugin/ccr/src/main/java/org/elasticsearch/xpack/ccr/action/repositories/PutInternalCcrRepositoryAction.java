@@ -12,31 +12,35 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class PutInternalCcrRepositoryAction extends Action<ActionResponse> {
+import java.io.IOException;
+
+public class PutInternalCcrRepositoryAction extends Action<PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse> {
 
     public static final PutInternalCcrRepositoryAction INSTANCE = new PutInternalCcrRepositoryAction();
-    public static final String NAME = "cluster:admin/internal_repository/put";
+    public static final String NAME = "cluster:admin/ccr/internal_repository/put";
 
     private PutInternalCcrRepositoryAction() {
         super(NAME);
     }
 
     @Override
-    public ActionResponse newResponse() {
+    public PutInternalCcrRepositoryResponse newResponse() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Writeable.Reader<ActionResponse> getResponseReader() {
-        return in -> new ActionResponse() {};
+    public Writeable.Reader<PutInternalCcrRepositoryResponse> getResponseReader() {
+        return PutInternalCcrRepositoryResponse::new;
     }
 
-    public static class TransportPutInternalRepositoryAction extends TransportAction<PutInternalCcrRepositoryRequest, ActionResponse> {
+    public static class TransportPutInternalRepositoryAction
+        extends TransportAction<PutInternalCcrRepositoryRequest, PutInternalCcrRepositoryResponse> {
 
         private final RepositoriesService repositoriesService;
 
@@ -48,9 +52,21 @@ public class PutInternalCcrRepositoryAction extends Action<ActionResponse> {
         }
 
         @Override
-        protected void doExecute(Task task, PutInternalCcrRepositoryRequest request, ActionListener<ActionResponse> listener) {
+        protected void doExecute(Task task, PutInternalCcrRepositoryRequest request,
+                                 ActionListener<PutInternalCcrRepositoryResponse> listener) {
             repositoriesService.registerInternalRepository(request.getName(), request.getType());
-            listener.onResponse(new ActionResponse() {});
+            listener.onResponse(new PutInternalCcrRepositoryResponse());
+        }
+    }
+
+    public static class PutInternalCcrRepositoryResponse extends ActionResponse {
+
+        PutInternalCcrRepositoryResponse() {
+            super();
+        }
+
+        PutInternalCcrRepositoryResponse(StreamInput streamInput) throws IOException {
+            super(streamInput);
         }
     }
 }

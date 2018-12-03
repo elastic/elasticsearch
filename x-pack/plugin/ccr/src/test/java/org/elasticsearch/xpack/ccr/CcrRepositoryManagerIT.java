@@ -22,13 +22,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 public class CcrRepositoryManagerIT extends CcrIntegTestCase {
 
     public void testThatRepositoryIsPutAndRemovedWhenRemoteClusterIsUpdated() throws Exception {
+        String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
         assertBusy(() -> {
             final RepositoriesService repositoriesService =
                 getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
             try {
-                Repository repository = repositoriesService.repository("leader_cluster");
+                Repository repository = repositoriesService.repository(leaderClusterRepoName);
                 assertEquals(CcrRepository.TYPE, repository.getMetadata().type());
-                assertEquals("leader_cluster", repository.getMetadata().name());
+                assertEquals(leaderClusterRepoName, repository.getMetadata().name());
             } catch (RepositoryMissingException e) {
                 fail("need repository");
             }
@@ -39,13 +40,14 @@ public class CcrRepositoryManagerIT extends CcrIntegTestCase {
         putFollowerRequest.persistentSettings(Settings.builder().put("cluster.remote.follower_cluster_copy.seeds", address));
         assertAcked(followerClient().admin().cluster().updateSettings(putFollowerRequest).actionGet());
 
+        String followerCopyRepoName = CcrRepository.NAME_PREFIX + "follower_cluster_copy";
         assertBusy(() -> {
             final RepositoriesService repositoriesService =
                 getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
             try {
-                Repository repository = repositoriesService.repository("follower_cluster_copy");
+                Repository repository = repositoriesService.repository(followerCopyRepoName);
                 assertEquals(CcrRepository.TYPE, repository.getMetadata().type());
-                assertEquals("follower_cluster_copy", repository.getMetadata().name());
+                assertEquals(followerCopyRepoName, repository.getMetadata().name());
             } catch (RepositoryMissingException e) {
                 fail("need repository");
             }
@@ -58,7 +60,7 @@ public class CcrRepositoryManagerIT extends CcrIntegTestCase {
         assertBusy(() -> {
             final RepositoriesService repositoriesService =
                 getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
-            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository("leader_cluster"));
+            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(leaderClusterRepoName));
         });
 
         ClusterUpdateSettingsRequest deleteFollowerRequest = new ClusterUpdateSettingsRequest();
@@ -68,7 +70,7 @@ public class CcrRepositoryManagerIT extends CcrIntegTestCase {
         assertBusy(() -> {
             final RepositoriesService repositoriesService =
                 getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
-            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository("follower_cluster_copy"));
+            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(followerCopyRepoName));
         });
     }
 }

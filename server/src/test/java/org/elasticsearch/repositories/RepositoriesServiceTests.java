@@ -87,7 +87,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         assertTrue(((TestRepository) repository).isClosed);
     }
 
-    public void testRegisterWillNotUpdateIdenticalInternalRepository() {
+    public void testRegisterWillNotUpdateIfInternalRepositoryWithNameExists() {
         String repoName = "name";
         expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName));
         repositoriesService.registerInternalRepository(repoName, TestRepository.TYPE);
@@ -97,20 +97,6 @@ public class RepositoriesServiceTests extends ESTestCase {
         assertFalse(((TestRepository) repository).isClosed);
         Repository repository2 = repositoriesService.repository(repoName);
         assertSame(repository, repository2);
-    }
-
-    public void testRegisterWillUpdateInternalRepository() {
-        String repoName = "name";
-        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName));
-        repositoriesService.registerInternalRepository(repoName, TestRepository.TYPE);
-        Repository repository = repositoriesService.repository(repoName);
-        assertFalse(((TestRepository) repository).isClosed);
-        Settings newSettings = Settings.builder().put("foo", "bar").build();
-        repositoriesService.registerInternalRepository(repoName, TestRepository.TYPE);
-        assertTrue(((TestRepository) repository).isClosed);
-        Repository repository2 = repositoriesService.repository(repoName);
-        assertFalse(((TestRepository) repository2).isClosed);
-        assertEquals(newSettings, repository2.getMetadata().settings());
     }
 
     private static class TestRepository implements Repository {

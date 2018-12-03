@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -33,16 +32,17 @@ class CcrRepositoryManager extends RemoteClusterAware {
 
     @Override
     protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress) {
+        String repositoryName = CcrRepository.NAME_PREFIX + clusterAlias;
         if (addresses.isEmpty()) {
-            DeleteInternalCcrRepositoryRequest request = new DeleteInternalCcrRepositoryRequest(clusterAlias);
-            PlainActionFuture<ActionResponse> future = PlainActionFuture.newFuture();
-            client.executeLocally(DeleteInternalCcrRepositoryAction.INSTANCE, request, future);
-            assert future.isDone() : "Should be completed as it is executed synchronously";
+            DeleteInternalCcrRepositoryRequest request = new DeleteInternalCcrRepositoryRequest(repositoryName);
+            PlainActionFuture<DeleteInternalCcrRepositoryAction.DeleteInternalCcrRepositoryResponse> f = PlainActionFuture.newFuture();
+            client.executeLocally(DeleteInternalCcrRepositoryAction.INSTANCE, request, f);
+            assert f.isDone() : "Should be completed as it is executed synchronously";
         } else {
-            ActionRequest request = new PutInternalCcrRepositoryRequest(clusterAlias, CcrRepository.TYPE);
-            PlainActionFuture<ActionResponse> future = PlainActionFuture.newFuture();
-            client.executeLocally(PutInternalCcrRepositoryAction.INSTANCE, request, future);
-            assert future.isDone() : "Should be completed as it is executed synchronously";
+            ActionRequest request = new PutInternalCcrRepositoryRequest(repositoryName, CcrRepository.TYPE);
+            PlainActionFuture<PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse> f = PlainActionFuture.newFuture();
+            client.executeLocally(PutInternalCcrRepositoryAction.INSTANCE, request, f);
+            assert f.isDone() : "Should be completed as it is executed synchronously";
         }
     }
 }

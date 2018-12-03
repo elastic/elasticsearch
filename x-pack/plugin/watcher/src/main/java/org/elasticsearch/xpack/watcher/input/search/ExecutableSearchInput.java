@@ -39,10 +39,11 @@ import static org.elasticsearch.xpack.watcher.input.search.SearchInput.TYPE;
  * An input that executes search and returns the search response as the initial payload
  */
 public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchInput.Result> {
-
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
     private static final Logger logger = LogManager.getLogger(ExecutableSearchInput.class);
+
+    private static final Params EMPTY_PARAMS = new MapParams(Collections.emptyMap());
 
     private final Client client;
     private final WatcherSearchTemplateService searchTemplateService;
@@ -87,12 +88,17 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
         }
 
         final Payload payload;
-        final Params params = new MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
+        Params params;
+        if (request.isRestTotalHitsAsint()) {
+            params = new MapParams(Collections.singletonMap("rest_total_hits_a_int", "true"));
+        } else {
+            params = EMPTY_PARAMS;
+        }
         if (input.getExtractKeys() != null) {
             BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, params, false);
             // EMPTY is safe here because we never use namedObject
             try (XContentParser parser = XContentHelper
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes)) {
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes, XContentType.JSON)) {
                 Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
                 payload = new Payload.Simple(filteredKeys);
             }

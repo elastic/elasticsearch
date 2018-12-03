@@ -234,6 +234,8 @@ public class WatchStatus implements ToXContentObject, Streamable {
         }
         if (in.readBoolean()) {
             headers = in.readMap(StreamInput::readString, StreamInput::readString);
+        } else {
+            headers = Collections.emptyMap();
         }
     }
 

@@ -422,7 +422,7 @@ The Java High Level REST Client supports the following Watcher APIs:
 * <<{upid}-start-watch-service>>
 * <<{upid}-stop-watch-service>>
 * <<java-rest-high-x-pack-watcher-put-watch>>
-* <<java-rest-high-x-pack-watcher-get-watch>>
+* <<{upid}-get-watch>>
 * <<java-rest-high-x-pack-watcher-delete-watch>>
 * <<java-rest-high-watcher-deactivate-watch>>
 * <<{upid}-ack-watch>>

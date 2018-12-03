@@ -76,6 +76,8 @@ transition into the next phase.
 
 === Phase Execution
 
+beta[]
+
 The current phase definition, of an index's policy being executed, is stored
 in the index's metadata. The phase and its actions are compiled into a series
 of discrete steps that are executed. Since some {ILM} actions are more complex

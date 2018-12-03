@@ -184,7 +184,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             // `entryCommonFields` and `includeRequestBody` writes happen-before! `events` is
             // always read before `entryCommonFields` and `includeRequestBody`.
             this.events = parse(INCLUDE_EVENT_SETTINGS.get(newSettings), EXCLUDE_EVENT_SETTINGS.get(newSettings));
-        }, Arrays.asList(EMIT_HOST_ADDRESS_SETTING, EMIT_HOST_NAME_SETTING, EMIT_NODE_NAME_SETTING, EMIT_NODE_ID_SETTING,
+        }, Arrays.asList(EMIT_HOST_ADDRESS_SETTING, DEPRECATED_EMIT_HOST_ADDRESS_SETTING, EMIT_HOST_NAME_SETTING,
+                DEPRECATED_EMIT_HOST_NAME_SETTING, EMIT_NODE_NAME_SETTING, DEPRECATED_EMIT_NODE_NAME_SETTING, EMIT_NODE_ID_SETTING,
                 INCLUDE_EVENT_SETTINGS, EXCLUDE_EVENT_SETTINGS, INCLUDE_REQUEST_BODY));
         clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRINCIPALS, (policyName, filtersList) -> {
             final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
@@ -784,8 +785,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     public static void registerSettings(List<Setting<?>> settings) {
         settings.add(EMIT_HOST_ADDRESS_SETTING);
+        settings.add(DEPRECATED_EMIT_HOST_ADDRESS_SETTING);
         settings.add(EMIT_HOST_NAME_SETTING);
+        settings.add(DEPRECATED_EMIT_HOST_NAME_SETTING);
         settings.add(EMIT_NODE_NAME_SETTING);
+        settings.add(DEPRECATED_EMIT_NODE_NAME_SETTING);
         settings.add(EMIT_NODE_ID_SETTING);
         settings.add(INCLUDE_EVENT_SETTINGS);
         settings.add(EXCLUDE_EVENT_SETTINGS);

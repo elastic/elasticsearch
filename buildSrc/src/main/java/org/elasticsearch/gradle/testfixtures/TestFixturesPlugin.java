@@ -84,7 +84,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
             tasks.getByName("composeUp").mustRunAfter(preProcessFixture);
             postProcessFixture.dependsOn("composeUp");
 
-            configureServiceInforForTask(
+            configureServiceInfoForTask(
                 postProcessFixture,
                 project,
                 (name, port) -> postProcessFixture.getExtensions()
@@ -110,7 +110,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                     fixtureProject.getTasks().matching(it->it.getName().equals("composeDown")).all(composeDown ->
                         task.finalizedBy(composeDown)
                     );
-                    configureServiceInforForTask(
+                    configureServiceInfoForTask(
                         task,
                         fixtureProject,
                         (name, port) -> setSystemProperty(task, name, port)
@@ -120,7 +120,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         }
     }
 
-    private void configureServiceInforForTask(Task task, Project fixtureProject, BiConsumer<String, Integer> consumer) {
+    private void configureServiceInfoForTask(Task task, Project fixtureProject, BiConsumer<String, Integer> consumer) {
         // Configure ports for the tests as system properties.
         // We only know these at execution time so we need to do it in doFirst
         task.doFirst(theTask ->

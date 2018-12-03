@@ -17,10 +17,6 @@ public enum Mode {
     ODBC;
 
     public static Mode fromString(String mode) {
-        /*if (mode == null) {
-            return PLAIN;
-        }
-        return Mode.valueOf(mode.toUpperCase(Locale.ROOT));*/
         try {
             return Mode.valueOf(mode.toUpperCase(Locale.ROOT));
         } catch (Exception e) {

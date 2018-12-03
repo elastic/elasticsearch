@@ -152,10 +152,9 @@ public class TestFixturesPlugin implements Plugin<Project> {
         if (OperatingSystem.current().isWindows()) {
             return false;
         }
-        return
-            project.file("/usr/local/bin/docker-compose").exists() == false &&
-            project.file("/usr/bin/docker-compose").exists() == false &&
-            Boolean.parseBoolean(System.getProperty("tests.fixture.enabled", "true")) == false;
+        final boolean hasDockerCompose = project.file("/usr/local/bin/docker-compose").exists() ||
+            project.file("/usr/bin/docker-compose").exists();
+        return hasDockerCompose && Boolean.parseBoolean(System.getProperty("tests.fixture.enabled", "true"));
     }
 
     private void setSystemProperty(Task task, String name, Object value) {

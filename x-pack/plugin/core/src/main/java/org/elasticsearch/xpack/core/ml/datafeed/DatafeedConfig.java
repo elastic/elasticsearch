@@ -71,13 +71,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         } catch (IOException | XContentParseException exception) {
             // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
             if (exception.getCause() instanceof IllegalArgumentException) {
-                throw ExceptionsHelper.unprocessableEntityException(
+                throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT,
                         id,
                         exception.getCause().getMessage()),
                     exception.getCause());
             } else {
-                throw ExceptionsHelper.unprocessableEntityException(
+                throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT, exception, id),
                     exception);
             }
@@ -91,13 +91,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         } catch (IOException | XContentParseException exception) {
             // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
             if (exception.getCause() instanceof IllegalArgumentException) {
-                throw ExceptionsHelper.unprocessableEntityException(
+                throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT,
                         id,
                         exception.getCause().getMessage()),
                     exception.getCause());
             } else {
-                throw ExceptionsHelper.unprocessableEntityException(
+                throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT, exception.getMessage(), id),
                     exception);
             }
@@ -623,13 +623,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             } catch (IOException | XContentParseException exception) {
                 if (exception.getCause() instanceof IllegalArgumentException) {
                     // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
-                    throw ExceptionsHelper.unprocessableEntityException(
+                    throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT,
                             id,
                             exception.getCause().getMessage()),
                         exception.getCause());
                 } else {
-                    throw ExceptionsHelper.unprocessableEntityException(
+                    throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT, id, exception.getMessage()), exception);
                 }
             }
@@ -645,13 +645,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             } catch (IOException | XContentParseException exception) {
                 // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
                 if (exception.getCause() instanceof IllegalArgumentException) {
-                    throw ExceptionsHelper.unprocessableEntityException(
+                    throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT,
                             id,
                             exception.getCause().getMessage()),
                         exception.getCause());
                 } else {
-                    throw ExceptionsHelper.unprocessableEntityException(
+                    throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT, id, exception.getMessage()), exception);
                 }
             }

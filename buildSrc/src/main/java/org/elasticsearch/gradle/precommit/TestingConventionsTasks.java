@@ -157,14 +157,15 @@ public class TestingConventionsTasks extends DefaultTask {
 
     @Input
     public Map<String, Set<File>> classFilesPerRandomizedTestingTask(FileTree testClassFiles) {
-        return Stream.concat(
-            getProject().getTasks().withType(getRandomizedTestingTask()).stream(),
-            // Look at sub-projects too. As sometimes tests are implemented in parent but ran in sub-projects against
-            // different configurations
-            getProject().getSubprojects().stream().flatMap(subproject ->
-                subproject.getTasks().withType(getRandomizedTestingTask()).stream()
+        return
+            Stream.concat(
+                getProject().getTasks().withType(getRandomizedTestingTask()).stream(),
+                // Look at sub-projects too. As sometimes tests are implemented in parent but ran in sub-projects against
+                // different configurations
+                getProject().getSubprojects().stream().flatMap(subproject ->
+                    subproject.getTasks().withType(getRandomizedTestingTask()).stream()
+                )
             )
-        )
             .filter(Task::getEnabled)
             .collect(Collectors.toMap(
                 Task::getPath,

@@ -174,12 +174,11 @@ if (project != rootProject) {
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
 
-  // tests can't  be run with randomized test runner
-  // it's fine as we run them as part of :buildSrc
   test {
     include "**/*Tests.class"
     exclude "**/*IT.class"
   }
+
   // This can't be an RandomizedTestingTask because we can't yet reference it
   task integTest(type: Test) {
     // integration test requires the local testing repo for example plugin builds

@@ -777,16 +777,17 @@ class BuildPlugin implements Plugin<Project> {
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
 
+            // Make sure all test tasks are configured properly
             if (name != "test") {
                 project.tasks.matching { it.name == "test"}.all { testTask ->
                     task.testClassesDirs = testTask.testClassesDirs
                     task.classpath = testTask.classpath
                     task.shouldRunAfter testTask
-                    // no loose ends: check has to depend on all test tasks
-                    project.tasks.matching {it.name == "check"}.all {
-                        dependsOn(task)
-                    }
                 }
+            }
+            // no loose ends: check has to depend on all test tasks
+            project.tasks.matching {it.name == "check"}.all {
+                dependsOn(task)
             }
 
             // TODO: why are we not passing maxmemory to junit4?

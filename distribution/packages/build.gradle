@@ -167,6 +167,12 @@ Closure commonPackageConfig(String type, boolean oss) {
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
     configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/log4j2.properties'
+    if (oss == false) {
+      configurationFile '/etc/elasticsearch/role_mapping.yml'
+      configurationFile '/etc/elasticsearch/roles.yml'
+      configurationFile '/etc/elasticsearch/users'
+      configurationFile '/etc/elasticsearch/users_roles'
+    }
     into('/etc/elasticsearch') {
       dirMode 0750
       fileMode 0660

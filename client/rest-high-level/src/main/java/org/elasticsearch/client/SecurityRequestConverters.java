@@ -30,6 +30,7 @@ import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
@@ -74,6 +75,17 @@ final class SecurityRequestConverters {
         request.setEntity(createEntity(putUserRequest, REQUEST_BODY_CONTENT_TYPE));
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(putUserRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request deleteUser(DeleteUserRequest deleteUserRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack","security", "user")
+            .addPathPart(deleteUserRequest.getName())
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(deleteUserRequest.getRefreshPolicy());
         return request;
     }
 

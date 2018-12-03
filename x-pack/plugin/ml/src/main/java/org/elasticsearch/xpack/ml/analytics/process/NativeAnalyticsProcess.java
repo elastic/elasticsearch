@@ -6,16 +6,20 @@
 package org.elasticsearch.xpack.ml.analytics.process;
 
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
+import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.util.Iterator;
 import java.util.List;
 
 public class NativeAnalyticsProcess extends AbstractNativeProcess implements AnalyticsProcess {
 
     private static final String NAME = "analytics";
+
+    private final ProcessResultsParser<AnalyticsResult> resultsParser = new ProcessResultsParser<>(AnalyticsResult.PARSER);
 
     protected NativeAnalyticsProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
                                      OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
@@ -36,5 +40,10 @@ public class NativeAnalyticsProcess extends AbstractNativeProcess implements Ana
     @Override
     public void writeEndOfDataMessage() throws IOException {
         new AnalyticsControlMessageWriter(recordWriter(), numberOfFields()).writeEndOfData();
+    }
+
+    @Override
+    public Iterator<AnalyticsResult> readAnalyticsResults() {
+        return resultsParser.parseResults(processOutStream());
     }
 }

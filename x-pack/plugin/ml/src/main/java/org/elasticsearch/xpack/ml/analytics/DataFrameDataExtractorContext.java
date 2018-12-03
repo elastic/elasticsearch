@@ -20,14 +20,16 @@ public class DataFrameDataExtractorContext {
     final QueryBuilder query;
     final int scrollSize;
     final Map<String, String> headers;
+    final boolean includeSource;
 
     DataFrameDataExtractorContext(String jobId, ExtractedFields extractedFields, List<String> indices, QueryBuilder query, int scrollSize,
-                                  Map<String, String> headers) {
+                                  Map<String, String> headers, boolean includeSource) {
         this.jobId = Objects.requireNonNull(jobId);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.indices = indices.toArray(new String[indices.size()]);
         this.query = Objects.requireNonNull(query);
         this.scrollSize = scrollSize;
         this.headers = headers;
+        this.includeSource = includeSource;
     }
 }

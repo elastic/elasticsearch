@@ -178,8 +178,7 @@ public class TransportRunAnalyticsAction extends HandledTransportAction<RunAnaly
 
         ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(
             dataExtractorFactory -> {
-                DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor();
-                analyticsProcessManager.processData(jobId, dataExtractor);
+                analyticsProcessManager.runJob(jobId, dataExtractorFactory);
                 listener.onResponse(new AcknowledgedResponse(true));
             },
             listener::onFailure

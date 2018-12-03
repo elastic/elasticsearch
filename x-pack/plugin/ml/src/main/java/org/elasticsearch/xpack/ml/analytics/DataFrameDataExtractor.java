@@ -98,7 +98,7 @@ public class DataFrameDataExtractor {
                 .setIndices(context.indices)
                 .setSize(context.scrollSize)
                 .setQuery(context.query)
-                .setFetchSource(false);
+                .setFetchSource(context.includeSource);
 
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
             searchRequestBuilder.addDocValueField(docValueField.getName(), docValueField.getDocValueFormat());
@@ -149,7 +149,7 @@ public class DataFrameDataExtractor {
                 break;
             }
         }
-        return new Row(extractedValues);
+        return new Row(extractedValues, hit);
     }
 
     private List<Row> continueScroll() throws IOException {
@@ -196,10 +196,11 @@ public class DataFrameDataExtractor {
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
             .setIndices(context.indices)
             .setSize(0)
-            .setQuery(context.query);
+            .setQuery(context.query)
+            .setTrackTotalHits(true);
 
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
-        return new DataSummary(searchResponse.getHits().getTotalHits(), context.extractedFields.getAllFields().size());
+        return new DataSummary(searchResponse.getHits().getTotalHits().value, context.extractedFields.getAllFields().size());
     }
 
     public static class DataSummary {
@@ -215,16 +216,27 @@ public class DataFrameDataExtractor {
 
     public static class Row {
 
+        private SearchHit hit;
+
         @Nullable
         private String[] values;
 
-        private Row(String[] values) {
+        private Row(String[] values, SearchHit hit) {
             this.values = values;
+            this.hit = hit;
         }
 
         @Nullable
         public String[] getValues() {
             return values;
+        }
+
+        public SearchHit getHit() {
+            return hit;
+        }
+
+        public boolean shouldSkip() {
+            return values == null;
         }
     }
 }

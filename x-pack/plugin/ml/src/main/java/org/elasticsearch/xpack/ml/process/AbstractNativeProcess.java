@@ -262,4 +262,16 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     protected boolean isProcessKilled() {
         return processKilled;
     }
+
+    public void consumeAndCloseOutputStream() {
+        try {
+            byte[] buff = new byte[512];
+            while (processOutStream().read(buff) >= 0) {
+                // Do nothing
+            }
+            processOutStream().close();
+        } catch (IOException e) {
+            throw new RuntimeException("Error closing result parser input stream", e);
+        }
+    }
 }

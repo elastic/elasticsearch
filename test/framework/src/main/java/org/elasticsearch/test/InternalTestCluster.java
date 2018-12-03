@@ -1070,6 +1070,9 @@ public final class InternalTestCluster extends TestCluster {
             wipePendingDataDirectories();
         }
 
+        assert nodes.isEmpty() || nodes.values().stream().anyMatch(NodeAndClient::isMasterEligible)
+            : "only master-ineligible nodes left in " + nodes;
+
         final int prevNodeCount = nodes.size();
 
         // start any missing node

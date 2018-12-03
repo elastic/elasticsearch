@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportService;
 
@@ -33,6 +35,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.transport.TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL;
 
+@ClusterScope(scope = Scope.TEST)
 public class NodeDisconnectIT  extends ESIntegTestCase {
 
     public void testNotifyOnDisconnect() throws IOException {

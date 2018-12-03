@@ -40,23 +40,20 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
     public static final String MONITORING_ID = "system_id";
     public static final String MONITORING_VERSION = "system_api_version";
     public static final String INTERVAL = "interval";
-    private static String URI_BASE = "/_monitoring";
-    private static String DEPRECATED_URI_BASE = XPackRestHandler.URI_BASE + URI_BASE;
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestMonitoringBulkAction.class));
-
     private final Map<MonitoredSystem, List<String>> supportedApiVersions;
 
     public RestMonitoringBulkAction(Settings settings, RestController controller) {
         super(settings);
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/bulk", this,
-            POST, DEPRECATED_URI_BASE + "/_bulk", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/bulk", this,
-            PUT, DEPRECATED_URI_BASE + "/_bulk", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/{type}/bulk", this,
-            POST, DEPRECATED_URI_BASE + "/{type}/_bulk", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/{type}/bulk", this,
-            PUT, DEPRECATED_URI_BASE + "/{type}/_bulk", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, "/_monitoring/bulk", this,
+            POST, "/_xpack/monitoring/_bulk", deprecationLogger);
+        controller.registerWithDeprecatedHandler(PUT, "/_monitoring/bulk", this,
+            PUT, "/_xpack/monitoring/_bulk", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, "/_monitoring/{type}/bulk", this,
+            POST, "/_xpack/monitoring/{type}/_bulk", deprecationLogger);
+        controller.registerWithDeprecatedHandler(PUT, "/_monitoring/{type}/bulk", this,
+            PUT, "/_xpack/monitoring/{type}/_bulk", deprecationLogger);
 
         final List<String> allVersions = Arrays.asList(
                 MonitoringTemplateUtils.TEMPLATE_VERSION,
@@ -73,7 +70,7 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
 
     @Override
     public String getName() {
-        return "monitoring_bulk_action";
+        return "monitoring_bulk";
     }
 
     @Override

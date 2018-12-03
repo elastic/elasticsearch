@@ -14,12 +14,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteInternalRepositoryRequest extends ActionRequest {
+public class PutInternalCcrRepositoryRequest extends ActionRequest {
 
     private final String name;
+    private final String type;
 
-    public DeleteInternalRepositoryRequest(String name) {
+    public PutInternalCcrRepositoryRequest(String name, String type) {
         this.name = Objects.requireNonNull(name);
+        this.type = Objects.requireNonNull(type);
     }
 
     @Override
@@ -29,35 +31,41 @@ public class DeleteInternalRepositoryRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("DeleteInternalRepositoryRequest cannot be serialized for sending across the wire.");
+        throw new UnsupportedOperationException("PutInternalRepositoryRequest cannot be serialized for sending across the wire.");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("DeleteInternalRepositoryRequest cannot be serialized for sending across the wire.");
+        throw new UnsupportedOperationException("PutInternalRepositoryRequest cannot be serialized for sending across the wire.");
     }
 
     public String getName() {
         return name;
     }
 
+    public String getType() {
+        return type;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        DeleteInternalRepositoryRequest that = (DeleteInternalRepositoryRequest) o;
-        return Objects.equals(name, that.name);
+        PutInternalCcrRepositoryRequest that = (PutInternalCcrRepositoryRequest) o;
+        return Objects.equals(name, that.name) &&
+            Objects.equals(type, that.type);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name);
+        return Objects.hash(name, type);
     }
 
     @Override
     public String toString() {
-        return "DeleteInternalRepositoryRequest{" +
+        return "PutInternalCcrRepositoryRequest{" +
             "name='" + name + '\'' +
+            ", type='" + type + '\'' +
             '}';
     }
 }

@@ -17,12 +17,12 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class DeleteInternalRepositoryAction extends Action<ActionResponse> {
+public class DeleteInternalCcrRepositoryAction extends Action<ActionResponse> {
 
-    public static final DeleteInternalRepositoryAction INSTANCE = new DeleteInternalRepositoryAction();
+    public static final DeleteInternalCcrRepositoryAction INSTANCE = new DeleteInternalCcrRepositoryAction();
     public static final String NAME = "cluster:admin/internal_repository/delete";
 
-    private DeleteInternalRepositoryAction() {
+    private DeleteInternalCcrRepositoryAction() {
         super(NAME);
     }
 
@@ -36,7 +36,7 @@ public class DeleteInternalRepositoryAction extends Action<ActionResponse> {
         return in -> new ActionResponse() {};
     }
 
-    public static class TransportDeleteInternalRepositoryAction extends TransportAction<DeleteInternalRepositoryRequest, ActionResponse> {
+    public static class TransportDeleteInternalRepositoryAction extends TransportAction<DeleteInternalCcrRepositoryRequest, ActionResponse> {
 
         private final RepositoriesService repositoriesService;
 
@@ -48,7 +48,7 @@ public class DeleteInternalRepositoryAction extends Action<ActionResponse> {
         }
 
         @Override
-        protected void doExecute(Task task, DeleteInternalRepositoryRequest request, ActionListener<ActionResponse> listener) {
+        protected void doExecute(Task task, DeleteInternalCcrRepositoryRequest request, ActionListener<ActionResponse> listener) {
             repositoriesService.unregisterInternalRepository(request.getName());
             listener.onResponse(new ActionResponse() {});
         }

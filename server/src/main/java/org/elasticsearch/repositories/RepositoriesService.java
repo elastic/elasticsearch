@@ -360,62 +360,23 @@ public class RepositoriesService implements ClusterStateApplier {
         throw new RepositoryMissingException(repositoryName);
     }
 
-    public void registerInternalRepository(String name, String type, Settings settings) {
-        RepositoryMetaData metaData = new RepositoryMetaData(name, type, settings);
-        Repository existingRepository = internalRepositories.get(name);
-        if (existingRepository != null && existingRepository.getMetadata().equals(metaData)) {
-            // Identical repository already exists, no need to update it.
-            return;
-        }
-
-        // TODO: Normally we would do validation when we update a repository to ensure that it is not in use.
-        //  Are we okay with not including that validation under the assumption that internal operations
-        //  will do the right thing.
-
-        Repository newRepository = createRepository(metaData, internalTypesRegistry);
-        Repository repositoryToClose = null;
-        boolean updated = false;
-        synchronized (internalRepositories) {
-            existingRepository = internalRepositories.get(name);
-            if (existingRepository != null) {
-                if (existingRepository.getMetadata().equals(metaData)) {
-                    // Identical repository already exists, no need to update it.
-                    repositoryToClose = newRepository;
-                } else {
-                    logger.info("update internal repository [{}][{}]", name, type);
-                    internalRepositories.put(name, newRepository);
-                    updated = true;
-                    repositoryToClose = existingRepository;
-                }
-            } else {
-                logger.info("put internal repository [{}][{}]", name, type);
-                internalRepositories.put(name, newRepository);
-                updated = true;
-            }
-        }
-
-        if (repositoryToClose != null) {
-            repositoryToClose.close();
-        }
-
-        if (updated && repositories.containsKey(name)) {
+    public void registerInternalRepository(String name, String type) {
+        RepositoryMetaData metaData = new RepositoryMetaData(name, type, Settings.EMPTY);
+        Repository repository = internalRepositories.computeIfAbsent(name, (n) -> {
+            logger.debug("put internal repository [{}][{}]", name, type);
+            return createRepository(metaData, internalTypesRegistry);
+        });
+        if (type.equals(repository.getMetadata().type()) == false) {
+            logger.warn(new ParameterizedMessage("internal repository [{}][{}] already registered. this prevented the registration of " +
+                "internal repository [{}][{}].", name, repository.getMetadata().type(), name, type));
+        } else if (repositories.containsKey(name)) {
             logger.warn(new ParameterizedMessage("non-internal repository [{}] already registered. this repository will block the " +
                 "usage of internal repository [{}][{}].", name, metaData.type(), name));
         }
     }
 
     public void unregisterInternalRepository(String name) {
-        Repository repository = internalRepositories.get(name);
-        if (repository == null) {
-            // Repository does not exist to delete
-            return;
-        }
-
-        synchronized (internalRepositories) {
-            // Even though we are using a concurrent hash map, the remove must be synchronized as it can
-            // conflict with the put in #registerInternalRepository which is a multi-step operation
-            repository = internalRepositories.remove(name);
-        }
+        Repository repository = internalRepositories.remove(name);
         if (repository != null) {
             RepositoryMetaData metadata = repository.getMetadata();
             logger.debug(() -> new ParameterizedMessage("delete internal repository [{}][{}].", metadata.type(), name));

@@ -17,12 +17,12 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class PutInternalRepositoryAction extends Action<ActionResponse> {
+public class PutInternalCcrRepositoryAction extends Action<ActionResponse> {
 
-    public static final PutInternalRepositoryAction INSTANCE = new PutInternalRepositoryAction();
+    public static final PutInternalCcrRepositoryAction INSTANCE = new PutInternalCcrRepositoryAction();
     public static final String NAME = "cluster:admin/internal_repository/put";
 
-    private PutInternalRepositoryAction() {
+    private PutInternalCcrRepositoryAction() {
         super(NAME);
     }
 
@@ -36,7 +36,7 @@ public class PutInternalRepositoryAction extends Action<ActionResponse> {
         return in -> new ActionResponse() {};
     }
 
-    public static class TransportPutInternalRepositoryAction extends TransportAction<PutInternalRepositoryRequest, ActionResponse> {
+    public static class TransportPutInternalRepositoryAction extends TransportAction<PutInternalCcrRepositoryRequest, ActionResponse> {
 
         private final RepositoriesService repositoriesService;
 
@@ -48,8 +48,8 @@ public class PutInternalRepositoryAction extends Action<ActionResponse> {
         }
 
         @Override
-        protected void doExecute(Task task, PutInternalRepositoryRequest request, ActionListener<ActionResponse> listener) {
-            repositoriesService.registerInternalRepository(request.getName(), request.getType(), request.getSettings());
+        protected void doExecute(Task task, PutInternalCcrRepositoryRequest request, ActionListener<ActionResponse> listener) {
+            repositoriesService.registerInternalRepository(request.getName(), request.getType());
             listener.onResponse(new ActionResponse() {});
         }
     }

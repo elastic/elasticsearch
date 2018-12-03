@@ -306,7 +306,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public double[] getLats() {
-	    List<GeoPoint> points = this;
+            List<GeoPoint> points = this;
             double[] lats = new double[points.size()];
             for (int i = 0; i < points.size(); i++) {
                 lats[i] = points.get(i).lat();
@@ -315,7 +315,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public double[] getLons() {
-	    List<GeoPoint> points = this;
+            List<GeoPoint> points = this;
             double[] lons = new double[points.size()];
             for (int i = 0; i < points.size(); i++) {
                 lons[i] = points.get(i).lon();

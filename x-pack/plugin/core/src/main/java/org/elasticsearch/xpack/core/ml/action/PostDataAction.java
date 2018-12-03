@@ -126,6 +126,31 @@ public class PostDataAction extends Action<PostDataAction.Response> {
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            resetStart = in.readOptionalString();
+            resetEnd = in.readOptionalString();
+            dataDescription = in.readOptionalWriteable(DataDescription::new);
+            content = in.readBytesReference();
+            if (in.readBoolean()) {
+                xContentType = in.readEnum(XContentType.class);
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalString(resetStart);
+            out.writeOptionalString(resetEnd);
+            out.writeOptionalWriteable(dataDescription);
+            out.writeBytesReference(content);
+            boolean hasXContentType = xContentType != null;
+            out.writeBoolean(hasXContentType);
+            if (hasXContentType) {
+                out.writeEnum(xContentType);
+            }
+        }
+
         public Request(String jobId) {
             super(jobId);
         }
@@ -163,32 +188,6 @@ public class PostDataAction extends Action<PostDataAction.Response> {
         public void setContent(BytesReference content, XContentType xContentType) {
             this.content = content;
             this.xContentType = xContentType;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            resetStart = in.readOptionalString();
-            resetEnd = in.readOptionalString();
-            dataDescription = in.readOptionalWriteable(DataDescription::new);
-            content = in.readBytesReference();
-            if (in.readBoolean()) {
-                xContentType = in.readEnum(XContentType.class);
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalString(resetStart);
-            out.writeOptionalString(resetEnd);
-            out.writeOptionalWriteable(dataDescription);
-            out.writeBytesReference(content);
-            boolean hasXContentType = xContentType != null;
-            out.writeBoolean(hasXContentType);
-            if (hasXContentType) {
-                out.writeEnum(xContentType);
-            }
         }
 
         @Override

@@ -14,6 +14,9 @@ public class AnalyticsControlMessageWriter extends AbstractControlMsgWriter {
 
     /**
      * This must match the code defined in the api::CDataFrameAnalyzer C++ class.
+     * The constant there is referred as RUN_ANALYSIS_CONTROL_MESSAGE_FIELD_VALUE
+     * but in the context of the java side it is more descriptive to call this the
+     * end of data message.
      */
     private static final String END_OF_DATA_MESSAGE_CODE = "r";
 

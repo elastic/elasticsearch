@@ -1121,9 +1121,9 @@ public final class InternalTestCluster extends TestCluster {
             toStartAndPublish.add(nodeAndClient);
         }
 
-        logger.debug("starting nodes [{}]", toStartAndPublish.stream().map(NodeAndClient::getName).collect(Collectors.toList()));
+        logger.debug("starting nodes {}", toStartAndPublish.stream().map(NodeAndClient::getName).collect(Collectors.toList()));
         startAndPublishNodesAndClients(toStartAndPublish);
-        logger.debug("stopping nodes [{}]", toClose.stream().map(NodeAndClient::getName).collect(Collectors.toList()));
+        logger.debug("stopping nodes {}", toClose.stream().map(NodeAndClient::getName).collect(Collectors.toList()));
         stopNodesAndClients(toClose);
 
         // clean up what the nodes left that is unused

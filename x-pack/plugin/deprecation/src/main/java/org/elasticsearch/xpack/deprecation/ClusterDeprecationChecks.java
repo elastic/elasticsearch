@@ -10,6 +10,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
+/**
+ * Cluster-level deprecation checks.
+ */
 public class ClusterDeprecationChecks {
 
     static DeprecationIssue checkShardLimit(ClusterState state) {

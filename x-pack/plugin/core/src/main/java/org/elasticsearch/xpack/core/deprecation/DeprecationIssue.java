@@ -23,10 +23,22 @@ import java.util.Objects;
  */
 public class DeprecationIssue implements Writeable, ToXContentObject {
 
+    /**
+     * Indicates the level of the deprecation warning.
+     */
     public enum Level implements Writeable {
-        NONE,
+        /**
+         * No action required in the cluster itself, but it is advised to read about the change, and may require making application changes.
+         */
         INFO,
+        /**
+         * Resolving this issue is advised but not required to upgrade. There may be undesired changes in behavior unless this issue is
+         * resolved before upgrading.
+         */
         WARNING,
+        /**
+         * This issue must be resolved to upgrade. Failures will occur unless this is resolved before upgrading.
+         */
         CRITICAL
         ;
 

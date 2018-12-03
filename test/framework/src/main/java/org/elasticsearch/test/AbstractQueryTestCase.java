@@ -48,6 +48,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -471,6 +472,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             context.setIsFilter(filterFlag);
             rewriteQuery(firstQuery, context).toQuery(context);
             assertEquals("isFilter should be unchanged", filterFlag, context.isFilter());
+            if (filterFlag && firstQuery instanceof BoolQueryBuilder) {
+                BoolQueryBuilder bq = (BoolQueryBuilder) firstQuery;
+                if (bq.should().size() > 0 &&
+                        bq.minimumShouldMatch() == null &&
+                        (bq.filter().size() > 0 || bq.must().size() > 0 || bq.mustNot().size() > 0)) {
+                    assertWarnings("Should clauses in the filter context will no longer automatically set the minimum" +
+                        " should match to 1 in the next major version. You should group them in a [filter] clause or explicitly set" +
+                        " [minimum_should_match] to 1 to restore this behavior in the next major version.");
+                }
+            }
         }
     }
 

@@ -95,13 +95,13 @@ public class FieldSortIT extends ESIntegTestCase {
 
         static Double sortDoubleScript(Map<String, Object> vars) {
             Map<?, ?> doc = (Map) vars.get("doc");
-            Double index = ((Number) ((ScriptDocValues<?>) doc.get("number")).getValues().get(0)).doubleValue();
+            Double index = ((Number) ((ScriptDocValues<?>) doc.get("number")).get(0)).doubleValue();
             return index;
         }
 
         static String sortStringScript(Map<String, Object> vars) {
             Map<?, ?> doc = (Map) vars.get("doc");
-            String value = ((String) ((ScriptDocValues<?>) doc.get("keyword")).getValues().get(0));
+            String value = ((String) ((ScriptDocValues<?>) doc.get("keyword")).get(0));
             return value;
         }
     }

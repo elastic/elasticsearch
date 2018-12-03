@@ -85,7 +85,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
         static Double scoringScript(Map<String, Object> vars, Function<ScoreAccessor, Number> scoring) {
             Map<?, ?> doc = (Map) vars.get("doc");
-            Double index = ((Number) ((ScriptDocValues<?>) doc.get("index")).getValues().get(0)).doubleValue();
+            Double index = ((Number) ((ScriptDocValues<?>) doc.get("index")).get(0)).doubleValue();
             Double score = scoring.apply((ScoreAccessor) vars.get("_score")).doubleValue();
             Integer factor = (Integer) vars.get("factor");
             return Math.log(index + (factor * score));

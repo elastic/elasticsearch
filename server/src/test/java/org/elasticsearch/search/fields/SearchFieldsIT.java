@@ -156,7 +156,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         static Object docScript(Map<String, Object> vars, String fieldName) {
             Map<?, ?> doc = (Map) vars.get("doc");
             ScriptDocValues<?> values = (ScriptDocValues<?>) doc.get(fieldName);
-            return values.getValues();
+            return values;
         }
     }
 

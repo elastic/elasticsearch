@@ -819,7 +819,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert clusterChangedEvent.previousState() == coordinationState.get().getLastAcceptedState() ||
                     Strings.toString(clusterChangedEvent.previousState()).equals(
                         Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())))
-                    : clusterChangedEvent.previousState() + " vs " + clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState());
+                    : clusterChangedEvent.previousState() + " vs "
+                        + clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState());
 
                 final ClusterState clusterState = clusterChangedEvent.state();
 

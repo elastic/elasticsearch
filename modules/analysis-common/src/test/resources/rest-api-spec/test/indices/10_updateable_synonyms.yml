@@ -15,10 +15,10 @@ setup:
                     synonyms: [ "quick,fast" ]
                     updateable: false
                 analyzer:
-                  syns_updateable:
+                  syns_updateable_analyzer:
                     tokenizer: standard
                     filter: [ "syns_updateable" ]
-                  syns_non_updateable:
+                  syns_non_updateable_analyzer:
                     tokenizer: standard
                     filter: [ "syns_non_updateable" ]
 ---
@@ -32,7 +32,7 @@ setup:
           properties:
             text1:
               type:     text
-              analyzer: syns_non_updateable
+              analyzer: syns_non_updateable_analyzer
 
   - do:
       index:
@@ -54,7 +54,7 @@ setup:
 "Test using updateable analyzer at index time throws error":
 
   - do:
-      catch: /\[syns_updateable\] contains components that are only allowed at search time/
+      catch: /\[syns_updateable_analyzer\] contains filters \[syns_updateable\] that are only allowed at search time/
       indices.put_mapping:
         index: test
         type: doc
@@ -62,7 +62,7 @@ setup:
           properties:
             text1:
               type:     text
-              analyzer: syns_updateable
+              analyzer: syns_updateable_analyzer
 
 ---
 "Test using updateable analyzer as search_analyzer is okay":
@@ -76,7 +76,7 @@ setup:
             text1:
               type:     text
               analyzer: standard
-              search_analyzer: syns_updateable
+              search_analyzer: syns_updateable_analyzer
 
   - do:
       index:

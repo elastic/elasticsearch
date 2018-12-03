@@ -204,6 +204,14 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
 
     }
 
+    public void testExecuteWatchThatDoesNotExist() throws Exception {
+        String watchId = randomAlphaOfLength(10);
+        // exception when activating a not existing watcher
+        ElasticsearchStatusException exception =  expectThrows(ElasticsearchStatusException.class, () ->
+            highLevelClient().watcher().executeWatch(ExecuteWatchRequest.byId(watchId), RequestOptions.DEFAULT));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
     public void testExecuteInlineWatch() throws Exception {
         ExecuteWatchResponse response = highLevelClient().watcher()
             .executeWatch(ExecuteWatchRequest.inline(WATCH_JSON), RequestOptions.DEFAULT);

@@ -252,7 +252,7 @@ public final class WatcherClient {
      */
     public ExecuteWatchResponse executeWatch(ExecuteWatchRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, WatcherRequestConverters::executeWatch, options,
-            ExecuteWatchResponse::fromXContent, singleton(404));
+            ExecuteWatchResponse::fromXContent, emptySet());
     }
 
     /**
@@ -265,7 +265,7 @@ public final class WatcherClient {
      */
     public void executeWatchAsync(ExecuteWatchRequest request, RequestOptions options, ActionListener<ExecuteWatchResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::executeWatch, options,
-            ExecuteWatchResponse::fromXContent, listener, singleton(404));
+            ExecuteWatchResponse::fromXContent, listener, emptySet());
     }
 
     /**

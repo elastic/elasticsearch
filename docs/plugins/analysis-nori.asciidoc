@@ -70,7 +70,7 @@ The first token is mandatory and represents the custom noun that should be added
 the dictionary. For compound nouns the custom segmentation can be provided
 after the first token (`[<token 1> ... <token n>]`). The segmentation of the
 custom compound nouns is controlled by the `decompound_mode` setting.
---
+
 
 As a demonstration of how the user dictionary can be used, save the following
 dictionary to `$ES_HOME/config/userdict_ko.txt`:

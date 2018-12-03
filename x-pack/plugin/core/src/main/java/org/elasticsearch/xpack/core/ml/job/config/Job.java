@@ -809,7 +809,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
-        public Builder setModelSnapshotMinVersion(String modelSnapshotMinVersion) {
+        Builder setModelSnapshotMinVersion(String modelSnapshotMinVersion) {
             this.modelSnapshotMinVersion = Version.fromString(modelSnapshotMinVersion);
             return this;
         }

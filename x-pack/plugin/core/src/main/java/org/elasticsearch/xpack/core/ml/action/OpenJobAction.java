@@ -174,7 +174,7 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
         public JobParams(StreamInput in) throws IOException {
             jobId = in.readString();
             timeout = TimeValue.timeValueMillis(in.readVLong());
-            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
                 job = in.readOptionalWriteable(Job::new);
             }
         }
@@ -213,7 +213,7 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(jobId);
             out.writeVLong(timeout.millis());
-            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
                 out.writeOptionalWriteable(job);
             }
         }

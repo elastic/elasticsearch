@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -852,6 +854,24 @@ public class JobManagerTests extends ESTestCase {
 
         verify(auditor).info(jobReferencingFilter.getId(), "Filter [foo_filter] has been modified; removed items: ['a', 'b']");
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
+    }
+
+    public void testUpdateJob_notAllowedPreMigration() {
+        MlMetadata.Builder mlmetadata = new MlMetadata.Builder().putJob(buildJobBuilder("closed-job-not-migrated").build(), false);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                .putCustom(MlMetadata.TYPE, mlmetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        JobManager jobManager = createJobManager(new MockClientBuilder("jobmanager-test").build());
+        jobManager.updateJob(new UpdateJobAction.Request("closed-job-not-migrated", null), ActionListener.wrap(
+                response -> fail("response not expected: " + response),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                }
+        ));
+
     }
 
     public void testUpdateProcessOnCalendarChanged() {

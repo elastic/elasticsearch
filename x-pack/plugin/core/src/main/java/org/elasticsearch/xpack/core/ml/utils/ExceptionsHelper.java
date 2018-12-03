@@ -58,6 +58,10 @@ public class ExceptionsHelper {
         return new ElasticsearchStatusException(msg, RestStatus.BAD_REQUEST, args);
     }
 
+    public static ElasticsearchStatusException configHasNotBeenMigrated() {
+        return new ElasticsearchStatusException("the X is pending migration", RestStatus.SERVICE_UNAVAILABLE);
+    }
+
     /**
      * Creates an error message that explains there are shard failures, displays info
      * for the first failure (shard/reason) and kindly asks to see more info in the logs

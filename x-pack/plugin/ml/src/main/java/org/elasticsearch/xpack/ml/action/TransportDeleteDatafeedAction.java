@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MlConfigMigrator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -72,6 +73,12 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
     @Override
     protected void masterOperation(DeleteDatafeedAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
+
+        if (MlConfigMigrator.datafeedIdEligibleForMigration(request.getDatafeedId(), state)) {
+            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated());
+            return;
+        }
+
         if (request.isForce()) {
             forceDeleteDatafeed(request, state, listener);
         } else {

@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MlConfigMigrator;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.persistence.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -436,7 +437,13 @@ public class JobManager {
     }
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
+        ClusterState clusterState = clusterService.state();
+        if (MlConfigMigrator.jobIsEligibleForMigration(request.getJobId(), clusterState)) {
+            actionListener.onFailure(ExceptionsHelper.configHasNotBeenMigrated());
+            return;
+        }
+
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
 
         if (request.getJobUpdate().getGroups() != null && request.getJobUpdate().getGroups().isEmpty() == false) {
 
@@ -466,6 +473,7 @@ public class JobManager {
 
     private void updateJobPostInitialChecks(UpdateJobAction.Request request, MlMetadata mlMetadata,
                            ActionListener<PutJobAction.Response> actionListener) {
+
         if (ClusterStateJobUpdate.jobIsInMlMetadata(mlMetadata, request.getJobId())) {
             updateJobClusterState(request, actionListener);
         } else {

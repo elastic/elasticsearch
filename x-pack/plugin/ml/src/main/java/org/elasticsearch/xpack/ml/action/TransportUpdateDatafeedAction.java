@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MlConfigMigrator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
@@ -68,6 +69,11 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
     @Override
     protected void masterOperation(UpdateDatafeedAction.Request request, ClusterState state,
                                    ActionListener<PutDatafeedAction.Response> listener) throws Exception {
+
+        if (MlConfigMigrator.datafeedIdEligibleForMigration(request.getUpdate().getId(), state)) {
+            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated());
+            return;
+        }
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
         boolean datafeedConfigIsInClusterState = mlMetadata.getDatafeed(request.getUpdate().getId()) != null;

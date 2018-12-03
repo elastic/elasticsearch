@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -86,20 +85,13 @@ public class MlAssignmentNotifier implements ClusterStateListener, LocalNodeMast
             return;
         }
 
-        Version minNodeVersion = event.state().nodes().getMinNodeVersion();
-        if (minNodeVersion.onOrAfter(Version.V_6_6_0)) {
-            // ok to migrate
-            mlConfigMigrator.migrateConfigsWithoutTasks(event.state(), ActionListener.wrap(
-                    response -> threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(current, previous, event.state())),
-                    e -> {
-                        logger.error("error migrating ml configurations", e);
-                        threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(current, previous, event.state()));
-                    }
-            ));
-        } else {
-            threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(current, previous, event.state()));
-        }
-
+        mlConfigMigrator.migrateConfigsWithoutTasks(event.state(), ActionListener.wrap(
+                response -> threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(current, previous, event.state())),
+                e -> {
+                    logger.error("error migrating ml configurations", e);
+                    threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(current, previous, event.state()));
+                }
+        ));
     }
 
     private void auditChangesToMlTasks(PersistentTasksCustomMetaData current, PersistentTasksCustomMetaData previous,

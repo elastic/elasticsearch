@@ -217,6 +217,10 @@ final class TransportHandshaker {
             assert responseVersion != null;
             Version.writeVersion(responseVersion, out);
         }
+
+        Version getResponseVersion() {
+            return responseVersion;
+        }
     }
 
     @FunctionalInterface

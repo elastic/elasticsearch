@@ -127,6 +127,5 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         assertWarnings("Should clauses in the filter context will no longer automatically set the minimum should" +
             " match to 1 in the next major version. You should group them in a [filter] clause or explicitly set" +
             " [minimum_should_match] to 1 to restore this behavior in the next major version.");
-
     }
 }

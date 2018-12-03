@@ -27,7 +27,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NotifyOnceListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -46,6 +45,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -201,7 +201,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final MeanMetric transmittedBytesMetric = new MeanMetric();
     private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
-
+    private final TransportLogger transportLogger;
     private final TcpTransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
     private final String nodeName;
@@ -220,6 +220,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.compressResponses = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
+        this.transportLogger = new TransportLogger();
         this.handshaker = new TcpTransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> sendRequestToChannel(node, channel, requestId,
                 TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportRequest.Empty.INSTANCE, TransportRequestOptions.EMPTY, v,
@@ -348,34 +349,24 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-        Objects.requireNonNull(connectionProfile, "connection profile cannot be null");
+    public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
+        Objects.requireNonNull(profile, "connection profile cannot be null");
         if (node == null) {
             throw new ConnectTransportException(null, "can't open connection to a null node");
         }
-        connectionProfile = maybeOverrideConnectionProfile(connectionProfile);
+        ConnectionProfile finalProfile = maybeOverrideConnectionProfile(profile);
         closeLock.readLock().lock(); // ensure we don't open connections while we are closing
         try {
             ensureOpen();
-            PlainActionFuture<NodeChannels> connectionFuture = PlainActionFuture.newFuture();
-            List<TcpChannel> pendingChannels = initiateConnection(node, connectionProfile, connectionFuture);
-
-            try {
-                return connectionFuture.actionGet();
-            } catch (IllegalStateException e) {
-                // If the future was interrupted we can close the channels to improve the shutdown of the MockTcpTransport
-                if (e.getCause() instanceof InterruptedException) {
-                    CloseableChannel.closeChannels(pendingChannels, false);
-                }
-                throw e;
-            }
+            List<TcpChannel> pendingChannels = initiateConnection(node, finalProfile, listener);
+            return () -> CloseableChannel.closeChannels(pendingChannels, false);
         } finally {
             closeLock.readLock().unlock();
         }
     }
 
     private List<TcpChannel> initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                                ActionListener<NodeChannels> listener) {
+                                                ActionListener<Transport.Connection> listener) {
         int numConnections = connectionProfile.getNumConnections();
         assert numConnections > 0 : "A connection profile must be configured with at least one connection";
 
@@ -431,7 +422,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     protected void bindServer(ProfileSettings profileSettings) {
         // Bind and start to accept incoming connections.
-        InetAddress hostAddresses[];
+        InetAddress[] hostAddresses;
         List<String> profileBindHosts = profileSettings.bindHosts;
         try {
             hostAddresses = networkService.resolveBindHostAddresses(profileBindHosts.toArray(Strings.EMPTY_ARRAY));
@@ -819,6 +810,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     private void internalSendMessage(TcpChannel channel, BytesReference message, ActionListener<Void> listener) {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        transportLogger.logOutboundMessage(channel, message);
         try {
             channel.sendMessage(message, new SendListener(channel, message.length(), listener));
         } catch (Exception ex) {
@@ -928,7 +920,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param length          the payload length in bytes
      * @see TcpHeader
      */
-    final BytesReference buildHeader(long requestId, byte status, Version protocolVersion, int length) throws IOException {
+    private BytesReference buildHeader(long requestId, byte status, Version protocolVersion, int length) throws IOException {
         try (BytesStreamOutput headerOutput = new BytesStreamOutput(TcpHeader.HEADER_SIZE)) {
             headerOutput.setVersion(protocolVersion);
             TcpHeader.writeHeader(headerOutput, requestId, status, protocolVersion, length);
@@ -973,6 +965,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public void inboundMessage(TcpChannel channel, BytesReference message) {
         try {
             channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+            transportLogger.logInboundMessage(channel, message);
             // Message length of 0 is a ping
             if (message.length() != 0) {
                 messageReceived(message, channel);
@@ -1578,11 +1571,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final DiscoveryNode node;
         private final ConnectionProfile connectionProfile;
         private final List<TcpChannel> channels;
-        private final ActionListener<NodeChannels> listener;
+        private final ActionListener<Transport.Connection> listener;
         private final CountDown countDown;
 
         private ChannelsConnectedListener(DiscoveryNode node, ConnectionProfile connectionProfile, List<TcpChannel> channels,
-                                          ActionListener<NodeChannels> listener) {
+                                          ActionListener<Transport.Connection> listener) {
             this.node = node;
             this.connectionProfile = connectionProfile;
             this.channels = channels;

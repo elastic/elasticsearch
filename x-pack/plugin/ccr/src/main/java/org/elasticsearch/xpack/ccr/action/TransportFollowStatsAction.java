@@ -93,7 +93,6 @@ public class TransportFollowStatsAction extends TransportTasksAction<
     protected void processTasks(final FollowStatsAction.StatsRequest request, final Consumer<ShardFollowNodeTask> operation) {
         final ClusterState state = clusterService.state();
         final PersistentTasksCustomMetaData persistentTasksMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-
         if (persistentTasksMetaData == null) {
             return;
         }

@@ -66,6 +66,10 @@ public class RuleScope implements ToXContentObject {
 
         @Override
         public void usedDeprecatedField(String usedName, String replacedWith) {}
+
+        @Override
+        public void deprecated(String message, Object... params) {}
+
     };
 
     private final Map<String, FilterRef> scope;

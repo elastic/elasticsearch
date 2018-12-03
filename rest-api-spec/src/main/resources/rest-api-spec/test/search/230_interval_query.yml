@@ -55,4 +55,275 @@ setup:
                     text: "cold outside"
   - match: { hits.total: 3 }
 
+---
+"Test explicit unordered matching":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              field: text
+              source:
+                match:
+                  text: "cold outside"
+                  type: "unordered"
+  - match: { hits.total: 3 }
+
+---
+"Test phrase matching":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              field: text
+              source:
+                match:
+                  text: "cold outside"
+                  type: "phrase"
+  - match: { hits.total: 1 }
+
+---
+"Test unordered max_width matching":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              field: text
+              source:
+                match:
+                  text: "cold outside"
+                  max_width: 3
+  - match: { hits.total: 2 }
+
+---
+"Test ordered max_width matching":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              field: text
+              source:
+                match:
+                  text: "cold outside"
+                  max_width: 2
+                  type: ordered
+  - match: { hits.total: 1 }
+
+---
+"Test ordered combination with max_width":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              field: text
+              source:
+                combine:
+                  sources:
+                    - match:
+                        text: "cold"
+                    - match:
+                        text: "outside"
+                  max_width: 2
+                  type: ordered
+  - match: { hits.total: 1 }
+
+---
+"Test ordered combination":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              field: text
+              source:
+                combine:
+                  sources:
+                    - match:
+                        text: "cold"
+                    - match:
+                        text: "outside"
+                  type: ordered
+  - match: { hits.total: 2 }
+
+---
+"Test unordered combination":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              field: text
+              source:
+                combine:
+                  sources:
+                    - match:
+                        text: "cold"
+                    - match:
+                        text: "outside"
+                  max_width: 3
+                  type: unordered
+  - match: { hits.total: 2 }
+
+---
+"Test block combination":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              field: text
+              source:
+                combine:
+                  sources:
+                    - match:
+                        text: "cold"
+                    - match:
+                        text: "outside"
+                  type: block
+  - match: { hits.total: 1 }
+
+
+---
+"Test containing":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              field: text
+              source:
+                relate:
+                  source:
+                    combine:
+                      sources:
+                        - match:
+                            text: "cold"
+                        - match:
+                            text: "outside"
+                      type: unordered
+                  filter:
+                    match:
+                        text: "is"
+                  relation: containing
+  - match: { hits.total: 1 }
+
+
+---
+"Test not containing":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              field: text
+              source:
+                relate:
+                  source:
+                    combine:
+                      sources:
+                        - match:
+                            text: "cold"
+                        - match:
+                            text: "outside"
+                      type: unordered
+                  filter:
+                    match:
+                      text: "is"
+                  relation: not_containing
+  - match: { hits.total: 2 }
+
+---
+"Test contained_by":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              field: text
+              source:
+                relate:
+                  source:
+                    match:
+                      text: "is"
+                  filter:
+                    combine:
+                      sources:
+                        - match:
+                            text: "cold"
+                        - match:
+                            text: "outside"
+                      type: unordered
+                  relation: contained_by
+  - match: { hits.total: 1 }
+
+---
+"Test not_contained_by":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              field: text
+              source:
+                relate:
+                  source:
+                    match:
+                      text: "it"
+                  filter:
+                    combine:
+                      sources:
+                        - match:
+                            text: "cold"
+                        - match:
+                            text: "outside"
+                      type: unordered
+                  relation: not_contained_by
+  - match: { hits.total: 1 }
+
+---
+"Test not_overlapping":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              field: text
+              source:
+                relate:
+                  source:
+                    combine:
+                      sources:
+                        - match:
+                            text: "cold"
+                        - match:
+                            text: "outside"
+                      type: ordered
+                  filter:
+                    combine:
+                      sources:
+                        - match:
+                            text: "baby"
+                        - match:
+                            text: "there"
+                      type: unordered
+                  relation: not_overlapping
+  - match: { hits.total: 1 }
+
 

@@ -164,7 +164,7 @@ public class IntervalBuilder {
                 if (synonyms.size() == 1) {
                     terms.add(synonyms.get(0));
                 }
-                if (synonyms.size() > 1) {
+                else if (synonyms.size() > 1) {
                     terms.add(Intervals.or(synonyms.toArray(new IntervalsSource[0])));
                 }
                 synonyms.clear();

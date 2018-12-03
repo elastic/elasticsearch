@@ -375,10 +375,16 @@ public abstract class MappedFieldType extends FieldType {
             + "] which is of type [" + typeName() + "]");
     }
 
+    /**
+     * Types of proximity matching, decreasing in strictness
+     */
     public enum IntervalType {
-        ORDERED, UNORDERED, PHRASE
+        PHRASE, ORDERED, UNORDERED
     }
 
+    /**
+     * Create an {@link IntervalsSource} to be used for proximity queries
+     */
     public IntervalsSource intervals(String text, IntervalType type) throws IOException {
         throw new IllegalArgumentException("Can only use interval queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");

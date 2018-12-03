@@ -42,6 +42,15 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Factory class for {@link IntervalsSource}
+ *
+ * Built-in sources include {@link Match}, which analyzes a text string and converts it
+ * to a proximity source (phrase, ordered or unordered depending on how
+ * strict the matching should be); {@link Combine}, which allows proximity queries
+ * between different sub-sources; and {@link Relate}, which allows sources to be filtered
+ * by their relation to other sources.
+ */
 public abstract class IntervalsSourceProvider implements NamedWriteable, ToXContentObject {
 
     public abstract IntervalsSource getSource(MappedFieldType fieldType) throws IOException;
@@ -79,46 +88,6 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 "[" + sourceType + "] malformed source, expected [end_object] but found [" + parser.currentToken() + "]");
         }
         return provider;
-    }
-
-    public enum Type {
-
-        ORDERED {
-            @Override
-            public IntervalsSource source(List<IntervalsSource> subSources) {
-                if (subSources.size() == 1) {
-                    return subSources.get(0);
-                }
-                return Intervals.ordered(subSources.toArray(new IntervalsSource[0]));
-            }
-        },
-        UNORDERED {
-            @Override
-            public IntervalsSource source(List<IntervalsSource> subSources) {
-                if (subSources.size() == 1) {
-                    return subSources.get(0);
-                }
-                return Intervals.unordered(subSources.toArray(new IntervalsSource[0]));
-            }
-        },
-        BLOCK {
-            @Override
-            public IntervalsSource source(List<IntervalsSource> subSources) {
-                if (subSources.size() == 1) {
-                    return subSources.get(0);
-                }
-                return Intervals.phrase(subSources.toArray(new IntervalsSource[0]));
-            }
-        },
-        PHRASE {
-            @Override
-            public IntervalsSource source(List<IntervalsSource> subSources) {
-                return BLOCK.source(subSources);
-            }
-        } ;
-
-        public abstract IntervalsSource source(List<IntervalsSource> subSources);
-
     }
 
     public static class Match extends IntervalsSourceProvider {
@@ -282,22 +251,56 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
+    public enum CombineType {
+
+        ORDERED {
+            @Override
+            public IntervalsSource source(List<IntervalsSource> subSources) {
+                if (subSources.size() == 1) {
+                    return subSources.get(0);
+                }
+                return Intervals.ordered(subSources.toArray(new IntervalsSource[0]));
+            }
+        },
+        UNORDERED {
+            @Override
+            public IntervalsSource source(List<IntervalsSource> subSources) {
+                if (subSources.size() == 1) {
+                    return subSources.get(0);
+                }
+                return Intervals.unordered(subSources.toArray(new IntervalsSource[0]));
+            }
+        },
+        BLOCK {
+            @Override
+            public IntervalsSource source(List<IntervalsSource> subSources) {
+                if (subSources.size() == 1) {
+                    return subSources.get(0);
+                }
+                return Intervals.phrase(subSources.toArray(new IntervalsSource[0]));
+            }
+        };
+
+        public abstract IntervalsSource source(List<IntervalsSource> subSources);
+
+    }
+
     public static class Combine extends IntervalsSourceProvider {
 
         public static final String NAME = "combine";
 
         private final List<IntervalsSourceProvider> subSources;
-        private final Type type;
+        private final CombineType type;
         private final int maxWidth;
 
-        public Combine(List<IntervalsSourceProvider> subSources, Type type, int maxWidth) {
+        public Combine(List<IntervalsSourceProvider> subSources, CombineType type, int maxWidth) {
             this.subSources = subSources;
             this.type = type;
             this.maxWidth = maxWidth;
         }
 
         public Combine(StreamInput in) throws IOException {
-            this.type = in.readEnum(Type.class);
+            this.type = in.readEnum(CombineType.class);
             this.subSources = in.readNamedWriteableList(IntervalsSourceProvider.class);
             this.maxWidth = in.readInt();
         }
@@ -359,7 +362,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<Combine, Void> PARSER = new ConstructingObjectParser<>(NAME,
             args -> {
-                Type type = Type.valueOf(((String)args[0]).toUpperCase(Locale.ROOT));
+                CombineType type = CombineType.valueOf(((String)args[0]).toUpperCase(Locale.ROOT));
                 List<IntervalsSourceProvider> subSources = (List<IntervalsSourceProvider>)args[1];
                 Integer maxWidth = (args[2] == null ? Integer.MAX_VALUE : (Integer)args[2]);
                 return new Combine(subSources, type, maxWidth);

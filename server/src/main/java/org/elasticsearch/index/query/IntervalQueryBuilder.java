@@ -35,6 +35,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Builder for {@link IntervalQuery}
+ */
 public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuilder> {
 
     public static final String NAME = "intervals";

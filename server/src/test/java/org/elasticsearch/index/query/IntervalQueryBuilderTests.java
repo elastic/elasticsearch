@@ -61,9 +61,9 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
                 for (int i = 0; i < count; i++) {
                     subSources.add(createRandomSource());
                 }
-                int typeOrd = randomInt(IntervalsSourceProvider.Combine.Type.values().length - 1);
+                int typeOrd = randomInt(IntervalsSourceProvider.CombineType.values().length - 1);
                 int width = randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(count, 100);
-                return new IntervalsSourceProvider.Combine(subSources, IntervalsSourceProvider.Combine.Type.values()[typeOrd], width);
+                return new IntervalsSourceProvider.Combine(subSources, IntervalsSourceProvider.CombineType.values()[typeOrd], width);
             default:
                 int wordCount = randomInt(4) + 1;
                 List<String> words = new ArrayList<>();

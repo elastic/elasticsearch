@@ -38,24 +38,24 @@ import static org.mockito.Mockito.verify;
 
 public class TransportHandshakerTests extends ESTestCase {
 
-    private TcpTransportHandshaker handshaker;
+    private TransportHandshaker handshaker;
     private DiscoveryNode node;
     private TcpChannel channel;
     private TestThreadPool threadPool;
-    private TcpTransportHandshaker.HandshakeRequestSender requestSender;
-    private TcpTransportHandshaker.HandshakeResponseSender responseSender;
+    private TransportHandshaker.HandshakeRequestSender requestSender;
+    private TransportHandshaker.HandshakeResponseSender responseSender;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         String nodeId = "node-id";
         channel = mock(TcpChannel.class);
-        requestSender = mock(TcpTransportHandshaker.HandshakeRequestSender.class);
-        responseSender = mock(TcpTransportHandshaker.HandshakeResponseSender.class);
+        requestSender = mock(TransportHandshaker.HandshakeRequestSender.class);
+        responseSender = mock(TransportHandshaker.HandshakeResponseSender.class);
         node = new DiscoveryNode(nodeId, nodeId, nodeId, "host", "host_address", buildNewFakeTransportAddress(), Collections.emptyMap(),
             Collections.emptySet(), Version.CURRENT);
         threadPool = new TestThreadPool("thread-poll");
-        handshaker = new TcpTransportHandshaker(Version.CURRENT, threadPool, requestSender, responseSender);
+        handshaker = new TransportHandshaker(Version.CURRENT, threadPool, requestSender, responseSender);
     }
 
     @Override
@@ -81,8 +81,8 @@ public class TransportHandshakerTests extends ESTestCase {
         verify(responseSender).sendResponse(eq(Version.CURRENT), eq(Collections.emptySet()), eq(mockChannel), responseCaptor.capture(),
             eq(reqId));
 
-        TransportResponseHandler<TcpTransportHandshaker.HandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
-        handler.handleResponse((TcpTransportHandshaker.HandshakeResponse) responseCaptor.getValue());
+        TransportResponseHandler<TransportHandshaker.HandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
+        handler.handleResponse((TransportHandshaker.HandshakeResponse) responseCaptor.getValue());
 
         assertTrue(versionFuture.isDone());
         assertEquals(Version.CURRENT, versionFuture.actionGet());
@@ -97,7 +97,7 @@ public class TransportHandshakerTests extends ESTestCase {
 
         assertFalse(versionFuture.isDone());
 
-        TransportResponseHandler<TcpTransportHandshaker.HandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
+        TransportResponseHandler<TransportHandshaker.HandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
         handler.handleException(new TransportException("failed"));
 
         assertTrue(versionFuture.isDone());

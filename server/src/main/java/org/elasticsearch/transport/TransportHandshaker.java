@@ -21,6 +21,8 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -37,7 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Sends and receives transport-level connection handshakes. This class will send the initial handshake,
  * manage state/timeouts while the handshake is in transit, and handle the eventual response.
  */
-final class TcpTransportHandshaker {
+final class TransportHandshaker {
 
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
@@ -48,8 +50,8 @@ final class TcpTransportHandshaker {
     private final HandshakeRequestSender handshakeRequestSender;
     private final HandshakeResponseSender handshakeResponseSender;
 
-    TcpTransportHandshaker(Version version, ThreadPool threadPool, HandshakeRequestSender handshakeRequestSender,
-                           HandshakeResponseSender handshakeResponseSender) {
+    TransportHandshaker(Version version, ThreadPool threadPool, HandshakeRequestSender handshakeRequestSender,
+                        HandshakeResponseSender handshakeResponseSender) {
         this.version = version;
         this.threadPool = threadPool;
         this.handshakeRequestSender = handshakeRequestSender;
@@ -159,18 +161,21 @@ final class TcpTransportHandshaker {
         private static final byte[] EMPTY_ARRAY = new byte[0];
 
         private final Version version;
-        private final byte[] futureBytes;
+        private final byte[] futureVersionBytes;
 
         HandshakeRequest(Version version) {
             this.version = version;
-            this.futureBytes = EMPTY_ARRAY;
+            this.futureVersionBytes = EMPTY_ARRAY;
         }
 
         HandshakeRequest(StreamInput streamInput) throws IOException {
             super(streamInput);
+            int messageBytes = streamInput.readInt();
+            int currentlyAvailable = streamInput.available();
             this.version = Version.readVersion(streamInput);
-            this.futureBytes = new byte[streamInput.available()];
-            streamInput.readBytes(futureBytes, 0, futureBytes.length);
+            int futureBytesLength = messageBytes - (currentlyAvailable - streamInput.available());
+            this.futureVersionBytes = new byte[futureBytesLength];
+            streamInput.readBytes(futureVersionBytes, 0, futureVersionBytes.length);
         }
 
         @Override
@@ -182,7 +187,12 @@ final class TcpTransportHandshaker {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             assert version != null;
-            Version.writeVersion(version, out);
+            try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput(4)) {
+                Version.writeVersion(version, bytesStreamOutput);
+                BytesReference reference = bytesStreamOutput.bytes();
+                out.writeInt(reference.length());
+                reference.writeTo(out);
+            }
         }
     }
 

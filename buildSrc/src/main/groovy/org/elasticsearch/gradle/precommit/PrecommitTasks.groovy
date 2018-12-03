@@ -48,7 +48,8 @@ class PrecommitTasks {
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('filepermissions', FilePermissionsTask.class),
             configureJarHell(project),
-            configureThirdPartyAudit(project)
+            configureThirdPartyAudit(project),
+            configureTestingConventions(project)
         ]
 
         // tasks with just tests don't need dependency licenses, so this flag makes adding
@@ -87,6 +88,10 @@ class PrecommitTasks {
             description: 'Runs all non-test checks.',
             dependsOn: precommitTasks
         ])
+    }
+
+    static Task configureTestingConventions(Project project) {
+        project.getTasks().create("testingConventions", TestingConventionsTasks.class)
     }
 
     private static Task configureJarHell(Project project) {

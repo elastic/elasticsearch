@@ -99,9 +99,11 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
             // always read before `localNodeInfo` and `includeRequestBody`.
             this.events = parse(LoggingAuditTrail.INCLUDE_EVENT_SETTINGS.get(newSettings),
                     LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS.get(newSettings));
-        }, Arrays.asList(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING, LoggingAuditTrail.EMIT_HOST_NAME_SETTING,
-                LoggingAuditTrail.EMIT_NODE_NAME_SETTING, LoggingAuditTrail.INCLUDE_EVENT_SETTINGS,
-                LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS, LoggingAuditTrail.INCLUDE_REQUEST_BODY));
+        }, Arrays.asList(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING, LoggingAuditTrail.DEPRECATED_EMIT_HOST_ADDRESS_SETTING,
+                LoggingAuditTrail.EMIT_HOST_NAME_SETTING, LoggingAuditTrail.DEPRECATED_EMIT_NODE_NAME_SETTING,
+                LoggingAuditTrail.EMIT_NODE_NAME_SETTING, LoggingAuditTrail.DEPRECATED_EMIT_NODE_NAME_SETTING,
+                LoggingAuditTrail.INCLUDE_EVENT_SETTINGS, LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS,
+                LoggingAuditTrail.INCLUDE_REQUEST_BODY));
         clusterService.getClusterSettings().addAffixUpdateConsumer(LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS,
                 (policyName, filtersList) -> {
                     final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);

@@ -55,8 +55,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.aggregations.top_tweeters.buckets" , "doc_count", op,
                         numberOfDocumentsWatchingFor, quantifier, Clock.systemUTC());
 
-        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, params));
+        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         Condition.Result result = condition.execute(ctx);
 
         boolean met = quantifier.eval(Arrays.<Object>asList(numberOfDocuments, numberOfDocuments), numberOfDocumentsWatchingFor, op);
@@ -80,7 +79,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         response = client().prepareSearch(index)
                 .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3)).get();
 
-        ctx = mockExecutionContext("_name", new Payload.XContent(response, params));
+        ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         result = condition.execute(ctx);
 
         met = quantifier.eval(Arrays.<Object>asList(numberOfDocumentsWatchingFor, numberOfDocuments), numberOfDocumentsWatchingFor, op);

@@ -87,7 +87,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
         }
 
         final Payload payload;
-        Params params;
+        final Params params;
         if (request.isRestTotalHitsAsint()) {
             params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));
         } else {

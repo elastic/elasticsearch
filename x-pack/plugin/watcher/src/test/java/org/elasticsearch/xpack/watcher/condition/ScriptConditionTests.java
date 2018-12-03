@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -99,8 +100,7 @@ public class ScriptConditionTests extends ESTestCase {
         ScriptCondition condition = new ScriptCondition(mockScript("ctx.payload.hits.total.value > 1"), scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
-        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, params));
+        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
         assertFalse(condition.execute(ctx).met());
     }
 
@@ -110,8 +110,7 @@ public class ScriptConditionTests extends ESTestCase {
         ScriptCondition executable = new ScriptCondition(script, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
-        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, params));
+        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
         assertFalse(executable.execute(ctx).met());
     }
 
@@ -125,8 +124,7 @@ public class ScriptConditionTests extends ESTestCase {
 
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
-        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, params));
+        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
 
         assertFalse(executable.execute(ctx).met());
 
@@ -136,7 +134,7 @@ public class ScriptConditionTests extends ESTestCase {
         parser.nextToken();
         executable = ScriptCondition.parse(scriptService, "_watch", parser);
 
-        ctx = mockExecutionContext("_name", new Payload.XContent(response, params));
+        ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
 
         assertTrue(executable.execute(ctx).met());
     }
@@ -191,8 +189,7 @@ public class ScriptConditionTests extends ESTestCase {
                 mockScript("null.foo"), scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
-        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, params));
+        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         ScriptException exception = expectThrows(ScriptException.class, () -> condition.execute(ctx));
         assertThat(exception.getMessage(), containsString("Error evaluating null.foo"));
     }
@@ -202,8 +199,8 @@ public class ScriptConditionTests extends ESTestCase {
                 scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
-        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
-        WatchExecutionContext ctx = mockExecutionContext("_name", new DateTime(DateTimeZone.UTC), new Payload.XContent(response, params));
+        WatchExecutionContext ctx = mockExecutionContext("_name", new DateTime(DateTimeZone.UTC),
+            new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         Thread.sleep(10);
         assertThat(condition.execute(ctx).met(), is(true));
     }

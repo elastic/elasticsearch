@@ -86,8 +86,7 @@ public class WatcherUtilsTests extends ESTestCase {
             builder.endObject();
             return builder;
         };
-        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
-        Map<String, Object> result = WatcherUtils.responseToData(content, params);
+        Map<String, Object> result = WatcherUtils.responseToData(content, ToXContent.EMPTY_PARAMS);
         assertThat(result, equalTo(expected));
     }
 

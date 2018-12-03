@@ -49,8 +49,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
 
         CompareCondition condition = new CompareCondition("ctx.payload.aggregations.rate.buckets.0.doc_count", CompareCondition.Op.GTE, 5,
                 Clock.systemUTC());
-        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, params));
+        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         CompareCondition.Result result = condition.execute(ctx);
         assertThat(result.met(), is(false));
         Map<String, Object> resolvedValues = result.getResolvedValues();
@@ -66,7 +65,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
                         .field("@timestamp").dateHistogramInterval(DateHistogramInterval.HOUR).order(BucketOrder.count(false)))
                 .get();
 
-        ctx = mockExecutionContext("_name", new Payload.XContent(response, params));
+        ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         result = condition.execute(ctx);
         assertThat(result.met(), is(true));
         resolvedValues = result.getResolvedValues();
@@ -88,11 +87,10 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 0,
             500L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
 
-        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
-        WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response, params));
+        WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         assertThat(condition.execute(ctx).met(), is(true));
         hit.score(2f);
-        when(ctx.payload()).thenReturn(new Payload.XContent(response, params));
+        when(ctx.payload()).thenReturn(new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         CompareCondition.Result result = condition.execute(ctx);
         assertThat(result.met(), is(false));
         Map<String, Object> resolvedValues = result.getResolvedValues();

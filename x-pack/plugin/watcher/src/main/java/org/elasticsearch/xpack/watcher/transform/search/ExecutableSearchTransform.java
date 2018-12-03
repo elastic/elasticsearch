@@ -54,7 +54,12 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
             SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
             SearchResponse resp = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
                     () -> client.search(searchRequest).actionGet(timeout));
-            Params params = new MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
+            final Params params;
+            if (request.isRestTotalHitsAsint()) {
+                params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));
+            } else {
+                params = EMPTY_PARAMS;
+            }
             return new SearchTransform.Result(request, new Payload.XContent(resp, params));
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}] transform for [{}]", TYPE, ctx.id()), e);

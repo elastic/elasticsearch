@@ -34,7 +34,6 @@ import java.time.ZoneOffset;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 import java.util.function.UnaryOperator;
 
 /**
@@ -306,19 +305,17 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public double[] getLats() {
-            List<GeoPoint> points = this;
-            double[] lats = new double[points.size()];
-            for (int i = 0; i < points.size(); i++) {
-                lats[i] = points.get(i).lat();
+            double[] lats = new double[size()];
+            for (int i = 0; i < size(); i++) {
+                lats[i] = get(i).lat();
             }
             return lats;
         }
 
         public double[] getLons() {
-            List<GeoPoint> points = this;
-            double[] lons = new double[points.size()];
-            for (int i = 0; i < points.size(); i++) {
-                lons[i] = points.get(i).lon();
+            double[] lons = new double[size()];
+            for (int i = 0; i < size(); i++) {
+                lons[i] = get(i).lon();
             }
             return lons;
         }

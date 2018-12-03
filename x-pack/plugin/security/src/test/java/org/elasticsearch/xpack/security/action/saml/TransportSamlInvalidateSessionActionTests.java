@@ -154,7 +154,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     bulkRequests.add((BulkRequest) request);
                     final BulkResponse response = new BulkResponse(new BulkItemResponse[0], 1);
                     listener.onResponse((Response) response);
-                }else if (SearchAction.NAME.equals(action.name())) {
+                } else if (SearchAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(SearchRequest.class));
                     SearchRequest searchRequest = (SearchRequest) request;
                     searchRequests.add(searchRequest);

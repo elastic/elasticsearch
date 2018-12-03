@@ -43,18 +43,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * TermVectorsRequest.
  */
 public class RestTermVectorsAction extends BaseRestHandler {
+
     public RestTermVectorsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
         controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_termvectors", this);
-
-        // we keep usage of _termvector as alias for now
-        controller.registerHandler(GET, "/{index}/{type}/_termvector", this);
-        controller.registerHandler(POST, "/{index}/{type}/_termvector", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvector", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvector", this);
     }
 
     @Override

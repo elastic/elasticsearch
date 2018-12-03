@@ -36,9 +36,17 @@ publishing {
   }
 }
 
-//we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
-Task copyRestSpec = RestIntegTestTask.createCopyRestSpecTask(project, false)
-test.dependsOn(copyRestSpec)
+configurations {
+  restSpec
+}
+
+idea {
+  module {
+   if (scopes.TEST != null) {
+     scopes.TEST.plus.add(project.configurations.restSpec)
+   }
+  }
+}
 
 dependencies {
   /*
@@ -59,6 +67,15 @@ dependencies {
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
   //this is needed to make RestHighLevelClientTests#testApiNamingConventions work from IDEs
   testCompile "org.elasticsearch:rest-api-spec:${version}"
+
+  restSpec "org.elasticsearch:rest-api-spec:${version}"
+}
+
+//we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
+processTestResources {
+  from({ project.zipTree(project.configurations.restSpec.singleFile) }) {
+    include 'rest-api-spec/api/**'
+  }
 }
 
 dependencyLicenses {

@@ -117,6 +117,29 @@ setup:
   - match: { hits.total: 1 }
 
 ---
+"Test ordered combination with disjunction":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              field: text
+              source:
+                combine:
+                  sources:
+                    - or:
+                        sources:
+                          - match:
+                              text: "cold"
+                          - match:
+                              text: "outside"
+                    - match:
+                        text: "atmosphere"
+                  type: ordered
+  - match: { hits.total: 1 }
+
+---
 "Test ordered combination with max_width":
   - do:
       search:

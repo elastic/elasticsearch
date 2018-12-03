@@ -155,6 +155,29 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     }
 
+    public void testCombineDisjunctionInterval() throws IOException {
+        String json = "{ \"intervals\" : " +
+            "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
+            "  \"source\" : { " +
+            "       \"combine\" : {" +
+            "           \"type\" : \"ordered\"," +
+            "           \"sources\" : [" +
+            "               { \"match\" : { \"text\" : \"atmosphere\" } }," +
+            "               { \"or\" : {" +
+            "                   \"sources\" : [" +
+            "                       { \"match\" : { \"text\" : \"cold\" } }," +
+            "                       { \"match\" : { \"text\" : \"outside\" } } ] } } ]," +
+            "           \"max_width\" : 30 } } } }";
+
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.maxwidth(30, Intervals.ordered(
+                Intervals.term("atmosphere"),
+                Intervals.or(Intervals.term("cold"), Intervals.term("outside"))
+            )));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+    }
+
     public void testRelateIntervals() throws IOException {
 
         String json = "{ \"intervals\" : " +

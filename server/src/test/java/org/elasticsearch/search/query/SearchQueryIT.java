@@ -1291,6 +1291,29 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2L);
     }
 
+    public void testIntervals() throws InterruptedException {
+        createIndex("test");
+
+        indexRandom(true,
+            client().prepareIndex("test", "test", "1")
+                    .setSource("description", "it's cold outside, there's no kind of atmosphere"));
+
+        String json = "{ \"intervals\" : " +
+            "{ \"field\" : \"description\", " +
+            "  \"source\" : { " +
+            "       \"combine\" : {" +
+            "           \"type\" : \"ordered\"," +
+            "           \"sources\" : [" +
+            "               { \"or\" : {" +
+            "                   \"sources\" : [" +
+            "                       { \"match\" : { \"text\" : \"cold\" } }," +
+            "                       { \"match\" : { \"text\" : \"outside\" } } ] } }," +
+            "               { \"match\" : { \"text\" : \"atmosphere\" } } ]," +
+            "           \"max_width\" : 30 } } } }";
+        SearchResponse response = client().prepareSearch("test").setQuery(wrapperQuery(json)).get();
+        assertHitCount(response, 1L);
+    }
+
     // see #2994
     public void testSimpleSpan() throws IOException, ExecutionException, InterruptedException {
         createIndex("test");

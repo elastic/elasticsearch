@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
@@ -18,7 +19,6 @@ import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
@@ -132,7 +132,7 @@ public class RBACEngine implements AuthorizationEngine {
     public void authorizeRunAs(Authentication authentication, TransportRequest request, String action, AuthorizationInfo authorizationInfo,
                                ActionListener<AuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
-            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getAuthenticatedUserRole();
+            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getAuthenticatedUserAuthorizationInfo().getRole();
             listener.onResponse(new AuthorizationResult(role.runAs().check(authentication.getUser().principal())));
         } else {
             listener.onFailure(new IllegalArgumentException("unsupported authorization info:" +
@@ -187,7 +187,7 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public boolean shouldAuthorizeIndexActionNameOnly(String action) {
+    public boolean shouldAuthorizeIndexActionNameOnly(String action, TransportRequest request) {
         switch (action) {
             case BulkAction.NAME:
             case IndexAction.NAME:
@@ -199,18 +199,18 @@ public class RBACEngine implements AuthorizationEngine {
             case MultiGetAction.NAME:
             case MultiTermVectorsAction.NAME:
             case MultiSearchAction.NAME:
-            case SearchScrollAction.NAME:
             case "indices:data/read/mpercolate":
             case "indices:data/read/msearch/template":
             case "indices:data/read/search/template":
             case "indices:data/write/reindex":
             case "indices:data/read/sql":
             case "indices:data/read/sql/translate":
+                if (request instanceof CompositeIndicesRequest == false) {
+                    throw new IllegalStateException("Composite and bulk actions must implement " +
+                        CompositeIndicesRequest.class.getSimpleName() + ", " + request.getClass().getSimpleName() + " doesn't");
+                }
                 return true;
             default:
-                if (TransportActionProxy.isProxyAction(action)) {
-                    return true;
-                }
                 return false;
         }
     }
@@ -254,7 +254,7 @@ public class RBACEngine implements AuthorizationEngine {
             }
         }
 
-        if (Arrays.asList(role.names()).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+        if (Arrays.asList(role.names()).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()) == false) {
             // we should filter out all of the security indices from wildcards
             indicesAndAliases.removeAll(SecurityIndexManager.indexNames());
         }
@@ -321,26 +321,28 @@ public class RBACEngine implements AuthorizationEngine {
     static class RBACAuthorizationInfo implements AuthorizationInfo {
 
         private final Role role;
-        private final Role authenticatedUserRole;
         private final Map<String, Object> info;
+        private final RBACAuthorizationInfo authenticatedUserAuthorizationInfo;
 
         RBACAuthorizationInfo(Role role, Role authenticatedUserRole) {
             this.role = role;
-            this.authenticatedUserRole = authenticatedUserRole;
             this.info = Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, role.names());
+            this.authenticatedUserAuthorizationInfo =
+                authenticatedUserRole == null ? this : new RBACAuthorizationInfo(authenticatedUserRole, null);
         }
 
         Role getRole() {
             return role;
         }
 
-        Role getAuthenticatedUserRole() {
-            return authenticatedUserRole;
-        }
-
         @Override
         public Map<String, Object> asMap() {
             return info;
+        }
+
+        @Override
+        public RBACAuthorizationInfo getAuthenticatedUserAuthorizationInfo() {
+            return authenticatedUserAuthorizationInfo;
         }
     }
 }

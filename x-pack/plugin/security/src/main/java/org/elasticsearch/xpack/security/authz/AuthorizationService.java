@@ -169,12 +169,13 @@ public class AuthorizationService {
             ActionListener<AuthorizationResult> runAsListener = wrapPreservingContext(ActionListener.wrap(result -> {
                 if (result.isGranted()) {
                     if (result.isAuditable()) {
-                        // TODO get roles from result as AuthzInfo?
-                        auditTrail.runAsGranted(requestId, authentication, action, unwrappedRequest, authzInfo);
+                        auditTrail.runAsGranted(requestId, authentication, action, unwrappedRequest,
+                            authzInfo.getAuthenticatedUserAuthorizationInfo());
                     }
                     authorizePostRunAs(authentication, action, requestId, unwrappedRequest, authzInfo, listener);
                 } else {
-                    listener.onFailure(denyRunAs(requestId, authentication, action, unwrappedRequest, authzInfo));
+                    listener.onFailure(denyRunAs(requestId, authentication, action, unwrappedRequest,
+                        authzInfo.getAuthenticatedUserAuthorizationInfo()));
                 }
             }, e -> {
                 // TODO need a failure handler better than this!
@@ -194,7 +195,6 @@ public class AuthorizationService {
             final ActionListener<AuthorizationResult> clusterAuthzListener = wrapPreservingContext(ActionListener.wrap(result -> {
                 if (result.isGranted()) {
                     if (result.isAuditable()) {
-                        // TODO authzInfo
                         auditTrail.accessGranted(requestId, authentication, action, unwrappedRequest, authzInfo);
                     }
                     putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
@@ -208,17 +208,23 @@ public class AuthorizationService {
             }), threadContext);
             authzEngine.authorizeClusterAction(authentication, unwrappedRequest, action, authzInfo, clusterAuthzListener);
         } else if (IndexPrivilege.ACTION_MATCHER.test(action)) {
-            // scroll is special
-            // some APIs are indices requests that are not actually associated with indices. For example,
-            // search scroll request, is categorized under the indices context, but doesn't hold indices names
-            // (in this case, the security check on the indices was done on the search request that initialized
-            // the scroll. Given that scroll is implemented using a context on the node holding the shard, we
-            // piggyback on it and enhance the context with the original authentication. This serves as our method
-            // to validate the scroll id only stays with the same user!
-            if (unwrappedRequest instanceof IndicesRequest == false && unwrappedRequest instanceof IndicesAliasesRequest == false) {
-                //note that clear scroll shard level actions can originate from a clear scroll all, which doesn't require any
-                //indices permission as it's categorized under cluster. This is why the scroll check is performed
-                //even before checking if the user has any indices permission.
+            if (TransportActionProxy.isProxyAction(action)) {
+                // we've already validated that the request is a proxy request so we can skip that but we still
+                // need to validate that the action is allowed and then move on
+                authorizeIndexActionName(authentication, action, requestId, unwrappedRequest, authzInfo, authzEngine, listener);
+            } else if (authzEngine.shouldAuthorizeIndexActionNameOnly(action, unwrappedRequest)) {
+                authorizeIndexActionName(authentication, action, requestId, unwrappedRequest, authzInfo, authzEngine, listener);
+            } else if (unwrappedRequest instanceof IndicesRequest == false && unwrappedRequest instanceof IndicesAliasesRequest == false) {
+                // scroll is special
+                // some APIs are indices requests that are not actually associated with indices. For example,
+                // search scroll request, is categorized under the indices context, but doesn't hold indices names
+                // (in this case, the security check on the indices was done on the search request that initialized
+                // the scroll. Given that scroll is implemented using a context on the node holding the shard, we
+                // piggyback on it and enhance the context with the original authentication. This serves as our method
+                // to validate the scroll id only stays with the same user!
+                // note that clear scroll shard level actions can originate from a clear scroll all, which doesn't require any
+                // indices permission as it's categorized under cluster. This is why the scroll check is performed
+                // even before checking if the user has any indices permission.
                 if (isScrollRelatedAction(action)) {
                     // if the action is a search scroll action, we first authorize that the user can execute the action for some
                     // index and if they cannot, we can fail the request early before we allow the execution of the action and in
@@ -237,8 +243,6 @@ public class AuthorizationService {
                         "only scroll related requests are known indices api that don't support retrieving the indices they relate to";
                     listener.onFailure(denial(requestId, authentication, action, unwrappedRequest, authzInfo));
                 }
-            } else if (authzEngine.shouldAuthorizeIndexActionNameOnly(action)) {
-                authorizeIndexActionName(authentication, action, requestId, unwrappedRequest, authzInfo, authzEngine, listener);
             } else {
                 final MetaData metaData = clusterService.state().metaData();
                 final AuthorizedIndices authorizedIndices = new AuthorizedIndices(() -> authzEngine.loadAuthorizedIndices(authentication,
@@ -251,13 +255,8 @@ public class AuthorizationService {
                 //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
                 //'-*' matches no indices so we allow the request to go through, which will yield an empty response
                 if (resolvedIndices.isNoIndicesPlaceholder()) {
-                    authorizeIndexActionName(authentication, action, requestId, unwrappedRequest, authzInfo, authzEngine,
-                        ActionListener.wrap(ignore -> {
-                            putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
-                                IndicesAccessControl.ALLOW_NO_INDICES);
-                            auditTrail.accessGranted(requestId, authentication, action, unwrappedRequest, authzInfo);
-                            listener.onResponse(null);
-                        }, listener::onFailure));
+                    putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_NO_INDICES);
+                    authorizeIndexActionName(authentication, action, requestId, unwrappedRequest, authzInfo, authzEngine, listener);
                 } else {
                     authorizeIndexAction(authentication, action, requestId, unwrappedRequest, authzInfo, authzEngine, resolvedIndices,
                         metaData, authorizedIndices, listener);
@@ -345,7 +344,6 @@ public class AuthorizationService {
 
         authzEngine.buildIndicesAccessControl(authentication, unwrappedRequest, action, authzInfo, localIndices,
             metaData.getAliasAndIndexLookup(), indexActionListener);
-
     }
 
     private AuthorizationEngine getRunAsAuthorizationEngine(final Authentication authentication) {
@@ -405,7 +403,7 @@ public class AuthorizationService {
         if (authentication.getLookedUpBy() == null) {
             // this user did not really exist
             // TODO(jaymode) find a better way to indicate lookup failed for a user and we need to fail authz
-            throw denyRunAs(requestId, authentication, action, request, authzInfo);
+            throw denyRunAs(requestId, authentication, action, request, authzInfo.getAuthenticatedUserAuthorizationInfo());
         } else {
             final AuthorizationEngine runAsAuthzEngine = getRunAsAuthorizationEngine(authentication);
             runAsAuthzEngine.authorizeRunAs(authentication, request, action, authzInfo, listener);

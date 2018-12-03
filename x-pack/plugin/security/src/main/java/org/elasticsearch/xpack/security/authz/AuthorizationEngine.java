@@ -31,7 +31,7 @@ public interface AuthorizationEngine {
 
     boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication);
 
-    boolean shouldAuthorizeIndexActionNameOnly(String action);
+    boolean shouldAuthorizeIndexActionNameOnly(String action, TransportRequest request);
 
     void authorizeIndexActionName(Authentication authentication, TransportRequest request, String action,
                                   AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener);
@@ -46,6 +46,10 @@ public interface AuthorizationEngine {
     interface AuthorizationInfo {
 
         Map<String, Object> asMap();
+
+        default AuthorizationInfo getAuthenticatedUserAuthorizationInfo() {
+            return this;
+        }
     }
 
     final class EmptyAuthorizationInfo implements AuthorizationInfo {

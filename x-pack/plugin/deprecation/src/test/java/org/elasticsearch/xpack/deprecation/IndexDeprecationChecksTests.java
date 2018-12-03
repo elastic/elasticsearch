@@ -22,7 +22,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
     public void testOldIndicesCheck() {
         Version createdWith = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
-            VersionUtils.getPreviousVersion(Version.V_6_0_0_alpha1));
+            VersionUtils.getPreviousVersion(Version.V_6_0_0));
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
             .settings(settings(createdWith))
             .numberOfShards(1)
@@ -39,7 +39,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
     public void testDelimitedPayloadFilterCheck() {
         Settings settings = settings(
-            VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_alpha1, VersionUtils.getPreviousVersion(Version.CURRENT)))
+            VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT)))
             .put("index.analysis.filter.my_delimited_payload_filter.type", "delimited_payload_filter")
             .put("index.analysis.filter.my_delimited_payload_filter.delimiter", "^")
             .put("index.analysis.filter.my_delimited_payload_filter.encoding", "identity").build();

@@ -818,7 +818,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 // there is no equals on cluster state, so we just serialize it to XContent and compare JSON representation
                 assert clusterChangedEvent.previousState() == coordinationState.get().getLastAcceptedState() ||
                     Strings.toString(clusterChangedEvent.previousState()).equals(
-                        Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())));
+                        Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())))
+                    : clusterChangedEvent.previousState() + " vs " + clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState());
 
                 final ClusterState clusterState = clusterChangedEvent.state();
 

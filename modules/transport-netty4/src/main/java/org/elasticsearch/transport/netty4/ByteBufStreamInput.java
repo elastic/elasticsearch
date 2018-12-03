@@ -132,7 +132,11 @@ class ByteBufStreamInput extends StreamInput {
 
     @Override
     public byte readByte() throws IOException {
-        return buffer.readByte();
+        try {
+            return buffer.readByte();
+        } catch (IndexOutOfBoundsException ex) {
+            throw new EOFException();
+        }
     }
 
     @Override

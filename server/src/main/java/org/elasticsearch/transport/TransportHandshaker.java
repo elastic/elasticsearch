@@ -30,6 +30,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -87,8 +88,7 @@ final class TransportHandshaker {
     }
 
     void handleHandshake(Version version, Set<String> features, TcpChannel channel, long requestId, StreamInput input) throws IOException {
-        HandshakeRequest handshakeRequest = new HandshakeRequest(input);
-        HandshakeResponse response = new HandshakeResponse(handshakeRequest.version, this.version);
+        HandshakeResponse response = new HandshakeResponse(new HandshakeRequest(input).version, this.version);
         handshakeResponseSender.sendResponse(version, features, channel, response, requestId);
     }
 
@@ -168,17 +168,25 @@ final class TransportHandshaker {
 
         HandshakeRequest(StreamInput streamInput) throws IOException {
             super(streamInput);
-            int remainingMessageBytes = streamInput.readInt();
-
-            int totalMessageBytes = remainingMessageBytes + 4;
-            if (totalMessageBytes > MAX_HANDSHAKE_REQUEST_BYTES) {
-                throw new IOException("Handshake request limited to " + MAX_HANDSHAKE_REQUEST_BYTES + " bytes. Found "
-                    + totalMessageBytes + " bytes.");
+            int remainingMessageBytes;
+            try {
+                remainingMessageBytes = streamInput.readInt();
+            } catch (EOFException e) {
+                remainingMessageBytes = -1;
             }
-            byte[] messageByteArray = new byte[remainingMessageBytes];
-            streamInput.readBytes(messageByteArray, 0, messageByteArray.length);
-            try (StreamInput messageStreamInput = new BytesArray(messageByteArray).streamInput()) {
-                this.version = Version.readVersion(messageStreamInput);
+            if (remainingMessageBytes == -1) {
+                version = null;
+            } else {
+                int totalMessageBytes = remainingMessageBytes + 4;
+                if (totalMessageBytes > MAX_HANDSHAKE_REQUEST_BYTES) {
+                    throw new IOException("Handshake request limited to " + MAX_HANDSHAKE_REQUEST_BYTES + " bytes. Found "
+                        + totalMessageBytes + " bytes.");
+                }
+                byte[] messageByteArray = new byte[remainingMessageBytes];
+                streamInput.readFully(messageByteArray);
+                try (StreamInput messageStreamInput = new BytesArray(messageByteArray).streamInput()) {
+                    this.version = Version.readVersion(messageStreamInput);
+                }
             }
         }
 

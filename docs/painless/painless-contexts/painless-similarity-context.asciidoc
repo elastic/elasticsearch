@@ -49,7 +49,7 @@ documents in a query.
         document for the current field.
 
 Note that the `query`, `field`, and `term` variables are also available to the
-{painless}/painless-weight-context.html[weight context]. They are more efficiently used
+<<painless-weight-context,weight context>>. They are more efficiently used
 there, as they are constant for all documents.
 
 For queries that contain multiple terms, the script is called once for each

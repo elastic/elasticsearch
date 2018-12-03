@@ -1059,18 +1059,10 @@ public final class InternalTestCluster extends TestCluster {
         for (Iterator<NodeAndClient> iterator = nodes.values().iterator(); iterator.hasNext();) {
             NodeAndClient nodeAndClient = iterator.next();
             if (nodeAndClient.nodeAndClientId() >= sharedNodesSeeds.length) {
-                logger.debug("Close Node [{}] not shared", nodeAndClient.name);
+                logger.debug("will close unshared node [{}]", nodeAndClient.name);
                 toClose.add(nodeAndClient);
             }
         }
-        stopNodesAndClients(toClose);
-
-        // clean up what the nodes left that is unused
-        if (wipeData) {
-            wipePendingDataDirectories();
-        }
-
-        final int prevNodeCount = nodes.size();
 
         // start any missing node
         assert newSize == numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes;
@@ -1080,7 +1072,7 @@ public final class InternalTestCluster extends TestCluster {
         final Runnable onTransportServiceStarted = () -> rebuildUnicastHostFiles(toStartAndPublish);
 
         final int bootstrapNodeIndex;
-        if (prevNodeCount == 0 && autoManageMinMasterNodes) {
+        if (nodes.size() == 0 && autoManageMinMasterNodes) {
             if (numSharedDedicatedMasterNodes > 0) {
                 bootstrapNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDedicatedMasterNodes - 1);
             } else if (numSharedDataNodes > 0) {
@@ -1125,7 +1117,15 @@ public final class InternalTestCluster extends TestCluster {
             toStartAndPublish.add(nodeAndClient);
         }
 
+        logger.debug("starting nodes [{}]", toStartAndPublish.stream().map(NodeAndClient::getName).collect(Collectors.toList()));
         startAndPublishNodesAndClients(toStartAndPublish);
+        logger.debug("stopping nodes [{}]", toClose.stream().map(NodeAndClient::getName).collect(Collectors.toList()));
+        stopNodesAndClients(toClose);
+
+        // clean up what the nodes left that is unused
+        if (wipeData) {
+            wipePendingDataDirectories();
+        }
 
         nextNodeId.set(newSize);
         assert size() == newSize;

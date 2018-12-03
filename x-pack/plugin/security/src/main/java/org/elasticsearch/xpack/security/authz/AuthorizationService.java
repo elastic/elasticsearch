@@ -315,6 +315,8 @@ public class AuthorizationService {
                                     }
                                     listener.onResponse(null);
                                 }, listener::onFailure));
+                        } else {
+                            listener.onResponse(null);
                         }
                     } else if (action.equals(TransportShardBulkAction.ACTION_NAME)) {
                         // is this is performing multiple actions on the index, then check each of those actions.

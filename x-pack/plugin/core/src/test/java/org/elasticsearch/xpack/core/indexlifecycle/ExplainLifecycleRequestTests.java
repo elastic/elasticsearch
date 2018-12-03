@@ -19,7 +19,7 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
     protected ExplainLifecycleRequest createTestInstance() {
         ExplainLifecycleRequest request = new ExplainLifecycleRequest();
         if (randomBoolean()) {
-            request.indices(generateRandomStringArray(20, 20, false, true));
+            request.indices(generateRandomStringArray(20, 20, false, false));
         }
         if (randomBoolean()) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
@@ -36,7 +36,7 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
         switch (between(0, 1)) {
         case 0:
             indices = randomValueOtherThanMany(i -> Arrays.equals(i, instance.indices()),
-                    () -> generateRandomStringArray(20, 10, false, true));
+                    () -> generateRandomStringArray(20, 10, false, false));
             break;
         case 1:
             indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),

@@ -39,7 +39,7 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
 
     TransportJobTaskAction(String actionName, ClusterService clusterService,
                            TransportService transportService, ActionFilters actionFilters,
-                           Supplier<Request> requestSupplier,
+                           Writeable.Reader<Request> requestSupplier,
                            Supplier<Response> responseSupplier, String nodeExecutor, AutodetectProcessManager processManager) {
         super(actionName, clusterService, transportService, actionFilters,
             requestSupplier, responseSupplier, nodeExecutor);

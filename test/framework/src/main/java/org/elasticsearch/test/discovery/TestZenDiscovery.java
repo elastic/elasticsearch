@@ -79,7 +79,7 @@ public class TestZenDiscovery extends ZenDiscovery {
             return Collections.singletonMap("test-zen", () -> {
                 if (USE_ZEN2.get(settings)) {
                     Supplier<CoordinationState.PersistedState> persistedStateSupplier = () -> {
-                        gatewayMetaState.setLocalNode(transportService.getLocalNode());
+                        gatewayMetaState.applyClusterStateUpdaters();
                         return gatewayMetaState;
                     };
 

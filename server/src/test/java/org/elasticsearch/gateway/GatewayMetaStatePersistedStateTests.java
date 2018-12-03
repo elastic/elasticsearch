@@ -30,29 +30,44 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.test.ESTestCase;
-import org.mockito.Mockito;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
 
 public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     private class GatewayMetaStateUT extends GatewayMetaState {
-        GatewayMetaStateUT(Settings settings, NodeEnvironment nodeEnvironment) throws IOException {
+        private final DiscoveryNode localNode;
+
+        GatewayMetaStateUT(Settings settings, NodeEnvironment nodeEnvironment, DiscoveryNode localNode) throws IOException {
             super(settings, nodeEnvironment, new MetaStateService(nodeEnvironment, xContentRegistry()),
-                    Mockito.mock(MetaDataIndexUpgradeService.class), Mockito.mock(MetaDataUpgrader.class));
+                    mock(MetaDataIndexUpgradeService.class), mock(MetaDataUpgrader.class),
+                    mock(TransportService.class), mock(ClusterService.class),
+                    mock(IndicesService.class));
+            this.localNode = localNode;
         }
 
         @Override
         protected void upgradeMetaData(MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) {
             // MetaData upgrade is tested in GatewayMetaStateTests, we override this method to NOP to make mocking easier
+        }
+
+        @Override
+        public void applyClusterStateUpdaters() {
+            // Just set localNode here, not to mess with ClusterService and IndicesService mocking
+            previousClusterState = ClusterStateUpdaters.setLocalNode(previousClusterState, localNode);
+            clusterStateUpdatersApplied = true;
         }
     }
 
@@ -78,8 +93,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     }
 
     private GatewayMetaStateUT newGateway() throws IOException {
-        GatewayMetaStateUT gateway = new GatewayMetaStateUT(settings, nodeEnvironment);
-        gateway.setLocalNode(localNode);
+        GatewayMetaStateUT gateway = new GatewayMetaStateUT(settings, nodeEnvironment, localNode);
+        gateway.applyClusterStateUpdaters();
         return gateway;
     }
 

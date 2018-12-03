@@ -268,3 +268,13 @@ rewrite any prefix query on the field to a a single term query that matches the 
 
 Setting a negative `boost` in a query is deprecated and will throw an error in the next version.
 To deboost a specific query you can use a `boost` comprise between 0 and 1.
+
+[float]
+==== The filter context is deprecated
+
+ The `filter` context is deprecated in Elasticsearch's query builders,
+the distinction between queries and filters is decided in Lucene depending
+on whether queries need to access score or not. As a result `bool` queries with
+`should` clauses that don't need to access the score will issue a deprecation
+warning when they automatically set `minimum_should_match` to 1.
+This behavior will be removed in the next major version.

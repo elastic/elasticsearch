@@ -50,7 +50,7 @@ setup:
           - index: index_3
           - query:
               match_all: {}
-          - type: test
+          - {}
           - query:
               match_all: {}
 
@@ -82,7 +82,7 @@ setup:
           - index: index_3
           - query:
               match_all: {}
-          - type: test
+          - {}
           - query:
               match_all: {}
 
@@ -93,3 +93,28 @@ setup:
   - match:  { responses.3.error.root_cause.0.reason: "/no.such.index/" }
   - match:  { responses.3.error.root_cause.0.index: index_3 }
   - match:  { responses.4.hits.total:     4  }
+
+---
+"Search with rest_total_hits_as_int":
+  - skip:
+      version: " - 6.5.99"
+      reason: rest_total_hits_as_int was introduced in 6.6.0
+
+  - do:
+      msearch:
+        rest_total_hits_as_int: true
+        body:
+          - index: index_*
+          - query:
+              match: {foo: foo}
+          - index: index_2
+          - query:
+              match_all: {}
+          - index: index_1
+          - query:
+              match: {foo: foo}
+
+  - match:  { responses.0.hits.total:     2  }
+  - match:  { responses.1.hits.total:     1  }
+  - match:  { responses.2.hits.total:     1  }
+

@@ -105,10 +105,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_6_4_2 = new Version(V_6_4_2_ID, org.apache.lucene.util.Version.LUCENE_7_4_0);
     public static final int V_6_4_3_ID = 6040399;
     public static final Version V_6_4_3 = new Version(V_6_4_3_ID, org.apache.lucene.util.Version.LUCENE_7_4_0);
-    public static final int V_6_4_4_ID = 6040499;
-    public static final Version V_6_4_4 = new Version(V_6_4_4_ID, org.apache.lucene.util.Version.LUCENE_7_4_0);
     public static final int V_6_5_0_ID = 6050099;
     public static final Version V_6_5_0 = new Version(V_6_5_0_ID, org.apache.lucene.util.Version.LUCENE_7_5_0);
+    public static final int V_6_5_1_ID = 6050199;
+    public static final Version V_6_5_1 = new Version(V_6_5_1_ID, org.apache.lucene.util.Version.LUCENE_7_5_0);
+    public static final int V_6_5_2_ID = 6050299;
+    public static final Version V_6_5_2 = new Version(V_6_5_2_ID, org.apache.lucene.util.Version.LUCENE_7_5_0);
     public static final int V_6_6_0_ID = 6060099;
     public static final Version V_6_6_0 = new Version(V_6_6_0_ID, org.apache.lucene.util.Version.LUCENE_7_6_0);
     public static final int V_7_0_0_ID = 7000099;
@@ -131,10 +133,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 return V_7_0_0;
             case V_6_6_0_ID:
                 return V_6_6_0;
+            case V_6_5_2_ID:
+                return V_6_5_2;
+            case V_6_5_1_ID:
+                return V_6_5_1;
             case V_6_5_0_ID:
                 return V_6_5_0;
-            case V_6_4_4_ID:
-                return V_6_4_4;
             case V_6_4_3_ID:
                 return V_6_4_3;
             case V_6_4_2_ID:
@@ -248,6 +252,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             final int rawMajor = Integer.parseInt(parts[0]);
             if (rawMajor >= 5 && snapshot) { // we don't support snapshot as part of the version here anymore
                 throw new IllegalArgumentException("illegal version format - snapshots are only supported until version 2.x");
+            }
+            if (rawMajor >=7 && parts.length == 4) { // we don't support qualifier as part of the version anymore
+                throw new IllegalArgumentException("illegal version format - qualifiers are only supported until version 6.x");
             }
             final int betaOffset = rawMajor < 5 ? 0 : 25;
             //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo

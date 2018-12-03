@@ -5,43 +5,28 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-public class RolloverStep extends AsyncWaitStep {
-    public static final String NAME = "attempt_rollover";
+/**
+ * Unconditionally rolls over an index using the Rollover API.
+ */
+public class RolloverStep extends AsyncActionStep {
+    public static final String NAME = "attempt-rollover";
 
-    private static final Logger logger = LogManager.getLogger(RolloverStep.class);
-
-    private ByteSizeValue maxSize;
-    private TimeValue maxAge;
-    private Long maxDocs;
-
-    public RolloverStep(StepKey key, StepKey nextStepKey, Client client, ByteSizeValue maxSize, TimeValue maxAge,
-            Long maxDocs) {
+    public RolloverStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
-        this.maxSize = maxSize;
-        this.maxAge = maxAge;
-        this.maxDocs = maxDocs;
     }
 
     @Override
-    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener) {
+    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener) {
         String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetaData.getSettings());
 
         if (Strings.isNullOrEmpty(rolloverAlias)) {
@@ -58,49 +43,19 @@ public class RolloverStep extends AsyncWaitStep {
             return;
         }
 
+        // Calling rollover with no conditions will always roll over the index
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null);
-        if (maxAge != null) {
-            rolloverRequest.addMaxIndexAgeCondition(maxAge);
-        }
-        if (maxSize != null) {
-            rolloverRequest.addMaxIndexSizeCondition(maxSize);
-        }
-        if (maxDocs != null) {
-            rolloverRequest.addMaxIndexDocsCondition(maxDocs);
-        }
         getClient().admin().indices().rolloverIndex(rolloverRequest,
-            ActionListener.wrap(response -> listener.onResponse(response.isRolledOver(), new EmptyInfo()), exception -> {
-                if (exception instanceof ResourceAlreadyExistsException) {
-                    // This can happen sometimes when this step is executed multiple times
-                    if (logger.isTraceEnabled()) {
-                        logger.debug(() -> new ParameterizedMessage("{} index cannot roll over because the next index already exists, " +
-                            "skipping to next step", indexMetaData.getIndex()), exception);
-                    } else {
-                        logger.debug("{} index cannot roll over because the next index already exists, skipping to next step",
-                            indexMetaData.getIndex());
-                    }
-                    listener.onResponse(true, new EmptyInfo());
-                } else {
-                    listener.onFailure(exception);
-                }
-            }));
+            ActionListener.wrap(response -> {
+                assert response.isRolledOver() : "the only way this rollover call should fail is with an exception";
+                listener.onResponse(response.isRolledOver());
+            }, listener::onFailure));
     }
 
-    ByteSizeValue getMaxSize() {
-        return maxSize;
-    }
-
-    TimeValue getMaxAge() {
-        return maxAge;
-    }
-
-    Long getMaxDocs() {
-        return maxDocs;
-    }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), maxSize, maxAge, maxDocs);
+        return Objects.hash(super.hashCode());
     }
 
     @Override
@@ -112,19 +67,6 @@ public class RolloverStep extends AsyncWaitStep {
             return false;
         }
         RolloverStep other = (RolloverStep) obj;
-        return super.equals(obj) &&
-                Objects.equals(maxSize, other.maxSize) &&
-                Objects.equals(maxAge, other.maxAge) &&
-                Objects.equals(maxDocs, other.maxDocs);
-    }
-
-    // We currently have no information to provide for this AsyncWaitStep, so this is an empty object
-    private class EmptyInfo implements ToXContentObject {
-        private EmptyInfo() {}
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder;
-        }
+        return super.equals(obj);
     }
 }

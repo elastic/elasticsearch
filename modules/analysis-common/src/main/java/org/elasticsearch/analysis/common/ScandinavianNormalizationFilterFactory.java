@@ -24,12 +24,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
+import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 
 /**
  * Factory for {@link ScandinavianNormalizationFilter}
  */
-public class ScandinavianNormalizationFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
+public class ScandinavianNormalizationFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     ScandinavianNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -40,8 +40,4 @@ public class ScandinavianNormalizationFilterFactory extends AbstractTokenFilterF
         return new ScandinavianNormalizationFilter(tokenStream);
     }
 
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
-    }
 }

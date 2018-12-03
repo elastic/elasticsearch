@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.plan.QueryPlan;
@@ -131,7 +130,7 @@ public class Explain extends Command {
             // check errors manually to see how far the plans work out
             else {
                 // no analysis failure, can move on
-                if (Analyzer.verifyFailures(analyzedPlan).isEmpty()) {
+                if (session.verifier().verifyFailures(analyzedPlan).isEmpty()) {
                     session.optimizedPlan(analyzedPlan, wrap(optimizedPlan -> {
                         if (type == Type.OPTIMIZED) {
                             listener.onResponse(Rows.singleton(output(), formatPlan(format, optimizedPlan)));

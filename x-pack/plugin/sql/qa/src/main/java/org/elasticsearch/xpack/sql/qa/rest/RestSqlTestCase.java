@@ -314,7 +314,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     private Map<String, Object> runSql(String mode, HttpEntity sql, String suffix) throws IOException {
-        Request request = new Request("POST", "/_xpack/sql" + suffix);
+        Request request = new Request("POST", "/_sql" + suffix);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         if (randomBoolean()) {
@@ -646,7 +646,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
      * rather than the {@code format} parameter.
      */
     private Tuple<String, String> runSqlAsText(String suffix, HttpEntity entity, String accept) throws IOException {
-        Request request = new Request("POST", "/_xpack/sql" + suffix);
+        Request request = new Request("POST", "/_sql" + suffix);
         request.addParameter("error_trace", "true");
         request.setEntity(entity);
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -664,7 +664,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
      * rather than an {@code Accept} header.
      */
     private Tuple<String, String> runSqlAsTextFormat(String sql, String format) throws IOException {
-        Request request = new Request("POST", "/_xpack/sql");
+        Request request = new Request("POST", "/_sql");
         request.addParameter("error_trace", "true");
         request.addParameter("format", format);
         request.setJsonEntity("{\"query\":\"" + sql + "\"}");

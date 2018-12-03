@@ -41,7 +41,7 @@ import org.elasticsearch.index.IndexSettings;
  *
  * @author kimchy (shay.banon)
  */
-public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
+public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
     /** Store here the same Normalizer used by the lucene ICUFoldingFilter */
     private static final Normalizer2 ICU_FOLDING_NORMALIZER = Normalizer2.getInstance(
             ICUFoldingFilter.class.getResourceAsStream("utr30.nrm"), "utr30", Normalizer2.Mode.COMPOSE);
@@ -58,8 +58,4 @@ public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory imp
         return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, normalizer);
     }
 
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
-    }
 }

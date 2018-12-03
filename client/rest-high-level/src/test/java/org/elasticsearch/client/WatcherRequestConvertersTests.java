@@ -20,25 +20,35 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.client.watcher.DeactivateWatchRequest;
-import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchRequest;
-import org.elasticsearch.client.watcher.StartWatchServiceRequest;
-import org.elasticsearch.client.watcher.StopWatchServiceRequest;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.client.watcher.ActivateWatchRequest;
+import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.client.watcher.DeleteWatchRequest;
 import org.elasticsearch.client.watcher.PutWatchRequest;
+import org.elasticsearch.client.watcher.GetWatchRequest;
+import org.elasticsearch.client.watcher.StartWatchServiceRequest;
+import org.elasticsearch.client.watcher.StopWatchServiceRequest;
+import org.elasticsearch.client.watcher.WatcherStatsRequest;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.StringJoiner;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class WatcherRequestConvertersTests extends ESTestCase {
@@ -80,6 +90,16 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         request.getEntity().writeTo(bos);
         assertThat(bos.toString("UTF-8"), is(body));
+    }
+
+    public void testGetWatch() throws Exception {
+        String watchId = randomAlphaOfLength(10);
+        GetWatchRequest getWatchRequest = new GetWatchRequest(watchId);
+
+        Request request = WatcherRequestConverters.getWatch(getWatchRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
+        assertThat(request.getEntity(), nullValue());
     }
 
     public void testDeactivateWatch() {
@@ -128,6 +148,33 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         Request request = WatcherRequestConverters.activateWatch(activateWatchRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/watcher/watch/" + watchId + "/_activate", request.getEndpoint());
+        assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testWatcherStatsRequest() {
+        boolean includeCurrent = randomBoolean();
+        boolean includeQueued = randomBoolean();
+
+        WatcherStatsRequest watcherStatsRequest = new WatcherStatsRequest(includeCurrent, includeQueued);
+
+        Request request = WatcherRequestConverters.watcherStats(watcherStatsRequest);
+        assertThat(request.getEndpoint(), equalTo("/_xpack/watcher/stats"));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        if (includeCurrent || includeQueued) {
+            assertThat(request.getParameters(), hasKey("metric"));
+            Set<String> metric = Strings.tokenizeByCommaToSet(request.getParameters().get("metric"));
+            assertThat(metric, hasSize((includeCurrent?1:0) + (includeQueued?1:0)));
+            Set<String> expectedMetric = new HashSet<>();
+            if (includeCurrent) {
+                expectedMetric.add("current_watches");
+            }
+            if (includeQueued) {
+                expectedMetric.add("queued_watches");
+            }
+            assertThat(metric, equalTo(expectedMetric));
+        } else {
+            assertThat(request.getParameters(), not(hasKey("metric")));
+        }
         assertThat(request.getEntity(), nullValue());
     }
 }

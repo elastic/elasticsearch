@@ -19,13 +19,17 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.cjk.CJKBigramFilter;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -47,6 +51,9 @@ import java.util.Set;
  * In all cases, all non-CJK input is passed thru unmodified.
  */
 public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER
+        = new DeprecationLogger(LogManager.getLogger(CJKBigramFilterFactory.class));
 
     private final int flags;
     private final boolean outputUnigrams;
@@ -89,4 +96,18 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
         return filter;
     }
 
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        if (outputUnigrams) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+                throw new IllegalArgumentException("Token filter [" + name() +
+                    "] cannot be used to parse synonyms");
+            }
+            else {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+                    + "] will not be usable to parse synonyms after v7.0");
+            }
+        }
+        return this;
+    }
 }

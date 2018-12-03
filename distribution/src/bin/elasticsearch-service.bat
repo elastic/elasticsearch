@@ -34,6 +34,7 @@ if /i %SERVICE_CMD% == start goto doStart
 if /i %SERVICE_CMD% == stop goto doStop
 if /i %SERVICE_CMD% == manager goto doManagment
 echo Unknown option "%SERVICE_CMD%"
+exit /B 1
 
 :displayUsage
 echo.
@@ -44,6 +45,7 @@ goto:eof
 "%EXECUTABLE%" //ES//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto started
 echo Failed starting '%SERVICE_ID%' service
+exit /B 1
 goto:eof
 :started
 echo The service '%SERVICE_ID%' has been started
@@ -53,16 +55,18 @@ goto:eof
 "%EXECUTABLE%" //SS//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto stopped
 echo Failed stopping '%SERVICE_ID%' service
+exit /B 1
 goto:eof
 :stopped
 echo The service '%SERVICE_ID%' has been stopped
 goto:eof
 
 :doManagment
-set EXECUTABLE_MGR=%ES_HOME%\bin\elasticsearch-service-mgr.exe
+set EXECUTABLE_MGR=%ES_HOME%\bin\elasticsearch-service-mgr
 "%EXECUTABLE_MGR%" //ES//%SERVICE_ID%
 if not errorlevel 1 goto managed
 echo Failed starting service manager for '%SERVICE_ID%'
+exit /B 1
 goto:eof
 :managed
 echo Successfully started service manager for '%SERVICE_ID%'.
@@ -73,6 +77,7 @@ rem Remove the service
 "%EXECUTABLE%" //DS//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto removed
 echo Failed removing '%SERVICE_ID%' service
+exit /B 1
 goto:eof
 :removed
 echo The service '%SERVICE_ID%' has been removed
@@ -177,6 +182,7 @@ if not "%SERVICE_USERNAME%" == "" (
 
 if not errorlevel 1 goto installed
 echo Failed installing '%SERVICE_ID%' service
+exit /B 1
 goto:eof
 
 :installed

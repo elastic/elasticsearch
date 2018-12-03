@@ -6,18 +6,19 @@
 <titleabbrev>Get Policy</titleabbrev>
 ++++
 
-Retrieves an existing policy
+beta[]
+
+Retrieves a lifecycle policy.
 
 ==== Request
 
 `GET _ilm/policy`
-`GET _ilm/policy/<policy>`
+`GET _ilm/policy/<policy_id>`
 
 ==== Description
 
-This API returns a policy definition along with some of its metadata like
-its last modified date and version. If no path parameters are provided, then
-all the policies defined will be returned.
+Returns the specified policy definition. Includes the policy version and last
+modified date. If no policy is specified, returns all defined policies.
 
 ==== Path Parameters
 
@@ -26,21 +27,15 @@ all the policies defined will be returned.
 
 ==== Request Parameters
 
-`timeout`::
-  (time units) Specifies the period of time to wait for the completion of the 
-  GET operation. When this period of time elapses, the API fails and returns
-  an error. The default value is `30s`. For more information about time units, 
-  see <<time-units>>.
+include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
-`master_timeout`::
-  (time units) Specifies the period of time to wait for the connection with master.
-  When this period of time elapses, the API fails and returns an error.
-  The default value is `30s`. For more information about time units, see <<time-units>>.
+==== Authorization
 
+include::ilm-cluster-mgt-privilege.asciidoc[]
 
 ==== Examples
 
-The following example retrieves the policy named `my_policy`:
+The following example retrieves `my_policy`:
 
 //////////////////////////
 
@@ -80,7 +75,8 @@ GET _ilm/policy
 // CONSOLE
 // TEST[continued]
 
-If the request does not encounter errors, you receive the following result:
+
+If the request succeeds, the body of the response contains the policy definition:
 
 [source,js]
 --------------------------------------------------
@@ -111,5 +107,5 @@ If the request does not encounter errors, you receive the following result:
 --------------------------------------------------
 // CONSOLE
 // TESTRESPONSE[s/"modified_date": 82392349/"modified_date": $body.my_policy.modified_date/]
-<1> The version of the policy. This is increased whenever the policy is updated
-<2> The timestamp when this policy was last modified
+<1> The policy version is incremented whenever the policy is updated
+<2> When this policy was last modified

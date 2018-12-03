@@ -1,5 +1,5 @@
 --
-:api: freeze-index
+:api: unfreeze-index
 :request: UnfreezeIndexRequest
 :response: UnfreezeIndexResponse
 --

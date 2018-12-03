@@ -286,8 +286,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     private final List<BootstrapCheck> bootstrapChecks;
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
 
-	private final FIPSChecks FIPSChecks;
-
     public Security(Settings settings, final Path configPath) {
         this(settings, configPath, Collections.emptyList());
     }
@@ -307,7 +305,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new PkiRealmBootstrapCheck(getSslService()),
                 new TLSLicenseBootstrapCheck()));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
-            this.FIPSChecks = new FIPSChecks();
             this.bootstrapChecks = Collections.unmodifiableList(checks);
             Automatons.updateConfiguration(settings);
         } else {

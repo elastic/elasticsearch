@@ -11,12 +11,13 @@ import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.security.FIPSInterface.FIPSCheckResult;
 
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCase {
+public class PasswordHashingAlgorithmFIPSCheckTests extends ESTestCase {
 
     public void testPBKDF2AlgorithmIsAllowed() {
         {
@@ -24,8 +25,8 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCa
                     .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
                     .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2_10000")
                     .build();
-            final BootstrapCheck.BootstrapCheckResult result =
-                    new PasswordHashingAlgorithmCheck().check(new BootstrapContext(settings, null));
+            final FIPSCheckResult result =
+                    new FIPSChecks().passwordHashingAlgorithmCheck(new BootstrapContext(settings, null));
             assertFalse(result.isFailure());
         }
 
@@ -34,8 +35,8 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCa
                     .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
                     .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2")
                     .build();
-            final BootstrapCheck.BootstrapCheckResult result =
-                    new PasswordHashingAlgorithmCheck().check(new BootstrapContext(settings, null));
+            final FIPSCheckResult result =
+            		new FIPSChecks().passwordHashingAlgorithmCheck(new BootstrapContext(settings, null));
             assertFalse(result.isFailure());
         }
     }
@@ -54,8 +55,8 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCa
             builder.put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), passwordHashingAlgorithm);
         }
         final Settings settings = builder.build();
-        final BootstrapCheck.BootstrapCheckResult result =
-                new PasswordHashingAlgorithmCheck().check(new BootstrapContext(settings, null));
+        final FIPSCheckResult result =
+        		new FIPSChecks().passwordHashingAlgorithmCheck(new BootstrapContext(settings, null));
         assertThat(result.isFailure(), equalTo(fipsModeEnabled));
     }
 

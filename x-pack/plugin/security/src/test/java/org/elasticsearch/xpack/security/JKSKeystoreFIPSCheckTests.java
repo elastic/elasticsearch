@@ -9,12 +9,12 @@ import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-public class FIPS140JKSKeystoreBootstrapCheckTests extends ESTestCase {
+public class JKSKeystoreFIPSCheckTests extends ESTestCase {
 
     public void testNoKeystoreIsAllowed() {
         final Settings.Builder settings = Settings.builder()
             .put("xpack.security.fips_mode.enabled", "true");
-        assertFalse(new FIPS140JKSKeystoreBootstrapCheck().check(new BootstrapContext(settings.build(), null)).isFailure());
+        assertFalse(new FIPSChecks().keystoreCheck(new BootstrapContext(settings.build(), null)).isFailure());
     }
 
     public void testSSLKeystoreTypeIsNotAllowed() {
@@ -22,7 +22,7 @@ public class FIPS140JKSKeystoreBootstrapCheckTests extends ESTestCase {
             .put("xpack.security.fips_mode.enabled", "true")
             .put("xpack.ssl.keystore.path", "/this/is/the/path")
             .put("xpack.ssl.keystore.type", "JKS");
-        assertTrue(new FIPS140JKSKeystoreBootstrapCheck().check(new BootstrapContext(settings.build(), null)).isFailure());
+        assertTrue(new FIPSChecks().keystoreCheck(new BootstrapContext(settings.build(), null)).isFailure());
     }
 
     public void testSSLImplicitKeystoreTypeIsNotAllowed() {
@@ -30,7 +30,7 @@ public class FIPS140JKSKeystoreBootstrapCheckTests extends ESTestCase {
             .put("xpack.security.fips_mode.enabled", "true")
             .put("xpack.ssl.keystore.path", "/this/is/the/path")
             .put("xpack.ssl.keystore.type", "JKS");
-        assertTrue(new FIPS140JKSKeystoreBootstrapCheck().check(new BootstrapContext(settings.build(), null)).isFailure());
+        assertTrue(new FIPSChecks().keystoreCheck(new BootstrapContext(settings.build(), null)).isFailure());
     }
 
     public void testTransportSSLKeystoreTypeIsNotAllowed() {
@@ -38,7 +38,7 @@ public class FIPS140JKSKeystoreBootstrapCheckTests extends ESTestCase {
             .put("xpack.security.fips_mode.enabled", "true")
             .put("xpack.security.transport.ssl.keystore.path", "/this/is/the/path")
             .put("xpack.security.transport.ssl.keystore.type", "JKS");
-        assertTrue(new FIPS140JKSKeystoreBootstrapCheck().check(new BootstrapContext(settings.build(), null)).isFailure());
+        assertTrue(new FIPSChecks().keystoreCheck(new BootstrapContext(settings.build(), null)).isFailure());
     }
 
     public void testHttpSSLKeystoreTypeIsNotAllowed() {
@@ -46,7 +46,7 @@ public class FIPS140JKSKeystoreBootstrapCheckTests extends ESTestCase {
             .put("xpack.security.fips_mode.enabled", "true")
             .put("xpack.security.http.ssl.keystore.path", "/this/is/the/path")
             .put("xpack.security.http.ssl.keystore.type", "JKS");
-        assertTrue(new FIPS140JKSKeystoreBootstrapCheck().check(new BootstrapContext(settings.build(), null)).isFailure());
+        assertTrue(new FIPSChecks().keystoreCheck(new BootstrapContext(settings.build(), null)).isFailure());
     }
 
     public void testRealmKeystoreTypeIsNotAllowed() {
@@ -54,13 +54,13 @@ public class FIPS140JKSKeystoreBootstrapCheckTests extends ESTestCase {
             .put("xpack.security.fips_mode.enabled", "true")
             .put("xpack.security.authc.realms.ldap.ssl.keystore.path", "/this/is/the/path")
             .put("xpack.security.authc.realms.ldap.ssl.keystore.type", "JKS");
-        assertTrue(new FIPS140JKSKeystoreBootstrapCheck().check(new BootstrapContext(settings.build(), null)).isFailure());
+        assertTrue(new FIPSChecks().keystoreCheck(new BootstrapContext(settings.build(), null)).isFailure());
     }
 
     public void testImplicitRealmKeystoreTypeIsNotAllowed() {
         final Settings.Builder settings = Settings.builder()
             .put("xpack.security.fips_mode.enabled", "true")
             .put("xpack.security.authc.realms.ldap.ssl.keystore.path", "/this/is/the/path");
-        assertTrue(new FIPS140JKSKeystoreBootstrapCheck().check(new BootstrapContext(settings.build(), null)).isFailure());
+        assertTrue(new FIPSChecks().keystoreCheck(new BootstrapContext(settings.build(), null)).isFailure());
     }
 }

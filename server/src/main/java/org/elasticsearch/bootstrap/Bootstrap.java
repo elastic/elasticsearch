@@ -48,6 +48,7 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.xpack.security.FIPSChecks;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -214,8 +215,11 @@ final class Bootstrap {
                 final BootstrapContext context,
                 final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
                 BootstrapChecks.check(context, boundTransportAddress, checks);
-                //--------------------SOMETHING IN HERE--------------------//
-                //this.environment Node.java
+                FIPSChecks FIPSChecks = new FIPSChecks();
+                
+                // TODO: Investigate LOGGER better!
+                final Logger rootLogger = LogManager.getRootLogger();
+                FIPSChecksStatic.check(context, FIPSChecks, node.getEnvironment(), rootLogger);
             }
         };
     }

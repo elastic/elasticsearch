@@ -25,7 +25,7 @@ import java.security.AccessControlException;
 import java.security.KeyStore;
 import java.util.Base64;
 
-public class FIPS140SecureSettingsBootstrapCheckTests extends ESTestCase {
+public class SecureSettingsFIPSCheckTests extends ESTestCase {
 
     public void testLegacySecureSettingsIsNotAllowed() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PBE is not available", inFipsJvm());
@@ -34,8 +34,7 @@ public class FIPS140SecureSettingsBootstrapCheckTests extends ESTestCase {
             .put("xpack.security.fips_mode.enabled", "true");
         Environment env = TestEnvironment.newEnvironment(builder.build());
         generateV2Keystore(env);
-        assertTrue(new SecureSettingsCheck(builder.build(), env).check(new BootstrapContext(builder.build(),
-            null)).isFailure());
+        assertTrue(new FIPSChecks().secureSettingsCheck(new BootstrapContext(builder.build(), null), env).isFailure());
     }
 
     public void testCorrectSecureSettingsVersionIsAllowed() throws Exception {
@@ -53,8 +52,7 @@ public class FIPS140SecureSettingsBootstrapCheckTests extends ESTestCase {
                 throw e;
             }
         }
-        assertFalse(new SecureSettingsCheck(builder.build(), env).check(new BootstrapContext(builder.build(),
-            null)).isFailure());
+        assertFalse(new FIPSChecks().secureSettingsCheck(new BootstrapContext(builder.build(), null), env).isFailure());
     }
 
     private void generateV2Keystore(Environment env) throws Exception {

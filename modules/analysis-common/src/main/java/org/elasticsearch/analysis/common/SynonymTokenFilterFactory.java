@@ -30,6 +30,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
+import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -71,8 +72,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override
-    public boolean isUpdateable() {
-        return this.updateable;
+    public AnalysisMode getAnalysisMode() {
+        return this.updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
     }
 
     @Override
@@ -87,7 +88,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters, allFilters);
         final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
         final String name = name();
-        final boolean updateable = isUpdateable();
+        final AnalysisMode analysisMode = getAnalysisMode();
         return new TokenFilterFactory() {
             @Override
             public String name() {
@@ -108,8 +109,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             }
 
             @Override
-            public boolean isUpdateable() {
-                return updateable;
+            public AnalysisMode getAnalysisMode() {
+                return analysisMode;
             }
         };
     }

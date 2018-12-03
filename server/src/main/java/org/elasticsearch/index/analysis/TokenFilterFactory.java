@@ -75,10 +75,12 @@ public interface TokenFilterFactory {
     }
 
     /**
-     * indicate that it is okay to update this filter
+     * Get the {@link AnalysisMode} this filter is allowed to be used in. The default is
+     * {@link AnalysisMode#ALL}. Instances need to override this method to define their
+     * own restrictions.
      */
-    default boolean isUpdateable() {
-        return false;
+    default AnalysisMode getAnalysisMode() {
+        return AnalysisMode.ALL;
     }
 
     /**

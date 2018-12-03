@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
@@ -73,9 +74,9 @@ public class TypeParsers {
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
-                if (analyzer.isUpdateable()) {
+                if (analyzer.getAnalysisMode() == AnalysisMode.SEARCH_TIME) {
                     throw new MapperParsingException("analyzer [" + propNode.toString()
-                            + "] contains updateable components. This is only allowed in search_analyzers.");
+                            + "] contains components that are only allowed at search time.");
                 }
                 indexAnalyzer = analyzer;
                 iterator.remove();

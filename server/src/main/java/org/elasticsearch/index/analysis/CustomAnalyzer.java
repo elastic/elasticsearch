@@ -36,7 +36,7 @@ public final class CustomAnalyzer extends Analyzer {
 
     private final int positionIncrementGap;
     private final int offsetGap;
-    private boolean isUpdateable;
+    private final AnalysisMode analysisMode;
 
     public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
             TokenFilterFactory[] tokenFilters) {
@@ -51,12 +51,12 @@ public final class CustomAnalyzer extends Analyzer {
         this.tokenFilters = tokenFilters;
         this.positionIncrementGap = positionIncrementGap;
         this.offsetGap = offsetGap;
-        // check if analyzer contains updateable Filter
+        // merge and transfer token filter analysis modes with analyzer
+        AnalysisMode mode = AnalysisMode.ALL;
         for (TokenFilterFactory f : tokenFilters) {
-            if (f.isUpdateable()) {
-                this.isUpdateable = true;
-            }
+            mode = mode.merge(f.getAnalysisMode());
         }
+        this.analysisMode = mode;
     }
 
     /**
@@ -91,8 +91,8 @@ public final class CustomAnalyzer extends Analyzer {
         return this.offsetGap;
     }
 
-    public boolean isUpdateable() {
-        return this.isUpdateable;
+    public AnalysisMode getAnalysisMode() {
+        return this.analysisMode;
     }
 
     @Override

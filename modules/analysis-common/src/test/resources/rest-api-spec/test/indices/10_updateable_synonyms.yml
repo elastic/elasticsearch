@@ -54,7 +54,7 @@ setup:
 "Test using updateable analyzer at index time throws error":
 
   - do:
-      catch: /\[syns_updateable\] contains updateable components. This is only allowed in search_analyzers./
+      catch: /\[syns_updateable\] contains components that are only allowed at search time/
       indices.put_mapping:
         index: test
         type: doc

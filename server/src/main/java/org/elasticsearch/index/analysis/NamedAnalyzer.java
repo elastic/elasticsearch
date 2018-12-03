@@ -34,23 +34,23 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     private final AnalyzerScope scope;
     private final Analyzer analyzer;
     private final int positionIncrementGap;
-    private boolean isUpdateable = false;
+    private final AnalysisMode analysisMode;
 
     public NamedAnalyzer(NamedAnalyzer analyzer, int positionIncrementGap) {
-        this(analyzer.name(), analyzer.scope(), analyzer.analyzer(), positionIncrementGap, false);
+        this(analyzer.name(), analyzer.scope(), analyzer.analyzer(), positionIncrementGap, AnalysisMode.ALL);
     }
 
     public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer) {
-        this(name, scope, analyzer, Integer.MIN_VALUE, false);
+        this(name, scope, analyzer, Integer.MIN_VALUE, AnalysisMode.ALL);
     }
 
-    public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionIncrementGap, boolean isUpdateable) {
+    public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionIncrementGap, AnalysisMode analysisMode) {
         super(ERROR_STRATEGY);
         this.name = name;
         this.scope = scope;
         this.analyzer = analyzer;
         this.positionIncrementGap = positionIncrementGap;
-        this.isUpdateable = isUpdateable;
+        this.analysisMode = analysisMode;
     }
 
     /**
@@ -70,8 +70,8 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     /**
      * Returns whether this analyzer can be updated
      */
-    public boolean isUpdateable() {
-        return this.isUpdateable;
+    public AnalysisMode getAnalysisMode() {
+        return this.analysisMode;
     }
 
     /**
@@ -96,7 +96,7 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
 
     @Override
     public String toString() {
-        return "analyzer name[" + name + "], analyzer [" + analyzer + "], updateable [" + isUpdateable + "]";
+        return "analyzer name[" + name + "], analyzer [" + analyzer + "], analysisMode [" + analysisMode + "]";
     }
 
     /** It is an error if this is ever used, it means we screwed up! */

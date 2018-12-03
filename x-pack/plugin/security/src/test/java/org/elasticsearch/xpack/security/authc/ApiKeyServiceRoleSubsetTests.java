@@ -92,7 +92,7 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
         apiKeyService = new ApiKeyService(Settings.EMPTY, mockCock, mockClient, mockSecurityIndexManager, mockClusterService,
                 compositeRolesStore, mockScriptService, xContentRegistry());
         userForNotASubsetRole = new User("user_not_a_subset", "not-a-subset-role");
-        userWithSuperUserRole = new User("superman", "superuser");
+        userWithSuperUserRole = new User("super_user", "superuser");
         userWithRoleForDLS = new User("user_with_2_roles_with_dls", "base-role-1", "base-role-2");
         mockRoleDescriptors();
         mockRolesForUser();
@@ -429,6 +429,7 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
 
                                 if (inner.categoryValuesExpectedInQueryFromExistingRDs == null
                                         || inner.categoryValuesExpectedInQueryFromExistingRDs.length == 0) {
+                                    // no modification to the subset role descriptor
                                     assertThat(queryBuilder, instanceOf(MatchQueryBuilder.class));
                                     MatchQueryBuilder matchQB = (MatchQueryBuilder) queryBuilder;
                                     Set<String> valuesExpected = Sets.newHashSet(inner.categoryValuesExpectedInQueryFromSubsetRDs);
@@ -518,7 +519,7 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
                         roleActionListener);
                 break;
             }
-            case "superman": {
+            case "super_user": {
                 roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
                 break;
             }
@@ -551,7 +552,7 @@ public class ApiKeyServiceRoleSubsetTests extends AbstractBuilderTestCase {
                 roleDescriptorsActionListener.onResponse(roleDescriptorsWithDls);
                 break;
             }
-            case "superman": {
+            case "super_user": {
                 roleDescriptorsActionListener.onResponse(Collections.singleton(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR));
                 break;
             }

@@ -30,6 +30,7 @@ import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.client.watcher.DeleteWatchRequest;
 import org.elasticsearch.client.watcher.ExecuteWatchRequest;
+import org.elasticsearch.client.watcher.GetWatchRequest;
 import org.elasticsearch.client.watcher.PutWatchRequest;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
@@ -78,6 +79,16 @@ final class WatcherRequestConverters {
         BytesReference source = putWatchRequest.getSource();
         request.setEntity(new ByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
         return request;
+    }
+
+
+    static Request getWatch(GetWatchRequest getWatchRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack", "watcher", "watch")
+            .addPathPart(getWatchRequest.getId())
+            .build();
+
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     static Request deactivateWatch(DeactivateWatchRequest deactivateWatchRequest) {

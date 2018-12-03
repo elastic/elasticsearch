@@ -36,6 +36,8 @@ import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.client.watcher.DeactivateWatchResponse;
 import org.elasticsearch.client.watcher.ExecuteWatchRequest;
 import org.elasticsearch.client.watcher.ExecuteWatchResponse;
+import org.elasticsearch.client.watcher.GetWatchRequest;
+import org.elasticsearch.client.watcher.GetWatchResponse;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.client.watcher.WatchStatus;
@@ -243,6 +245,51 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-execute-watch-by-id-execute-async
             client.watcher().executeWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-execute-watch-by-id-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            //tag::get-watch-request
+            GetWatchRequest request = new GetWatchRequest("my_watch_id");
+            //end::get-watch-request
+
+            //tag::get-watch-execute
+            GetWatchResponse response = client.watcher().getWatch(request, RequestOptions.DEFAULT);
+            //end::get-watch-execute
+
+            //tag::get-watch-response
+            String watchId = response.getId(); // <1>
+            boolean found = response.isFound(); // <2>
+            long version = response.getVersion(); // <3>
+            WatchStatus status = response.getStatus(); // <4>
+            BytesReference source = response.getSource(); // <5>
+            //end::get-watch-response
+        }
+
+        {
+            GetWatchRequest request = new GetWatchRequest("my_other_watch_id");
+            // tag::get-watch-execute-listener
+            ActionListener<GetWatchResponse> listener = new ActionListener<GetWatchResponse>() {
+                @Override
+                public void onResponse(GetWatchResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-watch-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-watch-execute-async
+            client.watcher().getWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-watch-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

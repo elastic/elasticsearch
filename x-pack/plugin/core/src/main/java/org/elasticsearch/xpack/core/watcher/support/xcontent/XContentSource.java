@@ -53,6 +53,13 @@ public class XContentSource implements ToXContent {
     }
 
     /**
+     * @return The content type of the source
+     */
+    public XContentType getContentType() {
+        return contentType;
+    }
+
+    /**
      * @return The bytes reference of the source
      */
     public BytesReference getBytes() {

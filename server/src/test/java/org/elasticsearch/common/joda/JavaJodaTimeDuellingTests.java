@@ -286,6 +286,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertParseException("2018-12-31T10:15:3", "strict_date_optional_time");
         assertParseException("2018-12-31T10:5:30", "strict_date_optional_time");
         assertParseException("2018-12-31T9:15:30", "strict_date_optional_time");
+        assertSameDate("2015-01-04T00:00Z", "strict_date_optional_time");
         assertSameDate("2018-12-31T10:15:30.123Z", "strict_date_time");
         assertSameDate("2018-12-31T10:15:30.11Z", "strict_date_time");
         assertParseException("2018-12-31T10:15:3.123Z", "strict_date_time");

@@ -22,12 +22,26 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpDelete;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.security.AuthenticateResponse;
+import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DeleteUserResponse;
+import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetRolesResponse;
+import org.elasticsearch.client.security.PutRoleRequest;
+import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
+import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivilegesTests;
+import org.elasticsearch.client.security.user.privileges.GlobalOperationPrivilege;
+import org.elasticsearch.client.security.user.privileges.GlobalPrivileges;
+import org.elasticsearch.client.security.user.privileges.GlobalPrivilegesTests;
+import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
+import org.elasticsearch.client.security.user.privileges.IndicesPrivilegesTests;
+import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.CharArrays;
 
 import java.util.Arrays;
@@ -38,6 +52,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.contains;
 
 public class SecurityIT extends ESRestHighLevelClientTestCase {
 
@@ -93,6 +108,31 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
             execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
         assertThat(deleteUserResponse2.isAcknowledged(), is(false));
     }
+    
+    public void testPutRole() throws Exception {
+        final SecurityClient securityClient = highLevelClient().security();
+        // create random role
+        final Role role = randomRole(randomAlphaOfLength(4));
+        final PutRoleRequest putRoleRequest = new PutRoleRequest(role, RefreshPolicy.IMMEDIATE);
+
+        final PutRoleResponse createRoleResponse = execute(putRoleRequest, securityClient::putRole, securityClient::putRoleAsync);
+        // assert role created
+        assertThat(createRoleResponse.isCreated(), is(true));
+
+        final GetRolesRequest getRoleRequest = new GetRolesRequest(role.getName());
+        final GetRolesResponse getRoleResponse = securityClient.getRoles(getRoleRequest, RequestOptions.DEFAULT);
+        // assert role is equal
+        assertThat(getRoleResponse.getRoles(), contains(role));
+
+        final PutRoleResponse updateRoleResponse = execute(putRoleRequest, securityClient::putRole, securityClient::putRoleAsync);
+        // assert role updated
+        assertThat(updateRoleResponse.isCreated(), is(false));
+
+        final DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest(role.getName());
+        final DeleteRoleResponse deleteRoleResponse = securityClient.deleteRole(deleteRoleRequest, RequestOptions.DEFAULT);
+        // assert role deleted
+        assertThat(deleteRoleResponse.isFound(), is(true));
+    }
 
     private static User randomUser() {
         final String username = randomAlphaOfLengthBetween(1, 4);
@@ -116,6 +156,36 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
             metadata.put("string_list", Arrays.asList(generateRandomStringArray(4, 4, false, true)));
         }
         return new User(username, roles, metadata, fullName, email);
+    }
+
+    public static Role randomRole(String roleName) {
+        final Role.Builder roleBuilder = Role.builder()
+                .name(roleName)
+                .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ARRAY))
+                .indicesPrivileges(
+                        randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom(randomAlphaOfLength(3))))
+                .applicationResourcePrivileges(randomArray(3, ApplicationResourcePrivileges[]::new,
+                        () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3).toLowerCase())))
+                .runAsPrivilege(randomArray(3, String[]::new, () -> randomAlphaOfLength(3)));
+        if (randomBoolean()) {
+            roleBuilder.globalApplicationPrivileges(new GlobalPrivileges(Arrays
+                    .asList(GlobalPrivilegesTests.buildRandomGlobalScopedPrivilege(randomFrom(GlobalPrivileges.CATEGORIES), "manage"))));
+        }
+        if (randomBoolean()) {
+            final Map<String, Object> metadata = new HashMap<>();
+            for (int i = 0; i < randomInt(3); i++) {
+                metadata.put(randomAlphaOfLength(3), randomAlphaOfLength(3));
+            }
+            roleBuilder.metadata(metadata);
+        }
+        if (randomBoolean()) {
+            final Map<String, Object> transientMetadata = new HashMap<>();
+            for (int i = 0; i < randomInt(3); i++) {
+                transientMetadata.put(randomAlphaOfLength(3), randomAlphaOfLength(3));
+            }
+            roleBuilder.metadata(transientMetadata);
+        }
+        return roleBuilder.build();
     }
 
     private static PutUserRequest randomPutUserRequest(boolean enabled) {

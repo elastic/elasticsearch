@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.security;
 
+import org.elasticsearch.client.SecurityIT;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.GlobalOperationPrivilege;
@@ -36,22 +37,36 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest> {
-    
+
     private static final String roleName = "testRoleName";
 
     @Override
     protected PutRoleRequest createTestInstance() {
-        final Role.Builder roleBuilder = Role.builder()
-                .name(roleName)
+        final Role role = randomRole(roleName);
+        return new PutRoleRequest(role, null);
+    }
+
+    @Override
+    protected PutRoleRequest doParseInstance(XContentParser parser) throws IOException {
+        return new PutRoleRequest(Role.fromXContent(parser, roleName), null);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    private static final Role randomRole(String roleName) {
+        final Role.Builder roleBuilder = Role.builder().name(roleName)
                 .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ARRAY))
                 .indicesPrivileges(
                         randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom(randomAlphaOfLength(3))))
                 .applicationResourcePrivileges(randomArray(3, ApplicationResourcePrivileges[]::new,
-                        () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3))))
+                        () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3).toLowerCase())))
                 .runAsPrivilege(randomArray(3, String[]::new, () -> randomAlphaOfLength(3)));
         if (randomBoolean()) {
-            roleBuilder.globalApplicationPrivileges(new GlobalPrivileges(Arrays.asList(randomArray(1, 3, GlobalOperationPrivilege[]::new,
-                    () -> GlobalPrivilegesTests.buildRandomGlobalScopedPrivilege()))));
+            roleBuilder.globalApplicationPrivileges(new GlobalPrivileges(Arrays.asList(
+                    randomArray(1, 3, GlobalOperationPrivilege[]::new, () -> GlobalPrivilegesTests.buildRandomGlobalScopedPrivilege()))));
         }
         if (randomBoolean()) {
             final Map<String, Object> metadata = new HashMap<>();
@@ -67,16 +82,7 @@ public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest
             }
             roleBuilder.metadata(transientMetadata);
         }
-        return new PutRoleRequest(roleBuilder.build(), null);
+        return roleBuilder.build();
     }
 
-    @Override
-    protected PutRoleRequest doParseInstance(XContentParser parser) throws IOException {
-        return new PutRoleRequest(Role.fromXContent(parser, roleName), null);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

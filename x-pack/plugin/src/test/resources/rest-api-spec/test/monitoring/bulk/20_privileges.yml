@@ -82,7 +82,7 @@ teardown:
       headers:
         # Authorization: logstash_agent
         Authorization: "Basic bG9nc3Rhc2hfYWdlbnQ6czNrcml0"
-      xpack.monitoring.bulk:
+      monitoring.bulk:
         system_id:          "logstash"
         system_api_version: "6"
         interval:           "10s"
@@ -118,7 +118,7 @@ teardown:
       headers:
         # Authorization: unknown_agent
         Authorization: "Basic dW5rbm93bl9hZ2VudDpzM2tyaXQ="
-      xpack.monitoring.bulk:
+      monitoring.bulk:
         system_id:          "logstash"
         system_api_version: "6"
         interval:           "10s"

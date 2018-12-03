@@ -33,7 +33,7 @@ import java.util.Collection;
 @Deprecated
 public class MockTransportClient extends TransportClient {
     private static final Settings DEFAULT_SETTINGS = Settings.builder().put("transport.type.default",
-        MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
+        MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME).build();
 
     public MockTransportClient(Settings settings, Class<? extends Plugin>... plugins) {
         this(settings, Arrays.asList(plugins));
@@ -51,15 +51,7 @@ public class MockTransportClient extends TransportClient {
                                                                                  Collection<Class<? extends Plugin>> plugins) {
         boolean settingExists = NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings);
         String transportType = NetworkModule.TRANSPORT_TYPE_SETTING.get(settings);
-        if (settingExists == false || MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME.equals(transportType)) {
-            if (plugins.contains(MockTcpTransportPlugin.class)) {
-                return plugins;
-            } else {
-                plugins = new ArrayList<>(plugins);
-                plugins.add(MockTcpTransportPlugin.class);
-                return plugins;
-            }
-        } else if (MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME.equals(transportType)) {
+        if (settingExists == false || MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME.equals(transportType)) {
             if (plugins.contains(MockNioTransportPlugin.class)) {
                 return plugins;
             } else {

@@ -6,14 +6,15 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Request;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class GetJobStatsActionRequestTests extends AbstractStreamableTestCase<Request> {
+public class GetJobStatsActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -23,8 +24,8 @@ public class GetJobStatsActionRequestTests extends AbstractStreamableTestCase<Re
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     public void testMatch_GivenAll_FailsForNonJobTasks() {

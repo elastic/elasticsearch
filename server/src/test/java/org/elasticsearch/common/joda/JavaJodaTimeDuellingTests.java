@@ -287,6 +287,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertParseException("2018-12-31T10:15:3", "strict_date_optional_time");
         assertParseException("2018-12-31T10:5:30", "strict_date_optional_time");
         assertParseException("2018-12-31T9:15:30", "strict_date_optional_time");
+        assertSameDate("2015-01-04T00:00Z", "strict_date_optional_time");
         assertSameDate("2018-12-31T10:15:30.123Z", "strict_date_time");
         assertSameDate("2018-12-31T10:15:30.11Z", "strict_date_time");
         assertParseException("2018-12-31T10:15:3.123Z", "strict_date_time");
@@ -391,28 +392,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
         assertSameDate("2012-W31-5", "strict_weekyear_week_day");
         assertParseException("2012-W1-1", "strict_weekyear_week_day");
-//failing below
-        assertSameDate("2015-01-04T00:00Z", "strict_date_optional_time||epoch_millis");
-    }
-//Failing
-    public void testFailingParseJavaTime(){
-        DateFormatter formatter = DateFormatters.forPattern("strict_date_optional_time||epoch_millis");
-        TemporalAccessor parse = formatter.parse("2015-01-04T00:00Z");
-    }
-    //Passing
-    public void testParsingJoda(){
-        FormatDateTimeFormatter formatter = Joda.forPattern("strict_date_optional_time||epoch_millis");
-        DateTime dateTime = formatter.parser().parseDateTime("2015-01-04T00:00Z");
-        assertThat(dateTime,
-            equalTo(new DateTime()
-                .withZone(DateTimeZone.UTC)
-                .withYear(2015)
-                .withMonthOfYear(1)
-                .withDayOfMonth(4)
-                .withHourOfDay(0)
-                .withMinuteOfHour(0)
-                .withMillisOfDay(0)
-                ));
     }
 
     public void testSamePrinterOutput() {

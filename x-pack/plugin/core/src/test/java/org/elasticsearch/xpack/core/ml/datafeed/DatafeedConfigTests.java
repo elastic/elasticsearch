@@ -416,7 +416,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> createDatafeedWithDateHistogram((String) null));
 
-        assertThat(e.getMessage(), containsString("[interval] must be 1 or greater for histogram aggregation [buckets]"));
+        assertThat(e.getMessage(), containsString("Aggregation interval must be greater than 0"));
     }
 
     public void testBuild_GivenValidDateHistogram() {
@@ -477,9 +477,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         TermsAggregationBuilder toplevelTerms = AggregationBuilders.terms("top_level");
         toplevelTerms.subAggregation(dateHistogram);
 
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("foo", "bar");
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
-            () -> builder.validateAggregations(new AggregatorFactories.Builder().addAggregator(toplevelTerms)));
+            () -> DatafeedConfig.validateAggregations(new AggregatorFactories.Builder().addAggregator(toplevelTerms)));
 
         assertEquals("Aggregations can only have 1 date_histogram or histogram aggregation", e.getMessage());
     }
@@ -595,7 +594,9 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(Collections.singletonList("myIndex"));
         builder.setTypes(Collections.singletonList("myType"));
-        builder.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(dateHistogram));
+        AggregatorFactories.Builder aggs = new AggregatorFactories.Builder().addAggregator(dateHistogram);
+        DatafeedConfig.validateAggregations(aggs);
+        builder.setParsedAggregations(aggs);
         return builder.build();
     }
 

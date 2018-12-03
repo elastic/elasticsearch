@@ -133,6 +133,21 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
+    public static void validateAggregations(AggregatorFactories.Builder aggregations) {
+        if (aggregations == null) {
+            return;
+        }
+        Collection<AggregationBuilder> aggregatorFactories = aggregations.getAggregatorFactories();
+        if (aggregatorFactories.isEmpty()) {
+            throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
+        }
+
+        AggregationBuilder histogramAggregation = ExtractorUtils.getHistogramAggregation(aggregatorFactories);
+        Builder.checkNoMoreHistogramAggregations(histogramAggregation.getSubAggregations());
+        Builder.checkHistogramAggregationHasChildMaxTimeAgg(histogramAggregation);
+        Builder.checkHistogramIntervalIsPositive(histogramAggregation);
+    }
+
     private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
         ObjectParser<Builder, Void> parser = new ObjectParser<>("datafeed_config", ignoreUnknownFields, Builder::new);
 
@@ -542,6 +557,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private Map<String, String> headers = Collections.emptyMap();
         private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
 
+
+
         public Builder() {
             try {
                 this.query = QUERY_TRANSFORMER.toMap(QueryBuilders.matchAllQuery());
@@ -683,32 +700,22 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 throw invalidOptionValue(TYPES.getPreferredName(), types);
             }
 
-            AggregatorFactories.Builder parsedAggs = lazyAggParser.apply(aggregations, id);
-            validateAggregations(parsedAggs);
-            setDefaultChunkingConfig(parsedAggs);
+            validateScriptFields();
+            setDefaultChunkingConfig();
 
             setDefaultQueryDelay();
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, types, query, aggregations, scriptFields, scrollSize,
                     chunkingConfig, headers, delayedDataCheckConfig);
         }
 
-        void validateAggregations(AggregatorFactories.Builder aggregations) {
+        void validateScriptFields() {
             if (aggregations == null) {
                 return;
             }
             if (scriptFields != null && !scriptFields.isEmpty()) {
                 throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
+                    Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
             }
-            Collection<AggregationBuilder> aggregatorFactories = aggregations.getAggregatorFactories();
-            if (aggregatorFactories.isEmpty()) {
-                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
-            }
-
-            AggregationBuilder histogramAggregation = ExtractorUtils.getHistogramAggregation(aggregatorFactories);
-            checkNoMoreHistogramAggregations(histogramAggregation.getSubAggregations());
-            checkHistogramAggregationHasChildMaxTimeAgg(histogramAggregation);
-            checkHistogramIntervalIsPositive(histogramAggregation);
         }
 
         private static void checkNoMoreHistogramAggregations(Collection<AggregationBuilder> aggregations) {
@@ -746,12 +753,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
         }
 
-        private void setDefaultChunkingConfig(AggregatorFactories.Builder aggregations) {
+        private void setDefaultChunkingConfig() {
             if (chunkingConfig == null) {
                 if (aggregations == null) {
                     chunkingConfig = ChunkingConfig.newAuto();
                 } else {
-                    long histogramIntervalMillis = ExtractorUtils.getHistogramIntervalMillis(aggregations);
+                    long histogramIntervalMillis = ExtractorUtils.getHistogramIntervalMillis(lazyAggParser.apply(aggregations, id));
                     chunkingConfig = ChunkingConfig.newManual(TimeValue.timeValueMillis(
                             DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis));
                 }

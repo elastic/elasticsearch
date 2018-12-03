@@ -298,6 +298,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.setParsedQuery(query);
         }
         if (aggregations != null) {
+            DatafeedConfig.validateAggregations(aggregations);
             builder.setParsedAggregations(aggregations);
         }
         if (scriptFields != null) {

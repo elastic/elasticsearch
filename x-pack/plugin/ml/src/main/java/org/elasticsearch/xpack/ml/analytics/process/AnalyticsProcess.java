@@ -7,5 +7,14 @@ package org.elasticsearch.xpack.ml.analytics.process;
 
 import org.elasticsearch.xpack.ml.process.NativeProcess;
 
+import java.io.IOException;
+
 public interface AnalyticsProcess extends NativeProcess {
+
+    /**
+     * Writes a control message that informs the process
+     * all data has been sent
+     * @throws IOException If an error occurs writing to the process
+     */
+    void writeEndOfDataMessage() throws IOException;
 }

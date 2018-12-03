@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.analytics.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -44,27 +45,16 @@ public class AnalyticsProcessManager {
         threadPool.generic().execute(() -> {
             AnalyticsProcess process = createProcess(jobId, dataExtractor);
             try {
-                // Fake header
-                process.writeRecord(dataExtractor.getFieldNamesArray());
-
-                while (dataExtractor.hasNext()) {
-                    Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
-                    if (rows.isPresent()) {
-                        for (DataFrameDataExtractor.Row row : rows.get()) {
-                            String[] rowValues = row.getValues();
-                            if (rowValues != null) {
-                                process.writeRecord(rowValues);
-                            }
-                        }
-                    }
-                }
+                writeHeaderRecord(dataExtractor, process);
+                writeDataRows(dataExtractor, process);
+                process.writeEndOfDataMessage();
                 process.flushStream();
 
                 LOGGER.debug("[{}] Closing process", jobId);
                 process.close();
                 LOGGER.info("[{}] Closed process", jobId);
             } catch (IOException e) {
-
+                LOGGER.error(new ParameterizedMessage("[{}] Error writing data to the process", jobId), e);
             } finally {
                 try {
                     process.close();
@@ -73,6 +63,37 @@ public class AnalyticsProcessManager {
                 }
             }
         });
+    }
+
+    private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess process) throws IOException {
+        // The extra field is the control field (should be an empty string)
+        String[] record = new String[dataExtractor.getFieldNames().size() + 1];
+        // The value of the control field should be an empty string for data frame rows
+        record[record.length - 1] = "";
+
+        while (dataExtractor.hasNext()) {
+            Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
+            if (rows.isPresent()) {
+                for (DataFrameDataExtractor.Row row : rows.get()) {
+                    String[] rowValues = row.getValues();
+                    if (rowValues != null) {
+                        System.arraycopy(rowValues, 0, record, 0, rowValues.length);
+                        process.writeRecord(record);
+                    }
+                }
+            }
+        }
+    }
+
+    private void writeHeaderRecord(DataFrameDataExtractor dataExtractor, AnalyticsProcess process) throws IOException {
+        List<String> fieldNames = dataExtractor.getFieldNames();
+        String[] headerRecord = new String[fieldNames.size() + 1];
+        for (int i = 0; i < fieldNames.size(); i++) {
+            headerRecord[i] = fieldNames.get(i);
+        }
+        // The field name of the control field is dot
+        headerRecord[headerRecord.length - 1] = ".";
+        process.writeRecord(headerRecord);
     }
 
     private AnalyticsProcess createProcess(String jobId, DataFrameDataExtractor dataExtractor) {

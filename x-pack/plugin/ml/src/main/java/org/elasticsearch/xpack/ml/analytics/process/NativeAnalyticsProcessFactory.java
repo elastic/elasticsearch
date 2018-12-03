@@ -45,10 +45,13 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, jobId,
                 true, false, true, true, false, false);
 
+        // The extra 1 is the control field
+        int numberOfFields = analyticsProcessConfig.cols() + 1;
+
         createNativeProcess(jobId, analyticsProcessConfig, filesToDelete, processPipes);
 
         NativeAnalyticsProcess analyticsProcess = new NativeAnalyticsProcess(jobId, processPipes.getLogStream().get(),
-                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), null, 0,
+                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), null, numberOfFields,
                 filesToDelete, () -> {});
 
 

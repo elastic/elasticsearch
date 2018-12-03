@@ -176,7 +176,7 @@ public abstract class PeerFinder {
                 peersRequest.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(this::startProbe);
                 knownPeers = getFoundPeersUnderLock();
             } else {
-                assert leader.isPresent();
+                assert leader.isPresent() || lastAcceptedNodes == null;
                 knownPeers = emptyList();
             }
             return new PeersResponse(leader, knownPeers, currentTerm);

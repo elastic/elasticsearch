@@ -26,6 +26,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Request the set of master-eligible nodes discovered by this node. Most useful in a brand-new cluster as a precursor to setting the
@@ -38,6 +40,8 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
     @Nullable // if the request should wait indefinitely
     private TimeValue timeout = TimeValue.timeValueSeconds(30);
 
+    private List<String> requiredNodes = Collections.emptyList();
+
     public GetDiscoveredNodesRequest() {
     }
 
@@ -45,6 +49,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
         super(in);
         waitForNodes = in.readInt();
         timeout = in.readOptionalTimeValue();
+        requiredNodes = in.readList(StreamInput::readString);
     }
 
     /**
@@ -95,6 +100,26 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
         return timeout;
     }
 
+    /**
+     * Sometimes it is useful only to receive a successful response after discovering a certain set of master-eligible nodes.
+     * This parameter gives the names or transport addresses of the expected nodes.
+     *
+     * @return list of expected nodes
+     */
+    public List<String> getRequiredNodes() {
+        return requiredNodes;
+    }
+
+    /**
+     * Sometimes it is useful only to receive a successful response after discovering a certain set of master-eligible nodes.
+     * This parameter gives the names or transport addresses of the expected nodes.
+     *
+     * @param requiredNodes list of expected nodes
+     */
+    public void setRequiredNodes(final List<String> requiredNodes) {
+        this.requiredNodes = requiredNodes;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -110,6 +135,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
         super.writeTo(out);
         out.writeInt(waitForNodes);
         out.writeOptionalTimeValue(timeout);
+        out.writeStringList(requiredNodes);
     }
 
     @Override
@@ -117,6 +143,6 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
         return "GetDiscoveredNodesRequest{" +
             "waitForNodes=" + waitForNodes +
             ", timeout=" + timeout +
-            '}';
+            ", requiredNodes=" + requiredNodes + "}";
     }
 }

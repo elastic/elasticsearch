@@ -1056,17 +1056,21 @@ public final class InternalTestCluster extends TestCluster {
 
         // trash all nodes with id >= sharedNodesSeeds.length - they are non shared
         final List<NodeAndClient> toClose = new ArrayList<>();
-        for (Iterator<NodeAndClient> iterator = nodes.values().iterator(); iterator.hasNext();) {
-            NodeAndClient nodeAndClient = iterator.next();
+        int numberOfMasterNodesToClose = 0;
+        for (final NodeAndClient nodeAndClient : nodes.values()) {
             if (nodeAndClient.nodeAndClientId() >= sharedNodesSeeds.length) {
                 logger.debug("will close unshared node [{}]", nodeAndClient.name);
                 toClose.add(nodeAndClient);
+                if (nodeAndClient.isMasterEligible()) {
+                    numberOfMasterNodesToClose += 1;
+                }
             }
         }
 
-        // start any missing node
+        // start any missing nodes
         assert newSize == numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes;
-        final int numberOfMasterNodes = numSharedDedicatedMasterNodes > 0 ? numSharedDedicatedMasterNodes : numSharedDataNodes;
+        final int numberOfMasterNodes = numberOfMasterNodesToClose
+            + (numSharedDedicatedMasterNodes > 0 ? numSharedDedicatedMasterNodes : numSharedDataNodes);
         final int defaultMinMasterNodes = (numberOfMasterNodes / 2) + 1;
         final List<NodeAndClient> toStartAndPublish = new ArrayList<>(); // we want to start nodes in one go due to min master nodes
         final Runnable onTransportServiceStarted = () -> rebuildUnicastHostFiles(toStartAndPublish);

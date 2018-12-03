@@ -96,13 +96,10 @@ public class TransportHandshakerTests extends ESTestCase {
     }
 
     public void testHandshakeRequestFutureVersionsCompatibility() throws IOException {
-        PlainActionFuture<Version> versionFuture = PlainActionFuture.newFuture();
         long reqId = randomLongBetween(1, 10);
-        handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), versionFuture);
+        handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), PlainActionFuture.newFuture());
 
         verify(requestSender).sendRequest(node, channel, reqId, Version.CURRENT.minimumCompatibilityVersion());
-
-        assertFalse(versionFuture.isDone());
 
         TcpChannel mockChannel = mock(TcpChannel.class);
         TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(Version.CURRENT);
@@ -129,6 +126,31 @@ public class TransportHandshakerTests extends ESTestCase {
         TransportHandshaker.HandshakeResponse response = (TransportHandshaker.HandshakeResponse) responseCaptor.getValue();
 
         assertEquals(Version.CURRENT, response.getResponseVersion());
+    }
+
+    public void testHandshakeRequestToLarge() throws IOException {
+        long reqId = randomLongBetween(1, 10);
+        handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), PlainActionFuture.newFuture());
+
+        verify(requestSender).sendRequest(node, channel, reqId, Version.CURRENT.minimumCompatibilityVersion());
+
+        TcpChannel mockChannel = mock(TcpChannel.class);
+        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(Version.CURRENT);
+        BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+        handshakeRequest.writeTo(bytesStreamOutput);
+        BytesStreamOutput taskIdStream = new BytesStreamOutput();
+        TaskId.EMPTY_TASK_ID.writeTo(taskIdStream);
+        int taskIdBytes = taskIdStream.bytes().length();
+        int currentPosition = (int) bytesStreamOutput.position();
+        bytesStreamOutput.seek(taskIdBytes);
+        bytesStreamOutput.writeInt((currentPosition - taskIdBytes - 4) + 2048);
+        bytesStreamOutput.seek(currentPosition);
+        bytesStreamOutput.write(new byte[2048]);
+        StreamInput input = bytesStreamOutput.bytes().streamInput();
+        assertEquals(2057, input.available());
+        IOException ioException = expectThrows(IOException.class,
+            () -> handshaker.handleHandshake(Version.CURRENT, Collections.emptySet(), mockChannel, reqId, input));
+        assertEquals("Handshake request limited to 2048 bytes. Found 2052 bytes.", ioException.getMessage());
     }
 
     public void testHandshakeError() throws IOException {

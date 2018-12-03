@@ -154,6 +154,9 @@ final class TransportHandshaker {
 
     static final class HandshakeRequest extends TransportRequest {
 
+        // Allow a maximum for 2KB for future handshake message. This 2KB limit excludes any bytes serialized
+        // by the abstract TransportRequest.
+        private static final int MAX_HANDSHAKE_REQUEST_BYTES = 1 << 11;
         private static final byte[] EMPTY_ARRAY = new byte[0];
 
         private final Version version;
@@ -167,6 +170,10 @@ final class TransportHandshaker {
         HandshakeRequest(StreamInput streamInput) throws IOException {
             super(streamInput);
             int messageBytes = streamInput.readInt();
+            if (messageBytes > MAX_HANDSHAKE_REQUEST_BYTES) {
+                throw new IOException("Handshake request limited to " + MAX_HANDSHAKE_REQUEST_BYTES + " bytes. Found "
+                    + messageBytes + " bytes.");
+            }
             int currentlyAvailable = streamInput.available();
             this.version = Version.readVersion(streamInput);
             int futureBytesLength = messageBytes - (currentlyAvailable - streamInput.available());

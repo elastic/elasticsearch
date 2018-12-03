@@ -25,7 +25,6 @@ public final class TransportStatus {
     private static final byte STATUS_ERROR = 1 << 1;
     private static final byte STATUS_COMPRESS = 1 << 2;
     private static final byte STATUS_HANDSHAKE = 1 << 3;
-    private static final byte STATUS_HANDSHAKE_V2 = 1 << 4;
 
     public static boolean isRequest(byte value) {
         return (value & STATUS_REQRES) == 0;
@@ -65,15 +64,6 @@ public final class TransportStatus {
 
     static byte setHandshake(byte value) { // pkg private since it's only used internally
         value |= STATUS_HANDSHAKE;
-        return value;
-    }
-
-    static boolean isHandshakeV2(byte value) { // pkg private since it's only used internally
-        return (value & STATUS_HANDSHAKE_V2) != 0;
-    }
-
-    static byte setHandshakeV2(byte value) { // pkg private since it's only used internally
-        value |= STATUS_HANDSHAKE_V2;
         return value;
     }
 }

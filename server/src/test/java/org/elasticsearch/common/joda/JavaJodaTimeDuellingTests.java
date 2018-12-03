@@ -33,6 +33,7 @@ import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -390,6 +391,28 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
         assertSameDate("2012-W31-5", "strict_weekyear_week_day");
         assertParseException("2012-W1-1", "strict_weekyear_week_day");
+//failing below
+        assertSameDate("2015-01-04T00:00Z", "strict_date_optional_time||epoch_millis");
+    }
+//Failing
+    public void testFailingParseJavaTime(){
+        DateFormatter formatter = DateFormatters.forPattern("strict_date_optional_time||epoch_millis");
+        TemporalAccessor parse = formatter.parse("2015-01-04T00:00Z");
+    }
+    //Passing
+    public void testParsingJoda(){
+        FormatDateTimeFormatter formatter = Joda.forPattern("strict_date_optional_time||epoch_millis");
+        DateTime dateTime = formatter.parser().parseDateTime("2015-01-04T00:00Z");
+        assertThat(dateTime,
+            equalTo(new DateTime()
+                .withZone(DateTimeZone.UTC)
+                .withYear(2015)
+                .withMonthOfYear(1)
+                .withDayOfMonth(4)
+                .withHourOfDay(0)
+                .withMinuteOfHour(0)
+                .withMillisOfDay(0)
+                ));
     }
 
     public void testSamePrinterOutput() {

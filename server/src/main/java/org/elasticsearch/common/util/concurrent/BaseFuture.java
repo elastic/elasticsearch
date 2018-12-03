@@ -25,68 +25,64 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
- * CompletableFuture implementation that properly bubbles up errors. How does it work?
- * The main idea is to override newIncompleteFuture() and provide a BaseFuture instance. This means that all CompletionStage methods
- * properly instantiate BaseFuture instances. The newIncompleteFuture() method was only introduced in JDK9.
- * This means that we can't guarantee for older JDKs to return our subclass for the CompletionStage methods. It's ok though,
- * because ES 7.0 will require JDK 11 to run. There are other methods on CompletableFuture that are unsafe to use, and we will have
- * to ban them. I envision the following plan for them:
- * - add CompletableFuture methods to forbidden APIs:
- *   - blacklist all methods on CompletableFuture / CompletableStage that take the default (forkjoinpool) executor
+ * Wraps a CompletableFuture and ensures Errors are properly bubbled up
+ * TODO:
+ * - add CompletableFuture class and methods to forbidden APIs:
  *   - blacklist constructor methods of CompletableFuture and static methods that create CompletableFuture instances
- *     (failedFuture, allOf, anyOf, 2 * supplyAsync, 2 * runAsync, completedFuture)
  *   - blacklist methods that return MinimalStage (completedStage, failedStage, minimalCompletionStage(possibly override this one))
- *   - blacklist methods we cannot wrap because they only exist on JDK9 (2 * completeAsync, orTimeout, completeOnTimeout,
- *     2 * delayedExecutor,
+ *   - blacklist static methods on CompletableFuture (failedFuture, allOf, anyOf, 2 * supplyAsync, 2 * runAsync, completedFuture)
  * - provide corresponding methods for the forbidden static ones on BaseFuture
- * - possibly return BaseFuture on overridden methods such as whenComplete etc. This makes users able to program against BaseFuture
- *   instead of CompletableFuture. Would only be possible once we switch to JDK 9+ as JDK8 would get a classcastexception otherwise.
  */
-public class BaseFuture<V> extends CompletableFuture<V> {
+public class BaseFuture<V> implements Future<V>, CompletionStage<V> {
 
-    private static final String BLOCKING_OP_REASON = "Blocking operation";
+    private final CompletableFuture<V> wrapped;
 
-    // Unfortunately this method was only introduced in JDK 9. This means that we can't guarantee for older JDKs to return our
-    // subclass here for the CompletionStage methods (bummer)
-    // it's ok though, because ES 7.0 will require JDK 11 to run
-    public <U> CompletableFuture<U> newIncompleteFuture() {
-        return new BaseFuture<>();
+    public BaseFuture() {
+        this(new CompletableFuture<>());
     }
 
-    // method only provided since JDK9 so cannot specify Override annotation here
-    public Executor defaultExecutor() {
-        throw new IllegalStateException("default executor");
-    }
-
-    // method only provided since JDK9 so cannot specify Override annotation here
-    public CompletionStage<V> minimalCompletionStage() {
-        throw new IllegalStateException("minimalCompletionStage");
+    private BaseFuture(CompletableFuture<V> fut) {
+        wrapped = fut;
+        wrapped.exceptionally(t -> {
+            ExceptionsHelper.maybeDieOnAnotherThread(t);
+            return null;
+        });
     }
 
     @Override
     public V get(long timeout, TimeUnit unit) throws InterruptedException,
             TimeoutException, ExecutionException {
         assert timeout <= 0 || blockingAllowed();
-        return super.get(timeout, unit);
+        return wrapped.get(timeout, unit);
     }
 
     @Override
     public V get() throws InterruptedException, ExecutionException {
         assert blockingAllowed();
-        return super.get();
+        return wrapped.get();
     }
+
+    public V join() {
+        assert blockingAllowed();
+        return wrapped.join();
+    }
+
+    private static final String BLOCKING_OP_REASON = "Blocking operation";
 
     private static boolean blockingAllowed() {
         return Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
@@ -95,228 +91,258 @@ public class BaseFuture<V> extends CompletableFuture<V> {
             MasterService.assertNotMasterUpdateThread(BLOCKING_OP_REASON);
     }
 
+    public V getNow(V valueIfAbsent) {
+        return wrapped.getNow(valueIfAbsent);
+    }
+
     @Override
+    public boolean cancel(boolean mayInterruptIfRunning) {
+        return wrapped.cancel(mayInterruptIfRunning);
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return wrapped.isCancelled();
+    }
+
+    @Override
+    public boolean isDone() {
+        return wrapped.isDone();
+    }
+
+    public boolean isCompletedExceptionally() {
+        return wrapped.isCompletedExceptionally();
+    }
+
+    public boolean complete(V value) {
+        return wrapped.complete(value);
+    }
+
     public boolean completeExceptionally(Throwable ex) {
-        ExceptionsHelper.maybeDieOnAnotherThread(ex);
-        return super.completeExceptionally(ex);
+        return wrapped.completeExceptionally(ex);
     }
 
     @Override
-    public <U> CompletableFuture<U> thenApply(Function<? super V,? extends U> fn) {
-        return super.thenApply(wrap(fn));
+    public String toString() {
+        return "BaseFuture{" + wrapped + "}";
+    }
+
+    public static BaseFuture<Void> allOf(BaseFuture<?>... cfs) {
+        return new BaseFuture<>(CompletableFuture.allOf(Arrays.stream(cfs).map(bf -> bf.wrapped).toArray(CompletableFuture[]::new)));
+    }
+
+    public static BaseFuture<Object> anyOf(BaseFuture<?>... cfs) {
+        return new BaseFuture<>(CompletableFuture.anyOf(Arrays.stream(cfs).map(bf -> bf.wrapped).toArray(CompletableFuture[]::new)));
+    }
+
+    public static <U> BaseFuture<U> supplyAsync(Supplier<U> supplier, Executor executor) {
+        return new BaseFuture<>(CompletableFuture.supplyAsync(supplier, executor));
+    }
+
+    public static BaseFuture<Void> runAsync(Runnable runnable, Executor executor) {
+        return new BaseFuture<>(CompletableFuture.runAsync(runnable, executor));
+    }
+
+    public static <U> BaseFuture<U> completedFuture(U value) {
+        return new BaseFuture<>(CompletableFuture.completedFuture(value));
+    }
+
+    public static <U> BaseFuture<U> failedFuture(Throwable ex) {
+        final BaseFuture fut = new BaseFuture<>();
+        fut.completeExceptionally(ex);
+        return fut;
     }
 
     @Override
-    public <U> CompletableFuture<U> thenApplyAsync(Function<? super V, ? extends U> fn, Executor executor) {
-        return super.thenApplyAsync(wrap(fn), executor);
+    public <U> BaseFuture<U> thenApply(Function<? super V,? extends U> fn) {
+        return new BaseFuture<>(wrapped.thenApply(fn));
     }
 
     @Override
-    public CompletableFuture<Void> thenAccept(Consumer<? super V> action) {
-        return super.thenAccept(wrap(action));
+    public <U> CompletionStage<U> thenApplyAsync(Function<? super V, ? extends U> fn) {
+        throw new UnsupportedOperationException("specify executor");
     }
 
     @Override
-    public CompletableFuture<Void> thenAcceptAsync(Consumer<? super V> action, Executor executor) {
-        return super.thenAcceptAsync(wrap(action), executor);
+    public <U> BaseFuture<U> thenApplyAsync(Function<? super V, ? extends U> fn, Executor executor) {
+        return new BaseFuture<>(wrapped.thenApplyAsync(fn, executor));
     }
 
     @Override
-    public CompletableFuture<Void> thenRun(Runnable action) {
-        return super.thenRun(wrap(action));
+    public BaseFuture<Void> thenAccept(Consumer<? super V> action) {
+        return new BaseFuture<>(wrapped.thenAccept(action));
     }
 
     @Override
-    public CompletableFuture<Void> thenRunAsync(Runnable action, Executor executor) {
-        return super.thenRunAsync(wrap(action), executor);
+    public CompletionStage<Void> thenAcceptAsync(Consumer<? super V> action) {
+        throw new UnsupportedOperationException("specify executor");
     }
 
     @Override
-    public <U, T> CompletableFuture<T> thenCombine(CompletionStage<? extends U> other, BiFunction<? super V, ? super U, ? extends T> fn) {
-        return super.thenCombine(other, wrap(fn));
+    public BaseFuture<Void> thenAcceptAsync(Consumer<? super V> action, Executor executor) {
+        return new BaseFuture<>(wrapped.thenAcceptAsync(action, executor));
     }
 
     @Override
-    public <U, T> CompletableFuture<T> thenCombineAsync(CompletionStage<? extends U> other,
+    public BaseFuture<Void> thenRun(Runnable action) {
+        return new BaseFuture<>(wrapped.thenRun(action));
+    }
+
+    @Override
+    public CompletionStage<Void> thenRunAsync(Runnable action) {
+        throw new UnsupportedOperationException("specify executor");
+    }
+
+    @Override
+    public BaseFuture<Void> thenRunAsync(Runnable action, Executor executor) {
+        return new BaseFuture<>(wrapped.thenRunAsync(action, executor));
+    }
+
+    @Override
+    public <U, T> BaseFuture<T> thenCombine(CompletionStage<? extends U> other, BiFunction<? super V, ? super U, ? extends T> fn) {
+        return new BaseFuture<>(wrapped.thenCombine(other, fn));
+    }
+
+    @Override
+    public <U, T> CompletionStage<T> thenCombineAsync(CompletionStage<? extends U> other,
+                                                      BiFunction<? super V, ? super U, ? extends T> fn) {
+        throw new UnsupportedOperationException("specify executor");
+    }
+
+    @Override
+    public <U, T> BaseFuture<T> thenCombineAsync(CompletionStage<? extends U> other,
                                                         BiFunction<? super V, ? super U, ? extends T> fn, Executor executor) {
-        return super.thenCombineAsync(other, wrap(fn), executor);
+        return new BaseFuture<>(wrapped.thenCombineAsync(other, fn, executor));
     }
 
     @Override
-    public <U> CompletableFuture<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super V, ? super U> action) {
-        return super.thenAcceptBoth(other, wrap(action));
+    public <U> BaseFuture<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super V, ? super U> action) {
+        return new BaseFuture<>(wrapped.thenAcceptBoth(other, action));
     }
 
     @Override
-    public <U> CompletableFuture<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super V, ? super U> action,
+    public <U> CompletionStage<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super V, ? super U> action) {
+        throw new UnsupportedOperationException("specify executor");
+    }
+
+    @Override
+    public <U> BaseFuture<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super V, ? super U> action,
                                                            Executor executor) {
-        return super.thenAcceptBothAsync(other, wrap(action), executor);
+        return new BaseFuture<>(wrapped.thenAcceptBothAsync(other, action, executor));
     }
 
     @Override
-    public CompletableFuture<Void> runAfterBoth(CompletionStage<?> other, Runnable action) {
-        return super.runAfterBoth(other, wrap(action));
+    public BaseFuture<Void> runAfterBoth(CompletionStage<?> other, Runnable action) {
+        return new BaseFuture<>(wrapped.runAfterBoth(other, action));
     }
 
     @Override
-    public CompletableFuture<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Executor executor) {
-        return super.runAfterBothAsync(other, wrap(action), executor);
+    public CompletionStage<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action) {
+        throw new UnsupportedOperationException("specify executor");
     }
 
     @Override
-    public <U> CompletableFuture<U> applyToEither(CompletionStage<? extends V> other, Function<? super V, U> fn) {
-        return super.applyToEither(other, wrap(fn));
+    public BaseFuture<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Executor executor) {
+        return new BaseFuture<>(wrapped.runAfterBothAsync(other, action, executor));
     }
 
     @Override
-    public <U> CompletableFuture<U> applyToEitherAsync(CompletionStage<? extends V> other, Function<? super V, U> fn, Executor executor) {
-        return super.applyToEitherAsync(other, wrap(fn), executor);
+    public <U> BaseFuture<U> applyToEither(CompletionStage<? extends V> other, Function<? super V, U> fn) {
+        return new BaseFuture<>(wrapped.applyToEither(other, fn));
     }
 
     @Override
-    public CompletableFuture<Void> acceptEither(CompletionStage<? extends V> other, Consumer<? super V> action) {
-        return super.acceptEither(other, wrap(action));
+    public <U> CompletionStage<U> applyToEitherAsync(CompletionStage<? extends V> other, Function<? super V, U> fn) {
+        throw new UnsupportedOperationException("specify executor");
     }
 
     @Override
-    public CompletableFuture<Void> acceptEitherAsync(CompletionStage<? extends V> other, Consumer<? super V> action, Executor executor) {
-        return super.acceptEitherAsync(other, wrap(action), executor);
+    public <U> BaseFuture<U> applyToEitherAsync(CompletionStage<? extends V> other, Function<? super V, U> fn, Executor executor) {
+        return new BaseFuture<>(wrapped.applyToEitherAsync(other, fn, executor));
     }
 
     @Override
-    public CompletableFuture<Void> runAfterEither(CompletionStage<?> other, Runnable action) {
-        return super.runAfterEither(other, wrap(action));
+    public BaseFuture<Void> acceptEither(CompletionStage<? extends V> other, Consumer<? super V> action) {
+        return new BaseFuture<>(wrapped.acceptEither(other, action));
     }
 
     @Override
-    public CompletableFuture<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Executor executor) {
-        return super.runAfterEitherAsync(other, wrap(action), executor);
+    public CompletionStage<Void> acceptEitherAsync(CompletionStage<? extends V> other, Consumer<? super V> action) {
+        throw new UnsupportedOperationException("specify executor");
     }
 
     @Override
-    public <U> CompletableFuture<U> thenCompose(Function<? super V, ? extends CompletionStage<U>> fn) {
-        return super.thenCompose(wrap(fn));
+    public BaseFuture<Void> acceptEitherAsync(CompletionStage<? extends V> other, Consumer<? super V> action, Executor executor) {
+        return new BaseFuture<>(wrapped.acceptEitherAsync(other, action, executor));
     }
 
     @Override
-    public <U> CompletableFuture<U> thenComposeAsync(Function<? super V, ? extends CompletionStage<U>> fn, Executor executor) {
-        return super.thenComposeAsync(wrap(fn), executor);
+    public BaseFuture<Void> runAfterEither(CompletionStage<?> other, Runnable action) {
+        return new BaseFuture<>(wrapped.runAfterEither(other, action));
     }
 
     @Override
-    public CompletableFuture<V> whenComplete(BiConsumer<? super V, ? super Throwable> action) {
-        return super.whenComplete(wrap2(action));
+    public CompletionStage<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action) {
+        throw new UnsupportedOperationException("specify executor");
     }
 
     @Override
-    public CompletableFuture<V> whenCompleteAsync(BiConsumer<? super V, ? super Throwable> action, Executor executor) {
-        return super.whenCompleteAsync(wrap2(action), executor);
+    public BaseFuture<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Executor executor) {
+        return new BaseFuture<>(wrapped.runAfterEitherAsync(other, action, executor));
     }
 
     @Override
-    public <U> CompletableFuture<U> handle(BiFunction<? super V, Throwable, ? extends U> fn) {
-        return super.handle(wrap2(fn));
+    public <U> BaseFuture<U> thenCompose(Function<? super V, ? extends CompletionStage<U>> fn) {
+        return new BaseFuture<>(wrapped.thenCompose(fn));
     }
 
     @Override
-    public <U> CompletableFuture<U> handleAsync(BiFunction<? super V, Throwable, ? extends U> fn, Executor executor) {
-        return super.handleAsync(wrap2(fn), executor);
+    public <U> CompletionStage<U> thenComposeAsync(Function<? super V, ? extends CompletionStage<U>> fn) {
+        throw new UnsupportedOperationException("specify executor");
+    }
+
+    @Override
+    public <U> BaseFuture<U> thenComposeAsync(Function<? super V, ? extends CompletionStage<U>> fn, Executor executor) {
+        return new BaseFuture<>(wrapped.thenComposeAsync(fn, executor));
+    }
+
+    @Override
+    public BaseFuture<V> whenComplete(BiConsumer<? super V, ? super Throwable> action) {
+        return new BaseFuture<>(wrapped.whenComplete(action));
+    }
+
+    @Override
+    public CompletionStage<V> whenCompleteAsync(BiConsumer<? super V, ? super Throwable> action) {
+        throw new UnsupportedOperationException("specify executor");
+    }
+
+    @Override
+    public BaseFuture<V> whenCompleteAsync(BiConsumer<? super V, ? super Throwable> action, Executor executor) {
+        return new BaseFuture<>(wrapped.whenCompleteAsync(action, executor));
+    }
+
+    @Override
+    public <U> BaseFuture<U> handle(BiFunction<? super V, Throwable, ? extends U> fn) {
+        return new BaseFuture<>(wrapped.handle(fn));
+    }
+
+    @Override
+    public <U> CompletionStage<U> handleAsync(BiFunction<? super V, Throwable, ? extends U> fn) {
+        throw new UnsupportedOperationException("specify executor");
+    }
+
+    @Override
+    public <U> BaseFuture<U> handleAsync(BiFunction<? super V, Throwable, ? extends U> fn, Executor executor) {
+        return new BaseFuture<>(wrapped.handleAsync(fn, executor));
+    }
+
+    @Override
+    public BaseFuture<V> exceptionally(Function<Throwable, ? extends V> fn) {
+        return new BaseFuture<>(wrapped.exceptionally(fn));
     }
 
     @Override
     public CompletableFuture<V> toCompletableFuture() {
-        return super.toCompletableFuture();
+        return wrapped.toCompletableFuture();
     }
-
-    @Override
-    public CompletableFuture<V> exceptionally(Function<Throwable, ? extends V> fn) {
-        return super.exceptionally(wrap(fn));
-    }
-
-    private BiConsumer<? super V, ? super Throwable> wrap2(BiConsumer<? super V, ? super Throwable> action) {
-        return (v, t) -> {
-            if (t != null) {
-                ExceptionsHelper.maybeDieOnAnotherThread(t);
-            }
-            try {
-                action.accept(v, t);
-            } catch (Throwable throwable) {
-                ExceptionsHelper.maybeDieOnAnotherThread(throwable);
-                throw throwable;
-            }
-        };
-    }
-
-    private static <X, Y> BiConsumer<X, Y> wrap(BiConsumer<X, Y> action) {
-        return (v, t) -> {
-            try {
-                action.accept(v, t);
-            } catch (Throwable throwable) {
-                ExceptionsHelper.maybeDieOnAnotherThread(throwable);
-                throw throwable;
-            }
-        };
-    }
-
-    private <U> BiFunction<? super V, Throwable, ? extends U> wrap2(BiFunction<? super V, Throwable, ? extends U> fn) {
-        return (v, t) -> {
-            if (t != null) {
-                ExceptionsHelper.maybeDieOnAnotherThread(t);
-            }
-            try {
-                return fn.apply(v, t);
-            } catch (Throwable throwable) {
-                ExceptionsHelper.maybeDieOnAnotherThread(throwable);
-                throw throwable;
-            }
-        };
-    }
-
-    private static <X, Y, Z> BiFunction<X, Y, Z> wrap(BiFunction<X, Y, Z> fn) {
-        return (v, t) -> {
-            try {
-                return fn.apply(v, t);
-            } catch (Throwable throwable) {
-                ExceptionsHelper.maybeDieOnAnotherThread(throwable);
-                throw throwable;
-            }
-        };
-    }
-
-    private static <T, U> Function<T, U> wrap(Function<T, U> fn) {
-        return t -> {
-            if (t instanceof Throwable) {
-                ExceptionsHelper.maybeDieOnAnotherThread((Throwable) t);
-            }
-            try {
-                return fn.apply(t);
-            } catch (Throwable throwable) {
-                ExceptionsHelper.maybeDieOnAnotherThread(throwable);
-                throw throwable;
-            }
-        };
-    }
-
-    private static <T> Consumer<T> wrap(Consumer<T> consumer) {
-        return t -> {
-            try {
-                consumer.accept(t);
-            } catch (Throwable throwable) {
-                ExceptionsHelper.maybeDieOnAnotherThread(throwable);
-                throw throwable;
-            }
-        };
-    }
-
-    private static Runnable wrap(Runnable runnable) {
-        return () -> {
-            try {
-                runnable.run();
-            } catch (Throwable throwable) {
-                ExceptionsHelper.maybeDieOnAnotherThread(throwable);
-                throw throwable;
-            }
-        };
-    }
-
 }

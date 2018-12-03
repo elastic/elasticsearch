@@ -53,8 +53,8 @@ public class InvalidateTokenResponseTests extends ESTestCase {
 
     public void testSerializationToPre66Version() throws IOException{
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_2_0, Version.V_6_5_1);
-        TokensInvalidationResult result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false)),
-            Arrays.asList(generateRandomStringArray(20, 15, false)),
+        TokensInvalidationResult result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false, false)),
+            Arrays.asList(generateRandomStringArray(20, 15, false, false)),
             Arrays.asList(new ElasticsearchException("foo", new IllegalArgumentException("this is an error message")),
                 new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))),
             randomIntBetween(0, 5));
@@ -68,8 +68,8 @@ public class InvalidateTokenResponseTests extends ESTestCase {
             }
         }
 
-        result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false)),
-            Arrays.asList(generateRandomStringArray(20, 15, false)),
+        result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false, false)),
+            Arrays.asList(generateRandomStringArray(20, 15, false, false)),
             Collections.emptyList(), randomIntBetween(0, 5));
         response = new InvalidateTokenResponse(result);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -81,7 +81,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
             }
         }
 
-        result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false)),
+        result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false, false)),
             Collections.emptyList(), Collections.emptyList(), randomIntBetween(0, 5));
         response = new InvalidateTokenResponse(result);
         try (BytesStreamOutput output = new BytesStreamOutput()) {

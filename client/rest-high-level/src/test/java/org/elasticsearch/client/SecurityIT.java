@@ -158,7 +158,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         return new User(username, roles, metadata, fullName, email);
     }
 
-    public static Role randomRole(String roleName) {
+    private static Role randomRole(String roleName) {
         final Role.Builder roleBuilder = Role.builder()
                 .name(roleName)
                 .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ARRAY))

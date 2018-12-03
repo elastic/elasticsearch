@@ -87,6 +87,7 @@ public final class Role {
     private final Set<ApplicationResourcePrivileges> applicationResourcePrivileges;
     private final Set<String> runAsPrivilege;
     private final Map<String, Object> metadata;
+    // this read only (user face)
     private final Map<String, Object> transientMetadata;
 
     private Role(String name, @Nullable Collection<String> clusterPrivileges,
@@ -159,14 +160,13 @@ public final class Role {
             && indicesPrivileges.equals(that.indicesPrivileges)
             && applicationResourcePrivileges.equals(that.applicationResourcePrivileges)
             && runAsPrivilege.equals(that.runAsPrivilege)
-            && metadata.equals(that.metadata)
-            && transientMetadata.equals(that.transientMetadata);
+            && metadata.equals(that.metadata);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(name, clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
-            runAsPrivilege, metadata, transientMetadata);
+            runAsPrivilege, metadata, null);
     }
 
     @Override
@@ -294,12 +294,6 @@ public final class Role {
 
         public Builder metadata(Map<String, Object> metadata) {
             this.metadata = Objects.requireNonNull(metadata, "Metadata cannot be null. Pass an empty map instead.");
-            return this;
-        }
-
-        public Builder transientMetadata(Map<String, Object> transientMetadata) {
-            this.transientMetadata =
-                Objects.requireNonNull(transientMetadata, "Transient metadata cannot be null. Pass an empty map instead.");
             return this;
         }
 

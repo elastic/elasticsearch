@@ -16,7 +16,7 @@ documents in a query.
         User-defined parameters passed in at query-time.
 
 `weight` (`float`, read-only)::
-        The weight as calculated by a {ref}/painless-weight-context[weight script]
+        The weight as calculated by a <<painless-weight-context,weight script>>
 
 `query.boost` (`float`, read-only)::
         The boost value if provided by the query.  If this is not provided the

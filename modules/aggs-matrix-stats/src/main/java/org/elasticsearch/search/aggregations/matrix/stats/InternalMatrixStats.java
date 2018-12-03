@@ -152,7 +152,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
 
     @Override
     public boolean hasValue() {
-        return (getDocCount() == 0 && getStats() == null && getResults() == null) == false;
+        return getResults() != null;
     }
 
     static class Fields {

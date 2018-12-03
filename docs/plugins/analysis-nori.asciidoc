@@ -153,6 +153,7 @@ The above `analyze` request returns the following:
 // TESTRESPONSE
 
 <1> This is a compound token that spans two positions (`mixed` mode).
+--
 
 `user_dictionary_rules`::
 +
@@ -187,6 +188,7 @@ PUT nori_sample
 }
 --------------------------------------------------
 // CONSOLE
+--
 
 The `nori_tokenizer` sets a number of additional attributes per token that are used by token filters
 to modify the stream.

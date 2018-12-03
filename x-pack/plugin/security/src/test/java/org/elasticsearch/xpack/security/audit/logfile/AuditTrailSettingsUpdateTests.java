@@ -65,7 +65,7 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         settingsBuilder.put("xpack.security.audit.outputs", "logfile");
         // add only startup filter policies
         settingsBuilder.put(startupFilterSettings);
-        // we cannot test deprecated variants of these settings because they are overriden
+        // Remove non-deprecated version of prefix settings so that we can test the deprecated variant
         settingsBuilder.remove(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey());
         settingsBuilder.remove(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey());
         settingsBuilder.remove(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey());
@@ -182,6 +182,13 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_NAME_FIELD_NAME), is(false));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(false));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(false));
+        settingsBuilder.put(LoggingAuditTrail.DEPRECATED_EMIT_HOST_NAME_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.DEPRECATED_EMIT_HOST_ADDRESS_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.DEPRECATED_EMIT_NODE_NAME_SETTING.getKey(), true);
+        updateSettings(settingsBuilder.build(), persistent);
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is("127.0.0.1"));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is("127.0.0.1"));
     }
 
     public void testDynamicRequestBodySettings() {

@@ -96,6 +96,23 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
         assertOutputDoesNotContain(result.getOutput(), "Classes with violations:");
     }
 
+    public void testJarHellWithJDK() {
+        BuildResult result = getGradleRunner("thirdPartyAudit")
+            .withArguments("clean", "absurd", "-s",
+                "-PcompileGroup=other.gradle:jarhellJdk", "-PcompileVersion=0.0.1",
+                "-PcompileOnlyGroup=other.gradle:dummy-io", "-PcompileOnlyVersion=0.0.1"
+            )
+            .buildAndFail();
+        assertTaskFailed(result, ":absurd");
+
+        assertOutputContains(result.getOutput(),
+            "> Audit of third party dependencies failed:",
+            "   Jar Hell with the JDK:",
+            "    * java.lang.String"
+        );
+        assertOutputDoesNotContain(result.getOutput(), "Classes with violations:");
+    }
+
     public void testElasticsearchIgnoredWithViolations() {
         BuildResult result = getGradleRunner("thirdPartyAudit")
             .withArguments("clean", "absurd", "-s",

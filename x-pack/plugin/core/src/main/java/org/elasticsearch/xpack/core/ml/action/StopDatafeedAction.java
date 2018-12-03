@@ -85,6 +85,17 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            datafeedId = in.readString();
+            resolvedStartedDatafeedIds = in.readStringArray();
+            stopTimeout = in.readTimeValue();
+            force = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoDatafeeds = in.readBoolean();
+            }
+        }
+
         public String getDatafeedId() {
             return datafeedId;
         }
@@ -135,18 +146,6 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeedId = in.readString();
-            resolvedStartedDatafeedIds = in.readStringArray();
-            stopTimeout = in.readTimeValue();
-            force = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoDatafeeds = in.readBoolean();
-            }
         }
 
         @Override

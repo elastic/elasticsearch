@@ -43,8 +43,8 @@ public class DeprecationChecks {
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            IndexDeprecationChecks::oldIndicesCheck
-        ));
+            IndexDeprecationChecks::oldIndicesCheck,
+            IndexDeprecationChecks::delimitedPayloadFilterCheck));
 
     /**
      * helper utility function to reduce repeat of running a specific {@link Set} of checks.

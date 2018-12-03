@@ -11,6 +11,8 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
@@ -72,6 +74,22 @@ public class IndexDeprecationChecks {
         }
 
         return issues;
+    }
+
+    static DeprecationIssue delimitedPayloadFilterCheck(IndexMetaData indexMetaData) {
+        List<String> issues = new ArrayList<>();
+        Map<String, Settings> filters = indexMetaData.getSettings().getGroups(AnalysisRegistry.INDEX_ANALYSIS_FILTER);
+        for (Map.Entry<String, Settings> entry : filters.entrySet()) {
+            if ("delimited_payload_filter".equals(entry.getValue().get("type"))) {
+                issues.add("The filter [" + entry.getKey() + "] is of deprecated 'delimited_payload_filter' type. "
+                    + "The filter type should be changed to 'delimited_payload'.");
+            }
+        }
+        if (issues.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Use of 'delimited_payload_filter'.",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_analysis_changes.html", issues.toString());
+        }
+        return null;
     }
 
     static DeprecationIssue oldIndicesCheck(IndexMetaData indexMetaData) {

@@ -991,14 +991,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
     }
 
-<<<<<<< HEAD
-    private static boolean useNio;
-
-    @BeforeClass
-    public static void setUseNio() {
-        useNio = randomBoolean();
-    }
-
     private static boolean useZen2;
 
     @BeforeClass
@@ -1010,8 +1002,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return useZen2;
     }
 
-=======
->>>>>>> elastic/master
     public static String getTestTransportType() {
         return MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME;
     }

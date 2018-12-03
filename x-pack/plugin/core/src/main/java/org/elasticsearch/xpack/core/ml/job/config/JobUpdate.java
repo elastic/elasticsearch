@@ -141,7 +141,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         } else {
             jobVersion = null;
         }
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
             clearJobFinishTime = in.readOptionalBoolean();
         } else {
             clearJobFinishTime = null;
@@ -183,7 +183,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 out.writeBoolean(false);
             }
         }
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeOptionalBoolean(clearJobFinishTime);
         }
     }

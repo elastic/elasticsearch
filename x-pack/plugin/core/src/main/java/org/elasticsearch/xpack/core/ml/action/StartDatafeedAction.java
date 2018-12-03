@@ -201,7 +201,7 @@ public class StartDatafeedAction
             startTime = in.readVLong();
             endTime = in.readOptionalLong();
             timeout = TimeValue.timeValueMillis(in.readVLong());
-            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
                 jobId = in.readOptionalString();
                 datafeedIndices = in.readList(StreamInput::readString);
             }
@@ -278,7 +278,7 @@ public class StartDatafeedAction
             out.writeVLong(startTime);
             out.writeOptionalLong(endTime);
             out.writeVLong(timeout.millis());
-            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
                 out.writeOptionalString(jobId);
                 out.writeStringList(datafeedIndices);
             }

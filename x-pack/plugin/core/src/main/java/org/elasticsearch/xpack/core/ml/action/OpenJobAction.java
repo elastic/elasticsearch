@@ -182,7 +182,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
                 in.readBoolean();
             }
             timeout = TimeValue.timeValueMillis(in.readVLong());
-            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
                 job = in.readOptionalWriteable(Job::new);
             }
         }
@@ -225,7 +225,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, AcknowledgedRes
                 out.writeBoolean(true);
             }
             out.writeVLong(timeout.millis());
-            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
                 out.writeOptionalWriteable(job);
             }
         }

@@ -19,7 +19,6 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
@@ -59,6 +58,8 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -152,10 +153,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put("search.default_search_timeout", "5s").build();
+        return Settings.builder().put("search.default_search_timeout", "5s")
+            .put(MultiBucketConsumerService.MAX_BUCKET_SETTING.getKey(), MultiBucketConsumerService.SOFT_LIMIT_MAX_BUCKETS).build();
     }
 
-    public void testClearOnClose() throws ExecutionException, InterruptedException {
+    public void testClearOnClose() {
         createIndex("index");
         client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
@@ -167,7 +169,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(0, service.getActiveContexts());
     }
 
-    public void testClearOnStop() throws ExecutionException, InterruptedException {
+    public void testClearOnStop() {
         createIndex("index");
         client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
@@ -179,7 +181,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(0, service.getActiveContexts());
     }
 
-    public void testClearIndexDelete() throws ExecutionException, InterruptedException {
+    public void testClearIndexDelete() {
         createIndex("index");
         client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
@@ -208,7 +210,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(activeRefs, indexShard.store().refCount());
     }
 
-    public void testSearchWhileIndexDeleted() throws IOException, InterruptedException {
+    public void testSearchWhileIndexDeleted() throws InterruptedException {
         createIndex("index");
         client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
@@ -443,15 +445,15 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
+        protected void doWriteTo(StreamOutput out) {
         }
 
         @Override
-        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        protected void doXContent(XContentBuilder builder, Params params) {
         }
 
         @Override
-        protected Query doToQuery(QueryShardContext context) throws IOException {
+        protected Query doToQuery(QueryShardContext context) {
             return null;
         }
 
@@ -501,7 +503,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertFalse(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
             new SearchSourceBuilder().query(new MatchNoneQueryBuilder()), Strings.EMPTY_ARRAY, false,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, allowPartialSearchResults, null, null)));
-
     }
 
     public void testCanRewriteToMatchNone() {
@@ -519,7 +520,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             .suggest(new SuggestBuilder())));
         assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar"))
             .suggest(new SuggestBuilder())));
-
     }
 
     public void testSetSearchThrottled() {
@@ -567,5 +567,18 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         client().prepareIndex("throttled_threadpool_index", "_doc", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         assertHitCount(client().prepareSearch().get(), 0L);
         assertHitCount(client().prepareSearch().setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED).get(), 1L);
+    }
+
+    public void testCreateReduceContext() {
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        {
+            InternalAggregation.ReduceContext reduceContext = service.createReduceContext(true);
+            expectThrows(MultiBucketConsumerService.TooManyBucketsException.class,
+                () -> reduceContext.consumeBucketsAndMaybeBreak(MultiBucketConsumerService.SOFT_LIMIT_MAX_BUCKETS + 1));
+        }
+        {
+            InternalAggregation.ReduceContext reduceContext = service.createReduceContext(false);
+            reduceContext.consumeBucketsAndMaybeBreak(MultiBucketConsumerService.SOFT_LIMIT_MAX_BUCKETS + 1);
+        }
     }
 }

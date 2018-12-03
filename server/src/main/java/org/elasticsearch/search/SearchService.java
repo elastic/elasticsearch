@@ -1090,7 +1090,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public InternalAggregation.ReduceContext createReduceContext(boolean finalReduce) {
-        return new InternalAggregation.ReduceContext(bigArrays, scriptService, multiBucketConsumerService.create(), finalReduce);
+        return new InternalAggregation.ReduceContext(bigArrays, scriptService,
+            finalReduce ? multiBucketConsumerService.create() : bucketCount -> {}, finalReduce);
     }
 
     public static final class CanMatchResponse extends SearchPhaseResult {

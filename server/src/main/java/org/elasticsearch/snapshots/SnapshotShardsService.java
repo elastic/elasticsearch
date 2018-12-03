@@ -323,6 +323,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
                 for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : entry.getValue().entrySet()) {
                     final ShardId shardId = shardEntry.getKey();
+                    final IndexId indexId = indicesMap.get(shardId.getIndexName());
                     executor.execute(new AbstractRunnable() {
 
                         final SetOnce<Exception> failure = new SetOnce<>();
@@ -330,7 +331,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         @Override
                         public void doRun() {
                             final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
-                            final IndexId indexId = indicesMap.get(shardId.getIndexName());
                             assert indexId != null;
                             snapshot(indexShard, snapshot, indexId, shardEntry.getValue());
                         }

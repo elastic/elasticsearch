@@ -60,7 +60,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .numberOfReplicas(randomIntBetween(1,15))
             .build();
 
-        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL, "Index name cannot contain ':'",
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING, "Index name cannot contain ':'",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_literal_literal_is_no_longer_allowed_in_index_name",
             "This index is named [" + badIndexName + "], which contains the illegal character ':'.");

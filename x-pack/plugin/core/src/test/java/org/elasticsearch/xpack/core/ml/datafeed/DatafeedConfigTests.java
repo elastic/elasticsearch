@@ -41,20 +41,15 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.TimeZone;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedConfig> {
 
@@ -227,8 +222,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_AGG_DATAFEED)) {
 
-            DatafeedConfig config = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
-            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> config.getParsedAggregations());
+            DatafeedConfig.Builder configBuilder = DatafeedConfig.LENIENT_PARSER.apply(parser, null);
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> configBuilder.build());
             assertEquals(
                 "Datafeed [farequote-datafeed] aggregations are not parsable: [size] must be greater than 0. Found [0] in [airline]",
                 e.getMessage());
@@ -404,7 +399,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::build);
 
-        assertThat(e.getMessage(), containsString("Aggregation interval must be greater than 0"));
+        assertThat(e.getMessage(), containsString("[interval] must be >0 for histogram aggregation [time]"));
     }
 
     public void testBuild_GivenDateHistogramWithInvalidTimeZone() {
@@ -421,7 +416,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> createDatafeedWithDateHistogram((String) null));
 
-        assertThat(e.getMessage(), containsString("Aggregation interval must be greater than 0"));
+        assertThat(e.getMessage(), containsString("[interval] must be 1 or greater for histogram aggregation [buckets]"));
     }
 
     public void testBuild_GivenValidDateHistogram() {
@@ -462,9 +457,9 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
     public void testCheckHistogramAggregationHasChildMaxTimeAgg() {
         DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time_agg").field("max_time");
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("foo", "bar");
-        builder.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(dateHistogram));
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::validateAggregations);
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> DatafeedConfig.Builder.checkHistogramAggregationHasChildMaxTimeAgg(dateHistogram));
 
         assertThat(e.getMessage(), containsString("Date histogram must have nested max aggregation for time_field [max_time]"));
     }
@@ -483,8 +478,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         toplevelTerms.subAggregation(dateHistogram);
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("foo", "bar");
-        builder.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(toplevelTerms));
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::validateAggregations);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            () -> builder.validateAggregations(new AggregatorFactories.Builder().addAggregator(toplevelTerms)));
 
         assertEquals("Aggregations can only have 1 date_histogram or histogram aggregation", e.getMessage());
     }
@@ -571,111 +566,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(3601)));
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(2)));
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(12)));
-    }
-
-    public void testSemiParseAgg_badDefinition() {
-        Map.Entry<String, Object> agg = new HashMap.SimpleEntry<>("aggName", "NotAMap");
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new DatafeedConfig.SemiParsedAggregation(agg));
-        assertThat(ex.getMessage(), equalTo("Aggregation [aggName] definition incorrectly formatted"));
-    }
-
-    public void testSemiParseAgg_badSubAdd() {
-        Map.Entry<String, Object> agg = new HashMap.SimpleEntry<>("aggName", Collections.singletonMap("aggs", "notAMap"));
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new DatafeedConfig.SemiParsedAggregation(agg));
-        assertThat(ex.getMessage(), equalTo("Aggregation [aggName] sub aggregation definition incorrectly formatted"));
-    }
-
-    public void testSemiParseAgg_badOptions() {
-        Map.Entry<String, Object> agg = new HashMap.SimpleEntry<>("aggName", Collections.singletonMap("max", "notAMap"));
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new DatafeedConfig.SemiParsedAggregation(agg));
-        assertThat(ex.getMessage(), equalTo("Aggregation [aggName] options incorrectly formatted"));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testSemiParseAgg_ParseSimple() {
-        Map.Entry<String, Object> aggWithSubAgg = new HashMap.SimpleEntry<>("aggName",
-            Collections.singletonMap("max",
-                Collections.singletonMap("field", "myField")));
-
-        DatafeedConfig.SemiParsedAggregation semiParsedAggregation = new DatafeedConfig.SemiParsedAggregation(aggWithSubAgg);
-        assertThat(semiParsedAggregation.getSubAggregations().isEmpty(), is(true));
-        assertThat(semiParsedAggregation.getName(), equalTo("aggName"));
-        assertThat(semiParsedAggregation.getField(), is("myField"));
-        assertThat(semiParsedAggregation.getType(), equalTo("max"));
-        assertThat(semiParsedAggregation.isHistogram(), is(false));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testSemiParseAgg_ParseSimpleMax() {
-        Map<String, Object> subAgg = Collections.singletonMap("subAggName",
-            Collections.singletonMap("max", Collections.singletonMap("field", "myField")));
-
-        Map.Entry<String, Object> maxAggWithSubAgg = new HashMap.SimpleEntry<>("aggName",
-            new HashMap<String, Object>() {{
-                put("meta", "ignored");
-                put("aggregations", subAgg);
-                put("max", Collections.singletonMap("field", "myField"));
-            }});
-
-        DatafeedConfig.SemiParsedAggregation semiParsedAggregation = new DatafeedConfig.SemiParsedAggregation(maxAggWithSubAgg);
-        assertThat(semiParsedAggregation.getSubAggregations(), equalTo(subAgg));
-        assertThat(semiParsedAggregation.getName(), equalTo("aggName"));
-        assertThat(semiParsedAggregation.getType(), equalTo("max"));
-        assertThat(semiParsedAggregation.getField(), equalTo("myField"));
-        assertThat(semiParsedAggregation.isHistogram(), is(false));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testSemiParseAgg_ParseHistogram() {
-        Map<String, Object> subAgg = Collections.singletonMap("subAggName",
-            Collections.singletonMap("max", Collections.singletonMap("field", "myField")));
-
-        Map.Entry<String, Object> histogramAgg = new HashMap.SimpleEntry<>("aggName",
-            new HashMap<String, Object>() {{
-                put("meta", "ignored");
-                put("aggregations", subAgg);
-                put("histogram",
-                    new HashMap<String, Object>() {{
-                        put("field", "myField");
-                        put("interval", Long.valueOf(100));
-                    }});
-            }});
-
-        DatafeedConfig.SemiParsedAggregation semiParsedAggregation = new DatafeedConfig.SemiParsedAggregation(histogramAgg);
-        assertThat(semiParsedAggregation.getSubAggregations(), equalTo(subAgg));
-        assertThat(semiParsedAggregation.getName(), equalTo("aggName"));
-        assertThat(semiParsedAggregation.getType(), equalTo("histogram"));
-        assertThat(semiParsedAggregation.getField(), equalTo("myField"));
-        assertThat(semiParsedAggregation.getTimeZone(), is(nullValue()));
-        assertThat(semiParsedAggregation.getInterval(), equalTo(100L));
-        assertThat(semiParsedAggregation.isHistogram(), is(true));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testSemiParseAgg_ParseDateHistogram() {
-        Map<String, Object> subAgg = Collections.singletonMap("subAggName",
-            Collections.singletonMap("max", Collections.singletonMap("field", "myField")));
-
-        Map.Entry<String, Object> dateHistogramAgg = new HashMap.SimpleEntry<>("aggName",
-            new HashMap<String, Object>() {{
-                put("meta", "ignored");
-                put("aggregations", subAgg);
-                put("date_histogram",
-                    new HashMap<String, Object>() {{
-                        put("field", "myField");
-                        put("interval", "1h");
-                        put("time_zone", "UTC");
-                    }});
-            }});
-
-        DatafeedConfig.SemiParsedAggregation semiParsedAggregation = new DatafeedConfig.SemiParsedAggregation(dateHistogramAgg);
-        assertThat(semiParsedAggregation.getSubAggregations(), equalTo(subAgg));
-        assertThat(semiParsedAggregation.getName(), equalTo("aggName"));
-        assertThat(semiParsedAggregation.getType(), equalTo("date_histogram"));
-        assertThat(semiParsedAggregation.getField(), equalTo("myField"));
-        assertThat(semiParsedAggregation.getTimeZone(), equalTo("UTC"));
-        assertThat(semiParsedAggregation.getInterval(), equalTo(3600000L));
-        assertThat(semiParsedAggregation.isHistogram(), is(true));
     }
 
     public static String randomValidDatafeedId() {

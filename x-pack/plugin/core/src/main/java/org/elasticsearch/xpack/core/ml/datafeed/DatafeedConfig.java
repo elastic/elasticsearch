@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -23,10 +22,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -39,9 +38,9 @@ import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -322,7 +321,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
      * Returns the histogram's interval as epoch millis.
      */
     public long getHistogramIntervalMillis() {
-        return Builder.getHistogramAggregation(aggregations).getInterval();
+        return ExtractorUtils.getHistogramIntervalMillis(getParsedAggregations());
     }
 
     /**
@@ -684,15 +683,16 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 throw invalidOptionValue(TYPES.getPreferredName(), types);
             }
 
-            validateAggregations();
-            setDefaultChunkingConfig();
+            AggregatorFactories.Builder parsedAggs = lazyAggParser.apply(aggregations, id);
+            validateAggregations(parsedAggs);
+            setDefaultChunkingConfig(parsedAggs);
 
             setDefaultQueryDelay();
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, types, query, aggregations, scriptFields, scrollSize,
                     chunkingConfig, headers, delayedDataCheckConfig);
         }
 
-        void validateAggregations() {
+        void validateAggregations(AggregatorFactories.Builder aggregations) {
             if (aggregations == null) {
                 return;
             }
@@ -700,39 +700,36 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
             }
-
-            SemiParsedAggregation histogramAggregation = getHistogramAggregation(aggregations);
-            if (histogramAggregation == null || histogramAggregation.isHistogram() == false) {
+            Collection<AggregationBuilder> aggregatorFactories = aggregations.getAggregatorFactories();
+            if (aggregatorFactories.isEmpty()) {
                 throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
             }
-            if (histogramAggregation.getTimeZone() != null && histogramAggregation.getTimeZone().equals("UTC") == false) {
-                throw ExceptionsHelper.badRequestException("ML requires date_histogram.time_zone to be UTC");
-            }
+
+            AggregationBuilder histogramAggregation = ExtractorUtils.getHistogramAggregation(aggregatorFactories);
             checkNoMoreHistogramAggregations(histogramAggregation.getSubAggregations());
             checkHistogramAggregationHasChildMaxTimeAgg(histogramAggregation);
             checkHistogramIntervalIsPositive(histogramAggregation);
         }
 
-        private static void checkNoMoreHistogramAggregations(Map<String, Object> aggregations) {
-            if (aggregations == null || aggregations.isEmpty()) {
-                return;
-            }
-            for (Map.Entry<String, Object> agg : aggregations.entrySet()) {
-                SemiParsedAggregation semiParsedAggregation = new SemiParsedAggregation(agg);
-                if (semiParsedAggregation.isHistogram()) {
+        private static void checkNoMoreHistogramAggregations(Collection<AggregationBuilder> aggregations) {
+            for (AggregationBuilder agg : aggregations) {
+                if (ExtractorUtils.isHistogram(agg)) {
                     throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_MAX_ONE_DATE_HISTOGRAM);
                 }
-                checkNoMoreHistogramAggregations(semiParsedAggregation.getSubAggregations());
+                checkNoMoreHistogramAggregations(agg.getSubAggregations());
             }
         }
 
-        static void checkHistogramAggregationHasChildMaxTimeAgg(SemiParsedAggregation histogramAggregation) {
-            String timeField = histogramAggregation.getField();
+        static void checkHistogramAggregationHasChildMaxTimeAgg(AggregationBuilder histogramAggregation) {
+            String timeField = null;
+            if (histogramAggregation instanceof ValuesSourceAggregationBuilder) {
+                timeField = ((ValuesSourceAggregationBuilder) histogramAggregation).field();
+            }
 
-            for (Map.Entry<String, Object> agg : histogramAggregation.getSubAggregations().entrySet()) {
-                SemiParsedAggregation semiParsedAggregation = new SemiParsedAggregation(agg);
-                if (semiParsedAggregation.getType() != null && semiParsedAggregation.getTimeZone().equals(MaxAggregationBuilder.NAME)) {
-                    if (semiParsedAggregation.getField() != null && semiParsedAggregation.getField().equals(timeField)) {
+            for (AggregationBuilder agg : histogramAggregation.getSubAggregations()) {
+                if (agg instanceof MaxAggregationBuilder) {
+                    MaxAggregationBuilder maxAgg = (MaxAggregationBuilder)agg;
+                    if (maxAgg.field().equals(timeField)) {
                         return;
                     }
                 }
@@ -742,18 +739,19 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                     Messages.getMessage(Messages.DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION, timeField));
         }
 
-        private static void checkHistogramIntervalIsPositive(SemiParsedAggregation histogramAggregation) {
-            if (histogramAggregation.getInterval() <= 0) {
+        private static void checkHistogramIntervalIsPositive(AggregationBuilder histogramAggregation) {
+            long interval = ExtractorUtils.getHistogramIntervalMillis(histogramAggregation);
+            if (interval <= 0) {
                 throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
             }
         }
 
-        private void setDefaultChunkingConfig() {
+        private void setDefaultChunkingConfig(AggregatorFactories.Builder aggregations) {
             if (chunkingConfig == null) {
                 if (aggregations == null) {
                     chunkingConfig = ChunkingConfig.newAuto();
                 } else {
-                    long histogramIntervalMillis = getHistogramAggregation(aggregations).getInterval();
+                    long histogramIntervalMillis = ExtractorUtils.getHistogramIntervalMillis(aggregations);
                     chunkingConfig = ChunkingConfig.newManual(TimeValue.timeValueMillis(
                             DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis));
                 }
@@ -772,117 +770,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private static ElasticsearchException invalidOptionValue(String fieldName, Object value) {
             String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, fieldName, value);
             throw ExceptionsHelper.badRequestException(msg);
-        }
-
-        private static SemiParsedAggregation getHistogramAggregation(Map<String, Object> aggregations) {
-            if (aggregations == null || aggregations.isEmpty()) {
-                return null;
-            }
-            if (aggregations.size() != 1) {
-                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM_NO_SIBLINGS);
-            }
-
-            SemiParsedAggregation agg = new SemiParsedAggregation(aggregations.entrySet().iterator().next());
-            if (agg.isHistogram()) {
-                return agg;
-            }
-            return getHistogramAggregation(agg.subAggregations);
-        }
-    }
-
-    /**
-     * Class for Semi-parsing aggregations that are of the form {@code Map<String, Object>}
-     * <p>
-     * None of the regular Aggregation parsing validations are done from this class, only really used for ML specific validations
-     */
-    static class SemiParsedAggregation {
-        private final String name;
-        private final String type;
-        private final Map<String, Object> subAggregations = new HashMap<>();
-        private final Map<String, Object> aggOptions;
-
-        /**
-         * Parse out a {@code Map.Entry<String, Object>} formatted aggregation into a semi-parsed Aggregation so that
-         * fields used in our validations are readily available.
-         *
-         * @param agg The single entry of the form {@code {"aggname":{"aggtype":{options}, "aggs|aggregations"{subaggs}}}}
-         * @throws IllegalArgumentException when agg is incorrectly formatted
-         */
-        @SuppressWarnings("unchecked")
-        SemiParsedAggregation(Map.Entry<String, Object> agg) {
-            String foundName = agg.getKey();
-            String foundType = null;
-            Map<String, Object> foundAggOptions = new HashMap<>();
-            if (agg.getValue() instanceof Map == false) {
-                throw new IllegalArgumentException("Aggregation [" + foundName + "] definition incorrectly formatted");
-            }
-            Map<String, Object> definition = (Map<String, Object>) agg.getValue();
-            for (Map.Entry<String, Object> entry : definition.entrySet()) {
-                switch (entry.getKey()) {
-                    // Get our sub-aggregations if there are any
-                    case "aggregations":
-                    case "aggs":
-                        if (entry.getValue() instanceof Map == false) {
-                            throw new IllegalArgumentException(
-                                "Aggregation [" + foundName + "] sub aggregation definition incorrectly formatted");
-                        }
-                        Map<String, Object> subAgg = (Map<String, Object>) entry.getValue();
-                        subAgg.forEach((name, value) -> subAggregations.merge(name, value, (oldValue, newValue) -> newValue));
-                        break;
-                    case "meta": // we don't care about meta information
-                        break;
-                    default:
-                        if (entry.getValue() instanceof Map == false) {
-                            throw new IllegalArgumentException("Aggregation [" + foundName + "] options incorrectly formatted");
-                        }
-                        foundType = entry.getKey();
-                        foundAggOptions = (Map<String, Object>) entry.getValue();
-                }
-            }
-            name = foundName;
-            type = foundType;
-            aggOptions = foundAggOptions;
-        }
-
-        boolean isHistogram() {
-            return type != null && (type.equals(HistogramAggregationBuilder.NAME) || type.equals(DateHistogramAggregationBuilder.NAME));
-        }
-
-        long getInterval() {
-            if (aggOptions.containsKey("interval")) {
-                if (aggOptions.get("interval") instanceof Number) {
-                    return ((Number) aggOptions.get("interval")).longValue();
-                } else {
-                    return ExtractorUtils.validateAndGetCalendarInterval(aggOptions.get("interval").toString());
-                }
-            }
-            return 0;
-        }
-
-        String getTimeZone() {
-            if (aggOptions.containsKey("time_zone")) {
-                return aggOptions.get("time_zone").toString();
-            }
-            return null;
-        }
-
-        String getField() {
-            if (aggOptions.containsKey("field")) {
-                return aggOptions.get("field").toString();
-            }
-            return null;
-        }
-
-        String getName() {
-            return name;
-        }
-
-        String getType() {
-            return type;
-        }
-
-        Map<String, Object> getSubAggregations() {
-            return subAggregations;
         }
     }
 }

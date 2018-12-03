@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -124,6 +125,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING =
@@ -148,7 +150,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Setting.boolSetting("search.default_allow_partial_results", true, Property.Dynamic, Property.NodeScope);
 
     public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT =
-        Setting.intSetting("search.max_open_scroll_context", 500, 0, Property.Dynamic, Property.NodeScope);
+        Setting.intSetting("search.max_open_scroll_context", Integer.MAX_VALUE, 0, Property.Dynamic, Property.NodeScope);
 
 
     private final ThreadPool threadPool;
@@ -607,11 +609,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     final SearchContext createAndPutContext(ShardSearchRequest request) throws IOException {
-        if (request.scroll() != null && openScrollContexts.get() >= maxOpenScrollContext) {
-            throw new ElasticsearchException(
-                "Trying to create too many scroll contexts. Must be less than or equal to: [" +
-                    maxOpenScrollContext + "]. " + "This limit can be set by changing the ["
-                    + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
+        if (request.scroll() != null) {
+            if (maxOpenScrollContext == Integer.MAX_VALUE && openScrollContexts.get() > 500) {
+                /**
+                 * Logs a deprecation warning if the number of open scrolls is greater than the
+                 * default limit in the next major version (500) and the cluster setting is set
+                 * to the default value in this version ({@link Integer#MAX_VALUE}.
+                 */
+                deprecationLogger.deprecatedAndMaybeLog("max_open_scroll", "Trying to create more than 500 scroll contexts will" +
+                    " not be allowed in the next major version by default. You can change the  [" +
+                    MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting to use a greater default value or lower the number of" +
+                    " scrolls that you need to run in parallel.");
+            } else if (openScrollContexts.get() >= maxOpenScrollContext) {
+                throw new ElasticsearchException(
+                    "Trying to create too many scroll contexts. Must be less than or equal to: [" +
+                        maxOpenScrollContext + "]. " + "This limit can be set by changing the ["
+                        + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
+            }
         }
 
         SearchContext context = createContext(request);

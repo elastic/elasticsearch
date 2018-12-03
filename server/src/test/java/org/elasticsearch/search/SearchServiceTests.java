@@ -92,6 +92,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -424,39 +425,46 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     /**
      * test that creating more than the allowed number of scroll contexts throws an exception
      */
-    public void testMaxOpenScrollContexts() throws RuntimeException {
+    public void testMaxOpenScrollContexts() throws RuntimeException, IOException {
         createIndex("index");
         client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
-        final SearchService service = getInstanceFromNode(SearchService.class);
-        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
-        final IndexShard indexShard = indexService.getShard(0);
+        client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder()
+                    .put(SearchService.MAX_OPEN_SCROLL_CONTEXT.getKey(), 500))
+            .get();
+        try {
 
-        // Open all possible scrolls, clear some of them, then open more until the limit is reached
-        LinkedList<String> clearScrollIds = new LinkedList<>();
+            LinkedList<String> clearScrollIds = new LinkedList<>();
 
-        for (int i = 0; i < SearchService.MAX_OPEN_SCROLL_CONTEXT.get(Settings.EMPTY); i++) {
-            SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
+            for (int i = 0; i < 500; i++) {
+                SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
 
-            if (randomInt(4) == 0) clearScrollIds.addLast(searchResponse.getScrollId());
+                if (randomInt(4) == 0) clearScrollIds.addLast(searchResponse.getScrollId());
+            }
+
+            ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+            clearScrollRequest.setScrollIds(clearScrollIds);
+            client().clearScroll(clearScrollRequest);
+
+            for (int i = 0; i < clearScrollIds.size(); i++) {
+                client().prepareSearch("index").setSize(1).setScroll("1m").get();
+            }
+            ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+                () -> client().prepareSearch("index").setSize(1).setScroll("1m").get());
+            assertThat(ex.getDetailedMessage(), containsString(
+                "Trying to create too many scroll contexts. Must be less than or equal to: [500]. " +
+                    "This limit can be set by changing the [search.max_open_scroll_context] setting."
+                )
+            );
+        } finally {
+            client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .putNull(SearchService.MAX_OPEN_SCROLL_CONTEXT.getKey()))
+                .get();
         }
-
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-        clearScrollRequest.setScrollIds(clearScrollIds);
-        client().clearScroll(clearScrollRequest);
-
-        for (int i = 0; i < clearScrollIds.size(); i++) {
-            client().prepareSearch("index").setSize(1).setScroll("1m").get();
-        }
-
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> service.createAndPutContext(new ShardScrollRequestTest(indexShard.shardId())));
-        assertEquals(
-            "Trying to create too many scroll contexts. Must be less than or equal to: [" +
-                SearchService.MAX_OPEN_SCROLL_CONTEXT.get(Settings.EMPTY) + "]. " +
-                "This limit can be set by changing the [search.max_open_scroll_context] setting.",
-            ex.getMessage());
     }
 
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {

@@ -98,6 +98,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }
@@ -154,6 +155,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "index_not_allowed_to_read" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }

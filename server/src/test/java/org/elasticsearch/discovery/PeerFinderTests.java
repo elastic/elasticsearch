@@ -397,6 +397,20 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(sourceNode, otherKnownNode);
     }
 
+    public void testDoesNotAddReachableNonMasterEligibleNodesFromIncomingRequests() {
+        final DiscoveryNode sourceNode = new DiscoveryNode("request-source", buildNewFakeTransportAddress(),
+            emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode otherKnownNode = newDiscoveryNode("other-known-node");
+
+        transportAddressConnector.addReachableNode(otherKnownNode);
+
+        peerFinder.activate(lastAcceptedNodes);
+        peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.singletonList(otherKnownNode)));
+        runAllRunnableTasks();
+
+        assertFoundPeers(otherKnownNode);
+    }
+
     public void testDoesNotAddUnreachableNodesFromIncomingRequests() {
         final DiscoveryNode sourceNode = newDiscoveryNode("request-source");
         final DiscoveryNode otherKnownNode = newDiscoveryNode("other-known-node");

@@ -12,6 +12,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,6 +46,18 @@ public interface AuthorizationEngine {
     interface AuthorizationInfo {
 
         Map<String, Object> asMap();
+    }
+
+    final class EmptyAuthorizationInfo implements AuthorizationInfo {
+
+        public static final EmptyAuthorizationInfo INSTANCE = new EmptyAuthorizationInfo();
+
+        private EmptyAuthorizationInfo() {}
+
+        @Override
+        public Map<String, Object> asMap() {
+            return Collections.emptyMap();
+        }
     }
 
     class AuthorizationResult {

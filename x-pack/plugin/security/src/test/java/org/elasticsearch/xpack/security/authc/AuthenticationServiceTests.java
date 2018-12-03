@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureH
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.Realm.Factory;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -69,6 +68,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -856,7 +856,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             fail("exception should be thrown");
         } catch (ElasticsearchException e) {
             String reqId = expectAuditRequestId();
-            verify(auditTrail).runAsDenied(eq(reqId), any(Authentication.class), eq(restRequest), eq(Role.EMPTY.names()));
+            verify(auditTrail).runAsDenied(eq(reqId), any(Authentication.class), eq(restRequest), eq(EmptyAuthorizationInfo.INSTANCE));
             verifyNoMoreInteractions(auditTrail);
         }
     }
@@ -874,7 +874,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             authenticateBlocking("_action", message, null);
             fail("exception should be thrown");
         } catch (ElasticsearchException e) {
-            verify(auditTrail).runAsDenied(eq(reqId), any(Authentication.class), eq("_action"), eq(message), eq(Role.EMPTY.names()));
+            verify(auditTrail).runAsDenied(eq(reqId), any(Authentication.class), eq("_action"), eq(message),
+                eq(EmptyAuthorizationInfo.INSTANCE));
             verifyNoMoreInteractions(auditTrail);
         }
     }

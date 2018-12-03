@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 
 import static org.elasticsearch.xpack.security.authz.AuthorizationService.ORIGINATING_ACTION_KEY;
 import static org.elasticsearch.xpack.security.authz.AuthorizationService.ROLE_NAMES_KEY;
@@ -95,7 +96,8 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
 
         final boolean sameUser = samePrincipal && sameRealmType;
         if (sameUser == false) {
-            auditTrailService.accessDenied(requestId, current, action, request, roleNames);
+            // nocommit how do we pass authorization info to this point
+            auditTrailService.accessDenied(requestId, current, action, request, EmptyAuthorizationInfo.INSTANCE);
             throw new SearchContextMissingException(id);
         }
     }

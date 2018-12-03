@@ -111,12 +111,15 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.junit.Before;
+import org.mockito.ArgumentMatcher;
+import org.mockito.Matchers;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
@@ -135,6 +138,7 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAs;
+import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -146,6 +150,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -232,7 +237,8 @@ public class AuthorizationServiceTests extends ESTestCase {
                 "indices:admin/settings/update" };
         for (String action : actions) {
             authorize(authentication, action, request);
-            verify(auditTrail).accessGranted(requestId, authentication, action, request, new String[] { SystemUser.ROLE_NAME });
+            verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
+                authzInfoRoles(new String[] { SystemUser.ROLE_NAME }));
         }
 
         verifyNoMoreInteractions(auditTrail);
@@ -245,7 +251,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, "indices:", request),
             "indices:", SystemUser.INSTANCE.principal());
-        verify(auditTrail).accessDenied(requestId, authentication, "indices:", request, new String[]{SystemUser.ROLE_NAME});
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq("indices:"), eq(request),
+            authzInfoRoles(new String[]{SystemUser.ROLE_NAME}));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -256,8 +263,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, "cluster:admin/whatever", request),
             "cluster:admin/whatever", SystemUser.INSTANCE.principal());
-        verify(auditTrail).accessDenied(requestId, authentication, "cluster:admin/whatever", request,
-            new String[] { SystemUser.ROLE_NAME });
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq("cluster:admin/whatever"), eq(request),
+            authzInfoRoles(new String[] { SystemUser.ROLE_NAME }));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -268,8 +275,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, "cluster:admin/snapshot/status", request),
             "cluster:admin/snapshot/status", SystemUser.INSTANCE.principal());
-        verify(auditTrail).accessDenied(requestId, authentication, "cluster:admin/snapshot/status", request,
-            new String[] { SystemUser.ROLE_NAME });
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq("cluster:admin/snapshot/status"), eq(request),
+            authzInfoRoles(new String[] { SystemUser.ROLE_NAME }));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -289,7 +296,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("role1", role);
 
         authorize(authentication, DeletePrivilegesAction.NAME, request);
-        verify(auditTrail).accessGranted(requestId, authentication, DeletePrivilegesAction.NAME, request, new String[]{role.getName()});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(DeletePrivilegesAction.NAME), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -311,7 +319,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, DeletePrivilegesAction.NAME, request),
             DeletePrivilegesAction.NAME, "user1");
-        verify(auditTrail).accessDenied(requestId, authentication, DeletePrivilegesAction.NAME, request, new String[]{role.getName()});
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(DeletePrivilegesAction.NAME), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -323,7 +332,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, "indices:a", request),
             "indices:a", "test user");
-        verify(auditTrail).accessDenied(requestId, authentication, "indices:a", request, Role.EMPTY.names());
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq("indices:a"), eq(request),
+            authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -334,9 +344,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         mockEmptyMetaData();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         authorize(authentication, SearchAction.NAME, request);
-        // nocommit fix this
-        //verify(auditTrail).accessGranted(requestId, authentication, SearchAction.NAME, request, Role.EMPTY.names());
-        verify(auditTrail).accessGranted(requestId, authentication, SearchAction.NAME, request, Strings.EMPTY_ARRAY);
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchAction.NAME), eq(request),
+            authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -354,9 +363,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, SearchAction.NAME, request),
             SearchAction.NAME, "test user");
-        // nocommit fix this
-        //verify(auditTrail).accessDenied(requestId, authentication, SearchAction.NAME, request, Role.EMPTY.names());
-        verify(auditTrail).accessDenied(requestId, authentication, SearchAction.NAME, request, Strings.EMPTY_ARRAY);
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(SearchAction.NAME), eq(request),
+            authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -373,9 +381,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, SearchAction.NAME, request),
             SearchAction.NAME, "test user");
-        // nocommit fix this
-        //verify(auditTrail).accessDenied(requestId, authentication, SearchAction.NAME, request, Role.EMPTY.names());
-        verify(auditTrail).accessDenied(requestId, authentication, SearchAction.NAME, request, Strings.EMPTY_ARRAY);
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(SearchAction.NAME), eq(request),
+            authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -387,9 +394,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, SqlQueryAction.NAME, request),
             SqlQueryAction.NAME, "test user");
-        // nocommit fix this
-        // verify(auditTrail).accessDenied(requestId, authentication, SqlQueryAction.NAME, request, Role.EMPTY.names());
-        verify(auditTrail).accessDenied(requestId, authentication, SqlQueryAction.NAME, request, Strings.EMPTY_ARRAY);
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(SqlQueryAction.NAME), eq(request),
+            authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }
     /**
@@ -405,7 +411,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, DeleteIndexAction.NAME, request),
             DeleteIndexAction.NAME, "test user");
-        verify(auditTrail).accessDenied(requestId, authentication, DeleteIndexAction.NAME, request, Strings.EMPTY_ARRAY);
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(DeleteIndexAction.NAME), eq(request),
+            authzInfoRoles(Strings.EMPTY_ARRAY));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -422,8 +429,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, action, request),
             action, "test user");
-        // nocommit fix this!
-        //verify(auditTrail).accessDenied(requestId, authentication, action, request, Role.EMPTY.names());
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -438,7 +444,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, "whatever", request),
             "whatever", "test user");
-        verify(auditTrail).accessDenied(requestId, authentication, "whatever", request, new String[]{role.getName()});
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq("whatever"), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -459,7 +466,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, action, request),
             action, "test user");
-        verify(auditTrail).accessDenied(requestId, authentication, action, request, new String[]{role.getName()});
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -469,7 +477,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Tuple<String, TransportRequest> request = randomCompositeRequest();
         authorize(authentication, request.v1(), request.v2());
 
-        verify(auditTrail).accessGranted(requestId, authentication, request.v1(), request.v2(), new String[]{ElasticUser.ROLE_NAME});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(request.v1()), eq(request.v2()),
+            authzInfoRoles(new String[]{ElasticUser.ROLE_NAME}));
     }
 
     public void testSearchAgainstEmptyCluster() {
@@ -489,7 +498,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             assertThrowsAuthorizationException(
                 () -> authorize(authentication, SearchAction.NAME, searchRequest),
                 SearchAction.NAME, "test user");
-            verify(auditTrail).accessDenied(requestId, authentication, SearchAction.NAME, searchRequest, new String[]{role.getName()});
+            verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(SearchAction.NAME), eq(searchRequest),
+                authzInfoRoles(new String[]{role.getName()}));
             verifyNoMoreInteractions(auditTrail);
         }
 
@@ -498,7 +508,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             SearchRequest searchRequest = new SearchRequest("does_not_exist")
                 .indicesOptions(IndicesOptions.fromOptions(true, true, true, false));
             authorize(authentication, SearchAction.NAME, searchRequest);
-            verify(auditTrail).accessGranted(requestId, authentication, SearchAction.NAME, searchRequest, new String[]{role.getName()});
+            verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchAction.NAME), eq(searchRequest),
+                authzInfoRoles(new String[]{role.getName()}));
             final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             final IndicesAccessControl.IndexAccessControl indexAccessControl =
                 indicesAccessControl.getIndexPermissions(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER);
@@ -517,35 +528,35 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         final ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         authorize(authentication, ClearScrollAction.NAME, clearScrollRequest);
-        verify(auditTrail).accessGranted(requestId, authentication, ClearScrollAction.NAME, clearScrollRequest,
-            new String[]{role.getName()});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(ClearScrollAction.NAME), eq(clearScrollRequest),
+            authzInfoRoles(new String[]{role.getName()}));
 
         final SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
-        verify(auditTrail).accessGranted(requestId, authentication, SearchScrollAction.NAME, searchScrollRequest,
-            new String[]{role.getName()});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchScrollAction.NAME), eq(searchScrollRequest),
+            authzInfoRoles(new String[]{role.getName()}));
 
         // We have to use a mock request for other Scroll actions as the actual requests are package private to SearchTransportService
         final TransportRequest request = mock(TransportRequest.class);
         authorize(authentication, SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME, request);
-        verify(auditTrail).accessGranted(requestId, authentication, SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME, request,
-            new String[]{role.getName()});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME),
+            eq(request), authzInfoRoles(new String[]{role.getName()}));
 
         authorize(authentication, SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME, request);
-        verify(auditTrail).accessGranted(requestId, authentication, SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME, request,
-            new String[]{role.getName()});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME),
+            eq(request), authzInfoRoles(new String[]{role.getName()}));
 
         authorize(authentication, SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME, request);
-        verify(auditTrail).accessGranted(requestId, authentication, SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME, request,
-            new String[]{role.getName()});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME),
+            eq(request), authzInfoRoles(new String[]{role.getName()}));
 
         authorize(authentication, SearchTransportService.QUERY_SCROLL_ACTION_NAME, request);
-        verify(auditTrail).accessGranted(requestId, authentication, SearchTransportService.QUERY_SCROLL_ACTION_NAME, request,
-            new String[]{role.getName()});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchTransportService.QUERY_SCROLL_ACTION_NAME),
+            eq(request), authzInfoRoles(new String[]{role.getName()}));
 
         authorize(authentication, SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME, request);
-        verify(auditTrail).accessGranted(requestId, authentication, SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME, request,
-            new String[]{role.getName()});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME),
+            eq(request), authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -561,7 +572,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, "indices:a", request),
             "indices:a", "test user");
-        verify(auditTrail).accessDenied(requestId, authentication, "indices:a", request, new String[]{role.getName()});
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq("indices:a"), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService, times(1)).state();
         verify(state, times(1)).metaData();
@@ -580,7 +592,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, CreateIndexAction.NAME, request),
             IndicesAliasesAction.NAME, "test user");
-        verify(auditTrail).accessDenied(requestId, authentication, IndicesAliasesAction.NAME, request, new String[]{role.getName()});
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(IndicesAliasesAction.NAME), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService).state();
         verify(state, times(1)).metaData();
@@ -598,8 +611,10 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         authorize(authentication, CreateIndexAction.NAME, request);
 
-        verify(auditTrail).accessGranted(requestId, authentication, CreateIndexAction.NAME, request, new String[]{role.getName()});
-        verify(auditTrail).accessGranted(requestId, authentication, "indices:admin/aliases", request, new String[]{role.getName()});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(CreateIndexAction.NAME), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq("indices:admin/aliases"), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService).state();
         verify(state, times(1)).metaData();
@@ -622,7 +637,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, "indices:a", request),
             "indices:a", anonymousUser.principal());
-        verify(auditTrail).accessDenied(requestId, authentication, "indices:a", request, new String[]{role.getName()});
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq("indices:a"), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService, times(1)).state();
         verify(state, times(1)).metaData();
@@ -647,7 +663,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         final ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
             () -> authorize(authentication, "indices:a", request));
         assertAuthenticationException(securityException, containsString("action [indices:a] requires authentication"));
-        verify(auditTrail).accessDenied(requestId, authentication, "indices:a", request, new String[]{role.getName()});
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq("indices:a"), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService, times(1)).state();
         verify(state, times(1)).metaData();
@@ -668,7 +685,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             () -> authorize(authentication, GetIndexAction.NAME, request));
         assertThat(nfe.getIndex(), is(notNullValue()));
         assertThat(nfe.getIndex().getName(), is("not-an-index-*"));
-        verify(auditTrail).accessDenied(requestId, authentication, GetIndexAction.NAME, request, new String[]{role.getName()});
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(GetIndexAction.NAME), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService).state();
         verify(state, times(1)).metaData();
@@ -682,9 +700,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationExceptionRunAs(
             () -> authorize(authentication, "indices:a", request),
             "indices:a", "test user", "run as me"); // run as [run as me]
-        // nocommit fix this
-        verify(auditTrail).runAsDenied(requestId, authentication, "indices:a", request, Strings.EMPTY_ARRAY);
-        //verify(auditTrail).runAsDenied(requestId, authentication, "indices:a", request, Role.EMPTY.names());
+        verify(auditTrail).runAsDenied(eq(requestId), eq(authentication), eq("indices:a"), eq(request),
+            authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -698,8 +715,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationExceptionRunAs(
             () -> authorize(authentication, AuthenticateAction.NAME, request),
             AuthenticateAction.NAME, "test user", "run as me"); // run as [run as me]
-        verify(auditTrail).runAsDenied(requestId, authentication, AuthenticateAction.NAME, request,
-            new String[] { ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName() });
+        verify(auditTrail).runAsDenied(eq(requestId), eq(authentication), eq(AuthenticateAction.NAME), eq(request),
+            authzInfoRoles(new String[] { ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName() }));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -717,7 +734,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationExceptionRunAs(
             () -> authorize(authentication, "indices:a", request),
             "indices:a", "test user", "run as me");
-        verify(auditTrail).runAsDenied(requestId, authentication, "indices:a", request, new String[]{role.getName()});
+        verify(auditTrail).runAsDenied(eq(requestId), eq(authentication), eq("indices:a"), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -752,11 +770,14 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationExceptionRunAs(
             () -> authorize(authentication, "indices:a", request),
             "indices:a", "test user", "run as me");
-        verify(auditTrail).runAsGranted(requestId, authentication, "indices:a", request, new String[]{runAsRole.getName()});
+        verify(auditTrail).runAsGranted(eq(requestId), eq(authentication), eq("indices:a"), eq(request),
+            authzInfoRoles(new String[]{runAsRole.getName()}));
         if (indexExists) {
-            verify(auditTrail).accessDenied(requestId, authentication, "indices:a", request, new String[]{bRole.getName()});
+            verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq("indices:a"), eq(request),
+                authzInfoRoles(new String[]{bRole.getName()}));
         } else {
-            verify(auditTrail).accessDenied(requestId, authentication, "indices:a", request, Role.EMPTY.names());
+            verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq("indices:a"), eq(request),
+                authzInfoRoles(Role.EMPTY.names()));
         }
         verifyNoMoreInteractions(auditTrail);
     }
@@ -784,8 +805,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         authorize(authentication, "indices:a", request);
-        verify(auditTrail).runAsGranted(requestId, authentication, "indices:a", request, new String[]{runAsRole.getName()});
-        verify(auditTrail).accessGranted(requestId, authentication, "indices:a", request, new String[]{bRole.getName()});
+        verify(auditTrail).runAsGranted(eq(requestId), eq(authentication), eq("indices:a"), eq(request),
+            authzInfoRoles(new String[]{runAsRole.getName()}));
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq("indices:a"), eq(request),
+            authzInfoRoles(new String[]{bRole.getName()}));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -827,19 +850,22 @@ public class AuthorizationServiceTests extends ESTestCase {
             assertThrowsAuthorizationException(
                 () -> authorize(authentication, action, request),
                 action, "all_access_user");
-            verify(auditTrail).accessDenied(requestId, authentication, action, request, new String[]{role.getName()});
+            verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request),
+                authzInfoRoles(new String[]{role.getName()}));
             verifyNoMoreInteractions(auditTrail);
         }
 
         // we should allow waiting for the health of the index or any index if the user has this permission
         ClusterHealthRequest request = new ClusterHealthRequest(SECURITY_INDEX_NAME);
         authorize(authentication, ClusterHealthAction.NAME, request);
-        verify(auditTrail).accessGranted(requestId, authentication, ClusterHealthAction.NAME, request, new String[]{role.getName()});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(ClusterHealthAction.NAME), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
 
         // multiple indices
         request = new ClusterHealthRequest(SECURITY_INDEX_NAME, "foo", "bar");
         authorize(authentication, ClusterHealthAction.NAME, request);
-        verify(auditTrail).accessGranted(requestId, authentication, ClusterHealthAction.NAME, request, new String[]{role.getName()});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(ClusterHealthAction.NAME), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
 
         final SearchRequest searchRequest = new SearchRequest("_all");
@@ -876,7 +902,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             final String action = requestTuple.v1();
             final TransportRequest request = requestTuple.v2();
             authorize(authentication, action, request);
-            verify(auditTrail).accessGranted(requestId, authentication, action, request, new String[]{role.getName()});
+            verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
+                authzInfoRoles(new String[]{role.getName()}));
         }
     }
 
@@ -920,7 +947,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             final TransportRequest request = requestTuple.v2();
             final Authentication authentication = createAuthentication(superuser);
             authorize(authentication, action, request);
-            verify(auditTrail).accessGranted(requestId, authentication, action, request, superuser.roles());
+            verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(superuser.roles()));
         }
     }
 
@@ -940,7 +967,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         String action = SearchAction.NAME;
         SearchRequest request = new SearchRequest("_all");
         authorize(createAuthentication(superuser), action, request);
-        verify(auditTrail).accessGranted(requestId, authentication, action, request, superuser.roles());
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(superuser.roles()));
         assertThat(request.indices(), arrayContaining(".security"));
     }
 
@@ -998,7 +1025,8 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         assertThrowsAuthorizationException(
             () -> authorize(authentication, action, request), action, "test user");
-        verify(auditTrail).accessDenied(requestId, authentication, action, request, new String[]{role.getName()});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
+            authzInfoRoles(new String[] { role.getName() }));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1015,7 +1043,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         authorize(authentication, action, request);
-        verify(auditTrail).accessGranted(requestId, authentication, action, request, new String[]{role.getName()});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
+            authzInfoRoles(new String[] { role.getName() }));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1101,12 +1130,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         authorize(authentication, action, request);
 
-        verify(auditTrail).accessDenied(requestId, authentication, DeleteAction.NAME, request,
-            new String[] { role.getName() }); // alias-1 delete
-        verify(auditTrail).accessDenied(requestId, authentication, IndexAction.NAME, request,
-            new String[] { role.getName() }); // alias-2 index
-        verify(auditTrail).accessGranted(requestId, authentication, action, request,
-            new String[] { role.getName() }); // bulk request is allowed
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(DeleteAction.NAME), eq(request),
+            authzInfoRoles(new String[] { role.getName() })); // alias-1 delete
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(IndexAction.NAME), eq(request),
+            authzInfoRoles(new String[] { role.getName() })); // alias-2 index
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
+            authzInfoRoles(new String[] { role.getName() })); // bulk request is allowed
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1133,10 +1162,13 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorize(authentication, action, request);
 
         // both deletes should fail
-        verify(auditTrail, times(2)).accessDenied(requestId, authentication, DeleteAction.NAME, request, new String[] { role.getName() });
-        verify(auditTrail, times(2)).accessGranted(requestId, authentication, IndexAction.NAME, request, new String[] { role.getName() });
+        verify(auditTrail, times(2)).accessDenied(eq(requestId), eq(authentication), eq(DeleteAction.NAME), eq(request),
+            authzInfoRoles(new String[] { role.getName() }));
+        verify(auditTrail, times(2)).accessGranted(eq(requestId), eq(authentication), eq(IndexAction.NAME), eq(request),
+            authzInfoRoles(new String[] { role.getName() }));
         // bulk request is allowed
-        verify(auditTrail).accessGranted(requestId, authentication, action, request, new String[]{role.getName()});
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1239,7 +1271,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         assertThrowsAuthorizationException(
             () -> authorize(authentication, action, transportRequest), action, "test user");
-        verify(auditTrail).accessDenied(requestId, authentication, action, proxiedRequest, new String[]{role.getName()});
+        verify(auditTrail).accessDenied(requestId, authentication, action, proxiedRequest, authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1257,7 +1289,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         final TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, clearScrollRequest);
         final String action = TransportActionProxy.getProxyAction(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
         authorize(authentication, action, transportRequest);
-        verify(auditTrail).accessGranted(requestId, authentication, action, clearScrollRequest, new String[]{role.getName()});
+        verify(auditTrail).accessGranted(requestId, authentication, action, clearScrollRequest,
+            authzInfoRoles(new String[]{role.getName()}));
     }
 
     public void testProxyRequestAuthenticationGranted() {
@@ -1273,7 +1306,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         final TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, clearScrollRequest);
         final String action = TransportActionProxy.getProxyAction(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
         authorize(authentication, action, transportRequest);
-        verify(auditTrail).accessGranted(requestId, authentication, action, clearScrollRequest, new String[]{role.getName()});
+        verify(auditTrail).accessGranted(requestId, authentication, action, clearScrollRequest,
+            authzInfoRoles(new String[]{role.getName()}));
     }
 
     public void testProxyRequestAuthenticationDeniedWithReadPrivileges() {
@@ -1289,6 +1323,29 @@ public class AuthorizationServiceTests extends ESTestCase {
         String action = TransportActionProxy.getProxyAction(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
         assertThrowsAuthorizationException(
             () -> authorize(authentication, action, transportRequest), action, "test user");
-        verify(auditTrail).accessDenied(requestId, authentication, action, clearScrollRequest, new String[]{role.getName()});
+        verify(auditTrail).accessDenied(requestId, authentication, action, clearScrollRequest,
+            authzInfoRoles(new String[]{role.getName()}));
+    }
+
+    static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {
+        return Matchers.argThat(new RBACAuthorizationInfoRoleMatcher(expectedRoles));
+    }
+
+    private static class RBACAuthorizationInfoRoleMatcher extends ArgumentMatcher<AuthorizationInfo> {
+
+        private final String[] wanted;
+
+        RBACAuthorizationInfoRoleMatcher(String[] expectedRoles) {
+            this.wanted = expectedRoles;
+        }
+
+        @Override
+        public boolean matches(Object item) {
+            if (item instanceof RBACAuthorizationInfo) {
+                final String[] found = (String[]) ((RBACAuthorizationInfo) item).asMap().get(PRINCIPAL_ROLES_FIELD_NAME);
+                return Arrays.equals(wanted, found);
+            }
+            return false;
+        }
     }
 }

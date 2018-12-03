@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -72,7 +73,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                             if (Operations.subsetOf(aliasPermissions, indexPermissions) == false) {
                                 // TODO we've already audited a access granted event so this is going to look ugly
                                 auditTrailService.accessDenied(AuditUtil.extractRequestId(threadContext), authentication, action, request,
-                                    userPermissions.names());
+                                    EmptyAuthorizationInfo.INSTANCE); // nocommit how do we pass authorization info to this point
                                 throw Exceptions.authorizationError("Adding an alias is not allowed when the alias " +
                                     "has more permissions than any of the indices");
                             }

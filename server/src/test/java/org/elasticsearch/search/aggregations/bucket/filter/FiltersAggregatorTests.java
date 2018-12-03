@@ -23,23 +23,17 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -202,23 +196,5 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         }
         indexReader.close();
         directory.close();
-    }
-
-    public void testParsedAsFilter() throws IOException {
-        IndexReader indexReader = new MultiReader();
-        IndexSearcher indexSearcher = newSearcher(indexReader);
-        QueryBuilder filter = QueryBuilders.boolQuery()
-                .must(QueryBuilders.termQuery("field", "foo"))
-                .should(QueryBuilders.termQuery("field", "bar"));
-        FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", filter);
-        AggregatorFactory<?> factory = createAggregatorFactory(builder, indexSearcher, fieldType);
-        assertThat(factory, Matchers.instanceOf(FiltersAggregatorFactory.class));
-        FiltersAggregatorFactory filtersFactory = (FiltersAggregatorFactory) factory;
-        Query parsedQuery = filtersFactory.getWeights()[0].getQuery();
-        assertThat(parsedQuery, Matchers.instanceOf(BooleanQuery.class));
-        assertEquals(2, ((BooleanQuery) parsedQuery).clauses().size());
-        // means the bool query has been parsed as a filter, if it was a query minShouldMatch would
-        // be 0
-        assertEquals(1, ((BooleanQuery) parsedQuery).getMinimumNumberShouldMatch());
     }
 }

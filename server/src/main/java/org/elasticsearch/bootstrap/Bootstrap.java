@@ -214,6 +214,8 @@ final class Bootstrap {
                 final BootstrapContext context,
                 final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
                 BootstrapChecks.check(context, boundTransportAddress, checks);
+                //--------------------SOMETHING IN HERE--------------------//
+                //this.environment Node.java
             }
         };
     }

@@ -190,8 +190,7 @@ class PrecommitTasks {
         Task checkstyleTask = project.tasks.create('checkstyle')
         // Apply the checkstyle plugin to create `checkstyleMain` and `checkstyleTest`. It only
         // creates them if there is main or test code to check and it makes `check` depend
-        // on them. But we want `precommit` to depend on `checkstyle` which depends on them so
-        // we have to swap them.
+        // on them. We also want `precommit` to depend on `checkstyle`.
         project.pluginManager.apply('checkstyle')
         project.checkstyle {
             config = project.resources.text.fromFile(checkstyleConf, 'UTF-8')
@@ -202,7 +201,6 @@ class PrecommitTasks {
         }
 
         project.tasks.withType(Checkstyle) { task ->
-            project.tasks[JavaBasePlugin.CHECK_TASK_NAME].dependsOn.remove(task)
             checkstyleTask.dependsOn(task)
             task.dependsOn(copyCheckstyleConf)
             task.inputs.file(checkstyleSuppressions)

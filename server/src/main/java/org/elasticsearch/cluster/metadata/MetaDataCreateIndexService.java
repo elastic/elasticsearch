@@ -63,6 +63,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -380,6 +381,9 @@ public class MetaDataCreateIndexService {
                 }
                 indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
                 indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+                if (indexSettingsBuilder.get(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey()) == null) {
+                    indexSettingsBuilder.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                }
                 final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index());
                 final Settings idxSettings = indexSettingsBuilder.build();
                 int numTargetShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(idxSettings);

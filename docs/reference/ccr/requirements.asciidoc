@@ -16,10 +16,8 @@ shards and made available to the follower shard tasks as it replays the history
 of operations.
 
 Soft deletes must be enabled for indices that you want to use as leader
-indices. Enabling soft deletes requires the addition of some index settings at
-index creation time. You must add these settings to your create index
-requests or to the index templates that you use to manage the creation of new
-indices.
+indices. Soft deletes is enabled by default on new indices created on
+or after {es} 7.0.0.
 
 IMPORTANT: This means that {ccr} can not be used on existing indices. If you have
 existing data that you want to replicate from another cluster, you must
@@ -34,7 +32,7 @@ enabled.
 
 Whether or not soft deletes are enabled on the index. Soft deletes can only be
 configured at index creation and only on indices created on or after 6.5.0. The
-default value is `false`.
+default value is `true`.
 
 `index.soft_deletes.retention.operations`::
 

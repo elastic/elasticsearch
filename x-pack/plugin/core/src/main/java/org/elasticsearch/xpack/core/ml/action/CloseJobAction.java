@@ -38,7 +38,12 @@ public class CloseJobAction extends Action<CloseJobAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -207,30 +212,15 @@ public class CloseJobAction extends Action<CloseJobAction.Response> {
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private boolean closed;
-
-        public Response() {
-            super(null, null);
-
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(null, null);
-            readFrom(in);
-        }
+        private final boolean closed;
 
         public Response(boolean closed) {
             super(null, null);
             this.closed = closed;
         }
 
-        public boolean isClosed() {
-            return closed;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             closed = in.readBoolean();
         }
 
@@ -238,6 +228,10 @@ public class CloseJobAction extends Action<CloseJobAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(closed);
+        }
+
+        public boolean isClosed() {
+            return closed;
         }
 
         @Override

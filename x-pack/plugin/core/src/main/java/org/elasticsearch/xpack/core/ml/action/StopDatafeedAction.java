@@ -41,7 +41,12 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -194,7 +199,7 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
 
     public static class Response extends BaseTasksResponse implements Writeable {
 
-        private boolean stopped;
+        private final boolean stopped;
 
         public Response(boolean stopped) {
             super(null, null);
@@ -204,19 +209,6 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
         public Response(StreamInput in) throws IOException {
             super(null, null);
             readFrom(in);
-        }
-
-        public Response() {
-            super(null, null);
-        }
-
-        public boolean isStopped() {
-            return stopped;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
             stopped = in.readBoolean();
         }
 
@@ -225,6 +217,11 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
             super.writeTo(out);
             out.writeBoolean(stopped);
         }
+
+        public boolean isStopped() {
+            return stopped;
+        }
+
     }
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response> {

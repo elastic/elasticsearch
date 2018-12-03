@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
+import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -942,8 +943,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 }
             }
 
-            logger.warn("leader not discovered or elected yet: election requires {}, have discovered {}; discovery continues using " +
-                    "{} from hosts providers and {} from last-known cluster state", quorumDescription, foundPeers, resolvedAddresses,
+            final VoteCollection possibleVotes = new VoteCollection();
+            foundPeers.forEach(possibleVotes::addVote);
+            final String isQuorumOrNot = coordinationState.get().isElectionQuorum(possibleVotes) ? "is a quorum" : "is not a quorum";
+
+            logger.warn("leader not discovered or elected yet: election requires {}, have discovered {} which {}; discovery " +
+                    "continues using {} from hosts providers and {} from last-known cluster state", quorumDescription, foundPeers,
+                isQuorumOrNot, resolvedAddresses,
                 StreamSupport.stream(clusterStateNodes.spliterator(), false).map(DiscoveryNode::toString).collect(Collectors.toList()));
         }
     }

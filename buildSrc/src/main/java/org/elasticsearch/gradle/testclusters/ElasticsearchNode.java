@@ -78,8 +78,8 @@ public class ElasticsearchNode {
         this.artifactsExtractDir = artifactsExtractDir;
         this.workingDir = new File(workingDirBase, safeName(name));
         this.waitConditions = new LinkedHashMap<>();
-        waitConditions.put("http ports file",  (node -> node.getHttpPortsFile().exists()));
-        waitConditions.put("transport ports file",  (node -> node.getTransportPortFile().exists()));
+        waitConditions.put("http ports file", node -> node.getHttpPortsFile().exists());
+        waitConditions.put("transport ports file", node -> node.getTransportPortFile().exists());
         waitForUri("cluster health yellow", "/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow");
     }
 

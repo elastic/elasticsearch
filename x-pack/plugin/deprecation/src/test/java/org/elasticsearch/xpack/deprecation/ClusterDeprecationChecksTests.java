@@ -24,6 +24,23 @@ import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETT
 
 public class ClusterDeprecationChecksTests extends ESTestCase {
 
+    public void testCheckClusterName() {
+        final String badClusterName = randomAlphaOfLengthBetween(0, 10) + ":" + randomAlphaOfLengthBetween(0, 10);
+        final ClusterState badClusterState = ClusterState.builder(new ClusterName(badClusterName)).build();
+
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL, "Cluster name cannot contain ':'",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#_literal_literal_is_no_longer_allowed_in_cluster_name",
+            "This cluster is named [" + badClusterName + "], which contains the illegal character ':'.");
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badClusterState));
+        assertEquals(singletonList(expected), issues);
+
+        final String goodClusterName = randomAlphaOfLengthBetween(1,30);
+        final ClusterState goodClusterState = ClusterState.builder(new ClusterName(goodClusterName)).build();
+        List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(goodClusterState));
+        assertTrue(noIssues.isEmpty());
+    }
+
     public void testCheckShardLimit() {
         int shardsPerNode = randomIntBetween(1, 10000);
         int nodeCount = randomIntBetween(1, 10);

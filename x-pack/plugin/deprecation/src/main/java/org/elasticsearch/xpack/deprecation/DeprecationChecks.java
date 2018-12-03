@@ -32,7 +32,8 @@ public class DeprecationChecks {
 
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            ClusterDeprecationChecks::checkShardLimit
+            ClusterDeprecationChecks::checkShardLimit,
+            ClusterDeprecationChecks::checkClusterName
         ));
 
     static List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> NODE_SETTINGS_CHECKS =
@@ -44,7 +45,9 @@ public class DeprecationChecks {
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             IndexDeprecationChecks::oldIndicesCheck,
-            IndexDeprecationChecks::delimitedPayloadFilterCheck));
+            IndexDeprecationChecks::delimitedPayloadFilterCheck,
+            IndexDeprecationChecks::indexNameCheck
+            ));
 
     /**
      * helper utility function to reduce repeat of running a specific {@link Set} of checks.

@@ -104,4 +104,16 @@ public class IndexDeprecationChecks {
         }
         return null;
     }
+
+    static DeprecationIssue indexNameCheck(IndexMetaData indexMetaData) {
+        String clusterName = indexMetaData.getIndex().getName();
+        if (clusterName.contains(":")) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Index name cannot contain ':'",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#_literal_literal_is_no_longer_allowed_in_index_name",
+                "This index is named [" + clusterName + "], which contains the illegal character ':'.");
+        }
+        return null;
+    }
 }

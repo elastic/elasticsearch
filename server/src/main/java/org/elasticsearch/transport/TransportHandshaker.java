@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -155,31 +156,30 @@ final class TransportHandshaker {
 
     static final class HandshakeRequest extends TransportRequest {
 
-        // Allow a maximum for 2KB for future handshake message. This 2KB limit excludes any bytes serialized
-        // by the abstract TransportRequest.
+        // Allow a maximum of 2KB for future handshake request versions. This 2KB limit excludes any bytes
+        // serialized by the abstract TransportRequest.
         private static final int MAX_HANDSHAKE_REQUEST_BYTES = 1 << 11;
-        private static final byte[] EMPTY_ARRAY = new byte[0];
 
         private final Version version;
-        private final byte[] futureVersionBytes;
 
         HandshakeRequest(Version version) {
             this.version = version;
-            this.futureVersionBytes = EMPTY_ARRAY;
         }
 
         HandshakeRequest(StreamInput streamInput) throws IOException {
             super(streamInput);
             int messageBytes = streamInput.readInt();
+
             if (messageBytes > MAX_HANDSHAKE_REQUEST_BYTES) {
                 throw new IOException("Handshake request limited to " + MAX_HANDSHAKE_REQUEST_BYTES + " bytes. Found "
                     + messageBytes + " bytes.");
             }
-            int currentlyAvailable = streamInput.available();
-            this.version = Version.readVersion(streamInput);
-            int futureBytesLength = messageBytes - (currentlyAvailable - streamInput.available());
-            this.futureVersionBytes = new byte[futureBytesLength];
-            streamInput.readBytes(futureVersionBytes, 0, futureVersionBytes.length);
+            byte[] messageByteArray = new byte[messageBytes];
+            streamInput.readBytes(messageByteArray, 0, messageByteArray.length);
+            BytesArray bytesArray = new BytesArray(messageByteArray);
+            try (StreamInput messageStreamInput = bytesArray.streamInput()) {
+                this.version = Version.readVersion(messageStreamInput);
+            }
         }
 
         @Override

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.analytics.process;
 
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
@@ -30,5 +31,10 @@ public class NativeAnalyticsProcess extends AbstractNativeProcess implements Ana
     @Override
     public void persistState() {
         // Nothing to persist
+    }
+
+    @Override
+    public void writeEndOfDataMessage() throws IOException {
+        new AnalyticsControlMessageWriter(recordWriter(), numberOfFields()).writeEndOfData();
     }
 }

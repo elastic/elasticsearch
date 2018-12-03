@@ -22,18 +22,22 @@ public class AnalyticsProcessConfig implements ToXContentObject {
     private static final String ANALYSIS = "analysis";
 
     private final long rows;
-    private final long cols;
+    private final int cols;
     private final ByteSizeValue memoryLimit;
     private final int threads;
     private final DataFrameAnalysis analysis;
 
 
-    public AnalyticsProcessConfig(long rows, long cols, ByteSizeValue memoryLimit, int threads, DataFrameAnalysis analysis) {
+    public AnalyticsProcessConfig(long rows, int cols, ByteSizeValue memoryLimit, int threads, DataFrameAnalysis analysis) {
         this.rows = rows;
         this.cols = cols;
         this.memoryLimit = Objects.requireNonNull(memoryLimit);
         this.threads = threads;
         this.analysis = Objects.requireNonNull(analysis);
+    }
+
+    public int cols() {
+        return cols;
     }
 
     @Override

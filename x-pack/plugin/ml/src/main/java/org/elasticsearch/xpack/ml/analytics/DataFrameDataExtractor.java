@@ -192,11 +192,6 @@ public class DataFrameDataExtractor {
         return context.extractedFields.getAllFields().stream().map(ExtractedField::getAlias).collect(Collectors.toList());
     }
 
-    public String[] getFieldNamesArray() {
-        List<String> fieldNames = getFieldNames();
-        return fieldNames.toArray(new String[fieldNames.size()]);
-    }
-
     public DataSummary collectDataSummary() {
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
             .setIndices(context.indices)
@@ -210,9 +205,9 @@ public class DataFrameDataExtractor {
     public static class DataSummary {
 
         public final long rows;
-        public final long cols;
+        public final int cols;
 
-        public DataSummary(long rows, long cols) {
+        public DataSummary(long rows, int cols) {
             this.rows = rows;
             this.cols = cols;
         }

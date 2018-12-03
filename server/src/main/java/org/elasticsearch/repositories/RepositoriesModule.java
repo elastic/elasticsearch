@@ -65,6 +65,10 @@ public class RepositoriesModule extends AbstractModule {
                 if (internalFactories.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Internal repository type [" + entry.getKey() + "] is already registered");
                 }
+                if (factories.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Internal repository type [" + entry.getKey() + "] is already registered as a " +
+                        "non-internal repository");
+                }
             }
         }
 

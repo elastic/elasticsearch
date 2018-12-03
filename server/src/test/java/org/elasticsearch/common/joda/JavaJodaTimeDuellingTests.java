@@ -33,7 +33,6 @@ import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 

@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAct
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -167,7 +168,9 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             transportService.addNodeConnectedBehavior((connectionManager, discoveryNode) -> false);
             transportService.addGetConnectionBehavior((connectionManager, discoveryNode) -> {
                 // The FailAndRetryTransport does not use the connection profile
-                return transport.openConnection(discoveryNode, null);
+                PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+                transport.openConnection(discoveryNode, null, future);
+                return future.actionGet();
             });
             transportService.start();
             transportService.acceptIncomingRequests();
@@ -358,11 +361,19 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             try (MockTransportService clientService = createNewService(clientSettings, Version.CURRENT, threadPool, null)) {
                 final List<Transport.Connection> establishedConnections = new CopyOnWriteArrayList<>();
 
-                clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile) -> {
-                    Transport.Connection connection = transport.openConnection(discoveryNode, profile);
-                    establishedConnections.add(connection);
-                    return connection;
-                });
+                clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile, listener) ->
+                    transport.openConnection(discoveryNode, profile, new ActionListener<Transport.Connection>() {
+                        @Override
+                        public void onResponse(Transport.Connection connection) {
+                            establishedConnections.add(connection);
+                            listener.onResponse(connection);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }));
 
 
                 clientService.start();

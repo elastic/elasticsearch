@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -125,7 +126,7 @@ public class WatchStatus {
         DateTime lastChecked = null;
         DateTime lastMetCondition = null;
         Map<String, ActionStatus> actions = null;
-        Map<String, String> headers = null;
+        Map<String, String> headers = Collections.emptyMap();
         long version = -1;
 
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);

@@ -204,9 +204,9 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
             GetWatchRequest request = new GetWatchRequest("my_watch_id");
             //end::get-watch-request
 
-            //tag::ack-watch-execute
+            //tag::get-watch-execute
             GetWatchResponse response = client.watcher().getWatch(request, RequestOptions.DEFAULT);
-            //end::get-watch-request
+            //end::get-watch-execute
 
             //tag::get-watch-response
             String watchId = response.getId(); // <1>

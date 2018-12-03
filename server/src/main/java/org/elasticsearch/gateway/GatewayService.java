@@ -252,8 +252,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
     static class Updaters {
         static ClusterState upgradeAndArchiveUnknownOrInvalidSettings(final ClusterState clusterState,
-                                                                      final ClusterService clusterService) {
-            final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+                                                                      final ClusterSettings clusterSettings) {
             final MetaData.Builder metaDataBuilder = MetaData.builder(clusterState.metaData());
 
             metaDataBuilder.persistentSettings(
@@ -364,7 +363,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         public ClusterState execute(final ClusterState currentState) {
             final ClusterState newState = Function.<ClusterState>identity()
                     .andThen(state -> Updaters.closeBadIndices(state, indicesService))
-                    .andThen(state -> Updaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService))
+                    .andThen(state -> Updaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))
                     .andThen(Updaters::recoverClusterBlocks)
                     .andThen(Updaters::updateRoutingTable)
                     .andThen(Updaters::removeStateNotRecoveredBlock)

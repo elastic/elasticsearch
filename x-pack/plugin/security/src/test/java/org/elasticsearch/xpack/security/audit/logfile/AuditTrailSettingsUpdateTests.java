@@ -65,6 +65,10 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         settingsBuilder.put("xpack.security.audit.outputs", "logfile");
         // add only startup filter policies
         settingsBuilder.put(startupFilterSettings);
+        // we cannot test deprecated variants of these settings because they are overriden
+        settingsBuilder.remove(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey());
+        settingsBuilder.remove(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey());
+        settingsBuilder.remove(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey());
         return settingsBuilder.build();
     }
 
@@ -148,11 +152,11 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
     }
 
     public void testDynamicHostDeprecatedSettings() {
-        final boolean persistent = randomBoolean();
         final Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(LoggingAuditTrail.DEPRECATED_EMIT_HOST_ADDRESS_SETTING.getKey(), true);
         settingsBuilder.put(LoggingAuditTrail.DEPRECATED_EMIT_HOST_NAME_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.DEPRECATED_EMIT_HOST_ADDRESS_SETTING.getKey(), true);
         settingsBuilder.put(LoggingAuditTrail.DEPRECATED_EMIT_NODE_NAME_SETTING.getKey(), true);
+        final boolean persistent = randomBoolean();
         updateSettings(settingsBuilder.build(), persistent);
         final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
                 .iterator()
@@ -179,7 +183,7 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(false));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(false));
     }
-    
+
     public void testDynamicRequestBodySettings() {
         final boolean persistent = randomBoolean();
         final boolean enableRequestBody = randomBoolean();

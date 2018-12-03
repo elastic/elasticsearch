@@ -785,20 +785,25 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public <T extends Writeable> void writeArray(T[] array) throws IOException {
-        writeVInt(array.length);
-        for (T value: array) {
-            value.writeTo(this);
-        }
-    }
-
-    public <T extends Writeable> void writeOptionalArray(@Nullable T[] array) throws IOException {
+    /**
+     * Same as {@link #writeArray(Writer, Object[])} but the provided array may be null. An additional boolean value is
+     * serialized to indicate whether the array was null or not.
+     */
+    public <T> void writeOptionalArray(final Writer<T> writer, final @Nullable T[] array) throws IOException {
         if (array == null) {
             writeBoolean(false);
         } else {
             writeBoolean(true);
-            writeArray(array);
+            writeArray(writer, array);
         }
+    }
+
+    public <T extends Writeable> void writeArray(T[] array) throws IOException {
+        writeArray((out, value) -> value.writeTo(out), array);
+    }
+
+    public <T extends Writeable> void writeOptionalArray(@Nullable T[] array) throws IOException {
+        writeOptionalArray((out, value) -> value.writeTo(out), array);
     }
 
     /**

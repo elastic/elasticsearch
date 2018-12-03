@@ -73,7 +73,10 @@ dependencies {
 
 //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
 processTestResources {
-  from({ project.zipTree(project.configurations.restSpec.singleFile) }) {
+  doFirst {
+    configurations.restSpec.resolve()
+  }
+  from({ zipTree(configurations.restSpec.singleFile) }) {
     include 'rest-api-spec/api/**'
   }
 }

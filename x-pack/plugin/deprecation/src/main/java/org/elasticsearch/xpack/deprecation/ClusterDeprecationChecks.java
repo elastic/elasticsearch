@@ -18,7 +18,7 @@ public class ClusterDeprecationChecks {
         int maxShardsInCluster = shardsPerNode * nodeCount;
         int currentOpenShards = state.getMetaData().getTotalOpenIndexShards();
 
-        if (nodeCount != 0 && currentOpenShards >= maxShardsInCluster) {
+        if (nodeCount > 0 && currentOpenShards >= maxShardsInCluster) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Number of open shards exceeds cluster soft limit",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_cluster_changes.html",

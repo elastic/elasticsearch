@@ -150,7 +150,7 @@ public class TransportHandshakerTests extends ESTestCase {
         assertEquals(2057, input.available());
         IOException ioException = expectThrows(IOException.class,
             () -> handshaker.handleHandshake(Version.CURRENT, Collections.emptySet(), mockChannel, reqId, input));
-        assertEquals("Handshake request limited to 2048 bytes. Found 2052 bytes.", ioException.getMessage());
+        assertEquals("Handshake request limited to 2048 bytes. Found 2056 bytes.", ioException.getMessage());
     }
 
     public void testHandshakeError() throws IOException {

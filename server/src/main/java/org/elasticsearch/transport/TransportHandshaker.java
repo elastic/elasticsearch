@@ -168,16 +168,16 @@ final class TransportHandshaker {
 
         HandshakeRequest(StreamInput streamInput) throws IOException {
             super(streamInput);
-            int messageBytes = streamInput.readInt();
+            int remainingMessageBytes = streamInput.readInt();
 
-            if (messageBytes > MAX_HANDSHAKE_REQUEST_BYTES) {
+            int totalMessageBytes = remainingMessageBytes + 4;
+            if (totalMessageBytes > MAX_HANDSHAKE_REQUEST_BYTES) {
                 throw new IOException("Handshake request limited to " + MAX_HANDSHAKE_REQUEST_BYTES + " bytes. Found "
-                    + messageBytes + " bytes.");
+                    + totalMessageBytes + " bytes.");
             }
-            byte[] messageByteArray = new byte[messageBytes];
+            byte[] messageByteArray = new byte[remainingMessageBytes];
             streamInput.readBytes(messageByteArray, 0, messageByteArray.length);
-            BytesArray bytesArray = new BytesArray(messageByteArray);
-            try (StreamInput messageStreamInput = bytesArray.streamInput()) {
+            try (StreamInput messageStreamInput = new BytesArray(messageByteArray).streamInput()) {
                 this.version = Version.readVersion(messageStreamInput);
             }
         }
@@ -188,14 +188,14 @@ final class TransportHandshaker {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+        public void writeTo(StreamOutput streamOutput) throws IOException {
+            super.writeTo(streamOutput);
             assert version != null;
-            try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput(4)) {
-                Version.writeVersion(version, bytesStreamOutput);
-                BytesReference reference = bytesStreamOutput.bytes();
-                out.writeInt(reference.length());
-                reference.writeTo(out);
+            try (BytesStreamOutput messageStreamOutput = new BytesStreamOutput(4)) {
+                Version.writeVersion(version, messageStreamOutput);
+                BytesReference reference = messageStreamOutput.bytes();
+                streamOutput.writeInt(reference.length());
+                reference.writeTo(streamOutput);
             }
         }
     }

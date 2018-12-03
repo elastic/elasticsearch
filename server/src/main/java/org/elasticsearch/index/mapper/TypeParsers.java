@@ -24,12 +24,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalysisMode;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -77,22 +74,7 @@ public class TypeParsers {
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
-                if (analyzer.getAnalysisMode() == AnalysisMode.SEARCH_TIME) {
-                    if (analyzer.analyzer() instanceof CustomAnalyzer) {
-                        TokenFilterFactory[] tokenFilters = ((CustomAnalyzer) analyzer.analyzer()).tokenFilters();
-                        List<String> offendingFilters = new ArrayList<>();
-                        for (TokenFilterFactory tokenFilter : tokenFilters) {
-                            if (tokenFilter.getAnalysisMode() == AnalysisMode.SEARCH_TIME) {
-                                offendingFilters.add(tokenFilter.name());
-                            }
-                        }
-                        throw new MapperParsingException("analyzer [" + propNode.toString() + "] contains filters " + offendingFilters
-                                + " that are only allowed at search time.");
-                    } else {
-                        throw new MapperParsingException(
-                                "analyzer [" + propNode.toString() + "] contains components that are only allowed at search time.");
-                    }
-                }
+                analyzer.preventAnalysisMode(AnalysisMode.SEARCH_TIME);
                 indexAnalyzer = analyzer;
                 iterator.remove();
             } else if (propName.equals("search_analyzer")) {

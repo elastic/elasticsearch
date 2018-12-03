@@ -54,7 +54,7 @@ setup:
 "Test using updateable analyzer at index time throws error":
 
   - do:
-      catch: /\[syns_updateable_analyzer\] contains filters \[syns_updateable\] that are only allowed at search time/
+      catch: /analyzer \[syns_updateable_analyzer\] contains filters \[syns_updateable\] that are only allowed at search time/
       indices.put_mapping:
         index: test
         type: doc
@@ -63,6 +63,26 @@ setup:
             text1:
               type:     text
               analyzer: syns_updateable_analyzer
+
+---
+"Test using updateable analyzer as default analyzer throws error":
+
+  - do:
+      catch: /analyzer \[default\] contains filters \[syns_updateable\] that are only allowed at search time/
+      indices.create:
+          index: test_error
+          body:
+            settings:
+              analysis:
+                filter:
+                  syns_updateable:
+                    type: synonym
+                    synonyms: [ "quick,fast" ]
+                    updateable: true
+                analyzer:
+                  default:
+                    tokenizer: standard
+                    filter: [ "syns_updateable" ]
 
 ---
 "Test using updateable analyzer as search_analyzer is okay":

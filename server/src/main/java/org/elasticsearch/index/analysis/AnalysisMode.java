@@ -29,7 +29,7 @@ public enum AnalysisMode {
     /**
      * AnalysisMode representing analysis components that can be used only at index time
      */
-    INDEX_TIME{
+    INDEX_TIME("index time") {
         @Override
         public AnalysisMode merge(AnalysisMode other) {
             if (other == AnalysisMode.SEARCH_TIME) {
@@ -41,7 +41,7 @@ public enum AnalysisMode {
     /**
      * AnalysisMode representing analysis components that can be used only at search time
      */
-    SEARCH_TIME {
+    SEARCH_TIME("search time") {
         @Override
         public AnalysisMode merge(AnalysisMode other) {
             if (other == AnalysisMode.INDEX_TIME) {
@@ -53,12 +53,22 @@ public enum AnalysisMode {
     /**
      * AnalysisMode representing analysis components that can be used both at index and search time
      */
-    ALL {
+    ALL("all") {
         @Override
         public AnalysisMode merge(AnalysisMode other) {
             return other;
         }
     };
+
+    private String readableName;
+
+    AnalysisMode(String name) {
+        this.readableName = name;
+    }
+
+    public String getReadableName() {
+        return this.readableName;
+    }
 
     public abstract AnalysisMode merge(AnalysisMode other);
 }

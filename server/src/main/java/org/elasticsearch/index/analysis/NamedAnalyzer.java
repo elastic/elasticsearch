@@ -21,7 +21,10 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.elasticsearch.index.mapper.MapperException;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -92,6 +95,29 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
             return positionIncrementGap;
         }
         return super.getPositionIncrementGap(fieldName);
+    }
+
+    /**
+     * Checks the wrapped analyzer for the provided restricted {@link AnalysisMode} and throws
+     * an error if the analyzer is of that mode. The error contains more detailed information about
+     * the offending filters that caused the analyzer for be in this mode.
+     */
+    public void preventAnalysisMode(AnalysisMode mode) {
+        if (this.getAnalysisMode() == mode) {
+            if (analyzer instanceof CustomAnalyzer) {
+                TokenFilterFactory[] tokenFilters = ((CustomAnalyzer) analyzer).tokenFilters();
+                List<String> offendingFilters = new ArrayList<>();
+                for (TokenFilterFactory tokenFilter : tokenFilters) {
+                    if (tokenFilter.getAnalysisMode() == mode) {
+                        offendingFilters.add(tokenFilter.name());
+                    }
+                }
+                throw new MapperException(
+                        "analyzer [" + name + "] contains filters " + offendingFilters + " that are only allowed at " + mode.getReadableName() + ".");
+            } else {
+                throw new MapperException("analyzer [" + name + "] contains components that are only allowed at " + mode.getReadableName() + ".");
+            }
+        }
     }
 
     @Override

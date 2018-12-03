@@ -87,7 +87,8 @@ final class TransportHandshaker {
 
     void handleHandshake(Version version, Set<String> features, TcpChannel channel, long requestId, StreamInput input) throws IOException {
         HandshakeRequest handshakeRequest = new HandshakeRequest(input);
-        handshakeResponseSender.sendResponse(version, features, channel, new HandshakeResponse(handshakeRequest.version, this.version), requestId);
+        HandshakeResponse response = new HandshakeResponse(handshakeRequest.version, this.version);
+        handshakeResponseSender.sendResponse(version, features, channel, response, requestId);
     }
 
     TransportResponseHandler<HandshakeResponse> removeHandlerForHandshake(long requestId) {

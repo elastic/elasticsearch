@@ -70,6 +70,7 @@ setup:
                 "search" : {
                   "request" : {
                     "indices" : "idx",
+                    "rest_total_hits_as_int": true,
                     "body" : {
                       "query" : {
                         "bool" : {

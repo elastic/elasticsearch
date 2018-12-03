@@ -42,6 +42,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }

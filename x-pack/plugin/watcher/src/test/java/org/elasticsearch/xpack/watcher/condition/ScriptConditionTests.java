@@ -76,13 +76,13 @@ public class ScriptConditionTests extends ESTestCase {
                     "null.foo", AbstractWatcherIntegrationTestCase.WATCHER_LANG);
         });
 
-        scripts.put("ctx.payload.hits.total > 1", vars -> {
-            int total = (int) XContentMapValues.extractValue("ctx.payload.hits.total", vars);
+        scripts.put("ctx.payload.hits.total.value > 1", vars -> {
+            int total = (int) XContentMapValues.extractValue("ctx.payload.hits.total.value", vars);
             return total > 1;
         });
 
-        scripts.put("ctx.payload.hits.total > params.threshold", vars -> {
-            int total = (int) XContentMapValues.extractValue("ctx.payload.hits.total", vars);
+        scripts.put("ctx.payload.hits.total.value > params.threshold", vars -> {
+            int total = (int) XContentMapValues.extractValue("ctx.payload.hits.total.value", vars);
             int threshold = (int) XContentMapValues.extractValue("params.threshold", vars);
             return total > threshold;
         });
@@ -96,7 +96,7 @@ public class ScriptConditionTests extends ESTestCase {
     }
 
     public void testExecute() throws Exception {
-        ScriptCondition condition = new ScriptCondition(mockScript("ctx.payload.hits.total > 1"), scriptService);
+        ScriptCondition condition = new ScriptCondition(mockScript("ctx.payload.hits.total.value > 1"), scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
         ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true"));
@@ -106,7 +106,7 @@ public class ScriptConditionTests extends ESTestCase {
 
     public void testExecuteMergedParams() throws Exception {
         Script script = new Script(ScriptType.INLINE, "mockscript",
-            "ctx.payload.hits.total > params.threshold", singletonMap("threshold", 1));
+            "ctx.payload.hits.total.value > params.threshold", singletonMap("threshold", 1));
         ScriptCondition executable = new ScriptCondition(script, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
@@ -117,7 +117,7 @@ public class ScriptConditionTests extends ESTestCase {
 
     public void testParserValid() throws Exception {
 
-        XContentBuilder builder = createConditionContent("ctx.payload.hits.total > 1", "mockscript", ScriptType.INLINE);
+        XContentBuilder builder = createConditionContent("ctx.payload.hits.total.value > 1", "mockscript", ScriptType.INLINE);
 
         XContentParser parser = createParser(builder);
         parser.nextToken();

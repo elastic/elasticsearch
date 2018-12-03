@@ -79,7 +79,9 @@ teardown:
         body:
           token: $token
 
-  - match: { created: true }
+  - match: { invalidated_tokens: 1 }
+  - match: { previously_invalidated_tokens: 0 }
+  - match: { error_size: 0 }
 
   - do:
       catch: unauthorized
@@ -115,9 +117,11 @@ teardown:
 - do:
     xpack.security.invalidate_token:
       body:
-        username: $username
+        username: "token_user"
 
-- match: { created: true }
+- match: { invalidated_tokens: 2 }
+- match: { previously_invalidated_tokens: 0 }
+- match: { error_size: 0 }
 
 - do:
     catch: unauthorized
@@ -154,9 +158,11 @@ teardown:
 - do:
     xpack.security.invalidate_token:
       body:
-        realm: "native"
+        realm_name: "default_native"
 
-- match: { created: true }
+- match: { invalidated_tokens: 2 }
+- match: { previously_invalidated_tokens: 0 }
+- match: { error_size: 0 }
 
 - do:
     catch: unauthorized

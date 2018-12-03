@@ -74,13 +74,27 @@ public final class PutRoleRequest implements Validatable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Role.APPLICATIONS.getPreferredName(), role.getApplicationResourcePrivileges());
-        builder.field(Role.CLUSTER.getPreferredName(), role.getClusterPrivileges());
-        builder.field(Role.GLOBAL.getPreferredName(), role.getGlobalApplicationPrivileges());
-        builder.field(Role.INDICES.getPreferredName(), role.getIndicesPrivileges());
-        builder.field(Role.METADATA.getPreferredName(), role.getMetadata());
-        builder.field(Role.TRANSIENT_METADATA.getPreferredName(), role.getTransientMetadata());
-        builder.field(Role.RUN_AS.getPreferredName(), role.getRunAsPrivilege());
+        if (role.getApplicationResourcePrivileges() != null) {
+            builder.field(Role.APPLICATIONS.getPreferredName(), role.getApplicationResourcePrivileges());
+        }
+        if (role.getClusterPrivileges() != null) {
+            builder.field(Role.CLUSTER.getPreferredName(), role.getClusterPrivileges());
+        }
+        if (role.getGlobalApplicationPrivileges() != null) {
+            builder.field(Role.GLOBAL.getPreferredName(), role.getGlobalApplicationPrivileges());
+        }
+        if (role.getIndicesPrivileges() != null) {
+            builder.field(Role.INDICES.getPreferredName(), role.getIndicesPrivileges());
+        }
+        if (role.getMetadata() != null) {
+            builder.field(Role.METADATA.getPreferredName(), role.getMetadata());
+        }
+        if (role.getTransientMetadata() != null) {
+            builder.field(Role.TRANSIENT_METADATA.getPreferredName(), role.getTransientMetadata());
+        }
+        if (role.getRunAsPrivilege() != null) {
+            builder.field(Role.RUN_AS.getPreferredName(), role.getRunAsPrivilege());
+        }
         return builder.endObject();
     }
 

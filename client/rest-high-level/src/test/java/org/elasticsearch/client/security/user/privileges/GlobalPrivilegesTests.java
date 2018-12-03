@@ -36,7 +36,8 @@ public class GlobalPrivilegesTests extends AbstractXContentTestCase<GlobalPrivil
 
     private static long idCounter = 0;
 
-    public static GlobalOperationPrivilege createNewRandom(String category) {
+    public static GlobalOperationPrivilege buildRandomGlobalScopedPrivilege() {
+        final String category = randomFrom(GlobalPrivileges.CATEGORIES);
         final Map<String, Object> privilege = new HashMap<>();
         for (int i = 0; i < randomIntBetween(1, 4); i++) {
             if (randomBoolean()) {
@@ -46,16 +47,6 @@ public class GlobalPrivilegesTests extends AbstractXContentTestCase<GlobalPrivil
             }
         }
         return new GlobalOperationPrivilege(category, randomAlphaOfLength(2) + idCounter++, privilege);
-    }
-
-    private static GlobalOperationPrivilege buildRandomGlobalScopedPrivilege() {
-        return createNewRandom("application");
-    }
-
-    public static ApplicationResourcePrivileges createNewRandom() {
-        return new ApplicationResourcePrivileges(randomAlphaOfLengthBetween(1, 8),
-                Arrays.asList(randomArray(1, 8, size -> new String[size], () -> randomAlphaOfLengthBetween(1, 8))),
-                Arrays.asList(randomArray(1, 8, size -> new String[size], () -> randomAlphaOfLengthBetween(1, 8)))); 
     }
 
     @Override

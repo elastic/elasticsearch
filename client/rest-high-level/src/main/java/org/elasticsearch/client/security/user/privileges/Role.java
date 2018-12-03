@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
@@ -77,8 +76,8 @@ public final class Role {
         PARSER.declareFieldArray(optionalConstructorArg(), (parser,c)->ApplicationResourcePrivileges.PARSER.parse(parser,null),
             APPLICATIONS, ValueType.OBJECT_ARRAY);
         PARSER.declareStringArray(optionalConstructorArg(), RUN_AS);
-        PARSER.declareObject(constructorArg(), (parser, c) -> parser.map(), METADATA);
-        PARSER.declareObject(constructorArg(), (parser, c) -> parser.map(), TRANSIENT_METADATA);
+        PARSER.declareObject(optionalConstructorArg(), (parser, c) -> parser.map(), METADATA);
+        PARSER.declareObject(optionalConstructorArg(), (parser, c) -> parser.map(), TRANSIENT_METADATA);
     }
 
     private final String name;

@@ -30,6 +30,8 @@ public final class Protocol {
     public static final String CLEAR_CURSOR_DEPRECATED_REST_ENDPOINT = "/_xpack/sql/close";
     public static final String SQL_QUERY_REST_ENDPOINT = "/_sql";
     public static final String SQL_QUERY_DEPRECATED_REST_ENDPOINT = "/_xpack/sql";
+    public static final String SQL_TRANSLATE_REST_ENDPOINT = "/_sql/translate";
+    public static final String SQL_TRANSLATE_DEPRECATED_REST_ENDPOINT = "/_xpack/sql/translate";
     public static final String SQL_STATS_REST_ENDPOINT = "/_sql/stats";
     public static final String SQL_STATS_DEPRECATED_REST_ENDPOINT = "/_xpack/sql/stats";
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -74,7 +75,8 @@ public class TransportHandshakerTests extends ESTestCase {
         assertFalse(versionFuture.isDone());
 
         TcpChannel mockChannel = mock(TcpChannel.class);
-        handshaker.handleHandshake(Version.CURRENT, Collections.emptySet(), mockChannel, reqId);
+        StreamInput input = null;
+        handshaker.handleHandshake(Version.CURRENT, Collections.emptySet(), mockChannel, reqId, input);
 
 
         ArgumentCaptor<TransportResponse> responseCaptor = ArgumentCaptor.forClass(TransportResponse.class);

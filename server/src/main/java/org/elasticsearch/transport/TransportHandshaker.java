@@ -85,13 +85,9 @@ final class TransportHandshaker {
         }
     }
 
-    void handleHandshake(Version version, Set<String> features, TcpChannel channel, long requestId) throws IOException {
-        handshakeResponseSender.sendResponse(version, features, channel, new HandshakeResponse(this.version), requestId);
-    }
-
     void handleHandshake(Version version, Set<String> features, TcpChannel channel, long requestId, StreamInput input) throws IOException {
         HandshakeRequest handshakeRequest = new HandshakeRequest(input);
-        handshakeResponseSender.sendResponse(version, features, channel, new HandshakeResponse(this.version), requestId);
+        handshakeResponseSender.sendResponse(version, features, channel, new HandshakeResponse(handshakeRequest.version, this.version), requestId);
     }
 
     TransportResponseHandler<HandshakeResponse> removeHandlerForHandshake(long requestId) {
@@ -127,7 +123,7 @@ final class TransportHandshaker {
         @Override
         public void handleResponse(HandshakeResponse response) {
             if (isDone.compareAndSet(false, true)) {
-                Version version = response.version;
+                Version version = response.responseVersion;
                 if (currentVersion.isCompatible(version) == false) {
                     listener.onFailure(new IllegalStateException("Received message from unsupported version: [" + version
                         + "] minimal compatible version is: [" + currentVersion.minimumCompatibilityVersion() + "]"));
@@ -198,15 +194,16 @@ final class TransportHandshaker {
 
     static final class HandshakeResponse extends TransportResponse {
 
-        private final Version version;
+        private final Version responseVersion;
+        private Version requestVersion;
 
-        HandshakeResponse(Version version) {
-            this.version = version;
+        HandshakeResponse(Version requestVersion, Version responseVersion) {
+            this.responseVersion = responseVersion;
         }
 
         private HandshakeResponse(StreamInput in) throws IOException {
             super.readFrom(in);
-            version = Version.readVersion(in);
+            responseVersion = Version.readVersion(in);
         }
 
         @Override
@@ -217,8 +214,8 @@ final class TransportHandshaker {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            assert version != null;
-            Version.writeVersion(version, out);
+            assert responseVersion != null;
+            Version.writeVersion(responseVersion, out);
         }
     }
 

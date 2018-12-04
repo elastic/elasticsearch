@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.SqlRequestField.CURSOR;
 
 /**
  * Response to perform an sql query
@@ -158,7 +159,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             builder.endArray();
 
             if (cursor.equals("") == false) {
-                builder.field(AbstractSqlQueryRequest.Field.CURSOR.getPreferredName(), cursor);
+                builder.field(CURSOR.getPreferredName(), cursor);
             }
         }
         return builder.endObject();

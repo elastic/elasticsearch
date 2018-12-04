@@ -14,32 +14,27 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.xpack.sql.action.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
-import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.sql.proto.RequestInfo.CANVAS;
-import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLI;
 
-public class RestSqlQueryAction extends BaseRestHandler {
+public class RestSqlQueryAction extends AbstractSqlAction {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlQueryAction.class));
 
@@ -54,27 +49,20 @@ public class RestSqlQueryAction extends BaseRestHandler {
                 POST, Protocol.SQL_QUERY_REST_ENDPOINT, this,
                 POST, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, deprecationLogger);
     }
-
+    
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected AbstractSqlRequest initializeSqlRequest(RestRequest request) throws IOException {
         SqlQueryRequest sqlRequest;
         try (XContentParser parser = request.contentParser()) {
             sqlRequest = SqlQueryRequest.fromXContent(parser);
         }
         
-        // no mode specified, default to "PLAIN"
-        if (sqlRequest.requestInfo() == null) {
-            sqlRequest.requestInfo(new RequestInfo(Mode.PLAIN));
-        }
-        
-        if (sqlRequest.requestInfo().clientId() != null) {
-            String clientId = sqlRequest.requestInfo().clientId().toLowerCase(Locale.ROOT);
-            if (!clientId.equals(CLI) && !clientId.equals(CANVAS)) {
-                clientId = null;
-            }
-            sqlRequest.requestInfo().clientId(clientId);
-        }
+        return sqlRequest;
+    }
 
+    @Override
+    protected RestChannelConsumer doPrepareRequest(AbstractSqlRequest sqlRequest, RestRequest request, NodeClient client)
+            throws IOException {
         /*
          * Since we support {@link TextFormat} <strong>and</strong>
          * {@link XContent} outputs we can't use {@link RestToXContentListener}
@@ -125,7 +113,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
         return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
             @Override
             public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
-                Cursor cursor = Cursors.decodeFromString(sqlRequest.cursor());
+                Cursor cursor = Cursors.decodeFromString(((SqlQueryRequest) sqlRequest).cursor());
                 final String data = textFormat.format(cursor, request, response);
 
                 RestResponse restResponse = new BytesRestResponse(RestStatus.OK, textFormat.contentType(request),

@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -704,6 +705,32 @@ public abstract class EngineTestCase extends ESTestCase {
         return ops;
     }
 
+    public List<Engine.Operation> generateReplicaHistory(int numOps, boolean allowGapInSeqNo) {
+        long seqNo = 0;
+        List<Engine.Operation> operations = new ArrayList<>(numOps);
+        for (int i = 0; i < numOps; i++) {
+            String id = Integer.toString(between(1, 100));
+            final ParsedDocument doc = EngineTestCase.createParsedDoc(id, null);
+            if (randomBoolean()) {
+                operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, primaryTerm.get(),
+                    i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(),
+                    -1, true));
+            } else if (randomBoolean()) {
+                operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), seqNo, primaryTerm.get(),
+                    i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis()));
+            } else {
+                operations.add(new Engine.NoOp(seqNo, primaryTerm.get(), Engine.Operation.Origin.REPLICA,
+                    threadPool.relativeTimeInMillis(), "test-" + i));
+            }
+            seqNo++;
+            if (allowGapInSeqNo && rarely()) {
+                seqNo++;
+            }
+        }
+        Randomness.shuffle(operations);
+        return operations;
+    }
+
     public static void assertOpsOnReplica(
             final List<Engine.Operation> ops,
             final InternalEngine replicaEngine,
@@ -788,14 +815,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 int docOffset;
                 while ((docOffset = offset.incrementAndGet()) < ops.size()) {
                     try {
-                        final Engine.Operation op = ops.get(docOffset);
-                        if (op instanceof Engine.Index) {
-                            engine.index((Engine.Index) op);
-                        } else if (op instanceof Engine.Delete){
-                            engine.delete((Engine.Delete) op);
-                        } else {
-                            engine.noOp((Engine.NoOp) op);
-                        }
+                        applyOperation(engine, ops.get(docOffset));
                         if ((docOffset + 1) % 4 == 0) {
                             engine.refresh("test");
                         }
@@ -812,6 +832,36 @@ public abstract class EngineTestCase extends ESTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i].join();
         }
+    }
+
+    public static void applyOperations(Engine engine, List<Engine.Operation> operations) throws IOException {
+        for (Engine.Operation operation : operations) {
+            applyOperation(engine, operation);
+            if (randomInt(100) < 10) {
+                engine.refresh("test");
+            }
+            if (rarely()) {
+                engine.flush();
+            }
+        }
+    }
+
+    public static Engine.Result applyOperation(Engine engine, Engine.Operation operation) throws IOException {
+        final Engine.Result result;
+        switch (operation.operationType()) {
+            case INDEX:
+                result = engine.index((Engine.Index) operation);
+                break;
+            case DELETE:
+                result = engine.delete((Engine.Delete) operation);
+                break;
+            case NO_OP:
+                result = engine.noOp((Engine.NoOp) operation);
+                break;
+            default:
+                throw new IllegalStateException("No operation defined for [" + operation + "]");
+        }
+        return result;
     }
 
     /**

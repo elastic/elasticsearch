@@ -16,27 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle;
 
-public enum Distribution {
+package org.elasticsearch.client.ccr;
 
-    INTEG_TEST("integ-test", "zip"),
-    ZIP("elasticsearch", "zip"),
-    ZIP_OSS("elasticsearch-oss", "zip");
+import org.elasticsearch.client.Validatable;
 
-    private final String fileName;
-    private final String fileExtension;
+import java.util.Objects;
 
-    Distribution(String name, String fileExtension) {
-        this.fileName = name;
-        this.fileExtension = fileExtension;
+/**
+ * Request class for get auto follow pattern api.
+ */
+public final class GetAutoFollowPatternRequest implements Validatable {
+
+    private final String name;
+
+    /**
+     * Get all auto follow patterns
+     */
+    public GetAutoFollowPatternRequest() {
+        this.name = null;
     }
 
-    public String getFileName() {
-        return fileName;
+    /**
+     * Get auto follow pattern with the specified name
+     *
+     * @param name The name of the auto follow pattern to get
+     */
+    public GetAutoFollowPatternRequest(String name) {
+        this.name = Objects.requireNonNull(name);
     }
 
-    public String getFileExtension() {
-        return fileExtension;
+    public String getName() {
+        return name;
     }
 }

@@ -112,10 +112,11 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
                         offendingFilters.add(tokenFilter.name());
                     }
                 }
-                throw new MapperException(
-                        "analyzer [" + name + "] contains filters " + offendingFilters + " that are only allowed at " + mode.getReadableName() + ".");
+                throw new MapperException("analyzer [" + name + "] contains filters " + offendingFilters + " that are only allowed at "
+                        + mode.getReadableName() + ".");
             } else {
-                throw new MapperException("analyzer [" + name + "] contains components that are only allowed at " + mode.getReadableName() + ".");
+                throw new MapperException(
+                        "analyzer [" + name + "] contains components that are only allowed at " + mode.getReadableName() + ".");
             }
         }
     }

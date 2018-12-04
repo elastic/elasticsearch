@@ -510,7 +510,8 @@ public final class AnalysisRegistry implements Closeable {
             analyzer = (NamedAnalyzer) analyzerF;
             if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
                 // unless the positionIncrementGap needs to be overridden
-                analyzer = new NamedAnalyzer(analyzer.name(), analyzer.scope(), analyzer.analyzer(), overridePositionIncrementGap, analysisMode);
+                analyzer = new NamedAnalyzer(analyzer.name(), analyzer.scope(), analyzer.analyzer(), overridePositionIncrementGap,
+                        analysisMode);
             }
         } else {
             analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap, analysisMode);

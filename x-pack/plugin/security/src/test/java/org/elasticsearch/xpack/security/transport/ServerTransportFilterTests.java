@@ -113,7 +113,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             verify(listener).onFailure(isA(IllegalArgumentException.class));
             verifyNoMoreInteractions(authzService);
         } else {
-            verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(ActionListener.class));
+            verify(authzService).authorize(eq(authentication), eq(action), eq(request), any(ActionListener.class));
         }
     }
 

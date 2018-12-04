@@ -151,7 +151,7 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
+            super(in);
             stopped = in.readBoolean();
         }
 

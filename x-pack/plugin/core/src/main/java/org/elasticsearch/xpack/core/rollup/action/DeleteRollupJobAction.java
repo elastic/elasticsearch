@@ -127,7 +127,7 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
         }
 
         public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
+            super(in);
             acknowledged = in.readBoolean();
         }
 

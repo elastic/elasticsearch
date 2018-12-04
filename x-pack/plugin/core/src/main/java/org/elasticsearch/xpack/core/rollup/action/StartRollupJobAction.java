@@ -114,7 +114,7 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Response> 
         }
 
         public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
+            super(in);
             started = in.readBoolean();
         }
 

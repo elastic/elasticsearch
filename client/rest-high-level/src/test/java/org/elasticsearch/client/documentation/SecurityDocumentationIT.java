@@ -1072,7 +1072,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     private void addRole(String roleName) throws IOException {
         final Role role = Role.builder()
                 .name(roleName)
-                .clusterPrivileges(randomSubsetOf(1, Role.ClusterPrivilegeName.ARRAY))
+                .clusterPrivileges("all")
                 .build();
         final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.IMMEDIATE);
         highLevelClient().security().putRole(request, RequestOptions.DEFAULT);

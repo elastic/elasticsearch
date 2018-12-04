@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
@@ -79,7 +80,7 @@ public class AuthorizationService {
     public static final Setting<Boolean> ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING =
         Setting.boolSetting(setting("authc.anonymous.authz_exception"), true, Property.NodeScope);
     public static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
-    static final String ROLE_NAMES_KEY = "_effective_role_names";
+    static final String AUTHORIZATION_INFO_KEY = "_authz_info";
     static final AuthorizationInfo SYSTEM_AUTHZ_INFO =
         () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, new String[] { SystemUser.ROLE_NAME });
 
@@ -156,7 +157,7 @@ public class AuthorizationService {
             final String finalAuditId = auditId;
             final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(
                 authorizationInfo -> {
-                    putTransientIfNonExisting("_authz_info", authorizationInfo); // TODO remove this hack
+                    putTransientIfNonExisting(AUTHORIZATION_INFO_KEY, authorizationInfo);
                     maybeAuthorizeRunAs(authentication, action, unwrappedRequest, finalAuditId, authorizationInfo, listener);
                 }, listener::onFailure), threadContext);
             getAuthorizationEngine(authentication).resolveAuthorizationInfo(authentication, unwrappedRequest, action, authzInfoListener);
@@ -244,24 +245,65 @@ public class AuthorizationService {
                         "only scroll related requests are known indices api that don't support retrieving the indices they relate to";
                     listener.onFailure(denial(requestId, authentication, action, unwrappedRequest, authzInfo));
                 }
-            } else {
+            } else if (unwrappedRequest instanceof IndicesRequest &&
+                IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) unwrappedRequest)) {
+                // remote indices are allowed
                 final MetaData metaData = clusterService.state().metaData();
-                final AuthorizedIndices authorizedIndices = new AuthorizedIndices(() -> authzEngine.loadAuthorizedIndices(authentication,
-                    unwrappedRequest, action, authzInfo, metaData.getAliasAndIndexLookup()));
-                final ResolvedIndices resolvedIndices = resolveIndexNames(authentication, action, requestId, unwrappedRequest,
-                    metaData, authorizedIndices, authzInfo);
-                assert !resolvedIndices.isEmpty()
-                    : "every indices request needs to have its indices set thus the resolved indices must not be empty";
-
-                //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
-                //'-*' matches no indices so we allow the request to go through, which will yield an empty response
-                if (resolvedIndices.isNoIndicesPlaceholder()) {
-                    putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_NO_INDICES);
-                    authorizeIndexActionName(authentication, action, requestId, unwrappedRequest, authzInfo, authzEngine, listener);
-                } else {
-                    authorizeIndexAction(authentication, action, requestId, unwrappedRequest, authzInfo, authzEngine, resolvedIndices,
-                        metaData, authorizedIndices, listener);
-                }
+                final AuthorizedIndices authorizedIndices = new AuthorizedIndices(
+                    () -> authzEngine.loadAuthorizedIndices(authentication, unwrappedRequest, action, authzInfo,
+                        metaData.getAliasAndIndexLookup()));
+                resolveIndexNames(unwrappedRequest, metaData, authorizedIndices, ActionListener.wrap(resolvedIndices -> {
+                    assert !resolvedIndices.isEmpty()
+                        : "every indices request needs to have its indices set thus the resolved indices must not be empty";
+                    //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
+                    //'-*' matches no indices so we allow the request to go through, which will yield an empty response
+                    if (resolvedIndices.isNoIndicesPlaceholder()) {
+                        putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
+                            IndicesAccessControl.ALLOW_NO_INDICES);
+                        // check action name
+                        authorizeIndexActionName(authentication, action, requestId, unwrappedRequest, authzInfo, authzEngine, listener);
+                    } else {
+                        authorizeIndexAction(authentication, action, requestId, unwrappedRequest, authzInfo,
+                            authzEngine, resolvedIndices, metaData, authorizedIndices, listener);
+                    }
+                }, listener::onFailure));
+            } else {
+                authzEngine.authorizeIndexActionName(authentication, unwrappedRequest, action, authzInfo,
+                    wrapPreservingContext(ActionListener.wrap(result -> {
+                        if (result.isGranted()) {
+                            // the action name is authorized, move on
+                            final MetaData metaData = clusterService.state().metaData();
+                            final AuthorizedIndices authorizedIndices = new AuthorizedIndices(
+                                () -> authzEngine.loadAuthorizedIndices(authentication, unwrappedRequest, action, authzInfo,
+                                    metaData.getAliasAndIndexLookup()));
+                            resolveIndexNames(unwrappedRequest, metaData, authorizedIndices, ActionListener.wrap(resolvedIndices -> {
+                                    assert !resolvedIndices.isEmpty()
+                                        : "every indices request needs to have its indices set thus the resolved indices must not be empty";
+                                    //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
+                                    //'-*' matches no indices so we allow the request to go through, which will yield an empty response
+                                    if (resolvedIndices.isNoIndicesPlaceholder()) {
+                                        putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
+                                            IndicesAccessControl.ALLOW_NO_INDICES);
+                                        if (result.isAuditable()) {
+                                            auditTrail.accessGranted(requestId, authentication, action, unwrappedRequest, authzInfo);
+                                        }
+                                        listener.onResponse(null);
+                                    } else {
+                                        authorizeIndexAction(authentication, action, requestId, unwrappedRequest, authzInfo,
+                                            authzEngine, resolvedIndices, metaData, authorizedIndices, listener);
+                                    }
+                                }, listener::onFailure));
+                        } else {
+                            listener.onFailure(denial(requestId, authentication, action, unwrappedRequest, authzInfo, null));
+                        }
+                    }, e -> {
+                        if (e instanceof IndexNotFoundException) {
+                            auditTrail.accessDenied(requestId, authentication, action, unwrappedRequest, authzInfo);
+                            listener.onFailure(e);
+                        } else {
+                            listener.onFailure(denial(requestId, authentication, action, unwrappedRequest, authzInfo, e));
+                        }
+                    }), threadContext));
             }
         } else {
             listener.onFailure(denial(requestId, authentication, action, unwrappedRequest, authzInfo));
@@ -363,7 +405,7 @@ public class AuthorizationService {
                                      final TransportRequest request, final ActionListener<Void> listener) {
         if (SystemUser.isAuthorized(action)) {
             putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
-            putTransientIfNonExisting(ROLE_NAMES_KEY, new String[]{SystemUser.ROLE_NAME});
+            putTransientIfNonExisting(AUTHORIZATION_INFO_KEY, SYSTEM_AUTHZ_INFO);
             auditTrail.accessGranted(requestId, authentication, action, request, SYSTEM_AUTHZ_INFO);
             listener.onResponse(null);
         } else {
@@ -522,14 +564,9 @@ public class AuthorizationService {
         throw new IllegalArgumentException("No equivalent action for opType [" + docWriteRequest.opType() + "]");
     }
 
-    private ResolvedIndices resolveIndexNames(Authentication authentication, String action, String requestId, TransportRequest request,
-                                              MetaData metaData, AuthorizedIndices authorizedIndices, AuthorizationInfo info) {
-        try {
-            return indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices);
-        } catch (Exception e) {
-            auditTrail.accessDenied(requestId, authentication, action, request, info);
-            throw e;
-        }
+    private void resolveIndexNames(TransportRequest request, MetaData metaData, AuthorizedIndices authorizedIndices,
+                                   ActionListener<ResolvedIndices> listener) {
+            listener.onResponse(indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices));
     }
 
     private void putTransientIfNonExisting(String key, Object value) {

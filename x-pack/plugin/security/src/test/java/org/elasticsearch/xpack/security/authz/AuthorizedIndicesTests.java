@@ -93,7 +93,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public void testSecurityIndicesAreNotRemovedFromSuperUsers() {
-        Role role = Role.builder("kibana_user+superuser").add(IndexPrivilege.ALL, "*").cluster(ClusterPrivilege.ALL).build();
+        Role role = Role.builder("admin", "kibana_user", "superuser").add(IndexPrivilege.ALL, "*").cluster(ClusterPrivilege.ALL).build();
         Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
         MetaData metaData = MetaData.builder()
                 .put(new IndexMetaData.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)

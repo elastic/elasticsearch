@@ -126,7 +126,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 )
                 .putAlias(AliasMetaData.builder("_alias"));
         md = MetaData.builder(md).put(imbBuilder1).build();
-
+        lookup = md.getAliasAndIndexLookup();
 
         // match all fields with more than one permission
         Set<BytesReference> fooQuery = Collections.singleton(new BytesArray("{foo}"));

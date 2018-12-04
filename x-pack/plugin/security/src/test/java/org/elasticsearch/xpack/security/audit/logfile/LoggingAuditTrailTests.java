@@ -470,8 +470,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     public void testAccessGranted() throws Exception {
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME,
-            randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4)));
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final Authentication authentication = createAuthentication();
         final String requestId = randomRequestId();
 
@@ -503,8 +503,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     public void testAccessGrantedInternalSystemAction() throws Exception {
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME,
-            randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4)));
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final Authentication authentication = new Authentication(SystemUser.INSTANCE, new RealmRef("_reserved", "test", "foo"), null);
         final String requestId = randomRequestId();
         auditTrail.accessGranted(requestId, authentication, "internal:_action", message, authorizationInfo);
@@ -535,8 +535,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     public void testAccessGrantedInternalSystemActionNonSystemUser() throws Exception {
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME,
-            randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4)));
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final Authentication authentication = createAuthentication();
         final String requestId = randomRequestId();
 
@@ -568,8 +568,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     public void testAccessDenied() throws Exception {
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME,
-            randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4)));
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final Authentication authentication = createAuthentication();
         final String requestId = randomRequestId();
 
@@ -759,8 +759,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     public void testRunAsGranted() throws Exception {
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME,
-            randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4)));
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final Authentication authentication = new Authentication(
                 new User("running as", new String[] { "r2" }, new User("_username", new String[] { "r1" })),
                 new RealmRef("authRealm", "test", "foo"),
@@ -798,8 +798,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     public void testRunAsDenied() throws Exception {
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME,
-            randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4)));
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final Authentication authentication = new Authentication(
                 new User("running as", new String[] { "r2" }, new User("_username", new String[] { "r1" })),
                 new RealmRef("authRealm", "test", "foo"),
@@ -1020,7 +1020,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                         .reduce((x, y) -> x + "," + y)
                         .orElse("") + "]";
                 final Pattern logEntryFieldPattern = Pattern.compile(Pattern.quote("\"" + checkArrayField.getKey() + "\":" + quotedValue));
-                assertThat("Field " + checkArrayField.getKey() + " value mismatch. Expected " + quotedValue,
+                assertThat("Field " + checkArrayField.getKey() + " value mismatch. Expected " + quotedValue + ".\nLog line: " + logLine,
                         logEntryFieldPattern.matcher(logLine).find(), is(true));
                 // remove checked field
                 logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");

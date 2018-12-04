@@ -200,13 +200,22 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         request.setRecordExecution(recordExecution);
         request.setDebug(debug);
 
-        request.setActionMode("action1", ExecuteWatchRequest.ActionExecutionMode.SIMULATE);
+        boolean setActionMode = randomBoolean();
+        if (setActionMode) {
+            request.setActionMode("action1", ExecuteWatchRequest.ActionExecutionMode.SIMULATE);
+        }
 
+        boolean useTriggerData = randomBoolean();
         String triggerData = "{ \"entry1\" : \"blah\", \"entry2\" : \"blah\" }";
-        request.setTriggerData(triggerData);
+        if (useTriggerData) {
+            request.setTriggerData(triggerData);
+        }
 
+        boolean useAlternativeInput = randomBoolean();
         String alternativeInput = "{ \"foo\" : \"bar\" }";
-        request.setAlternativeInput(alternativeInput);
+        if (useAlternativeInput) {
+            request.setAlternativeInput(alternativeInput);
+        }
 
         Request req = WatcherRequestConverters.executeWatch(request);
         assertThat(req.getEndpoint(), equalTo("/_xpack/watcher/watch/my_id/_execute"));
@@ -228,9 +237,24 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         }
 
         String body = toString(req.getEntity());
-        assertThat(body, containsString("\"action_modes\":{\"action1\":\"SIMULATE\"}"));
-        assertThat(body, containsString("\"trigger_data\":" + triggerData));
-        assertThat(body, containsString("\"alternative_input\":" + alternativeInput));
+        if (setActionMode) {
+            assertThat(body, containsString("\"action_modes\":{\"action1\":\"SIMULATE\"}"));
+        }
+        else {
+            assertThat(body, not(containsString("action_modes")));
+        }
+        if (useTriggerData) {
+            assertThat(body, containsString("\"trigger_data\":" + triggerData));
+        }
+        else {
+            assertThat(body, not(containsString("trigger_data")));
+        }
+        if (useAlternativeInput) {
+            assertThat(body, containsString("\"alternative_input\":" + alternativeInput));
+        }
+        else {
+            assertThat(body, not(containsString("alternative_input")));
+        }
         assertThat(body, not(containsString("\"watch\":")));
 
     }
@@ -251,13 +275,22 @@ public class WatcherRequestConvertersTests extends ESTestCase {
             request.setRecordExecution(true);
         });
 
-        request.setActionMode("action1", ExecuteWatchRequest.ActionExecutionMode.SIMULATE);
+        boolean setActionMode = randomBoolean();
+        if (setActionMode) {
+            request.setActionMode("action1", ExecuteWatchRequest.ActionExecutionMode.SIMULATE);
+        }
 
+        boolean useTriggerData = randomBoolean();
         String triggerData = "{ \"entry1\" : \"blah\", \"entry2\" : \"blah\" }";
-        request.setTriggerData(triggerData);
+        if (useTriggerData) {
+            request.setTriggerData(triggerData);
+        }
 
+        boolean useAlternativeInput = randomBoolean();
         String alternativeInput = "{ \"foo\" : \"bar\" }";
-        request.setAlternativeInput(alternativeInput);
+        if (useAlternativeInput) {
+            request.setAlternativeInput(alternativeInput);
+        }
 
         Request req = WatcherRequestConverters.executeWatch(request);
         assertThat(req.getEndpoint(), equalTo("/_xpack/watcher/watch/_execute"));
@@ -269,9 +302,24 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         }
 
         String body = toString(req.getEntity());
-        assertThat(body, containsString("\"action_modes\":{\"action1\":\"SIMULATE\"}"));
-        assertThat(body, containsString("\"trigger_data\":" + triggerData));
-        assertThat(body, containsString("\"alternative_input\":" + alternativeInput));
+        if (setActionMode) {
+            assertThat(body, containsString("\"action_modes\":{\"action1\":\"SIMULATE\"}"));
+        }
+        else {
+            assertThat(body, not(containsString("action_modes")));
+        }
+        if (useTriggerData) {
+            assertThat(body, containsString("\"trigger_data\":" + triggerData));
+        }
+        else {
+            assertThat(body, not(containsString("trigger_data")));
+        }
+        if (useAlternativeInput) {
+            assertThat(body, containsString("\"alternative_input\":" + alternativeInput));
+        }
+        else {
+            assertThat(body, not(containsString("alternative_input")));
+        }
         assertThat(body, containsString("\"watch\":" + WATCH_JSON));
     }
 }

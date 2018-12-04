@@ -173,6 +173,7 @@ public class DataFrameJobTask extends AllocatedPersistentTask implements Schedul
         @Override
         protected void onAbort() {
             logger.info("Data frame job [" + job.getConfig().getId() + "] received abort request, stopping indexer");
+            shutdown();
         }
     }
 }

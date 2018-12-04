@@ -13,7 +13,6 @@ import org.apache.kerby.kerberos.kerb.KrbException;
 import org.apache.kerby.kerberos.kerb.client.KrbConfig;
 import org.apache.kerby.kerberos.kerb.server.KdcConfigKey;
 import org.apache.kerby.kerberos.kerb.server.SimpleKdcServer;
-import org.apache.kerby.util.NetworkUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
@@ -132,18 +131,10 @@ public class SimpleKdcLdapServer {
         simpleKdc.setWorkDir(workDir.toFile());
         simpleKdc.setKdcHost(host);
         simpleKdc.setKdcRealm(realm);
-        if (kdcPort == 0) {
-            kdcPort = NetworkUtil.getServerPort();
-            int tries = 0;
-            while (isPortAvailable(kdcPort, transport) == false) {
-                if (tries > 100) {
-                    throw new IllegalArgumentException("Could not find available port for KDC server");
-                }
-                kdcPort = NetworkUtil.getServerPort();
-                tries++;
-            }
-        }
         if (transport != null) {
+            if (kdcPort == 0) {
+                kdcPort = randomServerPort(transport);
+            }
             if (transport.trim().equals("TCP")) {
                 simpleKdc.setKdcTcpPort(kdcPort);
                 simpleKdc.setAllowUdp(false);
@@ -234,7 +225,19 @@ public class SimpleKdcLdapServer {
         logger.info("SimpleKdcServer stoppped.");
     }
 
-    private boolean isPortAvailable(int port, String transport) {
+    private static int randomServerPort(String transport) {
+        int tries = 0;
+        int port = -1;
+        do  {
+            if (tries > 100) {
+                throw new IllegalArgumentException("Could not find available port for KDC server");
+            }
+            port = ESTestCase.randomIntBetween(1024, 65535);
+        } while (isPortAvailable(port, transport) == false);
+        return port;
+    }
+
+    private static boolean isPortAvailable(int port, String transport) {
         if (transport != null && transport.trim().equalsIgnoreCase("tcp")) {
             try (ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(port, 1,
                     InetAddress.getByName("127.0.0.1"))) {

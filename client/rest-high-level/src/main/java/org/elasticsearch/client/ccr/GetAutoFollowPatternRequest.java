@@ -17,13 +17,36 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.query;
+package org.elasticsearch.client.ccr;
 
-import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.client.Validatable;
 
-import java.io.Closeable;
+import java.util.Objects;
 
-public interface QueryCache extends IndexComponent, Closeable, org.apache.lucene.search.QueryCache {
+/**
+ * Request class for get auto follow pattern api.
+ */
+public final class GetAutoFollowPatternRequest implements Validatable {
 
-    void clear(String reason);
+    private final String name;
+
+    /**
+     * Get all auto follow patterns
+     */
+    public GetAutoFollowPatternRequest() {
+        this.name = null;
+    }
+
+    /**
+     * Get auto follow pattern with the specified name
+     *
+     * @param name The name of the auto follow pattern to get
+     */
+    public GetAutoFollowPatternRequest(String name) {
+        this.name = Objects.requireNonNull(name);
+    }
+
+    public String getName() {
+        return name;
+    }
 }

@@ -333,6 +333,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> starting a cluster with " + numNodes + " nodes");
         nodes = internalCluster().startNodes(numNodes,
             Settings.builder().put(IndexGraveyard.SETTING_MAX_TOMBSTONES.getKey(), randomIntBetween(10, 100))
+                    //TODO fails with Zen2
                     .put(TestZenDiscovery.USE_ZEN2.getKey(), false).build());
         logger.info("--> create an index");
         createIndex(indexName);

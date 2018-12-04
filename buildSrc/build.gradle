@@ -190,6 +190,15 @@ if (project != rootProject) {
 
   // This can't be an RandomizedTestingTask because we can't yet reference it
   task integTest(type: Test) {
+    // We don't publish plugins to maven so these won't be in the testing repo.
+    // Make one random plugin available there for testing purposes.
+    dependsOn project(':plugins:ingest-geoip').getTasks().matching { it.name == "bundlePlugin" }
+    doFirst {
+      project.copy {
+        from project(':plugins:ingest-geoip').getTasks().bundlePlugin
+        into "${rootProject.buildDir}/local-test-repo/plugins/"
+      }
+    }
     // integration test requires the local testing repo for example plugin builds
     dependsOn project.rootProject.allprojects.collect {
       it.tasks.matching { it.name == 'publishNebulaPublicationToLocalTestRepository'}

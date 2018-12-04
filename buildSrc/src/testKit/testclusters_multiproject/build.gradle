@@ -2,7 +2,7 @@ plugins {
     id 'elasticsearch.testclusters'
 }
 
-allprojects {
+allprojects { each ->
     repositories {
         maven {
             url System.getProperty("local.repo.path")
@@ -14,6 +14,8 @@ testClusters {
     myTestCluster {
         distribution = 'ZIP'
         version = System.getProperty("test.version_under_test")
+        plugin file("${System.getProperty("local.repo.path")}/plugins/ingest-geoip-${System.getProperty("test.version_under_test")}.zip")
+        javaHome = file(System.getProperty('java.home'))
     }
 }
 

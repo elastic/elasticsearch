@@ -91,6 +91,35 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertStartedAndStoppedOnce(result);
     }
 
+    public void testIncremental() {
+        BuildResult result = getTestClustersRunner("clean", "user1").build();
+        assertTaskSuccessful(result, ":user1");
+        assertStartedAndStoppedOnce(result);
+
+        result = getTestClustersRunner("user1").build();
+        assertTaskSuccessful(result, ":user1");
+        assertStartedAndStoppedOnce(result);
+
+        result = getTestClustersRunner("clean", "user1").build();
+        assertTaskSuccessful(result, ":user1");
+        assertStartedAndStoppedOnce(result);
+    }
+
+    public void testIllegalAccess() {
+        BuildResult result = getTestClustersRunner("illegalFileEdit").buildAndFail();
+        assertTaskFailed(result, ":illegalFileEdit");
+        assertStartedAndStoppedOnce(result);
+        assertOutputContains(
+            result.getOutput(),
+            "Execution failed for task ':illegalFileEdit'."
+        );
+        assertTrue(
+                "The build did not get a permission denied exception as expected\nOutput is\n" + result.getOutput(),
+                result.getOutput().contains("Permission denied") || // Linux
+                    result.getOutput().contains("(Access is denied)") // Windows
+        );
+    }
+
     public void testUseClusterByFailingOne() {
         BuildResult result = getTestClustersRunner("itAlwaysFails").buildAndFail();
         assertTaskFailed(result, ":itAlwaysFails");

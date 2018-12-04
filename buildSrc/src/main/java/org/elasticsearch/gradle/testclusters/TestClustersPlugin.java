@@ -54,14 +54,14 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final int EXECUTOR_SHUTDOWN_TIMEOUT = 1;
     private static final TimeUnit EXECUTOR_SHUTDOWN_TIMEOUT_UNIT = TimeUnit.MINUTES;
 
-    private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
+    private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
 
     // this is static because we need a single mapping across multi project builds, as some of the listeners we use,
     // like task graph are singletons across multi project builds.
     private static final Map<Task, List<ElasticsearchNode>> usedClusters = new ConcurrentHashMap<>();
     private static final Map<ElasticsearchNode, Integer> claimsInventory = new ConcurrentHashMap<>();
     private static final Set<ElasticsearchNode> runningClusters = Collections.synchronizedSet(new HashSet<>());
-    private static volatile  ExecutorService executorService;
+    private static volatile ExecutorService executorService;
 
     @Override
     public void apply(Project project) {
@@ -128,7 +128,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             name -> new ElasticsearchNode(
                 project.getPath(),
                 name,
-                GradleServicesAdapter.getInstance(project),
+                new GradleServicesAdapter(project),
                 SyncTestClustersConfiguration.getTestClustersConfigurationExtractDir(project),
                 new File(project.getBuildDir(), "testclusters")
             )
@@ -178,9 +178,12 @@ public class TestClustersPlugin implements Plugin<Project> {
                 .forEach(task ->
                     usedClusters.getOrDefault(task, Collections.emptyList()).forEach(each -> {
                         synchronized (claimsInventory) {
-                            claimsInventory.put(each, claimsInventory.getOrDefault(each, 0) + 1);
+                            if (claimsInventory.put(each, claimsInventory.getOrDefault(each, 0) + 1) == null) {
+                                // first claim, freeze the configuration
+                                // note gradle/gradle#7329, fixed in Gradle 5.0 , 4.9 ignored exceptions here
+                                each.freeze();
+                            }
                         }
-                        each.freeze();
                     })
                 )
         );
@@ -194,7 +197,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
                     final List<ElasticsearchNode> clustersToStart;
                     synchronized (runningClusters) {
-                        clustersToStart = usedClusters.getOrDefault(task,Collections.emptyList()).stream()
+                        clustersToStart = usedClusters.getOrDefault(task, Collections.emptyList()).stream()
                             .filter(each -> runningClusters.contains(each) == false)
                             .collect(Collectors.toList());
                         runningClusters.addAll(clustersToStart);
@@ -202,8 +205,10 @@ public class TestClustersPlugin implements Plugin<Project> {
                     clustersToStart.forEach(ElasticsearchNode::start);
 
                 }
+
                 @Override
-                public void afterActions(Task task) {}
+                public void afterActions(Task task) {
+                }
             }
         );
     }
@@ -243,8 +248,10 @@ public class TestClustersPlugin implements Plugin<Project> {
                         stoppable.forEach(each -> each.stop(false));
                     }
                 }
+
                 @Override
-                public void beforeExecute(Task task) {}
+                public void beforeExecute(Task task) {
+                }
             }
         );
     }
@@ -255,7 +262,7 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     /**
      * Boilerplate to get testClusters container extension
-     *
+     * <p>
      * Equivalent to project.testClusters in the DSL
      */
     @SuppressWarnings("unchecked")
@@ -274,14 +281,13 @@ public class TestClustersPlugin implements Plugin<Project> {
         // We need afterEvaluate here despite the fact that container is a domain object, we can't implement this with
         // all because fields can change after the fact.
         project.afterEvaluate(ip -> container.forEach(esNode -> {
-            // declare dependencies against artifacts needed by cluster formation.
-            String dependency = String.format(
-                "org.elasticsearch.distribution.zip:%s:%s@zip",
-                esNode.getDistribution().getFileName(),
-                esNode.getVersion()
+            rootProject.getDependencies().add(
+                HELPER_CONFIGURATION_NAME,
+                String.format("org.elasticsearch.distribution.zip:%s:%s@zip",
+                    esNode.getDistribution().getFileName(),
+                    esNode.getVersion()
+                )
             );
-            logger.info("Cluster {} depends on {}", esNode.getName(), dependency);
-            rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
         }));
     }
 
@@ -322,7 +328,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             if (executorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT, EXECUTOR_SHUTDOWN_TIMEOUT_UNIT) == false) {
                 throw new IllegalStateException(
                     "Failed to shut down executor service after " +
-                    EXECUTOR_SHUTDOWN_TIMEOUT + " " + EXECUTOR_SHUTDOWN_TIMEOUT_UNIT
+                        EXECUTOR_SHUTDOWN_TIMEOUT + " " + EXECUTOR_SHUTDOWN_TIMEOUT_UNIT
                 );
             }
         } catch (InterruptedException e) {
@@ -332,7 +338,9 @@ public class TestClustersPlugin implements Plugin<Project> {
     }
 
     private static void shutDownAllClusters() {
-        logger.info("Shutting down all test clusters", new RuntimeException());
+        if (logger.isDebugEnabled()) {
+            logger.debug("Shutting down all test clusters", new RuntimeException());
+        }
         synchronized (runningClusters) {
             runningClusters.forEach(each -> each.stop(true));
             runningClusters.clear();

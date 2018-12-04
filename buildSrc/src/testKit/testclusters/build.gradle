@@ -1,11 +1,14 @@
 plugins {
     id 'elasticsearch.testclusters'
+    id 'base'
 }
 
 testClusters {
     myTestCluster {
         distribution = 'ZIP'
         version = System.getProperty("test.version_under_test")
+        javaHome =  file(System.getProperty('java.home'))
+        plugin file("${System.getProperty("local.repo.path")}/plugins/ingest-geoip-${System.getProperty("test.version_under_test")}.zip")
     }
 }
 
@@ -64,5 +67,13 @@ task illegalConfigAlter {
     doFirst {
         println "Going to alter configuration after use"
         testClusters.myTestCluster.distribution = 'ZIP_OSS'
+    }
+}
+
+task illegalFileEdit {
+    useCluster testClusters.myTestCluster
+    doLast {
+        // guess the location, files from the distribution should not be editable
+        file("$buildDir/testclusters/myTestCluster/config/jvm.options").setText("!NUKE!");
     }
 }

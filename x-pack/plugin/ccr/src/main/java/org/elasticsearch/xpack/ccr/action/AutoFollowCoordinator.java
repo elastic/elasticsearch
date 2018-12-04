@@ -140,8 +140,8 @@ public class AutoFollowCoordinator implements ClusterStateListener {
 
         final CopyOnWriteHashMap<String, AutoFollower> autoFollowers = CopyOnWriteHashMap.copyOf(this.autoFollowers);
         Set<String> newRemoteClusters = autoFollowMetadata.getPatterns().entrySet().stream()
-            .filter(entry -> autoFollowers.containsKey(entry.getValue().getRemoteCluster()) == false)
             .map(entry -> entry.getValue().getRemoteCluster())
+            .filter(remoteCluster -> autoFollowers.containsKey(remoteCluster) == false)
             .collect(Collectors.toSet());
 
         Map<String, AutoFollower> newAutoFollowers = new HashMap<>(newRemoteClusters.size());
@@ -243,7 +243,8 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         private volatile AtomicArray<AutoFollowResult> autoFollowResults;
 
         AutoFollower(final String remoteCluster,
-                     ThreadPool threadPool, final Consumer<List<AutoFollowResult>> statsUpdater,
+                     final ThreadPool threadPool,
+                     final Consumer<List<AutoFollowResult>> statsUpdater,
                      final Supplier<ClusterState> followerClusterStateSupplier) {
             this.remoteCluster = remoteCluster;
             this.threadPool = threadPool;

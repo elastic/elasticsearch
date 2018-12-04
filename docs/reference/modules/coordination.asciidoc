@@ -182,7 +182,7 @@ list using the following API:
 [source,js]
 --------------------------------------------------
 # Add node to voting configuration exclusions list and wait for the system to
-# auto-reconfigure the node from the voting configuration up to the default
+# auto-reconfigure the node out of the voting configuration up to the default
 # timeout of 30 seconds
 POST /_cluster/voting_config_exclusions/node_name
 # Add node to voting configuration exclusions list and wait for
@@ -191,13 +191,13 @@ POST /_cluster/voting_config_exclusions/node_name?timeout=1m
 --------------------------------------------------
 // CONSOLE
 
-The node who should be excluded from the voting configuration is specified
-using <<cluster-nodes,node filters>> in place of `node_name` here. If a call
-to the voting config exclusions API fails then the call can safely be retried.
+The node who should be added to the exclusions list is specified using
+<<cluster-nodes,node filters>> in place of `node_name` here. If a call to the
+voting configuration exclusions API fails then the call can safely be retried.
 A successful response guarantees that the node has been removed from the voting
 configuration and will not be reinstated.
 
-Although the vote configuration exclusions API is most useful for down-scaling
+Although the voting configuration exclusions API is most useful for down-scaling
 a two-node to a one-node cluster, it is also possible to use it to remove multiple
 nodes from larger clusters all at the same time. Adding multiple nodes to the
 exclusions list has the system try to auto-reconfigure all of these nodes from
@@ -206,8 +206,9 @@ cluster available. In the example described above, shrinking a seven-master-node
 cluster down to only have three master nodes, you could add four nodes to the
 exclusions list, wait for confirmation, and then shut them down simultaneously.
 
-Excluding a node from the voting configuration creates an entry for that node
-in the voting configuration exclusions list, which prevents it from returning
+Adding an exclusion for a node creates an entry for that node in the voting
+configuration exclusions list, which has the system automatically try to reconfigure
+the voting configuration to remove that node and prevents it from returning
 to the voting configuration once it has removed. The current set of exclusions
 is stored in the cluster state and can be inspected as follows:
 
@@ -221,8 +222,8 @@ This list is limited in size by the following setting:
 
 `cluster.max_voting_config_exclusions`::
 
-    Sets a limits on the number of voting config exclusions at any one time. Defaults
-    to `10`.
+    Sets a limits on the number of voting configuration exclusions at any one time.
+    Defaults to `10`.
 
 Since voting configuration exclusions are persistent and limited in number, they
 must be cleaned up. Normally an exclusion is added when performing some maintenance on
@@ -236,12 +237,12 @@ only required temporarily:
 
 [source,js]
 --------------------------------------------------
-# Wait for all the nodes with voting config exclusions to be removed from the cluster
-# and then remove all the exclusions, allowing any node to return to the
-# voting configuration in future.
+# Wait for all the nodes with voting configuration exclusions to be removed from the
+# cluster and then remove all the exclusions, allowing any node to return to the
+# voting configuration in the future.
 DELETE /_cluster/voting_config_exclusions
-# Immediately remove all the voting config exclusions, allowing any node to return to
-# the voting configuration in future.
+# Immediately remove all the voting configuration exclusions, allowing any node to
+# return to the voting configuration in the future.
 DELETE /_cluster/voting_config_exclusions?wait_for_removal=false
 --------------------------------------------------
 // CONSOLE

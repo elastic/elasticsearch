@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesAction
 import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesRequest;
 import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -67,6 +68,7 @@ public class ClusterBootstrapService {
 
     private final int initialMasterNodeCount;
     private final List<String> initialMasterNodes;
+    @Nullable
     private final TimeValue unconfiguredDiscoveryTimeout;
     private final TransportService transportService;
     private volatile boolean running;
@@ -76,7 +78,7 @@ public class ClusterBootstrapService {
         initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
         final boolean isConfigured = Stream.of(DISCOVERY_HOSTS_PROVIDER_SETTING, DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
             INITIAL_MASTER_NODE_COUNT_SETTING, INITIAL_MASTER_NODES_SETTING).anyMatch(s -> s.exists(settings));
-        unconfiguredDiscoveryTimeout = isConfigured ? TimeValue.MINUS_ONE : UNCONFIGURED_DISCOVERY_TIMEOUT_SETTING.get(settings);
+        unconfiguredDiscoveryTimeout = isConfigured ? null : UNCONFIGURED_DISCOVERY_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
     }
 
@@ -88,7 +90,7 @@ public class ClusterBootstrapService {
             return;
         }
 
-        if (unconfiguredDiscoveryTimeout.compareTo(TimeValue.ZERO) > 0) {
+        if (unconfiguredDiscoveryTimeout != null) {
             logger.debug("discovery not configured, performing best-effort cluster formation after [{}]", unconfiguredDiscoveryTimeout);
             final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {

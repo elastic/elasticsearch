@@ -204,7 +204,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
         boolean hasIndexRequestsWithPipelines = false;
-        final MetaData metaData = clusterService.state().metaData();
+        final MetaData metaData = clusterService.state().getMetaData();
         ImmutableOpenMap<String, IndexMetaData> indicesMetaData = metaData.indices();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             if (actionRequest instanceof IndexRequest) {

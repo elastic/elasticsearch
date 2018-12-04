@@ -49,14 +49,13 @@ public class StartDataFrameJobAction extends Action<StartDataFrameJobAction.Resp
         public Request() {
         }
 
-        public String getId() {
-            return id;
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            id = in.readString();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            id = in.readString();
+        public String getId() {
+            return id;
         }
 
         @Override

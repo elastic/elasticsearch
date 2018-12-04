@@ -5,17 +5,18 @@ package org.elasticsearch.xpack.dataframe.action;
  * you may not use this file except in compliance with the Elastic License.
  */
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction.Request;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.dataframe.action.StartDataFrameJobAction.Request;
 
-public class StartDataFrameJobActionTests extends AbstractStreamableTestCase<Request> {
+public class StartDataFrameJobActionTests extends AbstractWireSerializingTestCase<Request> {
     @Override
     protected Request createTestInstance() {
         return new Request(randomAlphaOfLengthBetween(1, 20));
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 }

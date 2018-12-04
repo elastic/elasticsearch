@@ -56,18 +56,17 @@ public class StopDataFrameJobAction extends Action<StopDataFrameJobAction.Respon
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            id = in.readString();
+        }
+
         public String getId() {
             return id;
         }
 
         public void setId(String id) {
             this.id = id;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            id = in.readString();
         }
 
         @Override

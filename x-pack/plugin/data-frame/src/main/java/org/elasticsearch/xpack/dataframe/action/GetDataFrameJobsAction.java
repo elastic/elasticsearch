@@ -61,6 +61,11 @@ public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Respon
 
         public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            id = in.readString();
+        }
+
         @Override
         public boolean match(Task task) {
             // If we are retrieving all the jobs, the task description does not contain the id
@@ -73,12 +78,6 @@ public class GetDataFrameJobsAction extends Action<GetDataFrameJobsAction.Respon
 
         public String getId() {
             return id;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            id = in.readString();
         }
 
         @Override

@@ -7,10 +7,11 @@
 package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.dataframe.action.GetDataFrameJobsStatsAction.Request;
 
-public class GetDataFrameJobsStatsActionRequestTests extends AbstractStreamableTestCase<Request> {
+public class GetDataFrameJobsStatsActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override
     protected Request createTestInstance() {
         if (randomBoolean()) {
@@ -20,7 +21,7 @@ public class GetDataFrameJobsStatsActionRequestTests extends AbstractStreamableT
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 }

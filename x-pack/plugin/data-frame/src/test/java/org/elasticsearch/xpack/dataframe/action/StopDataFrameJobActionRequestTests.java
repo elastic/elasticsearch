@@ -6,13 +6,11 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.dataframe.action.StopDataFrameJobAction.Request;
 
-import java.io.IOException;
-
-public class StopDataFrameJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class StopDataFrameJobActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -20,17 +18,7 @@ public class StopDataFrameJobActionRequestTests extends AbstractStreamableXConte
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
-    protected Request doParseInstance(XContentParser parser) throws IOException {
-        return Request.PARSER.parse(parser, null);
-    }
-
-    @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 }

@@ -1,10 +1,10 @@
 {
-  "xpack.monitoring.bulk": {
+  "monitoring.bulk": {
     "documentation": "http://www.elastic.co/guide/en/monitoring/current/appendix-api-bulk.html",
     "methods": ["POST", "PUT"],
     "url": {
-      "path": "/_xpack/monitoring/_bulk",
-      "paths": ["/_xpack/monitoring/_bulk", "/_xpack/monitoring/{type}/_bulk"],
+      "path": "/_monitoring/bulk",
+      "paths": ["/_monitoring/bulk", "/_monitoring/{type}/bulk"],
       "parts": {
         "type": {
           "type" : "string",

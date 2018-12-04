@@ -27,9 +27,6 @@ or by adding the requested fields in the request body (see
 example below). Fields can also be specified with wildcards
 in similar way to the <<query-dsl-multi-match-query,multi match query>>
 
-[WARNING]
-Note that the usage of `/_termvector` is deprecated in 2.0, and replaced by `/_termvectors`.
-
 [float]
 === Return values
 

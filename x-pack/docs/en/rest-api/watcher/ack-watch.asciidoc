@@ -237,7 +237,7 @@ parameter:
 --------------------------------------------------
 POST watcher/watch/my_watch/_ack
 --------------------------------------------------
-// TEST[s/^/POST _xpack\/watcher\/watch\/my_watch\/_execute\n{ "record_execution" : true }\n/]
+// TEST[s/^/POST watcher\/watch\/my_watch\/_execute\n{ "record_execution" : true }\n/]
 // CONSOLE
 
 

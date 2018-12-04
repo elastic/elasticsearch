@@ -113,6 +113,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
     private final SetOnce<CcrRepositoryManager> repositoryManager = new SetOnce<>();
+    private Client client;
 
     /**
      * Construct an instance of the CCR container with the specified settings.
@@ -147,6 +148,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             final Environment environment,
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry) {
+        this.client = client;
         if (enabled == false) {
             return emptyList();
         }
@@ -276,7 +278,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @Override
     public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
-        Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(metadata, settings);
+        Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings);
         return Collections.singletonMap(CcrRepository.TYPE, repositoryFactory);
     }
 

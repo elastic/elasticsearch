@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
@@ -149,11 +150,12 @@ public final class TransportPutFollowAction
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex())
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(remoteCluster,
+        String repositoryName = CcrRepository.NAME_PREFIX + remoteCluster;
+        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(repositoryName,
             leaderIndexMetaData.getIndex().getName(), new String[]{request.getLeaderIndex()}, request.indicesOptions(),
             "^(.*)$", request.getFollowRequest().getFollowerIndex(), Settings.EMPTY, request.masterNodeTimeout(), false,
             false, true, settingsBuilder.build(), new String[0],
-            "restore_snapshot[" + remoteCluster + ":" + request.getLeaderIndex() + "]");
+            "restore_snapshot[" + repositoryName + ":" + request.getLeaderIndex() + "]");
         initiateRestore(restoreRequest, restoreCompleteHandler);
     }
 

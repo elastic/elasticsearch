@@ -67,7 +67,6 @@ import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngine;
-import org.elasticsearch.xpack.ccr.respository.RemoteClusterRepository;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
@@ -114,13 +113,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         if (clusterGroup != null && reuseClusters()) {
             clusterGroup.leaderCluster.ensureAtMostNumDataNodes(numberOfNodesPerCluster());
             clusterGroup.followerCluster.ensureAtMostNumDataNodes(numberOfNodesPerCluster());
-
-            // TODO: Remove
-            followerClient().admin().cluster().preparePutRepository("leader_cluster").setType(RemoteClusterRepository.TYPE).execute()
-                .actionGet();
-            assertBusy(() -> assertEquals(1,
-                followerClient().admin().cluster().prepareGetRepositories().execute().actionGet().repositories().size()));
-
             return;
         }
 
@@ -146,12 +138,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         String address = leaderCluster.getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", address));
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-
-        // TODO: Remove
-        followerClient().admin().cluster().preparePutRepository("leader_cluster").setType(RemoteClusterRepository.TYPE).execute()
-            .actionGet();
-        assertBusy(() -> assertEquals(1,
-            followerClient().admin().cluster().prepareGetRepositories().execute().actionGet().repositories().size()));
     }
 
     /**

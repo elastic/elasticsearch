@@ -6,9 +6,11 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -57,8 +59,10 @@ import org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction;
 import org.elasticsearch.xpack.ccr.action.TransportUnfollowAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
+import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryAction;
+import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
-import org.elasticsearch.xpack.ccr.respository.RemoteClusterRepository;
+import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 import org.elasticsearch.xpack.ccr.rest.RestCcrStatsAction;
 import org.elasticsearch.xpack.ccr.rest.RestDeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestFollowStatsAction;
@@ -108,7 +112,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final boolean enabled;
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
-    private Client client;
+    private final SetOnce<CcrRepositoryManager> repositoryManager = new SetOnce<>();
 
     /**
      * Construct an instance of the CCR container with the specified settings.
@@ -143,10 +147,11 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             final Environment environment,
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry) {
-        this.client = client;
         if (enabled == false) {
             return emptyList();
         }
+
+        this.repositoryManager.set(new CcrRepositoryManager(settings, clusterService, (NodeClient) client));
 
         return Arrays.asList(
             ccrLicenseChecker,
@@ -172,6 +177,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 // internal actions
                 new ActionHandler<>(BulkShardOperationsAction.INSTANCE, TransportBulkShardOperationsAction.class),
                 new ActionHandler<>(ShardChangesAction.INSTANCE, ShardChangesAction.TransportAction.class),
+                new ActionHandler<>(PutInternalCcrRepositoryAction.INSTANCE,
+                    PutInternalCcrRepositoryAction.TransportPutInternalRepositoryAction.class),
+                new ActionHandler<>(DeleteInternalCcrRepositoryAction.INSTANCE,
+                    DeleteInternalCcrRepositoryAction.TransportDeleteInternalRepositoryAction.class),
                 // stats action
                 new ActionHandler<>(FollowStatsAction.INSTANCE, TransportFollowStatsAction.class),
                 new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),
@@ -266,9 +275,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
-        Repository.Factory repositoryFactory = (metadata) -> new RemoteClusterRepository(metadata, client, ccrLicenseChecker, settings);
-        return Collections.singletonMap(RemoteClusterRepository.TYPE, repositoryFactory);
+    public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(metadata, settings);
+        return Collections.singletonMap(CcrRepository.TYPE, repositoryFactory);
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }

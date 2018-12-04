@@ -233,6 +233,7 @@ public class SimpleKdcLdapServer {
                 throw new IllegalArgumentException("Could not find available port for KDC server");
             }
             port = ESTestCase.randomIntBetween(1024, 65535);
+            tries++;
         } while (isPortAvailable(port, transport) == false);
         return port;
     }

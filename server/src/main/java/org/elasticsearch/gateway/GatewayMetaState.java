@@ -27,22 +27,25 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.MetaDataUpgrader;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -57,7 +60,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
+
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
  * This class is responsible for storing/retrieving metadata to/from disk.
@@ -73,8 +79,11 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
     protected static final Logger logger = LogManager.getLogger(GatewayMetaState.class);
 
     private final NodeEnvironment nodeEnv;
-    protected final MetaStateService metaStateService;
+    private final MetaStateService metaStateService;
     private final Settings settings;
+    private final ClusterService clusterService;
+    private final IndicesService indicesService;
+    private final TransportService transportService;
 
     //there is a single thread executing updateClusterState calls, hence no volatile modifier
     protected Manifest previousManifest;
@@ -82,10 +91,15 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
     protected boolean incrementalWrite;
 
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
-                            MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) throws IOException {
+                            MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader,
+                            TransportService transportService, ClusterService clusterService,
+                            IndicesService indicesService) throws IOException {
         this.settings = settings;
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
+        this.transportService = transportService;
+        this.clusterService = clusterService;
+        this.indicesService = indicesService;
 
         ensureNoPre019State(); //TODO remove this check, it's Elasticsearch version 7 already
         ensureAtomicMoveSupported(); //TODO move this check to NodeEnvironment, because it's related to all types of metadata
@@ -99,18 +113,27 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
         previousManifest = manifestAndMetaData.v1();
 
+        final MetaData metaData = manifestAndMetaData.v2();
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK);
+
         previousClusterState = ClusterState.builder(clusterName)
                 .version(previousManifest.getClusterStateVersion())
-                .metaData(manifestAndMetaData.v2()).build();
+                .blocks(blocks.build())
+                .metaData(metaData).build();
 
         logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
     }
 
-    public void setLocalNode(DiscoveryNode localNode) {
-        assert previousClusterState.nodes().getLocalNode() == null : "setLocalNode must only be called once";
-        previousClusterState = ClusterState.builder(previousClusterState)
-                .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
-                .build();
+    public void applyClusterStateUpdaters() {
+        assert previousClusterState.nodes().getLocalNode() == null : "applyClusterStateUpdaters must only be called once";
+        assert transportService.getLocalNode() != null : "transport service is not yet started";
+
+        previousClusterState = Function.<ClusterState>identity()
+            .andThen(state -> ClusterStateUpdaters.setLocalNode(state, transportService.getLocalNode()))
+            .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))
+            .andThen(state -> ClusterStateUpdaters.closeBadIndices(state, indicesService))
+            .andThen(ClusterStateUpdaters::recoverClusterBlocks)
+            .apply(previousClusterState);
     }
 
     protected void upgradeMetaData(MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
@@ -196,7 +219,7 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
 
     @Override
     public ClusterState getLastAcceptedState() {
-        assert previousClusterState.nodes().getLocalNode() != null : "Call setLocalNode before calling this method";
+        assert previousClusterState.nodes().getLocalNode() != null : "Cluster state is not fully built yet";
         return previousClusterState;
     }
 
@@ -215,8 +238,6 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
 
     @Override
     public void setLastAcceptedState(ClusterState clusterState) {
-        assert clusterState.blocks().disableStatePersistence() == false;
-
         try {
             incrementalWrite = previousClusterState.term() == clusterState.term();
             updateClusterState(clusterState, previousClusterState);

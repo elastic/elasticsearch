@@ -8,7 +8,7 @@ running.
 [float]
 ==== Request
 
-`POST watcher/_start`
+`POST _watcher/_start`
 
 ==== Authorization
 
@@ -20,7 +20,7 @@ information, see {xpack-ref}/security-privileges.html[Security Privileges].
 
 [source,js]
 --------------------------------------------------
-POST watcher/_start
+POST _watcher/_start
 --------------------------------------------------
 // CONSOLE
 

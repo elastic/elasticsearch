@@ -4,8 +4,8 @@
 
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/watcher/watch/{id}",
-      "paths": [ "/watcher/watch/{id}" ],
+      "path": "/_watcher/watch/{id}",
+      "paths": [ "/_watcher/watch/{id}" ],
       "parts": {
         "id": {
           "type" : "string",

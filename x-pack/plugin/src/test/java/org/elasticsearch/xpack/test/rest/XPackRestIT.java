@@ -145,7 +145,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                 List<Map<String, Object>> hits = objectPathResponse.evaluate("hits.hits");
                 for (Map<String, Object> hit : hits) {
                     String id = (String) hit.get("_id");
-                    adminClient().performRequest(new Request("DELETE", "watcher/watch/" + id));
+                    adminClient().performRequest(new Request("DELETE", "_watcher/watch/" + id));
                 }
             }
         }

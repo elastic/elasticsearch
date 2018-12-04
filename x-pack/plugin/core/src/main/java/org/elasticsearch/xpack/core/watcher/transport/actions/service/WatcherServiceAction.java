@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 public class WatcherServiceAction extends Action<AcknowledgedResponse> {
 
     public static final WatcherServiceAction INSTANCE = new WatcherServiceAction();
-    public static final String NAME = "cluster:admin/watcher/service";
+    public static final String NAME = "cluster:admin/xpack/watcher/service";
 
     private WatcherServiceAction() {
         super(NAME);

@@ -7,7 +7,7 @@ The DELETE watch API removes a watch from {watcher}.
 [float]
 ==== Request
 
-`DELETE watcher/watch/<watch_id>`
+`DELETE _watcher/watch/<watch_id>`
 
 [float]
 ==== Description
@@ -42,7 +42,7 @@ The following example deletes a watch with the `my-watch` id:
 
 [source,js]
 --------------------------------------------------
-DELETE watcher/watch/my_watch
+DELETE _watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:my_active_watch]

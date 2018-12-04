@@ -7,7 +7,7 @@ This API retrieves a watch by its ID.
 [float]
 ==== Request
 
-`GET watcher/watch/<watch_id>`
+`GET _watcher/watch/<watch_id>`
 
 [float]
 ==== Path Parameters
@@ -29,7 +29,7 @@ The following example gets a watch with `my-watch` id:
 
 [source,js]
 --------------------------------------------------
-GET watcher/watch/my_watch
+GET _watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:my_active_watch]

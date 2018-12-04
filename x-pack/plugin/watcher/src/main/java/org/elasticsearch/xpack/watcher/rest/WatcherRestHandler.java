@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public abstract class WatcherRestHandler extends BaseRestHandler {
 
-    protected static String URI_BASE = "watcher";
+    protected static String URI_BASE = "_watcher";
 
     public WatcherRestHandler(Settings settings) {
         super(settings);

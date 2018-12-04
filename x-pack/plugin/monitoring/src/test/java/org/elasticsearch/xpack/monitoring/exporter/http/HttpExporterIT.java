@@ -497,7 +497,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 // GET / PUT if we are allowed to use it
                 if (currentLicenseAllowsWatcher && clusterAlertBlacklist.contains(watch.v1()) == false) {
                     assertThat(request.getMethod(), equalTo("GET"));
-                    assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/watcher/watch/" + uniqueWatchId));
+                    assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_watcher/watch/" + uniqueWatchId));
                     assertThat(request.getUri().getQuery(), equalTo(resourceClusterAlertQueryString()));
                     assertHeaders(request, customHeaders);
 
@@ -505,7 +505,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                         request = webServer.takeRequest();
 
                         assertThat(request.getMethod(), equalTo("PUT"));
-                        assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/watcher/watch/" + uniqueWatchId));
+                        assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_watcher/watch/" + uniqueWatchId));
                         assertThat(request.getUri().getQuery(), equalTo(resourceClusterAlertQueryString()));
                         assertThat(request.getBody(), equalTo(watch.v2()));
                         assertHeaders(request, customHeaders);
@@ -513,7 +513,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 // DELETE if we're not allowed to use it
                 } else {
                     assertThat(request.getMethod(), equalTo("DELETE"));
-                    assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/watcher/watch/" + uniqueWatchId));
+                    assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_watcher/watch/" + uniqueWatchId));
                     assertThat(request.getUri().getQuery(), equalTo(resourceClusterAlertQueryString()));
                     assertHeaders(request, customHeaders);
                 }

@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-execute-watch.html",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/watcher/watch/{id}/_execute",
-      "paths": [ "/watcher/watch/{id}/_execute", "/watcher/watch/_execute" ],
+      "path": "/_watcher/watch/{id}/_execute",
+      "paths": [ "/_watcher/watch/{id}/_execute", "/_watcher/watch/_execute" ],
       "parts": {
         "id": {
           "type" : "string",

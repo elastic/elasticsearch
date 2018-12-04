@@ -44,19 +44,19 @@ public final class RequestOptions {
 
     private final List<Header> headers;
     private final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
-    private final Boolean overrideStrictDeprecationMode;
+    private final Boolean strictDeprecationMode;
 
     private RequestOptions(Builder builder) {
         this.headers = Collections.unmodifiableList(new ArrayList<>(builder.headers));
         this.httpAsyncResponseConsumerFactory = builder.httpAsyncResponseConsumerFactory;
-        this.overrideStrictDeprecationMode = builder.overrideStrictDeprecationMode;
+        this.strictDeprecationMode = builder.strictDeprecationMode;
     }
 
     /**
      * Create a builder that contains these options but can be modified.
      */
     public Builder toBuilder() {
-        return new Builder(headers, httpAsyncResponseConsumerFactory, overrideStrictDeprecationMode);
+        return new Builder(headers, httpAsyncResponseConsumerFactory, strictDeprecationMode);
     }
 
     /**
@@ -77,12 +77,13 @@ public final class RequestOptions {
     }
 
     /**
-     * Override for the client's default for
+     * Override the client's default for
      * {@link RestClientBuilder#setStrictDeprecationMode strict deprecation}
-     * . Null means accept the client's default.
+     * . Null means accept the client's default, true means throw an
+     * exception if there are warnings, and false means don't throw.
      */
-    public Boolean getOverrideStrictDeprecationMode() {
-        return overrideStrictDeprecationMode;
+    public Boolean getStrictDeprecationMode() {
+        return strictDeprecationMode;
     }
 
     @Override
@@ -131,13 +132,13 @@ public final class RequestOptions {
     public static class Builder {
         private final List<Header> headers;
         private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
-        private Boolean overrideStrictDeprecationMode;
+        private Boolean strictDeprecationMode;
 
         private Builder(List<Header> headers, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-                Boolean overrideStrictDeprecationMode) {
+                Boolean strictDeprecationMode) {
             this.headers = new ArrayList<>(headers);
             this.httpAsyncResponseConsumerFactory = httpAsyncResponseConsumerFactory;
-            this.overrideStrictDeprecationMode = overrideStrictDeprecationMode;
+            this.strictDeprecationMode = strictDeprecationMode;
         }
 
         /**
@@ -170,10 +171,11 @@ public final class RequestOptions {
         /**
          * Override the client's default for
          * {@link RestClientBuilder#setStrictDeprecationMode strict deprecation}
-         * . Null means accept the client's default
+         * . Null means accept the client's default, true means throw an
+         * exception if there are warnings, and false means don't throw.
          */
-        public void setOverrideStrictDeprecationMode(Boolean overrideStrictDeprecationMode) {
-            this.overrideStrictDeprecationMode = overrideStrictDeprecationMode;
+        public void setStrictDeprecationMode(Boolean strictDeprecationMode) {
+            this.strictDeprecationMode = strictDeprecationMode;
         }
     }
 

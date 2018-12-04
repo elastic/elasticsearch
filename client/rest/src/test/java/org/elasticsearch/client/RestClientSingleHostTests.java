@@ -360,7 +360,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         boolean thisRequestStrictDeprecationMode;
         if (randomBoolean()) {
             thisRequestStrictDeprecationMode = randomBoolean();
-            options.setOverrideStrictDeprecationMode(thisRequestStrictDeprecationMode);
+            options.setStrictDeprecationMode(thisRequestStrictDeprecationMode);
         } else {
             thisRequestStrictDeprecationMode = strictDeprecationMode;
         }

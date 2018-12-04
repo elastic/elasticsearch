@@ -274,8 +274,8 @@ public class RestClient implements Closeable {
         setHeaders(httpRequest, request.getOptions().getHeaders());
         FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(listener);
         long startTime = System.nanoTime();
-        boolean thisRequestStrictDeprecationMode = request.getOptions().getOverrideStrictDeprecationMode() == null ?
-                strictDeprecationMode : request.getOptions().getOverrideStrictDeprecationMode();
+        boolean thisRequestStrictDeprecationMode = request.getOptions().getStrictDeprecationMode() == null ?
+                strictDeprecationMode : request.getOptions().getStrictDeprecationMode();
         performRequestAsync(startTime, nextNode(), httpRequest, ignoreErrorCodes, thisRequestStrictDeprecationMode,
                 request.getOptions().getHttpAsyncResponseConsumerFactory(), failureTrackingResponseListener);
     }

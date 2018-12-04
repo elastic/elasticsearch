@@ -216,8 +216,8 @@ public class ClientYamlTestClient implements Closeable {
             logger.debug("Adding header {} with value {}", header.getKey(), header.getValue());
             options.addHeader(header.getKey(), header.getValue());
         }
-        // We check the warnings ourselves
-        options.setOverrideStrictDeprecationMode(false);
+        // We check the warnings ourselves so we don't need the client to do it for us
+        options.setStrictDeprecationMode(false);
         request.setOptions(options);
     }
 

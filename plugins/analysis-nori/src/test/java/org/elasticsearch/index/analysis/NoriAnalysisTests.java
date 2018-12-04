@@ -38,6 +38,7 @@ import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class NoriAnalysisTests extends ESTokenStreamTestCase {
@@ -82,13 +83,23 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
             .build();
         TestAnalysis analysis = createTestAnalysis(settings);
         Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
-        try (TokenStream stream = analyzer.tokenStream("", "세종시" )) {
-            assertTokenStreamContents(stream, new String[] {"세종", "시"});
+        try (TokenStream stream = analyzer.tokenStream("", "세종시")) {
+            assertTokenStreamContents(stream, new String[]{"세종", "시"});
         }
 
         try (TokenStream stream = analyzer.tokenStream("", "c++world")) {
-            assertTokenStreamContents(stream, new String[] {"c++", "world"});
+            assertTokenStreamContents(stream, new String[]{"c++", "world"});
         }
+    }
+
+    public void testNoriAnalyzerUserDictWithDuplicates() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "nori")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "세종", "C샤프", "세종", "세종 세 종")
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
+        assertThat(exc.getMessage(), containsString("Found duplicate term: [세종]"));
+
     }
 
     public void testNoriAnalyzerUserDictPath() throws Exception {

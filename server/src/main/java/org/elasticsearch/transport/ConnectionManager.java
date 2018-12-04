@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.lease.Releasable;
@@ -218,7 +219,18 @@ public class ConnectionManager implements Closeable {
     }
 
     private Transport.Connection internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-        Transport.Connection connection = transport.openConnection(node, connectionProfile);
+        PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+        Releasable pendingConnection = transport.openConnection(node, connectionProfile, future);
+        Transport.Connection connection;
+        try {
+            connection = future.actionGet();
+        } catch (IllegalStateException e) {
+            // If the future was interrupted we must cancel the pending connection to avoid channels leaking
+            if (e.getCause() instanceof InterruptedException) {
+                pendingConnection.close();
+            }
+            throw e;
+        }
         try {
             connectionListener.onConnectionOpened(connection);
         } finally {

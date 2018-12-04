@@ -249,11 +249,11 @@ public class Analysis {
             return loadWordList(path, "#");
         } catch (CharacterCodingException ex) {
             String message = String.format(Locale.ROOT,
-                "Unsupported character encoding detected while reading %s_path: %s - files must be UTF-8 encoded",
+                "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
                 settingPath, path.toString());
             throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
-            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPath, path.toString());
+            String message = String.format(Locale.ROOT, "IOException while reading %s: %s", settingPath, path.toString());
             throw new IllegalArgumentException(message, ioe);
         }
     }

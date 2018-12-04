@@ -51,4 +51,29 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
         assertEquals(singletonList(expected), issues);
     }
+
+    public void testIndexNameCheck(){
+        final String badIndexName = randomAlphaOfLengthBetween(0, 10) + ":" + randomAlphaOfLengthBetween(0, 10);
+        final IndexMetaData badIndex = IndexMetaData.builder(badIndexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1,100))
+            .numberOfReplicas(randomIntBetween(1,15))
+            .build();
+
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING, "Index name cannot contain ':'",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#_literal_literal_is_no_longer_allowed_in_index_name",
+            "This index is named [" + badIndexName + "], which contains the illegal character ':'.");
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(badIndex));
+        assertEquals(singletonList(expected), issues);
+
+        final String goodIndexName = randomAlphaOfLengthBetween(1,30);
+        final IndexMetaData goodIndex = IndexMetaData.builder(goodIndexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1,100))
+            .numberOfReplicas(randomIntBetween(1,15))
+            .build();
+        List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(goodIndex));
+        assertTrue(noIssues.isEmpty());
+    }
 }

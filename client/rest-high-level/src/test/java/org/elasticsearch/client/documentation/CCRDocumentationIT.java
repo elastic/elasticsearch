@@ -559,6 +559,13 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ccr-get-auto-follow-pattern-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        // Cleanup:
+        {
+            DeleteAutoFollowPatternRequest deleteRequest = new DeleteAutoFollowPatternRequest("my_pattern");
+            AcknowledgedResponse deleteResponse = client.ccr().deleteAutoFollowPattern(deleteRequest, RequestOptions.DEFAULT);
+            assertThat(deleteResponse.isAcknowledged(), is(true));
+        }
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {

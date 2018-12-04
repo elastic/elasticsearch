@@ -56,6 +56,6 @@ public class IndicesPrivilegesTests extends AbstractXContentTestCase<IndicesPriv
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
     }
 }

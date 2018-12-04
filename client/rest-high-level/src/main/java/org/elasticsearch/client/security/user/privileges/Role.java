@@ -87,7 +87,7 @@ public final class Role {
     private final Set<ApplicationResourcePrivileges> applicationResourcePrivileges;
     private final Set<String> runAsPrivilege;
     private final Map<String, Object> metadata;
-    // this read only (user face)
+    // this read only from the client's perspective. The client cannot change this field of a role on the server.
     private final Map<String, Object> transientMetadata;
 
     private Role(String name, @Nullable Collection<String> clusterPrivileges,
@@ -166,7 +166,7 @@ public final class Role {
     @Override
     public int hashCode() {
         return Objects.hash(name, clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
-            runAsPrivilege, metadata, null);
+            runAsPrivilege, metadata);
     }
 
     @Override
@@ -350,7 +350,7 @@ public final class Role {
         public static final String VIEW_INDEX_METADATA = "view_index_metadata";
         public static final String MANAGE_FOLLOW_INDEX = "manage_follow_index";
         public static final String[] ARRAY = new String[] { NONE, ALL, READ, READ_CROSS, CREATE, INDEX, DELETE, WRITE, MONITOR, MANAGE,
-                DELETE_INDEX, CREATE_INDEX, VIEW_INDEX_METADATA, MANAGE_FOLLOW_INDEX }; 
+                DELETE_INDEX, CREATE_INDEX, VIEW_INDEX_METADATA, MANAGE_FOLLOW_INDEX };
     }
 
 }

@@ -107,7 +107,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
             execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
         assertThat(deleteUserResponse2.isAcknowledged(), is(false));
     }
-    
+
     public void testPutRole() throws Exception {
         final SecurityClient securityClient = highLevelClient().security();
         // create random role

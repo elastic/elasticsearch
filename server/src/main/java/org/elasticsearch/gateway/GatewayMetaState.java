@@ -88,7 +88,6 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
     //there is a single thread executing updateClusterState calls, hence no volatile modifier
     protected Manifest previousManifest;
     protected ClusterState previousClusterState;
-    protected boolean clusterStateUpdatersApplied;
     protected boolean incrementalWrite;
 
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
@@ -107,7 +106,6 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         upgradeMetaData(metaDataIndexUpgradeService, metaDataUpgrader);
         initializeClusterState(ClusterName.CLUSTER_NAME_SETTING.get(settings));
         incrementalWrite = false;
-        clusterStateUpdatersApplied = false;
     }
 
     private void initializeClusterState(ClusterName clusterName) throws IOException {
@@ -127,7 +125,8 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
     }
 
     public void applyClusterStateUpdaters() {
-        assert clusterStateUpdatersApplied == false : "applyClusterStateUpdaters must only be called once";
+        assert previousClusterState.nodes().getLocalNode() == null : "applyClusterStateUpdaters must only be called once";
+        assert transportService.getLocalNode() != null : "transport service is not yet started";
 
         previousClusterState = Function.<ClusterState>identity()
             .andThen(state -> ClusterStateUpdaters.setLocalNode(state, transportService.getLocalNode()))
@@ -135,8 +134,6 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
             .andThen(state -> ClusterStateUpdaters.closeBadIndices(state, indicesService))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .apply(previousClusterState);
-
-        clusterStateUpdatersApplied = true;
     }
 
     protected void upgradeMetaData(MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
@@ -222,7 +219,7 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
 
     @Override
     public ClusterState getLastAcceptedState() {
-        assert clusterStateUpdatersApplied : "Call applyClusterStateUpdaters before calling this method";
+        assert previousClusterState.nodes().getLocalNode() != null : "Cluster state is not fully built yet";
         return previousClusterState;
     }
 

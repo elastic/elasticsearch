@@ -67,7 +67,6 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         public void applyClusterStateUpdaters() {
             // Just set localNode here, not to mess with ClusterService and IndicesService mocking
             previousClusterState = ClusterStateUpdaters.setLocalNode(previousClusterState, localNode);
-            clusterStateUpdatersApplied = true;
         }
     }
 

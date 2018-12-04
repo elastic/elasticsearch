@@ -75,6 +75,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private String index;
 
+    @Override
+    protected boolean getStrictDeprecationMode() {
+        // TOD reenable this once we have removed types from these tests.
+        return false;
+    }
+
     @Before
     public void setIndex() throws IOException {
         index = getTestName().toLowerCase(Locale.ROOT);

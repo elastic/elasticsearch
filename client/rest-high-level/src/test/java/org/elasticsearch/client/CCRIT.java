@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CCRIT extends ESRestHighLevelClientTestCase {
 
     @Before
-    public void setupRemoteClusterConfig() throws IOException {
+    public void setupRemoteClusterConfig() throws Exception {
         // Configure local cluster as remote cluster:
         // TODO: replace with nodes info highlevel rest client code when it is available:
         final Request request = new Request("GET", "/_nodes");
@@ -70,6 +70,14 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         ClusterUpdateSettingsResponse updateSettingsResponse =
             highLevelClient().cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));
+
+        assertBusy(() -> {
+            Map<?, ?> localConnection = (Map<?, ?>) toMap(client()
+                .performRequest(new Request("GET", "/_remote/info")))
+                .get("local");
+            assertThat(localConnection, notNullValue());
+            assertThat(localConnection.get("connected"), is(true));
+        });
     }
 
     public void testIndexFollowing() throws Exception {

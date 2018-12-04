@@ -33,7 +33,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
+import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse.Pattern;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
+import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
@@ -44,6 +49,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -373,6 +379,193 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ccr-unfollow-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testPutAutoFollowPattern() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::ccr-put-auto-follow-pattern-request
+        PutAutoFollowPatternRequest request =
+            new PutAutoFollowPatternRequest(
+                "my_pattern", // <1>
+                "local", // <2>
+                Arrays.asList("logs-*", "metrics-*") // <3>
+        );
+        request.setFollowIndexNamePattern("copy-{{leader_index}}"); // <4>
+        // end::ccr-put-auto-follow-pattern-request
+
+        // tag::ccr-put-auto-follow-pattern-execute
+        AcknowledgedResponse response = client.ccr()
+            .putAutoFollowPattern(request, RequestOptions.DEFAULT);
+        // end::ccr-put-auto-follow-pattern-execute
+
+        // tag::ccr-put-auto-follow-pattern-response
+        boolean acknowledged = response.isAcknowledged(); // <1>
+        // end::ccr-put-auto-follow-pattern-response
+
+        // Delete auto follow pattern, so that we can store it again:
+        {
+            final DeleteAutoFollowPatternRequest deleteRequest = new DeleteAutoFollowPatternRequest("my_pattern");
+            AcknowledgedResponse deleteResponse = client.ccr().deleteAutoFollowPattern(deleteRequest, RequestOptions.DEFAULT);
+            assertThat(deleteResponse.isAcknowledged(), is(true));
+        }
+
+        // tag::ccr-put-auto-follow-pattern-execute-listener
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) { // <1>
+                    boolean acknowledged = response.isAcknowledged();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ccr-put-auto-follow-pattern-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ccr-put-auto-follow-pattern-execute-async
+        client.ccr().putAutoFollowPatternAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ccr-put-auto-follow-pattern-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        // Cleanup:
+        {
+            final DeleteAutoFollowPatternRequest deleteRequest = new DeleteAutoFollowPatternRequest("my_pattern");
+            AcknowledgedResponse deleteResponse = client.ccr().deleteAutoFollowPattern(deleteRequest, RequestOptions.DEFAULT);
+            assertThat(deleteResponse.isAcknowledged(), is(true));
+        }
+    }
+
+    public void testDeleteAutoFollowPattern() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        // Put auto follow pattern, so that we can delete it:
+        {
+            final PutAutoFollowPatternRequest putRequest =
+                new PutAutoFollowPatternRequest("my_pattern", "local", Collections.singletonList("logs-*"));
+            AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
+            assertThat(putResponse.isAcknowledged(), is(true));
+        }
+
+        // tag::ccr-delete-auto-follow-pattern-request
+        DeleteAutoFollowPatternRequest request =
+            new DeleteAutoFollowPatternRequest("my_pattern"); // <1>
+        // end::ccr-delete-auto-follow-pattern-request
+
+        // tag::ccr-delete-auto-follow-pattern-execute
+        AcknowledgedResponse response = client.ccr()
+            .deleteAutoFollowPattern(request, RequestOptions.DEFAULT);
+        // end::ccr-delete-auto-follow-pattern-execute
+
+        // tag::ccr-delete-auto-follow-pattern-response
+        boolean acknowledged = response.isAcknowledged(); // <1>
+        // end::ccr-delete-auto-follow-pattern-response
+
+        // Put auto follow pattern, so that we can delete it again:
+        {
+            final PutAutoFollowPatternRequest putRequest =
+                new PutAutoFollowPatternRequest("my_pattern", "local", Collections.singletonList("logs-*"));
+            AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
+            assertThat(putResponse.isAcknowledged(), is(true));
+        }
+
+        // tag::ccr-delete-auto-follow-pattern-execute-listener
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) { // <1>
+                    boolean acknowledged = response.isAcknowledged();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ccr-delete-auto-follow-pattern-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ccr-delete-auto-follow-pattern-execute-async
+        client.ccr().deleteAutoFollowPatternAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ccr-delete-auto-follow-pattern-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testGetAutoFollowPattern() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        // Put auto follow pattern, so that we can get it:
+        {
+            final PutAutoFollowPatternRequest putRequest =
+                new PutAutoFollowPatternRequest("my_pattern", "local", Collections.singletonList("logs-*"));
+            AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
+            assertThat(putResponse.isAcknowledged(), is(true));
+        }
+
+        // tag::ccr-get-auto-follow-pattern-request
+        GetAutoFollowPatternRequest request =
+            new GetAutoFollowPatternRequest("my_pattern"); // <1>
+        // end::ccr-get-auto-follow-pattern-request
+
+        // tag::ccr-get-auto-follow-pattern-execute
+        GetAutoFollowPatternResponse response = client.ccr()
+            .getAutoFollowPattern(request, RequestOptions.DEFAULT);
+        // end::ccr-get-auto-follow-pattern-execute
+
+        // tag::ccr-get-auto-follow-pattern-response
+        Map<String, Pattern> patterns = response.getPatterns();
+        Pattern pattern = patterns.get("my_pattern"); // <1>
+        pattern.getLeaderIndexPatterns();
+        // end::ccr-get-auto-follow-pattern-response
+
+        // tag::ccr-get-auto-follow-pattern-execute-listener
+        ActionListener<GetAutoFollowPatternResponse> listener =
+            new ActionListener<GetAutoFollowPatternResponse>() {
+                @Override
+                public void onResponse(GetAutoFollowPatternResponse
+                                           response) { // <1>
+                    Map<String, Pattern> patterns = response.getPatterns();
+                    Pattern pattern = patterns.get("my_pattern");
+                    pattern.getLeaderIndexPatterns();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ccr-get-auto-follow-pattern-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ccr-get-auto-follow-pattern-execute-async
+        client.ccr().getAutoFollowPatternAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ccr-get-auto-follow-pattern-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        // Cleanup:
+        {
+            DeleteAutoFollowPatternRequest deleteRequest = new DeleteAutoFollowPatternRequest("my_pattern");
+            AcknowledgedResponse deleteResponse = client.ccr().deleteAutoFollowPattern(deleteRequest, RequestOptions.DEFAULT);
+            assertThat(deleteResponse.isAcknowledged(), is(true));
+        }
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {

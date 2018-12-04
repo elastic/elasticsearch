@@ -11,7 +11,7 @@ import com.vividsolutions.jts.io.WKTReader;
 import com.carrotsearch.hppc.IntObjectHashMap;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.sql.jdbc.type.DataType;
+import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.relique.jdbc.csv.CsvResultSet;
 
@@ -46,10 +46,10 @@ public class JdbcAssert {
     private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
     private static final WKTReader wkt = new WKTReader();
 
-    private static final IntObjectHashMap<DataType> SQL_TO_TYPE = new IntObjectHashMap<>();
+    private static final IntObjectHashMap<EsType> SQL_TO_TYPE = new IntObjectHashMap<>();
 
     static {
-        for (DataType type : DataType.values()) {
+        for (EsType type : EsType.values()) {
             SQL_TO_TYPE.putIfAbsent(type.getVendorTypeNumber().intValue(), type);
         }
     }

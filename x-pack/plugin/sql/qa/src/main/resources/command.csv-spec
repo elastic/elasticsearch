@@ -20,9 +20,14 @@ STDDEV_POP      |AGGREGATE
 SUM_OF_SQUARES  |AGGREGATE      
 VAR_POP         |AGGREGATE      
 COALESCE        |CONDITIONAL
+GREATEST        |CONDITIONAL
 IFNULL          |CONDITIONAL
-DAY             |SCALAR         
-DAYNAME         |SCALAR         
+ISNULL          |CONDITIONAL
+LEAST           |CONDITIONAL
+NULLIF          |CONDITIONAL
+NVL             |CONDITIONAL
+DAY             |SCALAR
+DAYNAME         |SCALAR
 DAYOFMONTH      |SCALAR         
 DAYOFWEEK       |SCALAR         
 DAYOFYEAR       |SCALAR         
@@ -107,6 +112,8 @@ ST_GEOMFROMTEXT |SCALAR
 ST_WKTTOSQL     |SCALAR
 CAST            |SCALAR
 CONVERT         |SCALAR
+DATABASE        |SCALAR
+USER            |SCALAR
 SCORE           |SCORE
 ;
 

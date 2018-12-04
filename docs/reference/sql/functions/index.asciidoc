@@ -14,6 +14,7 @@
 * <<sql-functions-type-conversion,Type Conversion>>
 * <<sql-functions-geo,Geo>>
 * <<sql-functions-conditional, Conditional>>
+* <<sql-functions-system, System>>
 
 include::operators.asciidoc[]
 include::aggs.asciidoc[]
@@ -24,3 +25,4 @@ include::string.asciidoc[]
 include::type-conversion.asciidoc[]
 include::geo.asciidoc[]
 include::conditional.asciidoc[]
+include::system.asciidoc[]

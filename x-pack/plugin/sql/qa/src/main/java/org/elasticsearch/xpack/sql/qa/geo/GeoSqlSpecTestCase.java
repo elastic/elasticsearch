@@ -9,7 +9,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.xpack.sql.qa.jdbc.LocalH2;
 import org.elasticsearch.xpack.sql.qa.jdbc.SpecBaseIntegrationTestCase;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
+import org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration;
 import org.h2gis.ext.H2GISExtension;
 import org.junit.Before;
 import org.junit.ClassRule;

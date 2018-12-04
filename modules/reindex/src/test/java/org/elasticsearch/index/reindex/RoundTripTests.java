@@ -184,9 +184,7 @@ public class RoundTripTests extends ESTestCase {
         } else {
             request.setTaskId(new TaskId(randomAlphaOfLength(5), randomLong()));
         }
-        RethrottleRequest tripped = new RethrottleRequest();
-        // We use readFrom here because Rethrottle does not support the Writeable.Reader interface
-        tripped.readFrom(toInputByteStream(request));
+        RethrottleRequest tripped = new RethrottleRequest(toInputByteStream(request));
         assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0.00001);
         assertArrayEquals(request.getActions(), tripped.getActions());
         assertEquals(request.getTaskId(), tripped.getTaskId());

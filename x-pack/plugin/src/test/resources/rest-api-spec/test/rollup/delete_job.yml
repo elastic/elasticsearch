@@ -22,7 +22,7 @@ setup:
           {
             "index_pattern": "foo",
             "rollup_index": "foo_rollup",
-            "cron": "*/30 * * * * ?",
+            "cron": "*/30 * * * * ? 2017",
             "page_size" :10,
             "groups" : {
               "date_histogram": {
@@ -51,7 +51,7 @@ setup:
             id: "foo"
             index_pattern: "foo"
             rollup_index: "foo_rollup"
-            cron: "*/30 * * * * ?"
+            cron: "*/30 * * * * ? 2017"
             page_size: 10
             groups :
               date_histogram:
@@ -70,6 +70,12 @@ setup:
             documents_processed: 0
             rollups_indexed: 0
             trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
           status:
             job_state: "stopped"
             upgraded_doc_id: true
@@ -98,7 +104,7 @@ setup:
             id: "foo"
             index_pattern: "foo"
             rollup_index: "foo_rollup"
-            cron: "*/30 * * * * ?"
+            cron: "*/30 * * * * ? 2017"
             page_size: 10
             groups :
               date_histogram:
@@ -117,6 +123,12 @@ setup:
             documents_processed: 0
             rollups_indexed: 0
             trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
           status:
             job_state: "stopped"
             upgraded_doc_id: true
@@ -145,7 +157,7 @@ setup:
             id: "foo"
             index_pattern: "foo"
             rollup_index: "foo_rollup"
-            cron: "*/30 * * * * ?"
+            cron: "*/30 * * * * ? 2017"
             page_size: 10
             groups :
               date_histogram:
@@ -164,6 +176,12 @@ setup:
             documents_processed: 0
             rollups_indexed: 0
             trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
           status:
             job_state: "stopped"
             upgraded_doc_id: true

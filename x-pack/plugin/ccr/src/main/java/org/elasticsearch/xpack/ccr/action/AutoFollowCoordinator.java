@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -164,6 +165,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 final ClusterStateRequest request = new ClusterStateRequest();
                 request.clear();
                 request.metaData(true);
+                request.routingTable(true);
                 // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
                 ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                     client,
@@ -367,7 +369,14 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             List<Index> leaderIndicesToFollow = new ArrayList<>();
             for (IndexMetaData leaderIndexMetaData : leaderClusterState.getMetaData()) {
                 if (autoFollowPattern.match(leaderIndexMetaData.getIndex().getName())) {
-                    if (followedIndexUUIDs.contains(leaderIndexMetaData.getIndex().getUUID()) == false) {
+                    IndexRoutingTable indexRoutingTable = leaderClusterState.routingTable().index(leaderIndexMetaData.getIndex());
+                    if (indexRoutingTable != null &&
+                        // Leader indices can be in the cluster state, but not all primary shards may be ready yet.
+                        // This checks ensures all primary shards have started, so that index following does not fail.
+                        // If not all primary shards are ready, then the next time the auto follow coordinator runs
+                        // this index will be auto followed.
+                        indexRoutingTable.allPrimaryShardsActive() &&
+                        followedIndexUUIDs.contains(leaderIndexMetaData.getIndex().getUUID()) == false) {
                         // TODO: iterate over the indices in the followerClusterState and check whether a IndexMetaData
                         // has a leader index uuid custom metadata entry that matches with uuid of leaderIndexMetaData variable
                         // If so then handle it differently: not follow it, but just add an entry to
@@ -394,6 +403,13 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             return currentState -> {
                 AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
                 Map<String, List<String>> newFollowedIndexUUIDS = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
+                if (newFollowedIndexUUIDS.containsKey(name) == false) {
+                    // A delete auto follow pattern request can have removed the auto follow pattern while we want to update
+                    // the auto follow metadata with the fact that an index was successfully auto followed. If this
+                    // happens, we can just skip this step.
+                    return currentState;
+                }
+
                 newFollowedIndexUUIDS.compute(name, (key, existingUUIDs) -> {
                     assert existingUUIDs != null;
                     List<String> newUUIDs = new ArrayList<>(existingUUIDs);

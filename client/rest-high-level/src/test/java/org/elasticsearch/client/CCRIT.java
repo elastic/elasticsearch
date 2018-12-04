@@ -29,12 +29,17 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
+import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -46,11 +51,12 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class CCRIT extends ESRestHighLevelClientTestCase {
 
     @Before
-    public void setupRemoteClusterConfig() throws IOException {
+    public void setupRemoteClusterConfig() throws Exception {
         // Configure local cluster as remote cluster:
         // TODO: replace with nodes info highlevel rest client code when it is available:
         final Request request = new Request("GET", "/_nodes");
@@ -64,6 +70,14 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         ClusterUpdateSettingsResponse updateSettingsResponse =
             highLevelClient().cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));
+
+        assertBusy(() -> {
+            Map<?, ?> localConnection = (Map<?, ?>) toMap(client()
+                .performRequest(new Request("GET", "/_remote/info")))
+                .get("local");
+            assertThat(localConnection, notNullValue());
+            assertThat(localConnection.get("connected"), is(true));
+        });
     }
 
     public void testIndexFollowing() throws Exception {
@@ -125,6 +139,53 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         UnfollowRequest unfollowRequest = new UnfollowRequest("follower");
         AcknowledgedResponse unfollowResponse = execute(unfollowRequest, ccrClient::unfollow, ccrClient::unfollowAsync);
         assertThat(unfollowResponse.isAcknowledged(), is(true));
+    }
+
+    public void testAutoFollowing() throws Exception {
+        CcrClient ccrClient = highLevelClient().ccr();
+        PutAutoFollowPatternRequest putAutoFollowPatternRequest =
+            new PutAutoFollowPatternRequest("pattern1", "local", Collections.singletonList("logs-*"));
+        putAutoFollowPatternRequest.setFollowIndexNamePattern("copy-{{leader_index}}");
+        AcknowledgedResponse putAutoFollowPatternResponse =
+            execute(putAutoFollowPatternRequest, ccrClient::putAutoFollowPattern, ccrClient::putAutoFollowPatternAsync);
+        assertThat(putAutoFollowPatternResponse.isAcknowledged(), is(true));
+
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("logs-20200101");
+        createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
+        CreateIndexResponse response = highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        assertThat(response.isAcknowledged(), is(true));
+
+        assertBusy(() -> {
+            assertThat(indexExists("copy-logs-20200101"), is(true));
+            // TODO: replace with HLRC follow stats when available:
+            Map<String, Object> rsp = toMap(client().performRequest(new Request("GET", "/copy-logs-20200101/_ccr/stats")));
+            String index = null;
+            try {
+                index = ObjectPath.eval("indices.0.index", rsp);
+            } catch (Exception e){ }
+            assertThat(index, equalTo("copy-logs-20200101"));
+        });
+
+        GetAutoFollowPatternRequest getAutoFollowPatternRequest =
+            randomBoolean() ? new GetAutoFollowPatternRequest("pattern1") : new GetAutoFollowPatternRequest();
+        GetAutoFollowPatternResponse getAutoFollowPatternResponse =
+            execute(getAutoFollowPatternRequest, ccrClient::getAutoFollowPattern, ccrClient::getAutoFollowPatternAsync);
+        assertThat(getAutoFollowPatternResponse.getPatterns().size(), equalTo(1));
+        GetAutoFollowPatternResponse.Pattern pattern = getAutoFollowPatternResponse.getPatterns().get("pattern1");
+        assertThat(pattern, notNullValue());
+        assertThat(pattern.getRemoteCluster(), equalTo(putAutoFollowPatternRequest.getRemoteCluster()));
+        assertThat(pattern.getLeaderIndexPatterns(), equalTo(putAutoFollowPatternRequest.getLeaderIndexPatterns()));
+        assertThat(pattern.getFollowIndexNamePattern(), equalTo(putAutoFollowPatternRequest.getFollowIndexNamePattern()));
+
+        // Cleanup:
+        final DeleteAutoFollowPatternRequest deleteAutoFollowPatternRequest = new DeleteAutoFollowPatternRequest("pattern1");
+        AcknowledgedResponse deleteAutoFollowPatternResponse =
+            execute(deleteAutoFollowPatternRequest, ccrClient::deleteAutoFollowPattern, ccrClient::deleteAutoFollowPatternAsync);
+        assertThat(deleteAutoFollowPatternResponse.isAcknowledged(), is(true));
+
+        PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("copy-logs-20200101");
+        AcknowledgedResponse pauseFollowResponse = ccrClient.pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+        assertThat(pauseFollowResponse.isAcknowledged(), is(true));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

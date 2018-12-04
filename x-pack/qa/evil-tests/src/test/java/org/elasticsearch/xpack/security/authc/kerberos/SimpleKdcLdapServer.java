@@ -238,13 +238,13 @@ public class SimpleKdcLdapServer {
         if (transport != null && transport.trim().equalsIgnoreCase("tcp")) {
             try (ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(port, 1,
                     InetAddress.getByName("127.0.0.1"))) {
-                return true;
+                return serverSocket.isBound();
             } catch (Exception ex) {
                 return false;
             }
         } else if (transport != null && transport.trim().equalsIgnoreCase("udp")) {
             try (DatagramSocket socket = new DatagramSocket(port, InetAddress.getByName("127.0.0.1"))) {
-                return true;
+                return socket.isBound();
             } catch (Exception ex) {
                 return false;
             }

@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETT
 public class ClusterDeprecationChecksTests extends ESTestCase {
 
     public void testCheckShardLimit() {
-        int shardsPerNode = randomIntBetween(1, 10000);
+        int shardsPerNode = randomIntBetween(2, 10000);
         int nodeCount = randomIntBetween(1, 10);
         int maxShardsInCluster = shardsPerNode * nodeCount;
         int currentOpenShards = maxShardsInCluster + randomIntBetween(0, 100);
@@ -59,7 +59,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         MetaData goodMetaData = MetaData.builder(metaData).put(IndexMetaData.builder("test")
             .settings(settings(Version.CURRENT))
             .numberOfReplicas(0)
-            .numberOfShards(maxShardsInCluster - randomIntBetween(1, 100))).build();
+            .numberOfShards(maxShardsInCluster - randomIntBetween(1, (maxShardsInCluster - 1)))).build();
         ClusterState goodState = ClusterState.builder(ClusterName.DEFAULT)
             .metaData(goodMetaData).nodes(state.nodes()).build();
         issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(goodState));

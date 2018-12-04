@@ -272,8 +272,9 @@ public class IndexResolver {
 
             String name = entry.getKey();
 
-            // skip internal fields
-            if (!name.startsWith("_")) {
+            // Skip internal fields (name starting with underscore and its type reported by field_caps starts with underscore
+            // as well). A meta field named "_version", for example, has the type named "_version".
+            if (false == (name.startsWith("_") && entry.getValue().values().stream().anyMatch(f -> f.getType().startsWith("_")))) {
                 Map<String, FieldCapabilities> types = entry.getValue();
                 // field is mapped differently across indices
                 if (types.size() > 1) {

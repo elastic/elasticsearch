@@ -21,16 +21,16 @@ public class LoggedExec extends Exec {
 
     public LoggedExec() {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ByteArrayOutputStream error = new ByteArrayOutputStream();
         if (getLogger().isInfoEnabled() == false) {
             setStandardOutput(output);
-            setErrorOutput(output);
+            setErrorOutput(error);
             setIgnoreExitValue(true);
             doLast((unused) -> {
                     if (getExecResult().getExitValue() != 0) {
                         try {
-                            for (String line : output.toString("UTF-8").split("\\R")) {
-                                getLogger().error(line);
-                            }
+                            getLogger().error(output.toString("UTF-8"));
+                            getLogger().error(error.toString("UTF-8"));
                         } catch (UnsupportedEncodingException e) {
                             throw new GradleException("Failed to read exec output", e);
                         }
@@ -65,17 +65,17 @@ public class LoggedExec extends Exec {
             return function.apply(action);
         }
         ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ByteArrayOutputStream error = new ByteArrayOutputStream();
         try {
             return function.apply(spec -> {
                 spec.setStandardOutput(output);
-                spec.setErrorOutput(output);
+                spec.setErrorOutput(error);
                 action.execute(spec);
             });
         } catch (Exception e) {
             try {
-                for (String line : output.toString("UTF-8").split("\\R")) {
-                    project.getLogger().error(line);
-                }
+                project.getLogger().error(output.toString("UTF-8"));
+                project.getLogger().error(error.toString("UTF-8"));
             } catch (UnsupportedEncodingException ue) {
                 throw new GradleException("Failed to read exec output", ue);
             }

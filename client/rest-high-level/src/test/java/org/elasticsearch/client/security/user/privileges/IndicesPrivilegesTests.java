@@ -23,6 +23,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 public class IndicesPrivilegesTests extends AbstractXContentTestCase<IndicesPrivileges> {
 
@@ -32,10 +34,11 @@ public class IndicesPrivilegesTests extends AbstractXContentTestCase<IndicesPriv
             .privileges(randomSubsetOf(randomIntBetween(1, 4), Role.IndexPrivilegeName.ARRAY))
             .query(query);
         if (randomBoolean()) {
-            indicesPrivilegesBuilder.grantedFields(generateRandomStringArray(4, 4, true));
-        }
-        if (randomBoolean()) {
-            indicesPrivilegesBuilder.deniedFields(generateRandomStringArray(4, 4, true));
+            final List<String> fields = Arrays.asList(generateRandomStringArray(4, 4, false));
+            indicesPrivilegesBuilder.grantedFields(fields);
+            if (randomBoolean()) {
+                indicesPrivilegesBuilder.deniedFields(randomSubsetOf(fields));
+            }
         }
         return indicesPrivilegesBuilder.build();
     }

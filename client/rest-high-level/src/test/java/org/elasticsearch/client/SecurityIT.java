@@ -36,8 +36,6 @@ import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivilegesTests;
-import org.elasticsearch.client.security.user.privileges.GlobalOperationPrivilege;
-import org.elasticsearch.client.security.user.privileges.GlobalPrivileges;
 import org.elasticsearch.client.security.user.privileges.GlobalPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivilegesTests;
@@ -48,6 +46,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -165,11 +164,10 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
                 .indicesPrivileges(
                         randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom(randomAlphaOfLength(3))))
                 .applicationResourcePrivileges(randomArray(3, ApplicationResourcePrivileges[]::new,
-                        () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3).toLowerCase())))
+                        () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3).toLowerCase(Locale.ROOT))))
                 .runAsPrivilege(randomArray(3, String[]::new, () -> randomAlphaOfLength(3)));
         if (randomBoolean()) {
-            roleBuilder.globalApplicationPrivileges(new GlobalPrivileges(Arrays
-                    .asList(GlobalPrivilegesTests.buildRandomGlobalScopedPrivilege(randomFrom(GlobalPrivileges.CATEGORIES), "manage"))));
+            roleBuilder.globalApplicationPrivileges(GlobalPrivilegesTests.buildRandomManageApplicationPrivilege());
         }
         if (randomBoolean()) {
             final Map<String, Object> metadata = new HashMap<>();

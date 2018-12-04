@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.client.SecurityIT;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.GlobalOperationPrivilege;
@@ -34,6 +33,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest> {
@@ -56,13 +56,13 @@ public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest
         return false;
     }
 
-    private static final Role randomRole(String roleName) {
+    private static Role randomRole(String roleName) {
         final Role.Builder roleBuilder = Role.builder().name(roleName)
                 .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ARRAY))
                 .indicesPrivileges(
                         randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom(randomAlphaOfLength(3))))
                 .applicationResourcePrivileges(randomArray(3, ApplicationResourcePrivileges[]::new,
-                        () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3).toLowerCase())))
+                        () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3).toLowerCase(Locale.ROOT))))
                 .runAsPrivilege(randomArray(3, String[]::new, () -> randomAlphaOfLength(3)));
         if (randomBoolean()) {
             roleBuilder.globalApplicationPrivileges(new GlobalPrivileges(Arrays.asList(

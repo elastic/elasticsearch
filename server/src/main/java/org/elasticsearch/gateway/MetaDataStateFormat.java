@@ -255,58 +255,70 @@ public abstract class MetaDataStateFormat<T> {
      * @return the latest state or <code>null</code> if no state was found.
      */
     public T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws IOException {
-        List<PathAndStateId> files = new ArrayList<>();
-        long maxStateId = -1;
-        if (dataLocations != null) { // select all eligible files first
-            for (Path dataLocation : dataLocations) {
-                final Path stateDir = dataLocation.resolve(STATE_DIR_NAME);
-                // now, iterate over the current versions, and find latest one
-                // we don't check if the stateDir is present since it could be deleted
-                // after the check. Also if there is a _state file and it's not a dir something is really wrong
-                // we don't pass a glob since we need the group part for parsing
-                try (DirectoryStream<Path> paths = Files.newDirectoryStream(stateDir)) {
-                    for (Path stateFile : paths) {
-                        final Matcher matcher = stateFilePattern.matcher(stateFile.getFileName().toString());
-                        if (matcher.matches()) {
-                            final long stateId = Long.parseLong(matcher.group(1));
-                            maxStateId = Math.max(maxStateId, stateId);
-                            PathAndStateId pav = new PathAndStateId(stateFile, stateId);
-                            logger.trace("found state file: {}", pav);
-                            files.add(pav);
+        RETRY_LOOP: while (true) {
+            List<PathAndStateId> files = new ArrayList<>();
+            long maxStateId = -1;
+            if (dataLocations != null) { // select all eligible files first
+                for (Path dataLocation : dataLocations) {
+                    final Path stateDir = dataLocation.resolve(STATE_DIR_NAME);
+                    // now, iterate over the current versions, and find latest one
+                    // we don't check if the stateDir is present since it could be deleted
+                    // after the check. Also if there is a _state file and it's not a dir something is really wrong
+                    // we don't pass a glob since we need the group part for parsing
+                    try (DirectoryStream<Path> paths = Files.newDirectoryStream(stateDir)) {
+                        for (Path stateFile : paths) {
+                            final Matcher matcher = stateFilePattern.matcher(stateFile.getFileName().toString());
+                            if (matcher.matches()) {
+                                final long stateId = Long.parseLong(matcher.group(1));
+                                maxStateId = Math.max(maxStateId, stateId);
+                                PathAndStateId pav = new PathAndStateId(stateFile, stateId);
+                                logger.trace("found state file: {}", pav);
+                                files.add(pav);
+                            }
                         }
+                    } catch (NoSuchFileException | FileNotFoundException ex) {
+                        // no _state directory -- move on
                     }
-                } catch (NoSuchFileException | FileNotFoundException ex) {
-                    // no _state directory -- move on
                 }
             }
-        }
-        // NOTE: we might have multiple version of the latest state if there are multiple data dirs.. for this case
-        //       we iterate only over the ones with the max version.
-        long finalMaxStateId = maxStateId;
-        Collection<PathAndStateId> pathAndStateIds = files
+            // NOTE: we might have multiple version of the latest state if there are multiple data dirs.. for this case
+            //       we iterate only over the ones with the max version.
+            long finalMaxStateId = maxStateId;
+            Collection<PathAndStateId> pathAndStateIds = files
                 .stream()
                 .filter(pathAndStateId -> pathAndStateId.id == finalMaxStateId)
                 .collect(Collectors.toCollection(ArrayList::new));
 
-        final List<Throwable> exceptions = new ArrayList<>();
-        for (PathAndStateId pathAndStateId : pathAndStateIds) {
-            try {
-                T state = read(namedXContentRegistry, pathAndStateId.file);
-                logger.trace("state id [{}] read from [{}]", pathAndStateId.id, pathAndStateId.file.getFileName());
-                return state;
-            } catch (Exception e) {
-                exceptions.add(new IOException("failed to read " + pathAndStateId.toString(), e));
-                logger.debug(() -> new ParameterizedMessage(
+            final List<Throwable> exceptions = new ArrayList<>();
+            for (PathAndStateId pathAndStateId : pathAndStateIds) {
+                try {
+                    T state = read(namedXContentRegistry, pathAndStateId.file);
+                    logger.trace("state id [{}] read from [{}]", pathAndStateId.id, pathAndStateId.file.getFileName());
+                    return state;
+                } catch (NoSuchFileException | FileNotFoundException e) {
+                    // A state file was deleted by a concurrent process so the files list is not correct any longer
+                    // and we have to start over and fetch the list of state files again
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "{}: failed to read [{}] because it was deleted by a concurrent action, retrying...",
+                            pathAndStateId.file.toAbsolutePath(), prefix
+                        ), e
+                    );
+                    continue RETRY_LOOP;
+                } catch (Exception e) {
+                    exceptions.add(new IOException("failed to read " + pathAndStateId.toString(), e));
+                    logger.debug(() -> new ParameterizedMessage(
                         "{}: failed to read [{}], ignoring...", pathAndStateId.file.toAbsolutePath(), prefix), e);
+                }
             }
+            // if we reach this something went wrong
+            ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
+            if (files.size() > 0) {
+                // We have some state files but none of them gave us a usable state
+                throw new IllegalStateException("Could not find a state file to recover from among " + files);
+            }
+            return null;
         }
-        // if we reach this something went wrong
-        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
-        if (files.size() > 0) {
-            // We have some state files but none of them gave us a usable state
-            throw new IllegalStateException("Could not find a state file to recover from among " + files);
-        }
-        return null;
     }
 
     /**

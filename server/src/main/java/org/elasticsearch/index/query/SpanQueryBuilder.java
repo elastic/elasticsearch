@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 
 /**
  * Marker interface for a specific type of {@link QueryBuilder} that allows to build span queries.
@@ -28,24 +28,23 @@ import org.elasticsearch.common.xcontent.XContentParser;
 public interface SpanQueryBuilder extends QueryBuilder {
 
     class SpanQueryBuilderUtil {
+
+        private static final DeprecationLogger DEPRECATION_LOGGER = 
+            new DeprecationLogger(LogManager.getLogger(SpanQueryBuilderUtil.class));
+
         private SpanQueryBuilderUtil() {
             // utility class
         }
 
         /**
-         * Checks boost value of a nested span clause is equal to {@link AbstractQueryBuilder#DEFAULT_BOOST}.
-         *
-         * @param queryName a query name
-         * @param fieldName a field name
-         * @param parser    a parser
+         * Checks boost value of a nested span clause is equal to {@link AbstractQueryBuilder#DEFAULT_BOOST},
+         * and if not issues a deprecation warning
          * @param clause    a span query builder
-         * @throws ParsingException if query boost value isn't equal to {@link AbstractQueryBuilder#DEFAULT_BOOST}
          */
-        static void checkNoBoost(String queryName, String fieldName, XContentParser parser, SpanQueryBuilder clause) {
+        static void checkNoBoost(SpanQueryBuilder clause) {
             try {
                 if (clause.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                    throw new ParsingException(parser.getTokenLocation(), queryName + " [" + fieldName + "] " +
-                        "as a nested span clause can't have non-default boost value [" + clause.boost() + "]");
+                    DEPRECATION_LOGGER.deprecatedAndMaybeLog("span_inner_queries", "setting boost on inner span queries is deprecated!");
                 }
             } catch (UnsupportedOperationException ignored) {
                 // if boost is unsupported it can't have been set

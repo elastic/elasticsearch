@@ -188,7 +188,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertThat(e.getMessage(), containsString("[span_near] query does not support [collect_payloads]"));
     }
 
-    public void testFromJsonWithNonDefaultBoostInInnerQuery() {
+    public void testFromJsonWithNonDefaultBoostInInnerQuery() throws IOException {
         String json =
                 "{\n" +
                 "  \"span_near\" : {\n" +
@@ -220,8 +220,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
                 "  }\n" +
                 "}";
 
-        Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(),
-            equalTo("span_near [clauses] as a nested span clause can't have non-default boost value [2.0]"));
+        parseQuery(json);
+        assertWarnings("setting boost on inner span queries is deprecated!");
     }
 }

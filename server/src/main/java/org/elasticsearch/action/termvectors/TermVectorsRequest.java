@@ -64,7 +64,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  */
 public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(MultiTermVectorsRequest.class));
+        LogManager.getLogger(TermVectorsRequest.class));
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");

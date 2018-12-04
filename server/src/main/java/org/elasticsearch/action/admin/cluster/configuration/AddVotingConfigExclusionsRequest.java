@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.configuration;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,29 +34,29 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * A request to add voting tombstones for certain master-eligible nodes, and wait for these nodes to be removed from the voting
+ * A request to add voting config exclusions for certain master-eligible nodes, and wait for these nodes to be removed from the voting
  * configuration.
  */
-public class AddVotingTombstonesRequest extends MasterNodeRequest<AddVotingTombstonesRequest> {
+public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotingConfigExclusionsRequest> {
     private final String[] nodeDescriptions;
     private final TimeValue timeout;
 
     /**
-     * Construct a request to add voting tombstones for master-eligible nodes matching the given descriptions, and wait for a default 30
-     * seconds for these nodes to be removed from the voting configuration.
+     * Construct a request to add voting config exclusions for master-eligible nodes matching the given descriptions, and wait for a
+     * default 30 seconds for these exclusions to take effect, removing the nodes from the voting configuration.
      * @param nodeDescriptions Descriptions of the nodes to add - see {@link DiscoveryNodes#resolveNodes(String...)}
      */
-    public AddVotingTombstonesRequest(String[] nodeDescriptions) {
+    public AddVotingConfigExclusionsRequest(String[] nodeDescriptions) {
         this(nodeDescriptions, TimeValue.timeValueSeconds(30));
     }
 
     /**
-     * Construct a request to add voting tombstones for master-eligible nodes matching the given descriptions, and wait for these nodes to
-     * be removed from the voting configuration.
-     * @param nodeDescriptions Descriptions of the nodes whose tombstones to add - see {@link DiscoveryNodes#resolveNodes(String...)}.
-     * @param timeout How long to wait for the nodes to be removed from the voting configuration.
+     * Construct a request to add voting config exclusions for master-eligible nodes matching the given descriptions, and wait for these
+     * nodes to be removed from the voting configuration.
+     * @param nodeDescriptions Descriptions of the nodes whose exclusions to add - see {@link DiscoveryNodes#resolveNodes(String...)}.
+     * @param timeout How long to wait for the added exclusions to take effect and be removed from the voting configuration.
      */
-    public AddVotingTombstonesRequest(String[] nodeDescriptions, TimeValue timeout) {
+    public AddVotingConfigExclusionsRequest(String[] nodeDescriptions, TimeValue timeout) {
         if (timeout.compareTo(TimeValue.ZERO) < 0) {
             throw new IllegalArgumentException("timeout [" + timeout + "] must be non-negative");
         }
@@ -64,50 +64,50 @@ public class AddVotingTombstonesRequest extends MasterNodeRequest<AddVotingTombs
         this.timeout = timeout;
     }
 
-    public AddVotingTombstonesRequest(StreamInput in) throws IOException {
+    public AddVotingConfigExclusionsRequest(StreamInput in) throws IOException {
         super(in);
         nodeDescriptions = in.readStringArray();
         timeout = in.readTimeValue();
     }
 
-    Set<VotingTombstone> resolveVotingTombstones(ClusterState currentState) {
+    Set<VotingConfigExclusion> resolveVotingConfigExclusions(ClusterState currentState) {
         final DiscoveryNodes allNodes = currentState.nodes();
-        final Set<VotingTombstone> resolvedNodes = Arrays.stream(allNodes.resolveNodes(nodeDescriptions))
-                .map(allNodes::get).filter(DiscoveryNode::isMasterNode).map(VotingTombstone::new).collect(Collectors.toSet());
+        final Set<VotingConfigExclusion> resolvedNodes = Arrays.stream(allNodes.resolveNodes(nodeDescriptions))
+                .map(allNodes::get).filter(DiscoveryNode::isMasterNode).map(VotingConfigExclusion::new).collect(Collectors.toSet());
 
         if (resolvedNodes.isEmpty()) {
-            throw new IllegalArgumentException("add voting tombstones request for " + Arrays.asList(nodeDescriptions)
+            throw new IllegalArgumentException("add voting config exclusions request for " + Arrays.asList(nodeDescriptions)
                 + " matched no master-eligible nodes");
         }
 
-        resolvedNodes.removeIf(n -> currentState.getVotingTombstones().contains(n));
+        resolvedNodes.removeIf(n -> currentState.getVotingConfigExclusions().contains(n));
         return resolvedNodes;
     }
 
-    Set<VotingTombstone> resolveVotingTombstonesAndCheckMaximum(ClusterState currentState, int maxTombstoneCount,
-                                                                String maximumSettingKey) {
-        final Set<VotingTombstone> resolvedNodes = resolveVotingTombstones(currentState);
+    Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(ClusterState currentState, int maxExclusionsCount,
+                                                                            String maximumSettingKey) {
+        final Set<VotingConfigExclusion> resolvedExclusions = resolveVotingConfigExclusions(currentState);
 
-        final int oldTombstoneCount = currentState.getVotingTombstones().size();
-        final int newTombstoneCount = resolvedNodes.size();
-        if (oldTombstoneCount + newTombstoneCount > maxTombstoneCount) {
-            throw new IllegalArgumentException("add voting tombstones request for " + Arrays.asList(nodeDescriptions)
-                + " would add [" + newTombstoneCount + "] voting tombstones to the existing [" + oldTombstoneCount
-                + "] which would exceed the maximum of [" + maxTombstoneCount + "] set by ["
+        final int oldExclusionsCount = currentState.getVotingConfigExclusions().size();
+        final int newExclusionsCount = resolvedExclusions.size();
+        if (oldExclusionsCount + newExclusionsCount > maxExclusionsCount) {
+            throw new IllegalArgumentException("add voting config exclusions request for " + Arrays.asList(nodeDescriptions)
+                + " would add [" + newExclusionsCount + "] exclusions to the existing [" + oldExclusionsCount
+                + "] which would exceed the maximum of [" + maxExclusionsCount + "] set by ["
                 + maximumSettingKey + "]");
         }
-        return resolvedNodes;
+        return resolvedExclusions;
     }
 
     /**
-     * @return descriptions of the nodes for whom to add tombstones.
+     * @return descriptions of the nodes for whom to add voting config exclusions.
      */
     public String[] getNodeDescriptions() {
         return nodeDescriptions;
     }
 
     /**
-     * @return how long to wait after adding the tombstones for the nodes to be removed from the voting configuration.
+     * @return how long to wait after adding the exclusions for the nodes to be removed from the voting configuration.
      */
     public TimeValue getTimeout() {
         return timeout;
@@ -132,7 +132,7 @@ public class AddVotingTombstonesRequest extends MasterNodeRequest<AddVotingTombs
 
     @Override
     public String toString() {
-        return "AddVotingTombstonesRequest{" +
+        return "AddVotingConfigExclusionsRequest{" +
             "nodeDescriptions=" + Arrays.asList(nodeDescriptions) +
             ", timeout=" + timeout +
             '}';

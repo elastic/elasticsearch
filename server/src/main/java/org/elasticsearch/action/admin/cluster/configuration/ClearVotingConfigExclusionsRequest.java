@@ -27,41 +27,43 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 
 /**
- * A request to clear the voting tombstones from the cluster state, optionally waiting for these nodes to be removed from the cluster first.
+ * A request to clear the voting config exclusions from the cluster state, optionally waiting for these nodes to be removed from the
+ * cluster first.
  */
-public class ClearVotingTombstonesRequest extends MasterNodeRequest<ClearVotingTombstonesRequest> {
+public class ClearVotingConfigExclusionsRequest extends MasterNodeRequest<ClearVotingConfigExclusionsRequest> {
     private boolean waitForRemoval = true;
     private TimeValue timeout = TimeValue.timeValueSeconds(30);
 
     /**
-     * Construct a request to remove all the voting tombstones from the cluster state.
+     * Construct a request to remove all the voting config exclusions from the cluster state.
      */
-    public ClearVotingTombstonesRequest() {
+    public ClearVotingConfigExclusionsRequest() {
     }
 
-    public ClearVotingTombstonesRequest(StreamInput in) throws IOException {
+    public ClearVotingConfigExclusionsRequest(StreamInput in) throws IOException {
         super(in);
         waitForRemoval = in.readBoolean();
         timeout = in.readTimeValue();
     }
 
     /**
-     * @return whether to wait for the tombstoned nodes to be removed from the cluster before removing their tombstones. True by default.
+     * @return whether to wait for the currently excluded nodes to be removed from the cluster before removing their exclusions.
+     * True by default.
      */
     public boolean getWaitForRemoval() {
         return waitForRemoval;
     }
 
     /**
-     * @param waitForRemoval whether to wait for the tombstoned nodes to be removed from the cluster before removing their tombstones. True
-     *                       by default.
+     * @param waitForRemoval whether to wait for the currently excluded nodes to be removed from the cluster before removing their
+     *                       exclusions. True by default.
      */
     public void setWaitForRemoval(boolean waitForRemoval) {
         this.waitForRemoval = waitForRemoval;
     }
 
     /**
-     * @param timeout how long to wait for the tombstoned nodes to be removed if {@link ClearVotingTombstonesRequest#waitForRemoval} is
+     * @param timeout how long to wait for the excluded nodes to be removed if {@link ClearVotingConfigExclusionsRequest#waitForRemoval} is
      *                true. Defaults to 30 seconds.
      */
     public void setTimeout(TimeValue timeout) {
@@ -69,7 +71,7 @@ public class ClearVotingTombstonesRequest extends MasterNodeRequest<ClearVotingT
     }
 
     /**
-     * @return how long to wait for the tombstoned nodes to be removed if {@link ClearVotingTombstonesRequest#waitForRemoval} is
+     * @return how long to wait for the excluded nodes to be removed if {@link ClearVotingConfigExclusionsRequest#waitForRemoval} is
      * true. Defaults to 30 seconds.
      */
     public TimeValue getTimeout() {
@@ -95,7 +97,7 @@ public class ClearVotingTombstonesRequest extends MasterNodeRequest<ClearVotingT
 
     @Override
     public String toString() {
-        return "ClearVotingTombstonesRequest{" +
+        return "ClearVotingConfigExclusionsRequest{" +
             ", waitForRemoval=" + waitForRemoval +
             ", timeout=" + timeout +
             '}';

@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -45,14 +45,15 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class TransportClearVotingTombstonesAction
-    extends TransportMasterNodeAction<ClearVotingTombstonesRequest, ClearVotingTombstonesResponse> {
+public class TransportClearVotingConfigExclusionsAction
+    extends TransportMasterNodeAction<ClearVotingConfigExclusionsRequest, ClearVotingConfigExclusionsResponse> {
 
     @Inject
-    public TransportClearVotingTombstonesAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(ClearVotingTombstonesAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            ClearVotingTombstonesRequest::new, indexNameExpressionResolver);
+    public TransportClearVotingConfigExclusionsAction(TransportService transportService, ClusterService clusterService,
+                                                      ThreadPool threadPool, ActionFilters actionFilters,
+                                                      IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(ClearVotingConfigExclusionsAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            ClearVotingConfigExclusionsRequest::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -61,23 +62,23 @@ public class TransportClearVotingTombstonesAction
     }
 
     @Override
-    protected ClearVotingTombstonesResponse newResponse() {
+    protected ClearVotingConfigExclusionsResponse newResponse() {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
-    protected ClearVotingTombstonesResponse read(StreamInput in) throws IOException {
-        return new ClearVotingTombstonesResponse(in);
+    protected ClearVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
+        return new ClearVotingConfigExclusionsResponse(in);
     }
 
     @Override
-    protected void masterOperation(ClearVotingTombstonesRequest request, ClusterState initialState,
-                                   ActionListener<ClearVotingTombstonesResponse> listener) throws Exception {
+    protected void masterOperation(ClearVotingConfigExclusionsRequest request, ClusterState initialState,
+                                   ActionListener<ClearVotingConfigExclusionsResponse> listener) throws Exception {
 
         final long startTimeMillis = threadPool.relativeTimeInMillis();
 
-        final Predicate<ClusterState> allTombstonedNodesRemoved = newState -> {
-            for (VotingTombstone tombstone : initialState.getVotingTombstones()) {
+        final Predicate<ClusterState> allExclusionsRemoved = newState -> {
+            for (VotingConfigExclusion tombstone : initialState.getVotingConfigExclusions()) {
                 // NB checking for the existence of any node with this persistent ID, because persistent IDs are how votes are counted.
                 if (newState.nodes().nodeExists(tombstone.getNodeId())) {
                     return false;
@@ -86,41 +87,41 @@ public class TransportClearVotingTombstonesAction
             return true;
         };
 
-        if (request.getWaitForRemoval() && allTombstonedNodesRemoved.test(initialState) == false) {
+        if (request.getWaitForRemoval() && allExclusionsRemoved.test(initialState) == false) {
             final ClusterStateObserver clusterStateObserver = new ClusterStateObserver(initialState, clusterService, request.getTimeout(),
                 logger, threadPool.getThreadContext());
 
             clusterStateObserver.waitForNextChange(new Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    submitClearTombstonesTask(request, startTimeMillis, listener);
+                    submitClearVotingConfigExclusionsTask(request, startTimeMillis, listener);
                 }
 
                 @Override
                 public void onClusterServiceClose() {
                     listener.onFailure(new ElasticsearchException("cluster service closed while waiting for removal of nodes "
-                        + initialState.getVotingTombstones()));
+                        + initialState.getVotingConfigExclusions()));
                 }
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     listener.onFailure(new ElasticsearchTimeoutException(
                         "timed out waiting for removal of nodes; if nodes should not be removed, set waitForRemoval to false. "
-                        + initialState.getVotingTombstones()));
+                        + initialState.getVotingConfigExclusions()));
                 }
-            }, allTombstonedNodesRemoved);
+            }, allExclusionsRemoved);
         } else {
-            submitClearTombstonesTask(request, startTimeMillis, listener);
+            submitClearVotingConfigExclusionsTask(request, startTimeMillis, listener);
         }
     }
 
-    private void submitClearTombstonesTask(ClearVotingTombstonesRequest request, long startTimeMillis,
-                                           ActionListener<ClearVotingTombstonesResponse> listener) {
-        clusterService.submitStateUpdateTask("clear-voting-tombstones", new ClusterStateUpdateTask(Priority.URGENT) {
+    private void submitClearVotingConfigExclusionsTask(ClearVotingConfigExclusionsRequest request, long startTimeMillis,
+                                                       ActionListener<ClearVotingConfigExclusionsResponse> listener) {
+        clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final CoordinationMetaData newCoordinationMetaData =
-                        CoordinationMetaData.builder(currentState.coordinationMetaData()).clearVotingTombstones().build();
+                        CoordinationMetaData.builder(currentState.coordinationMetaData()).clearVotingConfigExclusions().build();
                 final MetaData newMetaData = MetaData.builder(currentState.metaData()).
                         coordinationMetaData(newCoordinationMetaData).build();
                 return ClusterState.builder(currentState).metaData(newMetaData).build();
@@ -138,13 +139,13 @@ public class TransportClearVotingTombstonesAction
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new ClearVotingTombstonesResponse());
+                listener.onResponse(new ClearVotingConfigExclusionsResponse());
             }
         });
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ClearVotingTombstonesRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(ClearVotingConfigExclusionsRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

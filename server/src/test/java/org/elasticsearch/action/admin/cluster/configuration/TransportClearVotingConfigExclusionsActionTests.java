@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -62,12 +62,12 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
-public class TransportClearVotingTombstonesActionTests extends ESTestCase {
+public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
     private static ClusterService clusterService;
     private static DiscoveryNode localNode, otherNode1, otherNode2;
-    private static VotingTombstone otherNode1Tombstone, otherNode2Tombstone;
+    private static VotingConfigExclusion otherNode1Exclusion, otherNode2Exclusion;
 
     private TransportService transportService;
 
@@ -76,9 +76,9 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
         threadPool = new TestThreadPool("test", Settings.EMPTY);
         localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
         otherNode1 = new DiscoveryNode("other1", "other1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        otherNode1Tombstone = new VotingTombstone(otherNode1);
+        otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
         otherNode2 = new DiscoveryNode("other2", "other2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        otherNode2Tombstone = new VotingTombstone(otherNode2);
+        otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
         clusterService = createClusterService(threadPool, localNode);
     }
 
@@ -94,7 +94,7 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
         transportService = transport.createTransportService(Settings.EMPTY, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
 
-        new TransportClearVotingTombstonesAction(transportService, clusterService, threadPool, new ActionFilters(emptySet()),
+        new TransportClearVotingConfigExclusionsAction(transportService, clusterService, threadPool, new ActionFilters(emptySet()),
             new IndexNameExpressionResolver()); // registers action
 
         transportService.start();
@@ -105,20 +105,20 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
                 .localNodeId(localNode.getId()).masterNodeId(localNode.getId()));
         builder.metaData(MetaData.builder()
                 .coordinationMetaData(CoordinationMetaData.builder()
-                        .addVotingTombstone(otherNode1Tombstone)
-                        .addVotingTombstone(otherNode2Tombstone)
+                        .addVotingConfigExclusion(otherNode1Exclusion)
+                        .addVotingConfigExclusion(otherNode2Exclusion)
                 .build()));
         setState(clusterService, builder);
     }
 
-    public void testClearsVotingTombstones() throws InterruptedException {
+    public void testClearsVotingConfigExclusions() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<ClearVotingTombstonesResponse> responseHolder = new SetOnce<>();
+        final SetOnce<ClearVotingConfigExclusionsResponse> responseHolder = new SetOnce<>();
 
-        final ClearVotingTombstonesRequest clearVotingTombstonesRequest = new ClearVotingTombstonesRequest();
-        clearVotingTombstonesRequest.setWaitForRemoval(false);
-        transportService.sendRequest(localNode, ClearVotingTombstonesAction.NAME,
-            clearVotingTombstonesRequest,
+        final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
+        clearVotingConfigExclusionsRequest.setWaitForRemoval(false);
+        transportService.sendRequest(localNode, ClearVotingConfigExclusionsAction.NAME,
+            clearVotingConfigExclusionsRequest,
             expectSuccess(r -> {
                 responseHolder.set(r);
                 countDownLatch.countDown();
@@ -127,17 +127,17 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         assertNotNull(responseHolder.get());
-        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), empty());
+        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
     }
 
     public void testTimesOutIfWaitingForNodesThatAreNotRemoved() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final SetOnce<TransportException> responseHolder = new SetOnce<>();
 
-        final ClearVotingTombstonesRequest clearVotingTombstonesRequest = new ClearVotingTombstonesRequest();
-        clearVotingTombstonesRequest.setTimeout(TimeValue.timeValueMillis(100));
-        transportService.sendRequest(localNode, ClearVotingTombstonesAction.NAME,
-            clearVotingTombstonesRequest,
+        final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
+        clearVotingConfigExclusionsRequest.setTimeout(TimeValue.timeValueMillis(100));
+        transportService.sendRequest(localNode, ClearVotingConfigExclusionsAction.NAME,
+            clearVotingConfigExclusionsRequest,
             expectError(e -> {
                 responseHolder.set(e);
                 countDownLatch.countDown();
@@ -145,8 +145,8 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(),
-                containsInAnyOrder(otherNode1Tombstone, otherNode2Tombstone));
+        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
+                containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
         final Throwable rootCause = responseHolder.get().getRootCause();
         assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
         assertThat(rootCause.getMessage(),
@@ -155,10 +155,10 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
 
     public void testSucceedsIfNodesAreRemovedWhileWaiting() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<ClearVotingTombstonesResponse> responseHolder = new SetOnce<>();
+        final SetOnce<ClearVotingConfigExclusionsResponse> responseHolder = new SetOnce<>();
 
-        transportService.sendRequest(localNode, ClearVotingTombstonesAction.NAME,
-            new ClearVotingTombstonesRequest(),
+        transportService.sendRequest(localNode, ClearVotingConfigExclusionsAction.NAME,
+            new ClearVotingConfigExclusionsRequest(),
             expectSuccess(r -> {
                 responseHolder.set(r);
                 countDownLatch.countDown();
@@ -170,26 +170,27 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
         setState(clusterService, builder);
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingTombstones(), empty());
+        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
     }
 
-    private TransportResponseHandler<ClearVotingTombstonesResponse> expectSuccess(Consumer<ClearVotingTombstonesResponse> onResponse) {
+    private TransportResponseHandler<ClearVotingConfigExclusionsResponse> expectSuccess(
+        Consumer<ClearVotingConfigExclusionsResponse> onResponse) {
         return responseHandler(onResponse, e -> {
             throw new AssertionError("unexpected", e);
         });
     }
 
-    private TransportResponseHandler<ClearVotingTombstonesResponse> expectError(Consumer<TransportException> onException) {
+    private TransportResponseHandler<ClearVotingConfigExclusionsResponse> expectError(Consumer<TransportException> onException) {
         return responseHandler(r -> {
             assert false : r;
         }, onException);
     }
 
-    private TransportResponseHandler<ClearVotingTombstonesResponse> responseHandler(Consumer<ClearVotingTombstonesResponse> onResponse,
-                                                                                    Consumer<TransportException> onException) {
-        return new TransportResponseHandler<ClearVotingTombstonesResponse>() {
+    private TransportResponseHandler<ClearVotingConfigExclusionsResponse> responseHandler(
+        Consumer<ClearVotingConfigExclusionsResponse> onResponse, Consumer<TransportException> onException) {
+        return new TransportResponseHandler<ClearVotingConfigExclusionsResponse>() {
             @Override
-            public void handleResponse(ClearVotingTombstonesResponse response) {
+            public void handleResponse(ClearVotingConfigExclusionsResponse response) {
                 onResponse.accept(response);
             }
 
@@ -204,8 +205,8 @@ public class TransportClearVotingTombstonesActionTests extends ESTestCase {
             }
 
             @Override
-            public ClearVotingTombstonesResponse read(StreamInput in) throws IOException {
-                return new ClearVotingTombstonesResponse(in);
+            public ClearVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
+                return new ClearVotingConfigExclusionsResponse(in);
             }
         };
     }

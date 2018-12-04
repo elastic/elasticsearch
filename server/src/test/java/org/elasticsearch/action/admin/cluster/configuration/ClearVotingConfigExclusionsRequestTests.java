@@ -25,17 +25,17 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ClearVotingTombstonesRequestTests extends ESTestCase {
+public class ClearVotingConfigExclusionsRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
-        final ClearVotingTombstonesRequest originalRequest = new ClearVotingTombstonesRequest();
+        final ClearVotingConfigExclusionsRequest originalRequest = new ClearVotingConfigExclusionsRequest();
         if (randomBoolean()) {
             originalRequest.setWaitForRemoval(randomBoolean());
         }
         if (randomBoolean()) {
             originalRequest.setTimeout(TimeValue.timeValueMillis(randomLongBetween(0, 30000)));
         }
-        final ClearVotingTombstonesRequest deserialized
-            = copyWriteable(originalRequest, writableRegistry(), ClearVotingTombstonesRequest::new);
+        final ClearVotingConfigExclusionsRequest deserialized
+            = copyWriteable(originalRequest, writableRegistry(), ClearVotingConfigExclusionsRequest::new);
         assertThat(deserialized.getWaitForRemoval(), equalTo(originalRequest.getWaitForRemoval()));
         assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));
     }

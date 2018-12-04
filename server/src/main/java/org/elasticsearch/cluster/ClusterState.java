@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingTombstone;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -278,8 +278,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return coordinationMetaData().getLastCommittedConfiguration();
     }
 
-    public Set<VotingTombstone> getVotingTombstones() {
-        return coordinationMetaData().getVotingTombstones();
+    public Set<VotingConfigExclusion> getVotingConfigExclusions() {
+        return coordinationMetaData().getVotingConfigExclusions();
     }
 
     // Used for testing and logging to determine how this cluster state was send over the wire
@@ -314,7 +314,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         sb.append(TAB).append(TAB)
                 .append("last_accepted_config: ").append(coordinationMetaData().getLastAcceptedConfiguration()).append("\n");
         sb.append(TAB).append(TAB)
-                .append("voting tombstones: ").append(coordinationMetaData().getVotingTombstones()).append("\n");
+                .append("voting tombstones: ").append(coordinationMetaData().getVotingConfigExclusions()).append("\n");
         for (IndexMetaData indexMetaData : metaData) {
             sb.append(TAB).append(indexMetaData.getIndex());
             sb.append(": v[").append(indexMetaData.getVersion())

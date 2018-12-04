@@ -140,12 +140,10 @@ public class GetWatchResponseTests extends
             );
             actionMap.put(randomAlphaOfLength(10), actionStatus);
         }
-        Map<String, String> headers = randomBoolean() ? new HashMap<>() : null;
-        if (headers != null) {
-            int headerSize = randomIntBetween(1, 5);
-            for (int i = 0; i < headerSize; i++) {
-                headers.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(1, 10));
-            }
+        Map<String, String> headers = new HashMap<>();
+        int headerSize = randomIntBetween(0, 5);
+        for (int i = 0; i < headerSize; i++) {
+            headers.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(1, 10));
         }
         return new WatchStatus(version, state, executionState, lastChecked, lastMetCondition, actionMap, headers);
     }

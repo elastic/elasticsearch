@@ -23,17 +23,15 @@ public class CcrRepositoryManagerIT extends CcrIntegTestCase {
 
     public void testThatRepositoryIsPutAndRemovedWhenRemoteClusterIsUpdated() throws Exception {
         String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
-        assertBusy(() -> {
-            final RepositoriesService repositoriesService =
-                getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
-            try {
-                Repository repository = repositoriesService.repository(leaderClusterRepoName);
-                assertEquals(CcrRepository.TYPE, repository.getMetadata().type());
-                assertEquals(leaderClusterRepoName, repository.getMetadata().name());
-            } catch (RepositoryMissingException e) {
-                fail("need repository");
-            }
-        });
+        final RepositoriesService repositoriesService =
+            getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
+        try {
+            Repository repository = repositoriesService.repository(leaderClusterRepoName);
+            assertEquals(CcrRepository.TYPE, repository.getMetadata().type());
+            assertEquals(leaderClusterRepoName, repository.getMetadata().name());
+        } catch (RepositoryMissingException e) {
+            fail("need repository");
+        }
 
         ClusterUpdateSettingsRequest putFollowerRequest = new ClusterUpdateSettingsRequest();
         String address = getFollowerCluster().getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
@@ -41,36 +39,24 @@ public class CcrRepositoryManagerIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().cluster().updateSettings(putFollowerRequest).actionGet());
 
         String followerCopyRepoName = CcrRepository.NAME_PREFIX + "follower_cluster_copy";
-        assertBusy(() -> {
-            final RepositoriesService repositoriesService =
-                getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
-            try {
-                Repository repository = repositoriesService.repository(followerCopyRepoName);
-                assertEquals(CcrRepository.TYPE, repository.getMetadata().type());
-                assertEquals(followerCopyRepoName, repository.getMetadata().name());
-            } catch (RepositoryMissingException e) {
-                fail("need repository");
-            }
-        });
+        try {
+            Repository repository = repositoriesService.repository(followerCopyRepoName);
+            assertEquals(CcrRepository.TYPE, repository.getMetadata().type());
+            assertEquals(followerCopyRepoName, repository.getMetadata().name());
+        } catch (RepositoryMissingException e) {
+            fail("need repository");
+        }
 
         ClusterUpdateSettingsRequest deleteLeaderRequest = new ClusterUpdateSettingsRequest();
         deleteLeaderRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", ""));
         assertAcked(followerClient().admin().cluster().updateSettings(deleteLeaderRequest).actionGet());
 
-        assertBusy(() -> {
-            final RepositoriesService repositoriesService =
-                getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
-            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(leaderClusterRepoName));
-        });
+        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(leaderClusterRepoName));
 
         ClusterUpdateSettingsRequest deleteFollowerRequest = new ClusterUpdateSettingsRequest();
         deleteFollowerRequest.persistentSettings(Settings.builder().put("cluster.remote.follower_cluster_copy.seeds", ""));
         assertAcked(followerClient().admin().cluster().updateSettings(deleteFollowerRequest).actionGet());
 
-        assertBusy(() -> {
-            final RepositoriesService repositoriesService =
-                getFollowerCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
-            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(followerCopyRepoName));
-        });
+        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(followerCopyRepoName));
     }
 }

@@ -46,7 +46,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -309,18 +308,6 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         Exception exception = expectThrows(IllegalStateException.class, () -> executeTask());
         assertThat(exception.getMessage(), startsWith("alias [alias1] has more than one write index ["));
-    }
-
-    public void testEnableSoftDeletesByDefault() throws Exception {
-        final ClusterState result = executeTask();
-        assertThat(result.metaData().index("test").getSettings().get(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey()), equalTo("true"));
-    }
-
-    public void testDoNotOverrideSoftDeletesSetting() throws Exception {
-        String enabled = Boolean.toString(randomBoolean());
-        reqSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), enabled);
-        final ClusterState result = executeTask();
-        assertThat(result.metaData().index("test").getSettings().get(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey()), equalTo(enabled));
     }
 
     private IndexRoutingTable createIndexRoutingTableWithStartedShards(Index index) {

@@ -347,11 +347,6 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         }
 
         @Override
-        public Query toFilter(QueryShardContext context) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public String queryName() {
             throw new UnsupportedOperationException();
         }

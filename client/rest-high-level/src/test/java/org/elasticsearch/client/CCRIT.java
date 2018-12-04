@@ -39,6 +39,7 @@ import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -148,14 +149,18 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
         assertBusy(() -> {
             assertThat(indexExists("copy-logs-20200101"), is(true));
+            // TODO: replace with HLRC follow stats when available:
+            Map<String, Object> rsp = toMap(client().performRequest(new Request("GET", "/copy-logs-20200101/_ccr/stats")));
+            String index = ObjectPath.eval("indices.0.index", rsp);
+            assertThat(index, equalTo("copy-logs-20200101"));
         });
 
         GetAutoFollowPatternRequest getAutoFollowPatternRequest =
             randomBoolean() ? new GetAutoFollowPatternRequest("pattern1") : new GetAutoFollowPatternRequest();
         GetAutoFollowPatternResponse getAutoFollowPatternResponse =
             execute(getAutoFollowPatternRequest, ccrClient::getAutoFollowPattern, ccrClient::getAutoFollowPatternAsync);
-        assertThat(getAutoFollowPatternResponse.getPatterns().size(), equalTo(1L));
-        GetAutoFollowPatternResponse.Pattern pattern = getAutoFollowPatternResponse.getPatterns().get("patterns1");
+        assertThat(getAutoFollowPatternResponse.getPatterns().size(), equalTo(1));
+        GetAutoFollowPatternResponse.Pattern pattern = getAutoFollowPatternResponse.getPatterns().get("pattern1");
         assertThat(pattern, notNullValue());
         assertThat(pattern.getRemoteCluster(), equalTo(putAutoFollowPatternRequest.getRemoteCluster()));
         assertThat(pattern.getLeaderIndexPatterns(), equalTo(putAutoFollowPatternRequest.getLeaderIndexPatterns()));

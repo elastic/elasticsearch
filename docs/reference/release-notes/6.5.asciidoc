@@ -47,10 +47,62 @@
 [[release-notes-6.5.2]]
 == {es} version 6.5.2
 
-coming[6.5.2]
-
 Also see <<breaking-changes-6.5,Breaking changes in 6.5>>.
 
+[[enhancement-6.5.2]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Handles exists query in composite aggs {pull}35758[#35758]
+
+SQL::
+* SQL: Improve validation of unsupported fields {pull}35675[#35675] (issue: {issue}35673[#35673])
+
+[[bug-6.5.2]]
+[float]
+=== Bug fixes
+
+CCR::
+* [CCR] Only auto follow indices when all primary shards have started {pull}35814[#35814] (issue: {issue}35480[#35480])
+* Avoid NPE in follower stats when no tasks metadata {pull}35802[#35802]
+
+Features/Watcher::
+* Watcher: Only trigger a watch if new or schedule/changed {pull}35908[#35908]
+
+Infra/Build::
+* Build: Fix jdbc jar pom to not include deps {pull}36036[#36036] (issue: {issue}32014[#32014])
+
+Infra/Packaging::
+* Add missing entries to conffiles  {pull}35810[#35810] (issue: {issue}35691[#35691])
+
+Infra/Scripting::
+* Scripting: Actually add joda time back to whitelist {pull}35965[#35965] (issue: {issue}35915[#35915])
+* Scripting: Add back joda to whitelist {pull}35915[#35915] (issue: {issue}35913[#35913])
+
+Machine Learning::
+* [ML] Adjust file structure finder parser config {pull}35935[#35935]
+* [ML] Prevent potential NPE when reading the model memory limit {pull}35827[#35827]
+
+SQL::
+* SQL: IS NULL and IS NOT NULL doesn't behave correctly when used in HAVING clause [OPEN] [ISSUE] {pull}35139[#35139]
+* SQL: Fix issue with wrong data type for scripted Grouping keys {pull}35969[#35969] (issue: {issue}35662[#35662])
+* SQL: Fix translation of math functions to painless {pull}35910[#35910] (issue: {issue}35654[#35654])
+* Build: Fix jdbc jar to include deps {pull}35602[#35602]
+
+Search::
+* Fix analyzed prefix query in query_string {pull}35756[#35756] (issue: {issue}31702[#31702])
+* Add a More Like This query routing requirement check (#29678) {pull}33974[#33974]
+
+Snapshot/Restore::
+* Revert "Use more precise does S3 bucket exist method" {pull}35732[#35732] (issues: {issue}34123[#34123], {issue}35703[#35703], {issue}35731[#35731])
+
+[[regression-6.5.2]]
+[float]
+=== Regressions
+
+Infra/Scripting::
+* [Scripting] Use Number as a return value for BucketAggregationScript {pull}35653[#35653] (issue: {issue}35351[#35351])
 
 [[release-notes-6.5.1]]
 == {es} version 6.5.1

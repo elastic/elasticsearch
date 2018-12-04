@@ -61,11 +61,9 @@ public class UserFunctionIT extends ESRestTestCase {
     private void setUpUsers() throws IOException {
         int usersCount = name.getMethodName().startsWith("testSingle") ? 1 : randomIntBetween(5,  15);
         users = new ArrayList<String>(usersCount);
-        
-        for(int i = 0; i < usersCount; i++) {
-            String randomUserName = randomAlphaOfLengthBetween(1, 15);
-            users.add(randomUserName);
-            createUser(randomUserName, MINIMAL_ACCESS_ROLE);
+        users.addAll(randomUnique(() -> randomAlphaOfLengthBetween(1, 15), usersCount));
+        for (String user : users) {
+            createUser(user, MINIMAL_ACCESS_ROLE);
         }
     }
 

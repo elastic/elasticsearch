@@ -407,6 +407,13 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             return currentState -> {
                 AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
                 Map<String, List<String>> newFollowedIndexUUIDS = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
+                if (newFollowedIndexUUIDS.containsKey(name) == false) {
+                    // A delete auto follow pattern request can have removed the auto follow pattern while we want to update
+                    // the auto follow metadata with the fact that an index was successfully auto followed. If this
+                    // happens, we can just skip this step.
+                    return currentState;
+                }
+
                 newFollowedIndexUUIDS.compute(name, (key, existingUUIDs) -> {
                     assert existingUUIDs != null;
                     List<String> newUUIDs = new ArrayList<>(existingUUIDs);

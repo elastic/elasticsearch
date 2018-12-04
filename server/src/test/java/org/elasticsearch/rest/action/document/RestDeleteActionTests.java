@@ -36,7 +36,7 @@ import java.util.Collections;
 
 import static org.mockito.Mockito.mock;
 
-public class RestTermVectorsActionTests extends ESTestCase {
+public class RestDeleteActionTests extends ESTestCase {
     private RestController controller;
 
     public void setUp() throws Exception {
@@ -45,18 +45,22 @@ public class RestTermVectorsActionTests extends ESTestCase {
             mock(NodeClient.class),
             new NoneCircuitBreakerService(),
             new UsageService());
-        new RestTermVectorsAction(Settings.EMPTY, controller);
+        new RestDeleteAction(Settings.EMPTY, controller);
     }
 
-    public void testDeprecatedEndpoint() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.POST)
-            .withPath("/some_index/some_type/some_id/_termvector")
+    public void testTypeInPath() {
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(Method.DELETE)
+            .withPath("/some_index/some_type/some_id")
             .build();
+        performRequest(deprecatedRequest);
+        assertWarnings(RestDeleteAction.TYPES_DEPRECATION_MESSAGE);
 
-        performRequest(request);
-        assertWarnings("[POST /{index}/{type}/{id}/_termvector] is deprecated! Use" +
-            " [POST /{index}/{type}/{id}/_termvectors] instead.");
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(Method.DELETE)
+            .withPath("/some_index/_doc/some_id")
+            .build();
+        performRequest(validRequest);
     }
 
     private void performRequest(RestRequest request) {

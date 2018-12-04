@@ -35,7 +35,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-public class ControlMsgToProcessWriterTests extends ESTestCase {
+public class AutodetectControlMsgWriterTests extends ESTestCase {
     private LengthEncodedWriter lengthEncodedWriter;
 
     @Before
@@ -44,7 +44,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteFlushControlMessage_GivenAdvanceTime() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 4);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
         FlushJobParams flushJobParams = FlushJobParams.builder().advanceTime("1234567890").build();
 
         writer.writeFlushControlMessage(flushJobParams);
@@ -57,7 +57,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteFlushControlMessage_GivenSkipTime() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 4);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
         FlushJobParams flushJobParams = FlushJobParams.builder().skipTime("1234567890").build();
 
         writer.writeFlushControlMessage(flushJobParams);
@@ -70,7 +70,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteFlushControlMessage_GivenSkipAndAdvanceTime() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 4);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
         FlushJobParams flushJobParams = FlushJobParams.builder().skipTime("1000").advanceTime("2000").build();
 
         writer.writeFlushControlMessage(flushJobParams);
@@ -81,7 +81,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteFlushControlMessage_GivenCalcInterimResultsWithNoTimeParams() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 4);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
         FlushJobParams flushJobParams = FlushJobParams.builder()
                 .calcInterim(true).build();
 
@@ -95,7 +95,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteFlushControlMessage_GivenPlainFlush() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 4);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
         FlushJobParams flushJobParams = FlushJobParams.builder().build();
 
         writer.writeFlushControlMessage(flushJobParams);
@@ -104,7 +104,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteFlushControlMessage_GivenCalcInterimResultsWithTimeParams() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 4);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
         FlushJobParams flushJobParams = FlushJobParams.builder()
                 .calcInterim(true)
                 .forTimeRange(TimeRange.builder().startTime("120").endTime("180").build())
@@ -120,7 +120,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteFlushControlMessage_GivenCalcInterimAndAdvanceTime() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 4);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
         FlushJobParams flushJobParams = FlushJobParams.builder()
                 .calcInterim(true)
                 .forTimeRange(TimeRange.builder().startTime("50").endTime("100").build())
@@ -140,7 +140,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteFlushMessage() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 4);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
         long firstId = Long.parseLong(writer.writeFlushMessage());
         Mockito.reset(lengthEncodedWriter);
 
@@ -163,7 +163,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteResetBucketsMessage() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 4);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
 
         writer.writeResetBucketsMessage(
                 new DataLoadParams(TimeRange.builder().startTime("0").endTime("600").build(), Optional.empty()));
@@ -176,7 +176,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteUpdateModelPlotMessage() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 4);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
 
         writer.writeUpdateModelPlotMessage(new ModelPlotConfig(true, "foo,bar"));
 
@@ -188,7 +188,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteUpdateDetectorRulesMessage() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 4);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
 
         DetectionRule rule1 = new DetectionRule.Builder(createRule(5)).build();
         DetectionRule rule2 = new DetectionRule.Builder(createRule(5)).build();
@@ -206,7 +206,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteUpdateFiltersMessage() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 2);
 
         MlFilter filter1 = MlFilter.builder("filter_1").setItems("a").build();
         MlFilter filter2 = MlFilter.builder("filter_2").setItems("b", "c").build();
@@ -221,7 +221,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteUpdateScheduledEventsMessage() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 2);
 
         ScheduledEvent.Builder event1 = new ScheduledEvent.Builder();
         event1.calendarId("moon");
@@ -255,7 +255,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteUpdateScheduledEventsMessage_GivenEmpty() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 2);
 
         writer.writeUpdateScheduledEventsMessage(Collections.emptyList(), TimeValue.timeValueHours(1));
 
@@ -267,7 +267,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     }
 
     public void testWriteStartBackgroundPersistMessage() throws IOException {
-        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 2);
         writer.writeStartBackgroundPersistMessage();
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
@@ -278,7 +278,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(2);
         inOrder.verify(lengthEncodedWriter).writeField("");
         StringBuilder spaces = new StringBuilder();
-        IntStream.rangeClosed(1, ControlMsgToProcessWriter.FLUSH_SPACES_LENGTH).forEach(i -> spaces.append(' '));
+        IntStream.rangeClosed(1, AutodetectControlMsgWriter.FLUSH_SPACES_LENGTH).forEach(i -> spaces.append(' '));
         inOrder.verify(lengthEncodedWriter).writeField(spaces.toString());
         inOrder.verify(lengthEncodedWriter).flush();
 

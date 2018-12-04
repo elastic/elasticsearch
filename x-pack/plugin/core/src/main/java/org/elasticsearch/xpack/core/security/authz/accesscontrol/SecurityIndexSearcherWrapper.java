@@ -136,7 +136,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                         QueryBuilder queryBuilder = queryShardContext.parseInnerQueryBuilder(parser);
                         verifyRoleQuery(queryBuilder);
                         failIfQueryUsesClient(queryBuilder, queryShardContext);
-                        Query roleQuery = queryShardContext.toFilter(queryBuilder).query();
+                        Query roleQuery = queryShardContext.toQuery(queryBuilder).query();
                         filter.add(roleQuery, SHOULD);
                         if (queryShardContext.getMapperService().hasNested()) {
                             NestedHelper nestedHelper = new NestedHelper(queryShardContext.getMapperService());

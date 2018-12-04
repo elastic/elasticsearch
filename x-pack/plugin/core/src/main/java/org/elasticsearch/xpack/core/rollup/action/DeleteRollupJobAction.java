@@ -52,6 +52,11 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
 
         public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            id = in.readString();
+        }
+
         @Override
         public boolean match(Task task) {
             return task.getDescription().equals(RollupField.NAME + "_" + id);
@@ -59,12 +64,6 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
 
         public String getId() {
             return id;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            id = in.readString();
         }
 
         @Override

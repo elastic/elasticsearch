@@ -29,7 +29,11 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
+import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
@@ -46,6 +50,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class CCRIT extends ESRestHighLevelClientTestCase {
 
@@ -125,6 +130,47 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         UnfollowRequest unfollowRequest = new UnfollowRequest("follower");
         AcknowledgedResponse unfollowResponse = execute(unfollowRequest, ccrClient::unfollow, ccrClient::unfollowAsync);
         assertThat(unfollowResponse.isAcknowledged(), is(true));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35937")
+    public void testAutoFollowing() throws Exception {
+        CcrClient ccrClient = highLevelClient().ccr();
+        PutAutoFollowPatternRequest putAutoFollowPatternRequest =
+            new PutAutoFollowPatternRequest("pattern1", "local", Collections.singletonList("logs-*"));
+        putAutoFollowPatternRequest.setFollowIndexNamePattern("copy-{{leader_index}}");
+        AcknowledgedResponse putAutoFollowPatternResponse =
+            execute(putAutoFollowPatternRequest, ccrClient::putAutoFollowPattern, ccrClient::putAutoFollowPatternAsync);
+        assertThat(putAutoFollowPatternResponse.isAcknowledged(), is(true));
+
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("logs-20200101");
+        createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
+        CreateIndexResponse response = highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        assertThat(response.isAcknowledged(), is(true));
+
+        assertBusy(() -> {
+            assertThat(indexExists("copy-logs-20200101"), is(true));
+        });
+
+        GetAutoFollowPatternRequest getAutoFollowPatternRequest =
+            randomBoolean() ? new GetAutoFollowPatternRequest("pattern1") : new GetAutoFollowPatternRequest();
+        GetAutoFollowPatternResponse getAutoFollowPatternResponse =
+            execute(getAutoFollowPatternRequest, ccrClient::getAutoFollowPattern, ccrClient::getAutoFollowPatternAsync);
+        assertThat(getAutoFollowPatternResponse.getPatterns().size(), equalTo(1L));
+        GetAutoFollowPatternResponse.Pattern pattern = getAutoFollowPatternResponse.getPatterns().get("patterns1");
+        assertThat(pattern, notNullValue());
+        assertThat(pattern.getRemoteCluster(), equalTo(putAutoFollowPatternRequest.getRemoteCluster()));
+        assertThat(pattern.getLeaderIndexPatterns(), equalTo(putAutoFollowPatternRequest.getLeaderIndexPatterns()));
+        assertThat(pattern.getFollowIndexNamePattern(), equalTo(putAutoFollowPatternRequest.getFollowIndexNamePattern()));
+
+        // Cleanup:
+        final DeleteAutoFollowPatternRequest deleteAutoFollowPatternRequest = new DeleteAutoFollowPatternRequest("pattern1");
+        AcknowledgedResponse deleteAutoFollowPatternResponse =
+            execute(deleteAutoFollowPatternRequest, ccrClient::deleteAutoFollowPattern, ccrClient::deleteAutoFollowPatternAsync);
+        assertThat(deleteAutoFollowPatternResponse.isAcknowledged(), is(true));
+
+        PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("copy-logs-20200101");
+        AcknowledgedResponse pauseFollowResponse = ccrClient.pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+        assertThat(pauseFollowResponse.isAcknowledged(), is(true));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

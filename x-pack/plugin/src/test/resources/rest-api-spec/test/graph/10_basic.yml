@@ -16,6 +16,9 @@ setup:
 
 ---
 "Test basic graph explore":
+  - skip:
+      version: " - 6.99.99"
+      reason: "graph endpoints changed in 7.0.0 to not include _xpack in the path but this is not supported in 6.x"
   - do:
       index:
           index:  test_1

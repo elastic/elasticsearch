@@ -39,6 +39,8 @@ import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataResponse;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
@@ -76,6 +78,8 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
+import org.elasticsearch.client.ml.MlInfoRequest;
+import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
@@ -1959,6 +1963,56 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testDeleteExpiredData() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-delete-expired-data";
+        MachineLearningIT.buildJob(jobId);
+       {
+            // tag::delete-expired-data-request
+            DeleteExpiredDataRequest request = new DeleteExpiredDataRequest(); // <1>
+            // end::delete-expired-data-request
+
+            // tag::delete-expired-data-execute
+            DeleteExpiredDataResponse response = client.machineLearning().deleteExpiredData(request, RequestOptions.DEFAULT);
+            // end::delete-expired-data-execute
+
+            // tag::delete-expired-data-response
+            boolean deleted = response.getDeleted(); // <1>
+            // end::delete-expired-data-response
+
+            assertTrue(deleted);
+        }
+        {
+            // tag::delete-expired-data-execute-listener
+            ActionListener<DeleteExpiredDataResponse> listener = new ActionListener<DeleteExpiredDataResponse>() {
+                @Override
+                public void onResponse(DeleteExpiredDataResponse deleteExpiredDataResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-expired-data-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            DeleteExpiredDataRequest deleteExpiredDataRequest = new DeleteExpiredDataRequest();
+
+            // tag::delete-expired-data-execute-async
+            client.machineLearning().deleteExpiredDataAsync(deleteExpiredDataRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-expired-data-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+
     public void testDeleteModelSnapshot() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -2946,6 +3000,55 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-filter-execute-async
             client.machineLearning().deleteFilterAsync(request, RequestOptions.DEFAULT, listener); //<1>
             // end::delete-filter-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetMlInfo() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::get-ml-info-request
+            MlInfoRequest request = new MlInfoRequest(); // <1>
+            // end::get-ml-info-request
+
+            // tag::get-ml-info-execute
+            MlInfoResponse response = client.machineLearning()
+                .getMlInfo(request, RequestOptions.DEFAULT);
+            // end::get-ml-info-execute
+
+            // tag::get-ml-info-response
+            final Map<String, Object> info = response.getInfo();// <1>
+            // end::get-ml-info-response
+            assertTrue(info.containsKey("defaults"));
+            assertTrue(info.containsKey("limits"));
+        }
+        {
+            MlInfoRequest request = new MlInfoRequest();
+
+            // tag::get-ml-info-execute-listener
+            ActionListener<MlInfoResponse> listener = new ActionListener<MlInfoResponse>() {
+                @Override
+                public void onResponse(MlInfoResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-ml-info-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-ml-info-execute-async
+            client.machineLearning()
+                .getMlInfoAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-ml-info-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

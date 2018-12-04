@@ -26,6 +26,8 @@ import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataResponse;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
@@ -63,6 +65,8 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
+import org.elasticsearch.client.ml.MlInfoRequest;
+import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
@@ -225,6 +229,48 @@ public final class MachineLearningClient {
                 GetJobStatsResponse::fromXContent,
                 listener,
                 Collections.emptySet());
+    }
+
+    /**
+     * Deletes expired data from Machine Learning Jobs
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-expired-data.html">ML Delete Expired Data
+     * documentation</a>
+     *
+     * @param request The request to delete expired ML data
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The action response which contains the acknowledgement or the task id depending on whether the action was set to wait for
+     * completion
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public DeleteExpiredDataResponse deleteExpiredData(DeleteExpiredDataRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteExpiredData,
+            options,
+            DeleteExpiredDataResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes expired data from Machine Learning Jobs asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-expired-data.html">ML Delete Expired Data
+     * documentation</a>
+     *
+     * @param request  The request to delete expired ML data
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteExpiredDataAsync(DeleteExpiredDataRequest request, RequestOptions options,
+                               ActionListener<DeleteExpiredDataResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteExpiredData,
+            options,
+            DeleteExpiredDataResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 
     /**
@@ -1710,6 +1756,44 @@ public final class MachineLearningClient {
             MLRequestConverters::deleteFilter,
             options,
             AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets Machine Learning information about default values and limits.
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-info.html">Machine Learning info</a>
+     *
+     * @param request The request of Machine Learning info
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return response info about default values and limits
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public MlInfoResponse getMlInfo(MlInfoRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::mlInfo,
+            options,
+            MlInfoResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets Machine Learning information about default values and limits, asynchronously.
+     * <p>
+     * For additional info
+     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-info.html">Machine Learning info</a>
+     *
+     * @param request The request of Machine Learning info
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getMlInfoAsync(MlInfoRequest request, RequestOptions options, ActionListener<MlInfoResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::mlInfo,
+            options,
+            MlInfoResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

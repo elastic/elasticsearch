@@ -207,8 +207,7 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(null, null);
-            readFrom(in);
+            super(in);
             stopped = in.readBoolean();
         }
 

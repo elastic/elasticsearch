@@ -105,7 +105,7 @@ endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
 
-ifeval::["{release-state}"=="released"]
+ifeval::["{release-state}"!="unreleased"]
 
 [NOTE]
 ==================================================

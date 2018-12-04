@@ -71,13 +71,13 @@ public abstract class TransportTasksAction<
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
-    protected final Supplier<TasksRequest> requestSupplier;
+    protected final Writeable.Reader<TasksRequest> requestSupplier;
     protected final Supplier<TasksResponse> responseSupplier;
 
     protected final String transportNodeAction;
 
     protected TransportTasksAction(String actionName, ClusterService clusterService, TransportService transportService,
-                                   ActionFilters actionFilters, Supplier<TasksRequest> requestSupplier,
+                                   ActionFilters actionFilters, Writeable.Reader<TasksRequest> requestSupplier,
                                    Supplier<TasksResponse> responseSupplier, String nodeExecutor) {
         super(actionName, transportService, actionFilters, requestSupplier);
         this.clusterService = clusterService;
@@ -86,7 +86,7 @@ public abstract class TransportTasksAction<
         this.requestSupplier = requestSupplier;
         this.responseSupplier = responseSupplier;
 
-        transportService.registerRequestHandler(transportNodeAction, NodeTaskRequest::new, nodeExecutor, new NodeTransportHandler());
+        transportService.registerRequestHandler(transportNodeAction, nodeExecutor, NodeTaskRequest::new, new NodeTransportHandler());
     }
 
     @Override
@@ -362,20 +362,9 @@ public abstract class TransportTasksAction<
     private class NodeTaskRequest extends TransportRequest {
         private TasksRequest tasksRequest;
 
-        protected NodeTaskRequest() {
-            super();
-        }
-
-        protected NodeTaskRequest(TasksRequest tasksRequest) {
-            super();
-            this.tasksRequest = tasksRequest;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            tasksRequest = requestSupplier.get();
-            tasksRequest.readFrom(in);
+        protected NodeTaskRequest(StreamInput in) throws IOException {
+            super(in);
+            this.tasksRequest = requestSupplier.read(in);
         }
 
         @Override
@@ -383,6 +372,12 @@ public abstract class TransportTasksAction<
             super.writeTo(out);
             tasksRequest.writeTo(out);
         }
+
+        protected NodeTaskRequest(TasksRequest tasksRequest) {
+            super();
+            this.tasksRequest = tasksRequest;
+        }
+
     }
 
     private class NodeTasksResponse extends TransportResponse {

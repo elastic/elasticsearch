@@ -113,10 +113,10 @@ final class WatcherRequestConverters {
     }
 
     static Request executeWatch(ExecuteWatchRequest executeWatchRequest) throws IOException {
-        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack", "watcher", "watch");
-        builder.addPathPart(executeWatchRequest.getId());   // will ignore if ID is null
-        String endpoint = builder.addPathPart("_execute").build();
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack", "watcher", "watch")
+            .addPathPart(executeWatchRequest.getId())       // will ignore if ID is null
+            .addPathPartAsIs("_execute").build();
 
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);

@@ -225,6 +225,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCancelTasksAction;
+import org.elasticsearch.rest.action.admin.cluster.RestClearVotingTombstonesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterHealthAction;
@@ -254,6 +255,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestRemoteClusterInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
+import org.elasticsearch.rest.action.admin.cluster.RestAddVotingTombstonesAction;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 import org.elasticsearch.rest.action.admin.indices.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
@@ -543,6 +545,8 @@ public class ActionModule extends AbstractModule {
                 catActions.add((AbstractCatAction) a);
             }
         };
+        registerHandler.accept(new RestAddVotingTombstonesAction(settings, restController));
+        registerHandler.accept(new RestClearVotingTombstonesAction(settings, restController));
         registerHandler.accept(new RestMainAction(settings, restController));
         registerHandler.accept(new RestNodesInfoAction(settings, restController, settingsFilter));
         registerHandler.accept(new RestRemoteClusterInfoAction(settings, restController));

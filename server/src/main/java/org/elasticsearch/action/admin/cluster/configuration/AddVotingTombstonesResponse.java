@@ -21,6 +21,8 @@ package org.elasticsearch.action.admin.cluster.configuration;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -28,7 +30,7 @@ import java.io.IOException;
  * A response to {@link AddVotingTombstonesRequest} indicating that voting tombstones have been added for the requested nodes and these
  * nodes have been removed from the voting configuration.
  */
-public class AddVotingTombstonesResponse extends ActionResponse {
+public class AddVotingTombstonesResponse extends ActionResponse implements ToXContentObject {
 
     public AddVotingTombstonesResponse() {
     }
@@ -45,5 +47,10 @@ public class AddVotingTombstonesResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        return builder;
     }
 }

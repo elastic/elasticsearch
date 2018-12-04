@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
@@ -15,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
@@ -33,7 +34,7 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class WatcherIndexTemplateRegistry extends AbstractComponent implements ClusterStateListener {
+public class WatcherIndexTemplateRegistry implements ClusterStateListener {
 
     public static final TemplateConfig TEMPLATE_CONFIG_TRIGGERED_WATCHES = new TemplateConfig(
             WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME, "triggered-watches");
@@ -44,6 +45,8 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
     public static final TemplateConfig[] TEMPLATE_CONFIGS = new TemplateConfig[]{
             TEMPLATE_CONFIG_TRIGGERED_WATCHES, TEMPLATE_CONFIG_WATCH_HISTORY, TEMPLATE_CONFIG_WATCHES
     };
+
+    private static final Logger logger = LogManager.getLogger(WatcherIndexTemplateRegistry.class);
 
     private final Client client;
     private final ThreadPool threadPool;

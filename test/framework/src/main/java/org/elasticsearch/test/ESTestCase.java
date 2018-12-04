@@ -114,7 +114,6 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -992,13 +991,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
     }
 
-    private static boolean useNio;
-
-    @BeforeClass
-    public static void setUseNio() {
-        useNio = randomBoolean();
-    }
-
     private static boolean useZen2;
 
     @BeforeClass
@@ -1011,11 +1003,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static String getTestTransportType() {
-        return useNio ? MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
+        return MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME;
     }
 
     public static Class<? extends Plugin> getTestTransportPlugin() {
-        return useNio ? MockNioTransportPlugin.class : MockTcpTransportPlugin.class;
+        return MockNioTransportPlugin.class;
     }
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();

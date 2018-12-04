@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.ResultCode;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "ActiveDirectorySessionFactoryTests")
 public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryTestCase {
 
     private static final String REALM_NAME = "ad-test";

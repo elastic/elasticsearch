@@ -105,6 +105,36 @@ endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
 
+ifeval::["{release-state}"!="unreleased"]
+
+[NOTE]
+==================================================
+
+An alternative package which contains only features that are available under the
+Apache 2.0 license is also available. To install it, use the following sources list:
+
+ifeval::["{release-state}"=="prerelease"]
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+echo "deb https://artifacts.elastic.co/packages/oss-{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+--------------------------------------------------
+
+endif::[]
+
+ifeval::["{release-state}"!="prerelease"]
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+echo "deb https://artifacts.elastic.co/packages/oss-{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+--------------------------------------------------
+
+endif::[]
+
+==================================================
+
+endif::[]
+
 [[install-deb]]
 ==== Download and install the Debian package manually
 

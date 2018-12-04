@@ -51,6 +51,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -92,8 +95,10 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
     @Before
     public void setupTest() {
         clusterName = randomAlphaOfLength(10);
-        localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
-        otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(), Version.CURRENT);
+        localNode = new DiscoveryNode(
+            "node1", "local", buildNewFakeTransportAddress(), emptyMap(), EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+        otherNode = new DiscoveryNode(
+            "node2", "other", buildNewFakeTransportAddress(), emptyMap(), EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
 
         final MockTransport transport = new MockTransport() {
             @Override
@@ -220,13 +225,114 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         }
     }
 
-    public void testGetsDiscoveredNodes() throws InterruptedException {
+    public void testGetsDiscoveredNodesWithZeroTimeout() throws InterruptedException {
+        setupGetDiscoveredNodesAction();
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        getDiscoveredNodesRequest.setWaitForNodes(2);
+        getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+        assertWaitConditionMet(getDiscoveredNodesRequest);
+    }
+
+    public void testGetsDiscoveredNodesByAddress() throws InterruptedException {
+        setupGetDiscoveredNodesAction();
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        getDiscoveredNodesRequest.setRequiredNodes(Arrays.asList(localNode.getAddress().toString(), otherNode.getAddress().toString()));
+        getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+        assertWaitConditionMet(getDiscoveredNodesRequest);
+    }
+
+    public void testGetsDiscoveredNodesByName() throws InterruptedException {
+        setupGetDiscoveredNodesAction();
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        getDiscoveredNodesRequest.setRequiredNodes(Arrays.asList(localNode.getName(), otherNode.getName()));
+        getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+        assertWaitConditionMet(getDiscoveredNodesRequest);
+    }
+
+    public void testGetsDiscoveredNodesByIP() throws InterruptedException {
+        setupGetDiscoveredNodesAction();
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        String ip = localNode.getAddress().getAddress();
+        getDiscoveredNodesRequest.setRequiredNodes(Collections.singletonList(ip));
+        getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+        assertWaitConditionFailedOnDuplicate(getDiscoveredNodesRequest, '[' + ip + "] matches [");
+    }
+
+    public void testGetsDiscoveredNodesDuplicateName() throws InterruptedException {
+        setupGetDiscoveredNodesAction();
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        String name = localNode.getName();
+        getDiscoveredNodesRequest.setRequiredNodes(Arrays.asList(name, name));
+        getDiscoveredNodesRequest.setWaitForNodes(1);
+        getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+        assertWaitConditionFailedOnDuplicate(getDiscoveredNodesRequest, "[" + localNode + "] matches [" + name + ", " + name + ']');
+    }
+
+    public void testGetsDiscoveredNodesWithDuplicateMatchNameAndAddress() throws InterruptedException {
+        setupGetDiscoveredNodesAction();
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        getDiscoveredNodesRequest.setRequiredNodes(Arrays.asList(localNode.getAddress().toString(), localNode.getName()));
+        getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+        assertWaitConditionFailedOnDuplicate(getDiscoveredNodesRequest, "[" + localNode + "] matches [");
+    }
+
+    public void testGetsDiscoveredNodesTimeoutOnMissing() throws InterruptedException {
+        setupGetDiscoveredNodesAction();
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        getDiscoveredNodesRequest.setRequiredNodes(Arrays.asList(localNode.getAddress().toString(), "_missing"));
+        getDiscoveredNodesRequest.setWaitForNodes(1);
+        getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+        transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+            @Override
+            public void handleResponse(GetDiscoveredNodesResponse response) {
+                throw new AssertionError("should not be called");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                assertThat(exp.getRootCause(), instanceOf(ElasticsearchTimeoutException.class));
+                latch.countDown();
+            }
+        });
+
+        latch.await(10L, TimeUnit.SECONDS);
+    }
+
+    public void testThrowsExceptionIfDuplicateDiscoveredLater() throws InterruptedException {
         new TransportGetDiscoveredNodesAction(Settings.EMPTY, EMPTY_FILTERS, transportService, coordinator); // registers action
         transportService.start();
         transportService.acceptIncomingRequests();
         coordinator.start();
         coordinator.startInitialJoin();
 
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        final String ip = localNode.getAddress().getAddress();
+        getDiscoveredNodesRequest.setRequiredNodes(Collections.singletonList(ip));
+        getDiscoveredNodesRequest.setWaitForNodes(2);
+
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+            @Override
+            public void handleResponse(GetDiscoveredNodesResponse response) {
+                throw new AssertionError("should not be called");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                Throwable t = exp.getRootCause();
+                assertThat(t, instanceOf(IllegalArgumentException.class));
+                assertThat(t.getMessage(), startsWith('[' + ip + "] matches ["));
+                countDownLatch.countDown();
+            }
+        });
+
+        executeRequestPeersAction();
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+    }
+
+    private void executeRequestPeersAction() {
         threadPool.generic().execute(() ->
             transportService.sendRequest(localNode, REQUEST_PEERS_ACTION_NAME, new PeersRequest(otherNode, emptyList()),
                 new TransportResponseHandler<PeersResponse>() {
@@ -248,47 +354,59 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
                         return Names.SAME;
                     }
                 }));
+    }
 
-        {
-            final CountDownLatch countDownLatch = new CountDownLatch(1);
-            final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-            getDiscoveredNodesRequest.setWaitForNodes(2);
-            transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
-                @Override
-                public void handleResponse(GetDiscoveredNodesResponse response) {
-                    assertThat(response.getNodes(), containsInAnyOrder(localNode, otherNode));
-                    countDownLatch.countDown();
-                }
+    private void setupGetDiscoveredNodesAction() throws InterruptedException {
+        new TransportGetDiscoveredNodesAction(Settings.EMPTY, EMPTY_FILTERS, transportService, coordinator); // registers action
+        transportService.start();
+        transportService.acceptIncomingRequests();
+        coordinator.start();
+        coordinator.startInitialJoin();
 
-                @Override
-                public void handleException(TransportException exp) {
-                    throw new AssertionError("should not be called", exp);
-                }
-            });
+        executeRequestPeersAction();
 
-            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
-        }
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        getDiscoveredNodesRequest.setWaitForNodes(2);
+        assertWaitConditionMet(getDiscoveredNodesRequest);
+    }
 
-        {
-            final CountDownLatch countDownLatch = new CountDownLatch(1);
-            final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-            getDiscoveredNodesRequest.setWaitForNodes(2);
-            getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
-            transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
-                @Override
-                public void handleResponse(GetDiscoveredNodesResponse response) {
-                    assertThat(response.getNodes(), containsInAnyOrder(localNode, otherNode));
-                    countDownLatch.countDown();
-                }
+    private void assertWaitConditionMet(GetDiscoveredNodesRequest getDiscoveredNodesRequest) throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+            @Override
+            public void handleResponse(GetDiscoveredNodesResponse response) {
+                assertThat(response.getNodes(), containsInAnyOrder(localNode, otherNode));
+                countDownLatch.countDown();
+            }
 
-                @Override
-                public void handleException(TransportException exp) {
-                    throw new AssertionError("should not be called", exp);
-                }
-            });
+            @Override
+            public void handleException(TransportException exp) {
+                throw new AssertionError("should not be called", exp);
+            }
+        });
 
-            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
-        }
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+    }
+
+    private void assertWaitConditionFailedOnDuplicate(GetDiscoveredNodesRequest getDiscoveredNodesRequest, String message)
+        throws InterruptedException {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+            @Override
+            public void handleResponse(GetDiscoveredNodesResponse response) {
+                throw new AssertionError("should not be called");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                Throwable t = exp.getRootCause();
+                assertThat(t, instanceOf(IllegalArgumentException.class));
+                assertThat(t.getMessage(), startsWith(message));
+                countDownLatch.countDown();
+            }
+        });
+
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
     }
 
     private abstract class ResponseHandler implements TransportResponseHandler<GetDiscoveredNodesResponse> {

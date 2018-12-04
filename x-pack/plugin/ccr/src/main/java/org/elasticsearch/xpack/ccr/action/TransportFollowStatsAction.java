@@ -84,6 +84,10 @@ public class TransportFollowStatsAction extends TransportTasksAction<
     protected void processTasks(final FollowStatsAction.StatsRequest request, final Consumer<ShardFollowNodeTask> operation) {
         final ClusterState state = clusterService.state();
         final PersistentTasksCustomMetaData persistentTasksMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        if (persistentTasksMetaData == null) {
+            return;
+        }
+
         final Set<String> followerIndices = persistentTasksMetaData.tasks().stream()
             .filter(persistentTask -> persistentTask.getTaskName().equals(ShardFollowTask.NAME))
             .map(persistentTask -> {

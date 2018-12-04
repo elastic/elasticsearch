@@ -191,6 +191,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     static class TestTasksRequest extends BaseTasksRequest<TestTasksRequest> {
 
+        TestTasksRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        TestTasksRequest() {}
     }
 
     static class TestTasksResponse extends BaseTasksResponse {

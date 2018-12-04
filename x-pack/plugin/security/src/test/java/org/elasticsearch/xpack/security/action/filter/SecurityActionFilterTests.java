@@ -167,6 +167,12 @@ public class SecurityActionFilterTests extends ESTestCase {
             callback.onResponse(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
             return Void.TYPE;
         }).when(authcService).authenticate(eq(action), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
+        doAnswer((i) -> {
+            ActionListener<Void> callback = (ActionListener<Void>) i.getArguments()[3];
+            callback.onResponse(null);
+            return Void.TYPE;
+        }).when(authzService)
+            .authorize(any(Authentication.class), any(String.class), any(TransportRequest.class), any(ActionListener.class));
 
         filter.apply(task, action, request, listener, chain);
 

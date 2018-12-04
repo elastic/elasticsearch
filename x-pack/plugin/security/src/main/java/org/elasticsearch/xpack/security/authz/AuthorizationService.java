@@ -155,9 +155,10 @@ public class AuthorizationService {
         } else {
             final String finalAuditId = auditId;
             final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(
-                authorizationInfo ->
-                    maybeAuthorizeRunAs(authentication, action, unwrappedRequest, finalAuditId, authorizationInfo, listener),
-                listener::onFailure), threadContext);
+                authorizationInfo -> {
+                    putTransientIfNonExisting("_authz_info", authorizationInfo); // TODO remove this hack
+                    maybeAuthorizeRunAs(authentication, action, unwrappedRequest, finalAuditId, authorizationInfo, listener);
+                }, listener::onFailure), threadContext);
             getAuthorizationEngine(authentication).resolveAuthorizationInfo(authentication, unwrappedRequest, action, authzInfoListener);
         }
     }

@@ -22,6 +22,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,6 +33,8 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+
+import javax.net.ServerSocketFactory;
 
 /**
  * Utility wrapper around Apache {@link SimpleKdcServer} backed by Unboundid
@@ -129,6 +134,14 @@ public class SimpleKdcLdapServer {
         simpleKdc.setKdcRealm(realm);
         if (kdcPort == 0) {
             kdcPort = NetworkUtil.getServerPort();
+            int tries = 0;
+            while (isPortAvailable(kdcPort, transport) == false) {
+                if (tries > 100) {
+                    throw new IllegalArgumentException("Could not find available port for KDC server");
+                }
+                kdcPort = NetworkUtil.getServerPort();
+                tries++;
+            }
         }
         if (transport != null) {
             if (transport.trim().equals("TCP")) {
@@ -221,4 +234,21 @@ public class SimpleKdcLdapServer {
         logger.info("SimpleKdcServer stoppped.");
     }
 
+    private boolean isPortAvailable(int port, String transport) {
+        if (transport != null && transport.trim().equalsIgnoreCase("tcp")) {
+            try (ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(port, 1,
+                    InetAddress.getByName("127.0.0.1"))) {
+                return true;
+            } catch (Exception ex) {
+                return false;
+            }
+        } else if (transport != null && transport.trim().equalsIgnoreCase("udp")) {
+            try (DatagramSocket socket = new DatagramSocket(port, InetAddress.getByName("127.0.0.1"))) {
+                return true;
+            } catch (Exception ex) {
+                return false;
+            }
+        }
+        return false;
+    }
 }

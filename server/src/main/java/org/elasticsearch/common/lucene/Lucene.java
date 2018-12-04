@@ -489,7 +489,7 @@ public class Lucene {
         }
     }
 
-    private static void writeSortValue(StreamOutput out, Object field) throws IOException {
+    public static void writeSortValue(StreamOutput out, Object field) throws IOException {
         if (field == null) {
             out.writeByte((byte) 0);
         } else {

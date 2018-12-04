@@ -51,6 +51,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -529,7 +530,39 @@ public class LuceneTests extends ESTestCase {
         assertArrayEquals(expectedSortFields, deserialized);
     }
 
-    private static Tuple<SortField, SortField> randomSortField() {
+    public void testSortValueSerialization() throws IOException {
+        Object sortValue = randomSortValue();
+        Object deserialized = copyInstance(sortValue, EMPTY_REGISTRY, Lucene::writeSortValue, Lucene::readSortValue,
+            VersionUtils.randomVersion(random()));
+        assertEquals(sortValue, deserialized);
+    }
+
+    public static Object randomSortValue() {
+        switch(randomIntBetween(0, 8)) {
+            case 0:
+                return randomAlphaOfLengthBetween(3, 10);
+            case 1:
+                return randomInt();
+            case 2:
+                return randomLong();
+            case 3:
+                return randomFloat();
+            case 4:
+                return randomDouble();
+            case 5:
+                return randomByte();
+            case 6:
+                return randomShort();
+            case 7:
+                return randomBoolean();
+            case 8:
+                return new BytesRef(randomAlphaOfLengthBetween(3, 10));
+            default:
+                throw new UnsupportedOperationException();
+        }
+    }
+
+    public static Tuple<SortField, SortField> randomSortField() {
         switch(randomIntBetween(0, 2)) {
             case 0:
                 return randomSortFieldCustomComparatorSource();

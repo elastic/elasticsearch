@@ -16,27 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle;
 
-public enum Distribution {
+package org.elasticsearch.tasks;
 
-    INTEG_TEST("integ-test", "zip"),
-    ZIP("elasticsearch", "zip"),
-    ZIP_OSS("elasticsearch-oss", "zip");
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.ESTestCase;
 
-    private final String fileName;
-    private final String fileExtension;
+import java.util.Iterator;
 
-    Distribution(String name, String fileExtension) {
-        this.fileName = name;
-        this.fileExtension = fileExtension;
-    }
-
-    public String getFileName() {
-        return fileName;
-    }
-
-    public String getFileExtension() {
-        return fileExtension;
+/**
+ * Makes sure that tasks that attempt to store themselves on completion retry if
+ * they don't succeed at first.
+ */
+public class TaskResultsServiceTests extends ESTestCase {
+    public void testRetryTotalTime() {
+        Iterator<TimeValue> times = TaskResultsService.STORE_BACKOFF_POLICY.iterator();
+        long total = 0;
+        while (times.hasNext()) {
+            total += times.next().millis();
+        }
+        assertEquals(600000L, total);
     }
 }

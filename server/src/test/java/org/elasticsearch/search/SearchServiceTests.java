@@ -21,12 +21,14 @@ package org.elasticsearch.search;
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -76,6 +78,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -89,6 +92,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -418,6 +422,51 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    /**
+     * test that creating more than the allowed number of scroll contexts throws an exception
+     */
+    public void testMaxOpenScrollContexts() throws RuntimeException, IOException {
+        createIndex("index");
+        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder()
+                    .put(SearchService.MAX_OPEN_SCROLL_CONTEXT.getKey(), 500))
+            .get();
+        try {
+
+            LinkedList<String> clearScrollIds = new LinkedList<>();
+
+            for (int i = 0; i < 500; i++) {
+                SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
+
+                if (randomInt(4) == 0) clearScrollIds.addLast(searchResponse.getScrollId());
+            }
+
+            ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+            clearScrollRequest.setScrollIds(clearScrollIds);
+            client().clearScroll(clearScrollRequest);
+
+            for (int i = 0; i < clearScrollIds.size(); i++) {
+                client().prepareSearch("index").setSize(1).setScroll("1m").get();
+            }
+            ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+                () -> client().prepareSearch("index").setSize(1).setScroll("1m").get());
+            assertThat(ex.getDetailedMessage(), containsString(
+                "Trying to create too many scroll contexts. Must be less than or equal to: [500]. " +
+                    "This limit can be set by changing the [search.max_open_scroll_context] setting."
+                )
+            );
+        } finally {
+            client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .putNull(SearchService.MAX_OPEN_SCROLL_CONTEXT.getKey()))
+                .get();
+        }
+    }
+
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<QuerySpec<?>> getQueries() {
@@ -470,6 +519,22 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         @Override
         public String getWriteableName() {
             return null;
+        }
+    }
+
+    public static class ShardScrollRequestTest extends ShardSearchLocalRequest {
+        private Scroll scroll;
+
+        ShardScrollRequestTest(ShardId shardId) {
+            super(shardId, 1, SearchType.DEFAULT, new SearchSourceBuilder(),
+                new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, true, null, null);
+
+            this.scroll = new Scroll(TimeValue.timeValueMinutes(1));
+        }
+
+        @Override
+        public Scroll scroll() {
+            return this.scroll;
         }
     }
 

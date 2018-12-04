@@ -268,3 +268,22 @@ rewrite any prefix query on the field to a a single term query that matches the 
 
 Setting a negative `boost` in a query is deprecated and will throw an error in the next version.
 To deboost a specific query you can use a `boost` comprise between 0 and 1.
+
+[float]
+==== Limit the number of open scroll contexts
+
+The number of scroll contexts allowed per node will be limited to 500 by default in the next major
+version. Open scroll contexts are unlimited by default in this version, you can change the dynamic
+cluster setting `search.max_open_scroll_context` to force a limit. If the limit is unchanged, a
+deprecation warning will be printed if the number of open scroll context is greater than 500 (the
+default limit in the next major version).
+
+[float]
+==== The filter context is deprecated
+
+ The `filter` context is deprecated in Elasticsearch's query builders,
+the distinction between queries and filters is decided in Lucene depending
+on whether queries need to access score or not. As a result `bool` queries with
+`should` clauses that don't need to access the score will issue a deprecation
+warning when they automatically set `minimum_should_match` to 1.
+This behavior will be removed in the next major version.

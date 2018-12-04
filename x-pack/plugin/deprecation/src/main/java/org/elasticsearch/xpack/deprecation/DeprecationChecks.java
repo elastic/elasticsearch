@@ -37,19 +37,13 @@ public class DeprecationChecks {
 
     static List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            // STUB
+            NodeDeprecationChecks::azureRepositoryChanges,
+            NodeDeprecationChecks::gcsRepositoryChanges
         ));
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            IndexDeprecationChecks::allMetaFieldIsDisabledByDefaultCheck,
-            IndexDeprecationChecks::baseSimilarityDefinedCheck,
-            IndexDeprecationChecks::coercionCheck,
-            IndexDeprecationChecks::dynamicTemplateWithMatchMappingTypeCheck,
-            IndexDeprecationChecks::includeInAllCheck,
-            IndexDeprecationChecks::indexSharedFileSystemCheck,
-            IndexDeprecationChecks::indexStoreTypeCheck,
-            IndexDeprecationChecks::storeThrottleSettingsCheck,
+            IndexDeprecationChecks::oldIndicesCheck,
             IndexDeprecationChecks::delimitedPayloadFilterCheck));
 
     /**

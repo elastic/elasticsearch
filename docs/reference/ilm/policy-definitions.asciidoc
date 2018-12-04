@@ -81,7 +81,7 @@ beta[]
 The current phase definition, of an index's policy being executed, is stored
 in the index's metadata. The phase and its actions are compiled into a series
 of discrete steps that are executed. Since some {ILM} actions are more complex
-and involve multiple actions against an index, each of these are done in their
+and involve multiple operations against an index, each of these operations are
 own step. This provides better visibility into the execution of the phases. The
 <<ilm-explain-lifecycle,Explain Lifecycle API>> exposes this information to us
 to see which step our index is either to execute next, or is currently

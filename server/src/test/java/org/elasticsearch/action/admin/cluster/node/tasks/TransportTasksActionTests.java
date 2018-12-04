@@ -245,7 +245,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             return new TestTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
         }
 
-     }
+    }
 
     private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch) throws InterruptedException {
         return startBlockingTestNodesAction(checkLatch, new NodesRequest("Test Request"));

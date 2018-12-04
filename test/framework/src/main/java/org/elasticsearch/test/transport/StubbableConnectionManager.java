@@ -52,7 +52,7 @@ public class StubbableConnectionManager extends ConnectionManager {
         return getConnectionBehaviors.put(transportAddress, connectBehavior) == null;
     }
 
-    public boolean setDefaultConnectBehavior(GetConnectionBehavior behavior) {
+    public boolean setDefaultGetConnectionBehavior(GetConnectionBehavior behavior) {
         GetConnectionBehavior prior = defaultGetConnectionBehavior;
         defaultGetConnectionBehavior = behavior;
         return prior == null;

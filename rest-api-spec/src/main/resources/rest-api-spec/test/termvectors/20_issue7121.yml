@@ -1,8 +1,10 @@
-"Term vector API should return 'found: false' for docs between index and refresh":
+setup:
   - skip:
       version: " - 6.99.99"
       reason: types are required in requests before 7.0.0
 
+---
+"Term vector API should return 'found: false' for docs between index and refresh":
   - do:
       indices.create:
           index: testidx

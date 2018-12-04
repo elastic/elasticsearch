@@ -79,7 +79,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         // update the routing (request#index here is possibly an alias or a parent)
         request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
-        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
+        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
         }
     }
